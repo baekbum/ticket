@@ -4,3 +4,15 @@ server:
 spring:
   application:
     name: auth-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ticket
+    username: postgres
+    password: hsck2301
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+  tokenValidityInMilliseconds: 3600000
