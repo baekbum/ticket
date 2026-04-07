@@ -1,3 +1,1 @@
 rootProject.name = 'ticket'
-
-include 'auth-service', 'user-service', 'common'

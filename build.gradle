@@ -1,12 +1,12 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.1'
+	id 'org.springframework.boot' version '4.0.5'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
-// 루트 프로젝트는 빌드 결과물을 생성하지 않음
+// 루트 프로젝트 자체는 빌드 결과물(jar)을 생성하지 않도록 설정
 bootJar { enabled = false }
-jar { enabled = false } // 루트는 코드가 없으므로 보통 false로 둡니다.
+jar { enabled = true }
 
 subprojects {
 	apply plugin: 'java'
@@ -32,9 +32,19 @@ subprojects {
 		mavenCentral()
 	}
 
-	// ⭐ 부모의 dependencies 블록은 완전히 비워둡니다.
-	// 각 모듈(auth-service 등)의 build.gradle에서 필요한 것만 직접 적습니다.
 	dependencies {
+		// 모든 하위 모듈(auth, order, waiting)이 공통으로 사용할 디펜던시
+		implementation 'org.springframework.boot:spring-boot-starter-actuator'
+		implementation 'org.springframework.boot:spring-boot-starter-validation'
+		implementation 'org.springframework.boot:spring-boot-starter-web' // webmvc 포함
+
+		developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+		compileOnly 'org.projectlombok:lombok'
+		annotationProcessor 'org.projectlombok:lombok'
+
+		testImplementation 'org.springframework.boot:spring-boot-starter-test'
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	}
 
 	tasks.named('test') {
