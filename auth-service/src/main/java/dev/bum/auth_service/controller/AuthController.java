@@ -1,6 +1,6 @@
 package dev.bum.auth_service.controller;
 
-import dev.bum.auth_service.dto.TokenDto;
+import dev.bum.common.dto.TokenDto;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.auth_service.vo.LoginInfo;
 import jakarta.validation.Valid;

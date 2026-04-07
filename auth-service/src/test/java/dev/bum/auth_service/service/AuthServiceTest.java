@@ -1,11 +1,11 @@
 package dev.bum.auth_service.service;
 
-import dev.bum.auth_service.dto.TokenDto;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
-import dev.bum.auth_service.security.JwtTokenProvider;
 import dev.bum.auth_service.vo.LoginInfo;
+import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

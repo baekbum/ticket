@@ -3,7 +3,7 @@ package dev.bum.auth_service;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "dev.bum")
 public class AuthServiceApplication {
 
 	public static void main(String[] args) {

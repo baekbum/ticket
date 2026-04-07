@@ -1,6 +1,5 @@
-package dev.bum.auth_service.security;
+package dev.bum.common.jwt;
 
-import dev.bum.auth_service.dto.TokenDto;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +40,7 @@ public class JwtTokenProvider {
     }
 
     // 1. 토큰 생성
-    public TokenDto createToken(String userId, String role) {
+    public dev.bum.common.dto.TokenDto createToken(String userId, String role) {
         Claims claims = Jwts.claims().setSubject(userId);
         claims.put("auth", role); // 권한 정보 추가
 
@@ -67,7 +66,7 @@ public class JwtTokenProvider {
         log.info("accessToken : {}", accessToken);
         log.info("refreshToken : {}", refreshToken);
 
-        return new TokenDto(accessToken, refreshToken);
+        return new dev.bum.common.dto.TokenDto(accessToken, refreshToken);
     }
 
     // 2. 토큰에서 인증 정보 조회 (SecurityContext에 저장하기 위함)

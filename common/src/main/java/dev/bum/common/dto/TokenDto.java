@@ -1,4 +1,4 @@
-package dev.bum.auth_service.dto;
+package dev.bum.common.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
