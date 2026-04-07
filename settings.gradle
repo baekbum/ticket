@@ -1,3 +1,4 @@
 rootProject.name = 'ticket'
 
 include 'auth-service'
+include 'user-service'
