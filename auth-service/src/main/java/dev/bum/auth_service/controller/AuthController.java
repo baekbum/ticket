@@ -1,6 +1,6 @@
 package dev.bum.auth_service.controller;
 
-import dev.bum.auth_service.dto.AuthDto;
+import dev.bum.auth_service.dto.TokenDto;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.auth_service.vo.LoginInfo;
 import jakarta.validation.Valid;
@@ -19,8 +19,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthDto> login(@Valid @RequestBody LoginInfo info) {
-        String token = authService.LoginAndCreateToken(info);
-        return ResponseEntity.ok(new AuthDto(token));
+    public ResponseEntity<TokenDto> login(@Valid @RequestBody LoginInfo info) {
+        return ResponseEntity.ok(authService.LoginAndCreateToken(info));
     }
 }

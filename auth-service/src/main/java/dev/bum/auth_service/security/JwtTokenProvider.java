@@ -1,5 +1,6 @@
 package dev.bum.auth_service.security;
 
+import dev.bum.auth_service.dto.TokenDto;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -22,34 +23,51 @@ import java.util.stream.Collectors;
 public class JwtTokenProvider {
 
     private final Key key;
-    private final long tokenValidityInMilliseconds;
+    private final long accessTokenValidityInMilliseconds;
+    private final long refreshTokenValidityInMilliseconds;
 
     // 생성자에서 주입받아 처리하면 final 키워드를 유지할 수 있습니다.
     public JwtTokenProvider(
             @Value("${token.secret}") String secret,
-            @Value("${token.tokenValidityInMilliseconds}") long validity) {
+            @Value("${token.accessTokenValidityInMilliseconds}") long accessValidity,
+            @Value("${token.refreshTokenValidityInMilliseconds}") long refreshValidity) {
 
         log.info("token.secret : {}", secret);
-        log.info("token.validity : {}", validity);
+        log.info("token.validity : {}", accessValidity);
 
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
-        this.tokenValidityInMilliseconds = validity;
+        this.accessTokenValidityInMilliseconds = accessValidity;
+        this.refreshTokenValidityInMilliseconds = refreshValidity;
     }
 
     // 1. 토큰 생성
-    public String createToken(String userId, String role) {
+    public TokenDto createToken(String userId, String role) {
         Claims claims = Jwts.claims().setSubject(userId);
         claims.put("auth", role); // 권한 정보 추가
 
         Date now = new Date();
-        Date validity = new Date(now.getTime() + tokenValidityInMilliseconds);
+        Date accessValidity = new Date(now.getTime() + accessTokenValidityInMilliseconds);
 
-        return Jwts.builder()
+        // 1. Access Token 생성
+        String accessToken = Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(validity)
+                .setExpiration(accessValidity)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+
+        // 2. Refresh Token 생성
+        Date refreshValidity = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
+
+        String refreshToken = Jwts.builder()
+                .setExpiration(refreshValidity)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+
+        log.info("accessToken : {}", accessToken);
+        log.info("refreshToken : {}", refreshToken);
+
+        return new TokenDto(accessToken, refreshToken);
     }
 
     // 2. 토큰에서 인증 정보 조회 (SecurityContext에 저장하기 위함)

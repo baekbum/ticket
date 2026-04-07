@@ -12,7 +12,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  redis:
+    host: localhost
+    port: 6379
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
-  tokenValidityInMilliseconds: 3600000
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
