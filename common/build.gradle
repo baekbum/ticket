@@ -1,0 +1,44 @@
+plugins {
+	id 'java-library' // 👈 중요: 다른 모듈에 API를 노출하기 위해 필요합니다.
+	id 'org.springframework.boot' version '3.4.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.bum'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+// ⚠️ 중요: common 모듈은 실행 파일(jar)이 아닌 일반 라이브러리(jar)로 빌드해야 합니다.
+bootJar { enabled = false }
+jar { enabled = true }
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// 1. JWT 관련: 'api'를 써야 auth/user 서비스에서도 JWT 클래스를 인식합니다.
+	api 'io.jsonwebtoken:jjwt-api:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+	// 2. 스프링 부트 기본 의존성
+	api 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter'
+
+	// 3. Lombok 설정 (common 모듈에서도 어노테이션 사용을 위해)
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
