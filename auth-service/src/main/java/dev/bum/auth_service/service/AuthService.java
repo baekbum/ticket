@@ -1,13 +1,12 @@
 package dev.bum.auth_service.service;
 
-import dev.bum.auth_service.dto.TokenDto;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
-import dev.bum.auth_service.jpa.AuthRepositoryImpl;
-import dev.bum.auth_service.security.JwtTokenProvider;
 import dev.bum.auth_service.vo.LoginInfo;
+import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
