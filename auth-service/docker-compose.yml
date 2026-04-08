@@ -1,8 +1,8 @@
 services:
   auth-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: auth-service/Dockerfile # 루트 기준의 도커파일 위치
     deploy:
       replicas: 2
     environment:
