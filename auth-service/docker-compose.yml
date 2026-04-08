@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: auth-service
     deploy:
       replicas: 2
     environment:
