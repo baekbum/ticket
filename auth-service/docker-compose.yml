@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: auth-service
-    ports:
-      - "8080:8080"
+    deploy:
+      replicas: 2
     environment:
       # 1. 데이터베이스 연결 (인프라의 auth-db 컨테이너 이름 사용)
       - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-db:5432/auth_db
