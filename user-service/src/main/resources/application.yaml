@@ -1,3 +1,19 @@
+server:
+  port: 8081
+
 spring:
   application:
     name: user-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ticket
+    username: postgres
+    password: hsck2301
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
