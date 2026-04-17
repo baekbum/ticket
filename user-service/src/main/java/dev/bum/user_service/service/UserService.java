@@ -25,10 +25,20 @@ public class UserService {
 
     private final UserRepository repository;
 
+    /**
+     * 유저 등록
+     * @param info
+     * @return
+     */
     public UserDto insert(InsertUserInfo info) {
         return new UserDto(repository.insert(info));
     }
 
+    /**
+     * 유저 전체 조회
+     * @param cond
+     * @return
+     */
     @Transactional(readOnly = true)
     public Page<UserDto> selectAll(UserCond cond) {
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -37,11 +47,21 @@ public class UserService {
         return users.map(UserDto::new);
     }
 
+    /**
+     * ID로 유저 조회
+     * @param userId
+     * @return
+     */
     @Transactional(readOnly = true)
     public UserDto selectById(String userId) {
         return new UserDto(repository.selectById(userId));
     }
 
+    /**
+     * 조건을 통해 유저 조회
+     * @param cond
+     * @return
+     */
     @Transactional(readOnly = true)
     public Page<UserDto> selectByCond(UserCond cond) {
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -50,10 +70,21 @@ public class UserService {
         return users.map(UserDto::new);
     }
 
+    /**
+     * 유저 정보 수정
+     * @param userId
+     * @param info
+     * @return
+     */
     public UserDto update(String userId, UpdateUserInfo info) {
         return new UserDto(repository.update(userId, info));
     }
 
+    /**
+     * 유저 삭제
+     * @param userId
+     * @return
+     */
     public UserDto delete(String userId) {
         return new UserDto(repository.delete(userId));
     }
