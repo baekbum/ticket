@@ -1,0 +1,23 @@
+services:
+  # 1. 데이터베이스 (User용)
+  user-db:
+    image: postgres:16-alpine
+    container_name: user-db
+    environment:
+      - POSTGRES_USER=user_user
+      - POSTGRES_PASSWORD=user_pass
+      - POSTGRES_DB=user_db
+    ports:
+      - "5434:5432"
+    networks:
+      - ticket-network
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+
+# 네트워크 정의 부분
+networks:
+  ticket-network:
+    external: true # 수동으로 만든(docker network create) 네트워크를 사용함
+
+volumes:
+  user_db_data:
