@@ -35,3 +35,5 @@ out/
 
 ### VS Code ###
 .vscode/
+
+common/src/test/java/dev/bum/common/JwtGenerator.java

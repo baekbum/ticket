@@ -45,8 +45,8 @@ class AuthControllerTest {
         given(authService.LoginAndCreateToken(any())).willReturn(new TokenDto("access-token", "refresh-token"));
 
         mockMvc.perform(post("/api/" + apiVersion + "/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(info)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.refreshToken").value("refresh-token"));
