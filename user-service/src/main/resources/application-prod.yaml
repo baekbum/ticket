@@ -13,6 +13,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVER:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}

@@ -1,5 +1,7 @@
 package dev.bum.user_service.service;
 
+import dev.bum.common.kafka.UserDtoForEvent;
+import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
@@ -8,9 +10,11 @@ import dev.bum.user_service.vo.UpdateUserInfo;
 import dev.bum.user_service.vo.UserCond;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,10 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository repository;
+    private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+
+    @Value("${topic.name}")
+    private String userTopic;
 
     /**
      * 유저 등록
@@ -31,7 +39,19 @@ public class UserService {
      * @return
      */
     public UserDto insert(InsertUserInfo info) {
-        return new UserDto(repository.insert(info));
+        User savedUser = repository.insert(info);
+
+        UserDtoForEvent event = UserDtoForEvent.builder()
+                .eventType(TopicEventType.CREATE)
+                .id(savedUser.getId())
+                .userId(savedUser.getUserId())
+                .password(savedUser.getPassword())
+                .role(savedUser.getRole().name())
+                .build();
+
+        sendTopicToKafka(event);
+
+        return new UserDto(savedUser);
     }
 
     /**
@@ -86,7 +106,17 @@ public class UserService {
      * @return
      */
     public UserDto delete(String userId) {
-        return new UserDto(repository.delete(userId));
+        User deletedUser = repository.delete(userId);
+
+        UserDtoForEvent event = UserDtoForEvent.builder()
+                .eventType(TopicEventType.DELETE)
+                .id(deletedUser.getId())
+                .userId(deletedUser.getUserId())
+                .build();
+
+        sendTopicToKafka(event);
+
+        return new UserDto(deletedUser);
     }
 
     /**
@@ -114,5 +144,19 @@ public class UserService {
         return sort;
     }
 
-
+    /**
+     * 토픽을 카프카 큐에 전달.
+     * @param event
+     */
+    private void sendTopicToKafka(UserDtoForEvent event) {
+        // 주입받은 userTopic 변수 사용
+        kafkaTemplate.send(userTopic, event.getUserId(), event)
+                .whenComplete((result, ex) -> {
+                    if (ex == null) {
+                        log.info("Kafka 전송 성공: [topic: {}, userId: {}]", userTopic, event.getUserId());
+                    } else {
+                        log.error("Kafka 전송 실패: [userId: {}] 에러: {}", event.getUserId(), ex.getMessage());
+                    }
+                });
+    }
 }
