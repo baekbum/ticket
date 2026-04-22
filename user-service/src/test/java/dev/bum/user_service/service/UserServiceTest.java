@@ -1,5 +1,6 @@
 package dev.bum.user_service.service;
 
+import dev.bum.common.kafka.UserDtoForEvent;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.enums.UserRole;
 import dev.bum.user_service.jpa.User;
@@ -17,15 +18,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.given;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -35,6 +40,9 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
 
     @Test
     @DisplayName("유저 등록")
@@ -61,7 +69,13 @@ class UserServiceTest {
                 .isBlacklisted(false)
                 .build();
 
+        // NPE 방지를 위한 가짜 Future (제네릭 에러 방지를 위해 명시적 타입 지정)
+        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
+
         given(userRepository.insert(any())).willReturn(user);
+
+        // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
         UserDto response = userService.insert(userInfo);
 
@@ -75,6 +89,7 @@ class UserServiceTest {
         assertThat(response.getIsBlacklisted()).isFalse();
 
         verify(userRepository).insert(userInfo);
+        verify(kafkaTemplate, times(1)).send(any(), eq("IU"), any(UserDtoForEvent.class));
     }
 
     @Test
@@ -255,7 +270,13 @@ class UserServiceTest {
                 .name("유저")
                 .build();
 
+        // NPE 방지를 위한 가짜 Future (제네릭 에러 방지를 위해 명시적 타입 지정)
+        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
+
         given(userRepository.delete(any())).willReturn(result);
+
+        // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
         UserDto response = userService.delete(userId);
 

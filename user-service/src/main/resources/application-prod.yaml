@@ -23,3 +23,6 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
+
+topic:
+  name: user-event
