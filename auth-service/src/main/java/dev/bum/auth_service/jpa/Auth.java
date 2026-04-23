@@ -1,5 +1,7 @@
 package dev.bum.auth_service.jpa;
 
+import dev.bum.auth_service.enums.UserRole;
+import dev.bum.common.kafka.UserDtoForEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -21,14 +23,23 @@ public class Auth {
     @Column(nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String role = "ROLE_USER";
+    private UserRole role;
 
     @Builder
-    public Auth(Long id, String userId, String password, String role) {
+    public Auth(Long id, String userId, String password, UserRole role) {
         this.id = id;
         this.userId = userId;
         this.password = password;
-        this.role = (role != null) ? role : "ROLE_USER";
+        this.role = (role != null) ? role : UserRole.ROLE_USER;
+    }
+
+    @Builder
+    public Auth(UserDtoForEvent event) {
+        this.id = event.getId();
+        this.userId = event.getUserId();
+        this.password = event.getPassword();
+        this.role = UserRole.valueOf(event.getRole());
     }
 }

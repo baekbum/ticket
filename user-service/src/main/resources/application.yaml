@@ -12,8 +12,16 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  kafka:
+    bootstrap-servers: localhost:9092  # 로컬 테스트용 (컨테이너 실행 시 kafka:29092)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
+
+topic:
+  name: user-event

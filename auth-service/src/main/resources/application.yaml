@@ -12,11 +12,24 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-  redis:
-    host: localhost
-    port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer: # 쏴주는 producer가 아니라 받는 consumer 설정!
+      group-id: auth-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
+      properties:
+        spring.json.trusted.packages: "dev.bum.*"
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
+
+topic:
+  name: user-event

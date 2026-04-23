@@ -18,6 +18,9 @@ services:
       # 3. 필요시 활성 프로파일 지정 (선택 사항)
       - SPRING_PROFILES_ACTIVE=prod
 
+      # 4. 카프카 컨테이너 지정
+      - KAFKA_SERVER=kafka:29092
+
     # 인프라 컨테이너들이 먼저 떠 있어야 하므로 명시 (참고용)
     # 다만 external 네트워크 환경에서는 컨테이너가 없으면 에러가 날 수 있으니
     # 인프라를 먼저 docker compose up 해두는 것이 중요합니다.

@@ -13,12 +13,24 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-  data: # 최신 버전은 spring.data.redis 입니다.
+  data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVER}
+    consumer:
+      group-id: auth-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
+      properties:
+        spring.json.trusted.packages: "dev.bum.*"
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
+
+topic:
+  name: user-event
