@@ -7,6 +7,7 @@ import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.auth_service.vo.LoginInfo;
 import dev.bum.common.dto.TokenDto;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.kafka.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -38,6 +39,7 @@ public class AuthService {
      * @param info
      * @return
      */
+    @Transactional(readOnly = true)
     public TokenDto LoginAndCreateToken(LoginInfo info) {
         log.info("login info : {}", info.toString());
         Auth auth = findByUserId(info.getUserId());
@@ -52,7 +54,7 @@ public class AuthService {
             throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
         }
 
-        TokenDto tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole());
+        TokenDto tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
         addRefreshTokenToRedis(auth.getUserId(), tokens.getRefreshToken());
 
@@ -75,4 +77,21 @@ public class AuthService {
             throw new RedisException("Redis 오류 발생");
         }
     }
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저를 추가하는 메서드
+     * @param event
+     */
+    public void insertUserTopic(UserDtoForEvent event) {
+        repository.insert(new Auth(event));
+    }
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저를 삭제하는 메서드
+     * @param event
+     */
+    public void deleteUserTopic(UserDtoForEvent event) {
+        repository.delete(event.getUserId());
+    }
+
 }
