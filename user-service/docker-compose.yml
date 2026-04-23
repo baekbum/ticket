@@ -12,7 +12,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=user_pass
 
       # 2. 카프카 컨테이너 지정
-      - KAFKA_SERVER=kafka
+      - KAFKA_SERVER=kafka:29092
 
       # 3. 필요시 활성 프로파일 지정 (선택 사항)
       - SPRING_PROFILES_ACTIVE=prod
