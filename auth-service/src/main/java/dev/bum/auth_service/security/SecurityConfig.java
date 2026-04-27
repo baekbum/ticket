@@ -1,5 +1,7 @@
 package dev.bum.auth_service.security;
 
+import dev.bum.common.config.LocalCorsConfig;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,14 +13,28 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.Optional;
+
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final Optional<LocalCorsConfig> localCorsConfig;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable()) // REST API이므로 CSRF 비활성화
+                .cors(cors -> {
+                    localCorsConfig.ifPresent(config ->
+                            cors.configurationSource(config.corsConfigurationSource())
+                    );
+
+                    if (localCorsConfig.isEmpty()) {
+                        cors.disable();
+                    }
+                })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/*/login", "/h2-console/**").permitAll() // 로그인과 DB 콘솔은 허용
