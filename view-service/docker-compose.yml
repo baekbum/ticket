@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  view-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - ticket-network
+
+networks:
+  ticket-network:
+    external: true
