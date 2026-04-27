@@ -1,7 +1,11 @@
 server:
   port: 8080
+  servlet:
+    context-path: /auth
 
 spring:
+  profiles:
+    default: local
   application:
     name: auth-service
   datasource:
