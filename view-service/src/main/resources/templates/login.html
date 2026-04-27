@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket Project - Login</title>
+    <style>
+        /* 기본 배경 설정 */
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* 로그인 카드 박스 */
+        .login-container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+
+        p {
+            color: #666;
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+
+        /* 입력창 스타일 */
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #444;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box; /* 패딩이 너비에 포함되도록 */
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #7c4dff; /* 아이유님 하면 떠오르는 보라색 포인트 */
+        }
+
+        /* 로그인 버튼 */
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #7c4dff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #651fff;
+        }
+
+        /* 푸터 링크 */
+        .footer-links {
+            margin-top: 24px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .footer-links a {
+            color: #7c4dff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h2>로그인</h2> <p>서비스를 이용하려면 로그인이 필요합니다.</p>
+
+    <div class="input-group">
+        <label for="userId">아이디</label>
+        <input type="text" id="userId" placeholder="아이디를 입력하세요">
+    </div>
+
+    <div class="input-group">
+        <label for="password">비밀번호</label>
+        <input type="password" id="password" placeholder="비밀번호를 입력하세요">
+    </div>
+
+    <button onclick="login()">로그인하기</button>
+</div>
+
+<script th:inline="javascript">
+    const API_CONFIG = {
+        VERSION: 'v1',
+        LOCAL_AUTH_PORT: '8080',
+        VIEW_DEV_PORT: '3000'
+    };
+
+    async function login() {
+        const userId = document.getElementById('userId').value;
+        const password = document.getElementById('password').value;
+
+        if(!userId || !password) {
+            alert("아이디와 비밀번호를 모두 입력해주세요.");
+            return;
+        }
+
+        // 1. 환경 판별 (포트 3000에서 접속 중이면 로컬 개발 환경)
+        const isLocal = window.location.port === API_CONFIG.VIEW_DEV_PORT;
+
+        // 2. 베이스 URL 결정
+        const AUTH_API_BASE = isLocal ? `http://localhost:${API_CONFIG.LOCAL_AUTH_PORT}` : '';
+
+        // 3. 최종 경로 조립
+        // 결과: (로컬) http://localhost:8081/auth/api/v1/login
+        // 결과: (운영) /auth/api/v1/login
+        const apiUrl = `${AUTH_API_BASE}/auth/api/${API_CONFIG.VERSION}/login`;
+
+        try {
+            console.log(`요청 주소: ${apiUrl}`); // 디버깅용
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+
+                // 토큰 저장
+                localStorage.setItem('accessToken', data.accessToken);
+                localStorage.setItem('refreshToken', data.refreshToken);
+
+                alert(userId + '님, 환영합니다! 로그인이 완료되었습니다.');
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                alert(errorData.message || '아이디 또는 비밀번호가 일치하지 않습니다.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('서버와 통신 중 오류가 발생했습니다.');
+        }
+    }
+</script>
+
+</body>
+</html>
