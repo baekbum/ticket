@@ -6,6 +6,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.ticket_service.enums.EventStatus;
+import dev.bum.ticket_service.exception.EventDuplicateException;
 import dev.bum.ticket_service.exception.EventNotExistException;
 import dev.bum.ticket_service.vo.event.EventCond;
 import dev.bum.ticket_service.vo.event.InsertEventInfo;
@@ -35,9 +36,41 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Event insert(InsertEventInfo info) {
+        EventCond cond = EventCond.builder()
+                .artistName(info.getArtistName())
+                .title(info.getTitle())
+                .venue(info.getVenue())
+                .eventDate(info.getEventDate().toLocalDate())
+                .status(EventStatus.ON_SALE)
+                .build();
+
+        // 공연 정보 중복 확인.
+        isExist(cond);
+
         Event event = new Event(info);
         jpaRepository.save(event);
         return event;
+    }
+
+    @Override
+    public void isExist(EventCond cond) {
+        event = QEvent.event;
+
+        List<Event> content = queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        artistNameLike(cond.getArtistName()),
+                        titleLike(cond.getTitle()),
+                        venueLike(cond.getVenue()),
+                        eventDateLike(cond.getEventDate()),
+                        statusEq(cond.getStatus())
+                )
+                .fetch();
+
+        if (!content.isEmpty()) {
+            throw new EventDuplicateException("동일한 공연 정보가 이미 존재합니다.");
+        }
     }
 
     @Override

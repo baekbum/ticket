@@ -51,6 +51,18 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Querydsl QClass 생성 위치 지정
+def querydslDir = "src/main/generated"
+
+tasks.withType(JavaCompile).configureEach {
+	options.getGeneratedSourceOutputDirectory().set(file(querydslDir))
+}
+
+// clean 작업 시 생성된 QClass 삭제
+clean {
+	delete file(querydslDir)
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

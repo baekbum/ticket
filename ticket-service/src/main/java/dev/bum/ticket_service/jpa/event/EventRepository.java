@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface EventRepository {
     Event insert(InsertEventInfo info);
+    void isExist(EventCond cond);
     Event selectById(Long id);
     Page<Event> selectByCond(EventCond cond, Pageable pageable);
     Event update(Long id, UpdateEventInfo info);
