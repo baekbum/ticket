@@ -17,17 +17,21 @@ CREATE INDEX idx_event_artist_name ON events(artist_name);
 -- 2. Seats 테이블 (FK 제거, 인덱스 유지)
 CREATE TABLE seats (
     seat_id BIGSERIAL PRIMARY KEY,
-    event_id BIGINT NOT NULL, -- FK 제약조건 삭제
+    event_id BIGINT NOT NULL,
     seat_number VARCHAR(20) NOT NULL,
     grade VARCHAR(10) NOT NULL,
-    price NUMERIC(10, 2) NOT NULL,
+    -- 기존 NUMERIC(10, 2)에서 INTEGER로 변경
+    price INTEGER NOT NULL,
     status VARCHAR(15) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    -- (event_id, seat_number) 복합 유니크 제약 조건
     CONSTRAINT uk_event_seat UNIQUE (event_id, seat_number)
 );
-CREATE INDEX idx_seat_event_id ON seats(event_id); -- 조회를 위한 인덱스는 필수
+
+-- 조회를 위한 인덱스
+CREATE INDEX idx_seat_event_id ON seats(event_id);
 
 -- 3. Reservations 테이블 (FK 제거, 인덱스 유지)
 CREATE TABLE reservations (
