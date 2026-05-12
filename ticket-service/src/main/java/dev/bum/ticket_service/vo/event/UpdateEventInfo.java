@@ -19,4 +19,5 @@ public class UpdateEventInfo {
     private LocalDateTime eventDate;
     private Integer totalSeats;
     private EventStatus status;
+    private Integer maxTicketsPerPerson;
 }

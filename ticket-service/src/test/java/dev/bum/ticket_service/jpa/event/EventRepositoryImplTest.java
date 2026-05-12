@@ -46,6 +46,7 @@ class EventRepositoryImplTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 5, 16, 18, 0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .status(EventStatus.ON_SALE)
                 .build();
 
@@ -62,6 +63,7 @@ class EventRepositoryImplTest {
                 .venue("신한카드홀")
                 .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
                 .totalSeats(1768)
+                .maxTicketsPerPerson(2)
                 .build();
 
         Event response = eventRepository.insert(info);
@@ -72,6 +74,7 @@ class EventRepositoryImplTest {
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
         assertThat(response.getEventDate()).isEqualTo("2026-04-29T18:00:00");
         assertThat(response.getTotalSeats()).isEqualTo(1768);
+        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
     }
 
@@ -85,6 +88,7 @@ class EventRepositoryImplTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 5, 16, 18, 0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         assertThatThrownBy(() -> eventRepository.insert(info))
@@ -102,6 +106,7 @@ class EventRepositoryImplTest {
                 .venue("신한카드홀")
                 .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
                 .totalSeats(1768)
+                .maxTicketsPerPerson(2)
                 .build();
 
         eventRepository.insert(info);
@@ -117,6 +122,7 @@ class EventRepositoryImplTest {
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
         assertThat(response.getEventDate()).isEqualTo(LocalDateTime.of(2026, 4, 29, 18, 0));
         assertThat(response.getTotalSeats()).isEqualTo(1768);
+        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
     }
 
     @Test
@@ -129,6 +135,7 @@ class EventRepositoryImplTest {
                 .venue("신한카드홀")
                 .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
                 .totalSeats(1768)
+                .maxTicketsPerPerson(2)
                 .build();
 
         InsertEventInfo info_2 = InsertEventInfo.builder()
@@ -138,6 +145,7 @@ class EventRepositoryImplTest {
                 .venue("상암 월드컵 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
                 .totalSeats(60000)
+                .maxTicketsPerPerson(4)
                 .build();
 
         eventRepository.insert(info_1);
@@ -205,6 +213,7 @@ class EventRepositoryImplTest {
                 .venue("신한카드홀")
                 .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
                 .totalSeats(1768)
+                .maxTicketsPerPerson(2)
                 .build();
 
         Event event = eventRepository.insert(info);
@@ -220,6 +229,7 @@ class EventRepositoryImplTest {
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
         assertThat(response.getEventDate()).isEqualTo(LocalDateTime.of(2026, 4, 29, 18, 0));
         assertThat(response.getTotalSeats()).isEqualTo(1768);
+        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
 
         eventRepository.delete(eventId);
 

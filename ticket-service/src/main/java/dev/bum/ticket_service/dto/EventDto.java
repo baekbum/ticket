@@ -23,6 +23,8 @@ public class EventDto {
     private LocalDateTime eventDate;
     private Integer totalSeats;
     private EventStatus status;
+    private Integer maxTicketsPerPerson;
+
 
     public EventDto(Event event) {
         this.eventId = event.getEventId();
@@ -33,5 +35,6 @@ public class EventDto {
         this.eventDate = event.getEventDate();
         this.totalSeats = event.getTotalSeats();
         this.status = event.getStatus();
+        this.maxTicketsPerPerson = event.getMaxTicketsPerPerson();
     }
 }

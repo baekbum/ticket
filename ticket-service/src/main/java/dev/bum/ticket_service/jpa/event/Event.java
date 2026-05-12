@@ -50,6 +50,9 @@ public class Event {
     @Column(nullable = false, length = 20)
     private EventStatus status;
 
+    @Column(nullable = false)
+    private Integer maxTicketsPerPerson;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -64,23 +67,25 @@ public class Event {
 
     // 비즈니스 메서드: 생성자 수정
     public Event(InsertEventInfo info) {
-        this.artistName = info.getArtistName(); // 추가
+        this.artistName = info.getArtistName();
         this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         this.venue = info.getVenue();
         this.eventDate = info.getEventDate();
         this.totalSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
+        this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
     }
 
     // 비즈니스 메서드: 수정 로직 추가
     public void update(UpdateEventInfo info) {
-        if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName(); // 추가
+        if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName();
         if (StringUtils.hasText(info.getTitle())) this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         if (StringUtils.hasText(info.getVenue())) this.venue = info.getVenue();
         if (info.getEventDate() != null) this.eventDate = info.getEventDate();
         if (info.getTotalSeats() != null) this.totalSeats = info.getTotalSeats();
         if (info.getStatus() != null) this.status = info.getStatus();
+        if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
     }
 }

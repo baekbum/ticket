@@ -74,6 +74,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
@@ -93,6 +94,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         EventDto response = EventDto.builder()
@@ -103,6 +105,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         given(eventService.insert(any())).willReturn(response);
@@ -125,6 +128,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         given(eventService.selectById(any())).willReturn(response);
@@ -139,7 +143,8 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
                 .andExpect(jsonPath("$.eventDate").value("2026-09-18T18:00:00"))
-                .andExpect(jsonPath("$.totalSeats").value(14500));
+                .andExpect(jsonPath("$.totalSeats").value(14500))
+                .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -158,6 +163,7 @@ class EventControllerTest {
                 .venue("상암 월드컵 경기장")
                 .eventDate(LocalDateTime.of(2024, 9, 16, 17,0))
                 .totalSeats(60000)
+                .maxTicketsPerPerson(4)
                 .build();
 
         EventDto response_2 = EventDto.builder()
@@ -168,6 +174,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 9, 16, 18,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(1)
                 .build();
 
         List<EventDto> dtoList = List.of(response_1, response_2);
@@ -201,6 +208,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2024, 5, 16, 17, 0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         EventDto response = EventDto.builder()
@@ -211,6 +219,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 5, 16, 17,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         given(eventService.update(eventId, info)).willReturn(response);
@@ -225,7 +234,8 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
                 .andExpect(jsonPath("$.eventDate").value("2026-05-16T17:00:00"))
-                .andExpect(jsonPath("$.totalSeats").value(14500));
+                .andExpect(jsonPath("$.totalSeats").value(14500))
+                .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -242,6 +252,7 @@ class EventControllerTest {
                 .venue("올림픽 체조 경기장")
                 .eventDate(LocalDateTime.of(2026, 5, 16, 17,0))
                 .totalSeats(14500)
+                .maxTicketsPerPerson(4)
                 .build();
 
         given(eventService.delete(1L)).willReturn(response);
@@ -255,6 +266,7 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
                 .andExpect(jsonPath("$.eventDate").value("2026-05-16T17:00:00"))
-                .andExpect(jsonPath("$.totalSeats").value(14500));
+                .andExpect(jsonPath("$.totalSeats").value(14500))
+                .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }
 }

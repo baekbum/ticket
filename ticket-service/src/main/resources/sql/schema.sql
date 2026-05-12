@@ -1,18 +1,23 @@
 -- 1. Events 테이블
 CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
-    artist_name VARCHAR(100) NOT NULL, -- 추가: 아티스트 이름 (예: 아이유)
+    artist_name VARCHAR(100) NOT NULL,
     title VARCHAR(100) NOT NULL,
     description TEXT,
     venue VARCHAR(100) NOT NULL,
     event_date TIMESTAMP NOT NULL,
     total_seats INTEGER NOT NULL,
+    -- 추가: 1인당 최대 예매 가능 수량 (기본값 1)
+    max_tickets_per_person INTEGER NOT NULL DEFAULT 1,
     status VARCHAR(20) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 인덱스 설정
 CREATE INDEX idx_event_artist_name ON events(artist_name);
+-- 추가: 공연 상태와 날짜를 기준으로 하는 복합 인덱스 (조회 최적화)
+CREATE INDEX idx_event_status_date ON events(status, event_date);
 
 -- 2. Seats 테이블 (FK 제거, 인덱스 유지)
 CREATE TABLE seats (

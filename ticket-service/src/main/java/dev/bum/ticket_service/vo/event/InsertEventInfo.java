@@ -30,4 +30,7 @@ public class InsertEventInfo {
 
     @NotNull
     private Integer totalSeats;
+
+    @NotNull
+    private Integer maxTicketsPerPerson;
 }

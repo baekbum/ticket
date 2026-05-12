@@ -47,9 +47,7 @@ public class EventRepositoryImpl implements EventRepository {
         // 공연 정보 중복 확인.
         isExist(cond);
 
-        Event event = new Event(info);
-        jpaRepository.save(event);
-        return event;
+        return jpaRepository.save(new Event(info));
     }
 
     @Override
