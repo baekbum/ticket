@@ -12,9 +12,8 @@ import dev.bum.ticket_service.exception.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
-import dev.bum.ticket_service.vo.seat.SeatCond;
-import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;
+import dev.bum.ticket_service.vo.seat.*;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,21 +33,49 @@ public class SeatRepositoryImpl implements SeatRepository {
     private final JPAQueryFactory queryFactory;
     private final SeatJpaRepository jpaRepository;
     private final EventRepository  eventRepository;
+    private final EntityManager entityManager;
     private QSeat seat;
 
     @Override
-    public Seat insert(InsertSeatInfo info) {
+    public void insert(InsertSeatInfo info) {
+        Long eventId = info.getEventId();
+
+        // 공연 정보가 존재하는 지 확인.
+        Event event = eventRepository.selectById(eventId);
+
+        // 해당 공연 정보가 이미 등록되어있는지 확인.
         SeatCond cond = SeatCond.builder()
                 .eventId(info.getEventId())
-                .seatNumber(info.getSeatNumber())
                 .build();
 
         isExist(cond);
 
-        info.setEvent(eventRepository.selectById(info.getEventId()));
-        Seat seat = new Seat(info);
-        jpaRepository.save(seat);
-        return seat;
+        // 데이터를 구역 별로 벌크 처리
+        int batchSize = 500; // 500개 단위로 끊어서 처리
+        int count = 0;
+
+        for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
+            for (int r = 1; r <= config.getRows(); r++) {
+                for (int c = 1; c <= config.getCols(); c++) {
+                    String seatNumber = String.format("%s구역-%d열-%d번", config.getZone(), r, c);
+
+                    Seat seat = Seat.builder()
+                            .event(event)
+                            .seatNumber(seatNumber)
+                            .grade(config.getGrade())
+                            .price(config.getPrice())
+                            .status(SeatStatus.AVAILABLE)
+                            .build();
+
+                    jpaRepository.save(seat); // 하나씩 save 호출 (실제 쿼리는 batch 옵션에 따라 모임)
+
+                    if (++count % batchSize == 0) {
+                        entityManager.flush(); // DB에 쿼리 전송
+                        entityManager.clear(); // 1차 캐시 비우기 (메모리 확보)
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -60,13 +87,19 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .from(seat)
                 .where(
                         eventIdEq(cond.getEventId()),
-                        seatNumberEq(cond.getSeatNumber())
+                        seatNumberEq(cond.getSeatNumber()),
+                        statusNotAvailable()
                 )
                 .fetch();
 
         if (!found.isEmpty()) {
             throw new SeatDuplicateException("해당 좌석은 이미 예매 중입니다.");
         }
+    }
+
+    @Override
+    public long countByEventId(Long eventId) {
+        return jpaRepository.countByEventEventId(eventId);
     }
 
     @Override
@@ -124,19 +157,17 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public Seat update(Long id, UpdateSeatInfo info) {
-        Seat seat = selectById(id);
-        seat.update(info);
-
-        return seat;
+    public void update(UpdateSeatInfo info) {
+        for (UpdateSeatAreaConfig config : info.getUpdateSeatAreaConfigs()) {
+            Seat seat = selectById(config.getId());
+            seat.update(config);
+        }
     }
 
     @Override
-    public Seat delete(Long id) {
+    public void delete(Long id) {
         Seat seat = selectById(id);
         jpaRepository.delete(seat);
-
-        return seat;
     }
 
     // QueryDsl 동적 쿼리 관련 메서드
@@ -162,5 +193,10 @@ public class SeatRepositoryImpl implements SeatRepository {
 
     private BooleanExpression statusEq(SeatStatus status) {
         return status != null ? seat.status.eq(status) : null;
+    }
+
+    private BooleanExpression statusNotAvailable() {
+        // 예약 불가 상태: LOCK 또는 RESERVED
+        return seat.status.in(SeatStatus.LOCKED, SeatStatus.RESERVED);
     }
 }

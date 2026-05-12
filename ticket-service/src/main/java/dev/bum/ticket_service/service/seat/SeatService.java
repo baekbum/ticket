@@ -31,8 +31,12 @@ public class SeatService {
      * @param info
      * @return
      */
-    public SeatDto insert(InsertSeatInfo info) {
-        return new SeatDto(repository.insert(info));
+    public void insert(InsertSeatInfo info) {
+        repository.insert(info);
+    }
+
+    public long countByEventId(Long eventId) {
+        return repository.countByEventId(eventId);
     }
 
     /**
@@ -62,12 +66,11 @@ public class SeatService {
 
     /**
      * 좌석 정보 수정
-     * @param id
      * @param info
      * @return
      */
-    public SeatDto update(Long id, UpdateSeatInfo info) {
-        return new SeatDto(repository.update(id, info));
+    public void update(UpdateSeatInfo info) {
+        repository.update(info);
     }
 
     /**
@@ -75,8 +78,8 @@ public class SeatService {
      * @param id
      * @return
      */
-    public SeatDto delete(Long id) {
-        return new SeatDto(repository.delete(id));
+    public void delete(Long id) {
+        repository.delete(id);
     }
 
     /**

@@ -1,18 +1,13 @@
 package dev.bum.ticket_service.vo.seat;
 
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.SeatStatus;
 import lombok.*;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 public class UpdateSeatInfo {
-    private String seatNumber;
-    private SeatGrade grade;
-    private Integer price;
-    private SeatStatus status;
+    private List<UpdateSeatAreaConfig> updateSeatAreaConfigs;
 }

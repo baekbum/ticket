@@ -25,8 +25,9 @@ public class SeatController {
     private final SeatService seatService;
 
     @PostMapping("/insert")
-    public ResponseEntity<SeatDto> insert(@Valid @RequestBody InsertSeatInfo info) {
-        return ResponseEntity.ok(seatService.insert(info));
+    public ResponseEntity<Void> insert(@Valid @RequestBody InsertSeatInfo info) {
+        seatService.insert(info);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/select/id/{seatId}")
@@ -39,13 +40,15 @@ public class SeatController {
         return ResponseEntity.ok(new PagedModel<>(seatService.selectByCond(cond)));
     }
 
-    @PutMapping("/update/id/{seatId}")
-    public ResponseEntity<SeatDto> update(@PathVariable("seatId") Long seatId, @Valid @RequestBody UpdateSeatInfo info) {
-        return ResponseEntity.ok(seatService.update(seatId, info));
+    @PutMapping("/update")
+    public ResponseEntity<Void> update(@Valid @RequestBody UpdateSeatInfo info) {
+        seatService.update(info);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete/id/{seatId}")
-    public ResponseEntity<SeatDto> delete(@PathVariable("seatId") Long seatId) {
-        return ResponseEntity.ok(seatService.delete(seatId));
+    public ResponseEntity<Void> delete(@PathVariable("seatId") Long seatId) {
+        seatService.delete(seatId);
+        return ResponseEntity.ok().build();
     }
 }

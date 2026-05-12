@@ -3,13 +3,13 @@ package dev.bum.ticket_service.jpa.seat;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.enums.EventStatus;
 import dev.bum.ticket_service.enums.SeatGrade;
+import dev.bum.ticket_service.enums.SeatStatus;
 import dev.bum.ticket_service.exception.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
-import dev.bum.ticket_service.vo.seat.SeatCond;
-import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;
+import dev.bum.ticket_service.vo.seat.*;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,9 +24,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 
 @Transactional
 @Import({
@@ -47,11 +47,18 @@ class SeatRepositoryImplTest {
 
     @Autowired
     private EventJpaRepository eventJpaRepository;
+
+    @Autowired
+    private EntityManager entityManager;
     
     private long eventId;
+    private Seat firstSeat;
+    private Seat secondSeat;
+    private Seat thirdSeat;
 
     @BeforeEach
-    void eventInfoSetUp() throws Exception {
+    void info_set_up() throws Exception {
+        // 이벤트 정보 등록
         Event event = Event.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
@@ -60,156 +67,170 @@ class SeatRepositoryImplTest {
                 .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
                 .totalSeats(14500)
                 .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(4)
                 .build();
 
         Event savedEvent = eventJpaRepository.save(event);
-
         this.eventId = savedEvent.getEventId();
+
+        // 좌석 정보 등록
+
+        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
+                .grade(SeatGrade.VIP)
+                .zone("Floor-A")
+                .rows(10)
+                .cols(10)
+                .price(168000)
+                .build();
+
+        InsertSeatAreaConfig r_seat = InsertSeatAreaConfig.builder()
+                .grade(SeatGrade.R)
+                .zone("1구역")
+                .rows(10)
+                .cols(10)
+                .price(145000)
+                .build();
+
+        InsertSeatAreaConfig s_seat = InsertSeatAreaConfig.builder()
+                .grade(SeatGrade.S)
+                .zone("10구역")
+                .rows(10)
+                .cols(10)
+                .price(128000)
+                .build();
+
+        InsertSeatAreaConfig a_seat = InsertSeatAreaConfig.builder()
+                .grade(SeatGrade.A)
+                .zone("20구역")
+                .rows(10)
+                .cols(10)
+                .price(128000)
+                .build();
+
+        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat, r_seat, s_seat, a_seat);
+
+        InsertSeatInfo info = InsertSeatInfo.builder()
+                .eventId(this.eventId)
+                .insertSeatAreaConfigs(insertSeatAreaConfigList)
+                .build();
+
+        seatRepository.insert(info);
+
+        List<Seat> savedSeats = seatJpaRepository.findAll();
+        this.firstSeat = savedSeats.get(0);
+        this.secondSeat = savedSeats.get(1);
+        this.thirdSeat = savedSeats.get(2);
     }
 
     @Test
     @DisplayName("좌석 정보 추가")
     void seat_insert() throws Exception {
-        InsertSeatInfo info = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("A-13")
+        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
-                .price(165000)
+                .zone("Floor-B")
+                .rows(10)
+                .cols(10)
+                .price(168000)
                 .build();
 
-        Seat response = seatRepository.insert(info);
+        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
 
-        // 이벤트 관련
-        assertThat(response.getEvent().getEventId()).isEqualTo(this.eventId);
-        assertThat(response.getEvent().getArtistName()).isEqualTo("아이유");
-        assertThat(response.getEvent().getTitle()).isEqualTo("아이유 콘서트");
-        assertThat(response.getEvent().getVenue()).isEqualTo("올림픽 체조 경기장");
-        assertThat(response.getEvent().getEventDate()).isEqualTo(LocalDateTime.of(2026, 9, 18, 18, 0));
-        assertThat(response.getEvent().getTotalSeats()).isEqualTo(14500);
-        assertThat(response.getEvent().getStatus()).isEqualTo(EventStatus.ON_SALE);
+        InsertSeatInfo info = InsertSeatInfo.builder()
+                .eventId(this.eventId)
+                .insertSeatAreaConfigs(insertSeatAreaConfigList)
+                .build();
 
-        // 좌석 관련
-        assertThat(response.getSeatNumber()).isEqualTo("A-13");
-        assertThat(response.getGrade()).isEqualTo(SeatGrade.VIP);
-        assertThat(response.getPrice()).isEqualTo(165000);
+        seatRepository.insert(info);
+
+        long totalCnt = seatRepository.countByEventId(this.eventId);
+
+        assertThat(totalCnt).isEqualTo(500); // 각 등급마다 100자리씩
     }
 
     @Test
     @DisplayName("ID로 좌석 정보 조회")
     void seat_select_by_id() throws Exception {
-        InsertSeatInfo info_1 = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("A-13")
-                .grade(SeatGrade.VIP)
-                .price(165000)
-                .build();
+        long seatId = firstSeat.getSeatId();
+        Seat response = seatRepository.selectById(seatId);
 
-        InsertSeatInfo info_2 = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("28구역-7열-14번")
-                .grade(SeatGrade.A)
-                .price(108000)
-                .build();
-
-        Seat savedSeat_1 = seatRepository.insert(info_1);
-        Seat savedSeat_2 = seatRepository.insert(info_2);
-
-        Seat response_1 = seatRepository.selectById(savedSeat_1.getSeatId());
-        Seat response_2 = seatRepository.selectById(savedSeat_2.getSeatId());
-
-        assertThat(response_1.getSeatId()).isEqualTo(savedSeat_1.getSeatId());
-        assertThat(response_1.getEvent().getEventId()).isEqualTo(this.eventId);
-        assertThat(response_1.getSeatNumber()).isEqualTo("A-13");
-        assertThat(response_1.getGrade()).isEqualTo(SeatGrade.VIP);
-        assertThat(response_1.getPrice()).isEqualTo(165000);
-
-        assertThat(response_2.getSeatId()).isEqualTo(savedSeat_2.getSeatId());
-        assertThat(response_2.getEvent().getEventId()).isEqualTo(this.eventId);
-        assertThat(response_2.getSeatNumber()).isEqualTo("28구역-7열-14번");
-        assertThat(response_2.getGrade()).isEqualTo(SeatGrade.A);
-        assertThat(response_2.getPrice()).isEqualTo(108000);
+        assertThat(response.getSeatId()).isEqualTo(seatId);
+        assertThat(response.getEvent().getEventId()).isEqualTo(this.eventId);
+        assertThat(response.getSeatNumber()).isEqualTo(firstSeat.getSeatNumber());
+        assertThat(response.getGrade()).isEqualTo(firstSeat.getGrade());
+        assertThat(response.getPrice()).isEqualTo(firstSeat.getPrice());
     }
 
     @Test
     @DisplayName("조건을 통해 좌석 정보 조회")
     void seat_select_by_cond() throws Exception {
-        InsertSeatInfo info_1 = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("A-13")
+        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
-                .price(165000)
+                .zone("Floor-B")
+                .rows(10)
+                .cols(10)
+                .price(168000)
                 .build();
 
-        InsertSeatInfo info_2 = InsertSeatInfo.builder()
+        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
+
+        InsertSeatInfo info = InsertSeatInfo.builder()
                 .eventId(this.eventId)
-                .seatNumber("28구역-7열-14번")
-                .grade(SeatGrade.A)
-                .price(108000)
+                .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
 
-        InsertSeatInfo info_3 = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("28구역-10열-28번")
-                .grade(SeatGrade.A)
-                .price(108000)
-                .build();
-
-        seatRepository.insert(info_1);
-        seatRepository.insert(info_2);
-        seatRepository.insert(info_3);
+        seatRepository.insert(info);
 
         SeatCond cond = SeatCond.builder()
-                .grade(SeatGrade.A)
+                .grade(SeatGrade.VIP)
                 .build();
 
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
+        Pageable pageable = PageRequest.of(cond.getPage(), 300); // 테스트를 위해 사이즈를 300으로 늘림
 
         Page<Seat> seats = seatRepository.selectByCond(cond, pageable);
 
-        assertThat(seats.getContent().size()).isEqualTo(2);
-        assertThat(seats.getContent().get(0).getSeatNumber()).isEqualTo("28구역-7열-14번");
-        assertThat(seats.getContent().get(1).getSeatNumber()).isEqualTo("28구역-10열-28번");
+        assertThat(seats.getContent().size()).isEqualTo(200);
     }
 
     @Test
     @DisplayName("좌석 정보 수정")
     void seat_update() throws Exception {
-        InsertSeatInfo insertSeatInfo = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("A-13")
-                .grade(SeatGrade.VIP)
-                .price(165000)
+
+        UpdateSeatAreaConfig config_1 = UpdateSeatAreaConfig.builder()
+                .id(firstSeat.getSeatId())
+                .status(SeatStatus.LOCKED)
                 .build();
 
-        Seat savedSeat = seatRepository.insert(insertSeatInfo);
-
-        assertThat(savedSeat.getSeatNumber()).isEqualTo("A-13");
-
-        long seatId = savedSeat.getSeatId();
-
-        UpdateSeatInfo updateSeatInfo = UpdateSeatInfo.builder()
-                .seatNumber("C-11")
+        UpdateSeatAreaConfig config_2 = UpdateSeatAreaConfig.builder()
+                .id(secondSeat.getSeatId())
+                .status(SeatStatus.LOCKED)
                 .build();
 
-        Seat updatedSeat = seatRepository.update(seatId, updateSeatInfo);
+        List<UpdateSeatAreaConfig> updateSeatAreaConfigList = List.of(config_1, config_2);
 
-        assertThat(updatedSeat.getSeatId()).isEqualTo(seatId);
-        assertThat(updatedSeat.getSeatNumber()).isEqualTo("C-11");
+        UpdateSeatInfo info = UpdateSeatInfo.builder()
+                .updateSeatAreaConfigs(updateSeatAreaConfigList)
+                .build();
+
+        seatRepository.update(info);
+
+        Seat seat_1 = seatRepository.selectById(firstSeat.getSeatId());
+        Seat seat_2 = seatRepository.selectById(secondSeat.getSeatId());
+        Seat seat_3 = seatRepository.selectById(thirdSeat.getSeatId());
+
+        assertThat(seat_1.getSeatId()).isEqualTo(firstSeat.getSeatId());
+        assertThat(seat_1.getStatus()).isEqualTo(SeatStatus.LOCKED);
+
+        assertThat(seat_2.getSeatId()).isEqualTo(secondSeat.getSeatId());
+        assertThat(seat_2.getStatus()).isEqualTo(SeatStatus.LOCKED);
+
+        assertThat(seat_3.getSeatId()).isEqualTo(thirdSeat.getSeatId());
+        assertThat(seat_3.getStatus()).isEqualTo(SeatStatus.AVAILABLE);
     }
 
     @Test
     @DisplayName("좌석 정보 삭제")
     void seat_delete() throws Exception {
-        InsertSeatInfo insertSeatInfo = InsertSeatInfo.builder()
-                .eventId(this.eventId)
-                .seatNumber("A-13")
-                .grade(SeatGrade.VIP)
-                .price(165000)
-                .build();
-
-        Seat savedSeat = seatRepository.insert(insertSeatInfo);
-
-        long seatId = savedSeat.getSeatId();
+        long seatId = firstSeat.getSeatId();
 
         seatRepository.delete(seatId);
 

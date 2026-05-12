@@ -3,15 +3,12 @@ package dev.bum.ticket_service.jpa.seat;
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.SeatStatus;
 import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
-import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;
+import dev.bum.ticket_service.vo.seat.UpdateSeatAreaConfig;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -56,18 +53,8 @@ public class Seat {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    public Seat(InsertSeatInfo info) {
-        this.event = info.getEvent();
-        this.seatNumber = info.getSeatNumber();
-        this.grade = info.getGrade();
-        this.price = info.getPrice();
-        this.status = SeatStatus.RESERVED;
-    }
-
-    public void update(UpdateSeatInfo info) {
-        if (StringUtils.hasText(info.getSeatNumber())) this.seatNumber = info.getSeatNumber();
-        if (info.getGrade() != null) this.grade = info.getGrade();
-        if (info.getPrice() != null) this.price = info.getPrice();
-        if (info.getStatus() != null) this.status = info.getStatus();
+    public void update(UpdateSeatAreaConfig config) {
+        if (config.getPrice() != null) this.price = config.getPrice();
+        if (config.getStatus() != null) this.status = config.getStatus();
     }
 }

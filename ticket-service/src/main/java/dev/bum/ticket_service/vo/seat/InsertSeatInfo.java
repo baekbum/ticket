@@ -1,12 +1,9 @@
 package dev.bum.ticket_service.vo.seat;
 
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.jpa.event.Event;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -16,14 +13,37 @@ public class InsertSeatInfo {
 
     @NotNull
     private Long eventId;
-    private Event event;
-
-    @NotBlank
-    private String seatNumber;
 
     @NotNull
-    private SeatGrade grade;
+    private List<InsertSeatAreaConfig> insertSeatAreaConfigs;
 
-    @NotNull
-    private Integer price;
+    /*
+    {
+      "userId": "bum123",
+      "eventId": 1,
+      "seatConfigs": [
+        {
+          "grade": "VIP",
+          "zone": "FLOOR-A",
+          "rows": 20,
+          "cols": 30,
+          "price": 165000
+        },
+        {
+          "grade": "R",
+          "zone": "28구역",
+          "rows": 20,
+          "cols": 30,
+          "price": 145000
+        },
+        {
+          "grade": "R",
+          "zone": "30구역",
+          "rows": 20,
+          "cols": 30,
+          "price": 145000
+        }
+      ]
+    }
+     */
 }
