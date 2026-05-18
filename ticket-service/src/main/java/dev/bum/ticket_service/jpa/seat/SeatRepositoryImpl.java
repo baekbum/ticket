@@ -109,6 +109,11 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    public List<Seat> selectByIdList(List<Long> idList) {
+        return jpaRepository.findAllBySeatIdIn(idList);
+    }
+
+    @Override
     public Page<Seat> selectByCond(SeatCond cond, Pageable pageable) {
         seat = QSeat.seat;
         QEvent event = QEvent.event;

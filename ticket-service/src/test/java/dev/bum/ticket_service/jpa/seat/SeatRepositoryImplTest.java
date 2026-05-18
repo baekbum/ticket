@@ -74,7 +74,6 @@ class SeatRepositoryImplTest {
         this.eventId = savedEvent.getEventId();
 
         // 좌석 정보 등록
-
         InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
                 .zone("Floor-A")

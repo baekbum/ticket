@@ -57,4 +57,9 @@ public class Seat {
         if (config.getPrice() != null) this.price = config.getPrice();
         if (config.getStatus() != null) this.status = config.getStatus();
     }
+
+    // 비즈니스 로직
+    public void statusChange(SeatStatus status) {
+        this.status = status;
+    }
 }
