@@ -11,7 +11,6 @@ import lombok.*;
 @Table(name = "tickets") // 테이블명도 깔끔하게 tickets
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 @Builder
 public class Ticket {
 
@@ -39,17 +38,61 @@ public class Ticket {
     private Seat seat;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
+    @Column(nullable = false, length = 30)
     private TicketStatus status;
+
+    @Builder
+    public Ticket(Long ticketId, String userId, Reservation reservation, Event event, Seat seat, TicketStatus status) {
+        this.ticketId = ticketId;
+        this.userId = userId;
+        this.event = event;
+        this.seat = seat;
+        this.status = status != null ? status : TicketStatus.READY_TO_PAY;
+
+        if (reservation != null) {
+            changeReservation(reservation);
+        }
+    }
 
     public Ticket(String userId, Reservation reservation, Event event, Seat seat) {
         this.userId = userId;
-        this.reservation = reservation;
         this.event = event;
         this.seat = seat;
-        this.status = TicketStatus.CONFIRMED;
+        this.status = TicketStatus.READY_TO_PAY;
+
+        if (reservation != null) {
+            changeReservation(reservation);
+        }
     }
 
+    /**
+     * Reservation 연관관계 편의 메서드
+     */
+    private void changeReservation(Reservation reservation) {
+        this.reservation = reservation;
+        // 부모 객체의 리스트가 null이 아니라면 나 자신을 리스트에 추가
+        if (reservation.getTickets() != null) {
+            reservation.getTickets().add(this);
+        }
+    }
+
+    /**
+     * 무통장 입금 대기 상태로 변경 (가상계좌 발급 시)
+     */
+    public void awaitingDeposit() {
+        this.status = TicketStatus.AWAITING_DEPOSIT;
+    }
+
+    /**
+     * 결제 완료 상태로 변경 (카드 승인 또는 무통장 입금 확인 시)
+     */
+    public void completePayment() {
+        this.status = TicketStatus.PAYMENT_COMPLETED;
+    }
+
+    /**
+     * 예매/결제 취소 상태로 변경 (미입금 만료 또는 유저 취소 시)
+     */
     public void cancel() {
         this.status = TicketStatus.CANCELLED;
     }

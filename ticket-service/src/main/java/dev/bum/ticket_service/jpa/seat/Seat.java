@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 @Builder
 public class Seat {
 
@@ -42,7 +41,7 @@ public class Seat {
     private Integer price;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
+    @Column(nullable = false, length = 30)
     private SeatStatus status;
 
     @CreationTimestamp
@@ -53,13 +52,46 @@ public class Seat {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Builder
+    public Seat(Long seatId, Event event, String seatNumber, SeatGrade grade, Integer price, SeatStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.seatId = seatId;
+        this.seatNumber = seatNumber;
+        this.grade = grade;
+        this.price = price;
+        this.status = status;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+
+        if (event != null) {
+            changeEvent(event);
+        }
+    }
+
+    /**
+     * Event 연관관계 편의 메서드
+     */
+    private void changeEvent(Event event) {
+        this.event = event;
+        if (event.getSeats() != null) {
+            event.getSeats().add(this);
+        }
+    }
+
     public void update(UpdateSeatAreaConfig config) {
         if (config.getPrice() != null) this.price = config.getPrice();
         if (config.getStatus() != null) this.status = config.getStatus();
     }
 
     // 비즈니스 로직
-    public void statusChange(SeatStatus status) {
-        this.status = status;
+    public void available() {
+        this.status = SeatStatus.AVAILABLE;
+    }
+
+    public void lock() {
+        this.status = SeatStatus.LOCKED;
+    }
+
+    public void reserved() {
+        this.status = SeatStatus.RESERVED;
     }
 }

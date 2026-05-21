@@ -5,7 +5,6 @@ import dev.bum.ticket_service.enums.EventStatus;
 import dev.bum.ticket_service.enums.ReservationStatus;
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.TicketStatus;
-import dev.bum.ticket_service.exception.TicketDuplicateException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
@@ -33,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
 @Import({
@@ -135,82 +133,13 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
         }
 
         ticketRepository.insert(tickets);
-    }
-
-    @Test
-    @DisplayName("동일한 티켓 정보가 존재할 시 에러 반환")
-    void ticket_insert_fail() throws Exception {
-        String userId = "IU";
-
-        // 1. 예매 내역 프레임 만들기
-        Reservation reservation = Reservation.builder()
-                .userId(userId)
-                .event(this.event)
-                .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
-                .build();
-
-        reservationJpaRepository.save(reservation);
-
-        // 2. 좌석 생성
-        Seat first = this.seatList.get(0);
-        Seat second = this.seatList.get(1);
-
-        List<Seat> seats = List.of(first, second);
-
-        // 3. 티켓 생성
-        List<Ticket> tickets = new ArrayList<>();
-
-        for (Seat seat : seats) {
-            Ticket ticket = Ticket.builder()
-                    .userId(userId)
-                    .reservation(reservation)
-                    .event(this.event)
-                    .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
-                    .build();
-
-            tickets.add(ticket);
-        }
-
-        ticketRepository.insert(tickets);
-
-        // 4. 또 다른 사용자가 같은 공연의 똑같은 좌석의 예매를 시도할 때.
-        String otherUserId = "BUM";
-
-        Reservation otherReservation = Reservation.builder()
-                .userId(otherUserId)
-                .event(this.event)
-                .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
-                .build();
-
-        reservationJpaRepository.save(otherReservation);
-
-        List<Ticket> otherTickets = new ArrayList<>();
-
-        for (Seat seat : seats) {
-            Ticket ticket = Ticket.builder()
-                    .userId(otherUserId)
-                    .reservation(otherReservation)
-                    .event(this.event)
-                    .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
-                    .build();
-
-            otherTickets.add(ticket);
-        }
-
-        assertThatThrownBy(() -> ticketRepository.insert(otherTickets))
-                .isInstanceOf(TicketDuplicateException.class)
-                .hasMessageContaining("이미 동일한 티켓 정보가 존재합니다.");
     }
 
     @Test
@@ -243,7 +172,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -284,7 +213,7 @@ class TicketRepositoryImplTest {
                     .reservation(extraReservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             extraTickets.add(ticket);
@@ -334,7 +263,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -378,7 +307,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -389,7 +318,7 @@ class TicketRepositoryImplTest {
         List<Ticket> response_1 = ticketRepository.selectByReservation(reservation);
 
         Ticket targetTicket = response_1.get(1); // 2번째 티켓
-        assertThat(targetTicket.getStatus()).isEqualTo(TicketStatus.CONFIRMED);
+        assertThat(targetTicket.getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
 
         ticketRepository.cancel(targetTicket.getTicketId()); // 해당 티켓 취소
 
@@ -430,7 +359,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -442,7 +371,7 @@ class TicketRepositoryImplTest {
 
         // 모든 티켓이 예매된 상태인지 확인
         for (Ticket t : response_1) {
-            assertThat(t.getStatus()).isEqualTo(TicketStatus.CONFIRMED);
+            assertThat(t.getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         }
 
         // 예매 정보로 모든 티켓 취소
@@ -487,7 +416,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -495,7 +424,7 @@ class TicketRepositoryImplTest {
         ticketRepository.insert(tickets);
 
         // 4. 현재 3매까지 예매한 상태에서 추가적으로 더 예매가 가능한지 확인
-        boolean response = ticketRepository.isReservable(userId, this.event);
+        boolean response = ticketRepository.isReservable(userId, this.event, 0);
         assertThat(response).isTrue(); // 3매이므로 추가적으로 예매 가능
     }
 
@@ -531,7 +460,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -539,7 +468,7 @@ class TicketRepositoryImplTest {
         ticketRepository.insert(tickets);
 
         // 4. 현재 4매까지 예매한 상태에서 추가적으로 더 예매가 가능한지 확인
-        boolean response = ticketRepository.isReservable(userId, this.event);
+        boolean response = ticketRepository.isReservable(userId, this.event, 0);
         assertThat(response).isFalse(); // 4매이므로 추가적으로 예매 불가능
     }
 
@@ -575,7 +504,7 @@ class TicketRepositoryImplTest {
                     .reservation(reservation)
                     .event(this.event)
                     .seat(seat)
-                    .status(TicketStatus.CONFIRMED)
+                    .status(TicketStatus.READY_TO_PAY)
                     .build();
 
             tickets.add(ticket);
@@ -583,7 +512,7 @@ class TicketRepositoryImplTest {
         ticketRepository.insert(tickets);
 
         // 4. 현재 4매까지 예매한 상태에서 추가적으로 더 예매가 가능한지 확인
-        boolean response_1 = ticketRepository.isReservable(userId, this.event);
+        boolean response_1 = ticketRepository.isReservable(userId, this.event, 0);
         assertThat(response_1).isFalse(); // 4매이므로 추가적으로 예매 불가능
 
         // 5. 예매된 4장의 티켓 중 한장을 취소.
@@ -592,7 +521,7 @@ class TicketRepositoryImplTest {
         ticketRepository.cancel(targetTicket.getTicketId()); // 티켓 취소
 
         // 6. 1매 취소된 상태에서 추가적으로 더 예매가 가능한지 확인
-        boolean response_2 = ticketRepository.isReservable(userId, this.event);
+        boolean response_2 = ticketRepository.isReservable(userId, this.event ,0);
         assertThat(response_2).isTrue(); // 3매이므로 추가적으로 예매 가능
     }
 }

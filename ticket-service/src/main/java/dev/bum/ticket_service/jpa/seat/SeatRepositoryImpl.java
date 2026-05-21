@@ -16,6 +16,7 @@ import dev.bum.ticket_service.vo.seat.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -109,8 +110,36 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    public List<Seat> selectByEventId(Long eventId) {
+        List<Seat> seats = jpaRepository.findByEventEventId(eventId);
+
+        if (seats.isEmpty()) throw new SeatNotExistException("해당 좌석 정보는 존재하지 않습니다.");
+
+        return seats;
+    }
+
+    @Override
     public List<Seat> selectByIdList(List<Long> idList) {
-        return jpaRepository.findAllBySeatIdIn(idList);
+        try {
+            // 1. AVAILABLE 상태이면서 현재 아무도 락을 쥐고 있지 않은 좌석만 조회
+            List<Seat> seats = jpaRepository.findAllBySeatIdInAndStatus(idList, SeatStatus.AVAILABLE);
+
+            // 2. 아예 조회된 게 없다면 (잘못된 ID 번호거나, 전부 이미 예매 완료된 상태)
+            if (seats.isEmpty()) {
+                throw new SeatNotExistException("해당 좌석 정보는 존재하지 않습니다.");
+            }
+
+            // 3. 요청한 개수와 조회된 개수가 다르면 (일부는 이미 예매 완료 상태)
+            if (idList.size() != seats.size()) {
+                throw new SeatDuplicateException("이미 선택되었거나 예매할 수 없는 좌석이 포함되어 있습니다.");
+            }
+
+            return seats;
+
+        } catch (PessimisticLockingFailureException e) {
+            // 4. 대기 시간 0초(NOWAIT) 상태에서 누군가 이미 선점 중이라 락 획득에 실패한 경우
+            throw new SeatDuplicateException("이미 다른 사용자가 결제 시도 중인 좌석이 포함되어 있습니다. 잠시 후 다시 시도해주세요.");
+        }
     }
 
     @Override

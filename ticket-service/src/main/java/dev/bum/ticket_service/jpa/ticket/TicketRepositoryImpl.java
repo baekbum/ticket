@@ -1,11 +1,9 @@
 package dev.bum.ticket_service.jpa.ticket;
 
 import dev.bum.ticket_service.enums.TicketStatus;
-import dev.bum.ticket_service.exception.TicketDuplicateException;
 import dev.bum.ticket_service.exception.TicketNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
-import dev.bum.ticket_service.jpa.seat.Seat;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -22,16 +20,7 @@ public class TicketRepositoryImpl implements TicketRepository {
     @Override
     public void insert(List<Ticket> tickets) {
         for (Ticket ticket : tickets) {
-            isExist(ticket.getEvent(), ticket.getSeat()); // 동일한 공연의 좌석이 이미 예매 중인지 확인.
-
             jpaRepository.save(ticket); // 티켓 저장
-        }
-    }
-
-    @Override
-    public void isExist(Event event, Seat seat) {
-        if (jpaRepository.findByEventAndSeatAndStatus(event, seat, TicketStatus.CONFIRMED).isPresent()) {
-            throw new TicketDuplicateException("이미 동일한 티켓 정보가 존재합니다.");
         }
     }
 
@@ -39,6 +28,15 @@ public class TicketRepositoryImpl implements TicketRepository {
     public Ticket select(long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다."));
+    }
+
+    @Override
+    public List<Ticket> selectByIdList(List<Long> idList) {
+        List<Ticket> tickets = jpaRepository.findAllByTicketIdIn(idList);
+
+        if (tickets.isEmpty()) throw new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다.");
+
+        return tickets;
     }
 
     @Override
@@ -66,9 +64,19 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     @Override
-    public boolean isReservable(String userId, Event event) {
-        long cnt = jpaRepository.countByUserIdAndEventAndStatus(userId, event, TicketStatus.CONFIRMED);
+    public boolean isReservable(String userId, Event event, int selectedSeatCnt) {
+        // 취소(CANCELLED)된 티켓을 제외하고, 유저가 수량을 점유하고 있는 모든 티켓 상태 정의
+        List<TicketStatus> activeStatuses = List.of(
+                TicketStatus.READY_TO_PAY,
+                TicketStatus.AWAITING_DEPOSIT,
+                TicketStatus.PAYMENT_COMPLETED
+        );
 
-        return cnt < event.getMaxTicketsPerPerson();
+        // 현재 유저가 '선점 중 + 입금 대기 중 + 결제 완료한' 티켓의 총합을 구함
+        long currentReservedCount = jpaRepository.countByUserIdAndEventAndStatusIn(userId, event, activeStatuses);
+
+        // 기존 예매 수량 + 현재 예매하려는 수량이
+        // 공연의 인당 최대 예매 가능 수량을 넘지 않는지 검증
+        return (currentReservedCount + selectedSeatCnt) <= event.getMaxTicketsPerPerson();
     }
 }

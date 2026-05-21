@@ -1,11 +1,7 @@
 package dev.bum.ticket_service.controller;
 
-import dev.bum.ticket_service.dto.EventDto;
 import dev.bum.ticket_service.dto.SeatDto;
 import dev.bum.ticket_service.service.seat.SeatService;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
 import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
 import dev.bum.ticket_service.vo.seat.SeatCond;
 import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;

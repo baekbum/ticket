@@ -13,6 +13,7 @@ public interface SeatRepository {
     void isExist(SeatCond cond);
     long countByEventId(Long eventId);
     Seat selectById(Long id);
+    List<Seat> selectByEventId(Long eventId);
     List<Seat> selectByIdList(List<Long> seatIdList);
     Page<Seat> selectByCond(SeatCond cond, Pageable pageable);
     void update(UpdateSeatInfo info);

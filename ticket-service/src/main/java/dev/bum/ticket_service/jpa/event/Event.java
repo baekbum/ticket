@@ -47,7 +47,7 @@ public class Event {
     private Integer totalSeats;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 30)
     private EventStatus status;
 
     @Column(nullable = false)
@@ -61,7 +61,7 @@ public class Event {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "event")
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
 
@@ -75,6 +75,7 @@ public class Event {
         this.totalSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
+        this.seats = new ArrayList<>();
     }
 
     // 비즈니스 메서드: 수정 로직 추가
