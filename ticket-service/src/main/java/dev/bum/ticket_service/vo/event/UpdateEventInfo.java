@@ -16,7 +16,7 @@ public class UpdateEventInfo {
     private String title;
     private String description;
     private String venue;
-    private LocalDateTime eventDate;
+    private LocalDateTime eventDateTime;
     private Integer totalSeats;
     private EventStatus status;
     private Integer maxTicketsPerPerson;

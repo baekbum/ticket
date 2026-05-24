@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.mockito.BDDMockito.given;
@@ -49,6 +50,7 @@ class SeatControllerTest {
 
     private String domain = "seat";
     private String apiVersion = "v1";
+    private DateTimeFormatter eventFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
 
     @Test
     @DisplayName("토큰 값 오류")
@@ -140,7 +142,7 @@ class SeatControllerTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
                 .totalSeats(14500)
                 .status(EventStatus.ON_SALE)
                 .build();
@@ -158,7 +160,7 @@ class SeatControllerTest {
                 .artistName(event.getArtistName())
                 .title(event.getTitle())
                 .venue(event.getVenue())
-                .eventDate(event.getEventDate())
+                .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
         long seatId = 1L;
@@ -190,7 +192,7 @@ class SeatControllerTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
                 .totalSeats(14500)
                 .status(EventStatus.ON_SALE)
                 .build();
@@ -208,7 +210,7 @@ class SeatControllerTest {
                 .artistName(event.getArtistName())
                 .title(event.getTitle())
                 .venue(event.getVenue())
-                .eventDate(event.getEventDate())
+                .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
         SeatDto response_2 = SeatDto.builder()
@@ -222,7 +224,7 @@ class SeatControllerTest {
                 .artistName(event.getArtistName())
                 .title(event.getTitle())
                 .venue(event.getVenue())
-                .eventDate(event.getEventDate())
+                .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
         SeatDto response_3 = SeatDto.builder()
@@ -236,7 +238,7 @@ class SeatControllerTest {
                 .artistName(event.getArtistName())
                 .title(event.getTitle())
                 .venue(event.getVenue())
-                .eventDate(event.getEventDate())
+                .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
         SeatCond cond = SeatCond.builder()

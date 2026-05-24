@@ -26,7 +26,7 @@ public class InsertEventInfo {
     private String venue;
 
     @NotNull
-    private LocalDateTime eventDate;
+    private LocalDateTime eventDateTime;
 
     @NotNull
     private Integer totalSeats;

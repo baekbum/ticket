@@ -23,6 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.mockito.BDDMockito.any;
@@ -48,6 +49,7 @@ class EventControllerTest {
 
     private String domain = "event";
     private String apiVersion = "v1";
+    private DateTimeFormatter eventFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
 
     @Test
     @DisplayName("토큰 값 오류")
@@ -67,12 +69,14 @@ class EventControllerTest {
     @Test
     @DisplayName("권한이 USER인 경우 403 코드 반환")
     void with_auth_user() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
+
         InsertEventInfo eventInfo = InsertEventInfo.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -87,12 +91,14 @@ class EventControllerTest {
     @Test
     @DisplayName("이벤트 등록 성공 시 200코드 반환")
     void event_insert() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
+
         InsertEventInfo eventInfo = InsertEventInfo.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -103,7 +109,7 @@ class EventControllerTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
+                .eventDateTime(eventDateTime.format(this.eventFormatter))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -120,13 +126,15 @@ class EventControllerTest {
     @Test
     @DisplayName("ID로 이벤트 검색하기")
     void event_select_by_id() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
+
         EventDto response = EventDto.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18,0))
+                .eventDateTime(eventDateTime.format(this.eventFormatter))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -142,7 +150,7 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.title").value("아이유 콘서트"))
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
-                .andExpect(jsonPath("$.eventDate").value("2026-09-18T18:00:00"))
+                .andExpect(jsonPath("$.eventDateTime").value(eventDateTime.format(this.eventFormatter)))
                 .andExpect(jsonPath("$.totalSeats").value(14500))
                 .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }
@@ -155,13 +163,16 @@ class EventControllerTest {
                 .artistName("아이유")
                 .build();
 
+        LocalDateTime eventDateTime_1 = LocalDateTime.of(2024, 9, 16, 17,0);
+        LocalDateTime eventDateTime_2 = LocalDateTime.of(2026, 9, 16, 18,0);
+
         EventDto response_1 = EventDto.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("상암 월드컵 경기장에서 하는 아이유 콘서트")
                 .venue("상암 월드컵 경기장")
-                .eventDate(LocalDateTime.of(2024, 9, 16, 17,0))
+                .eventDateTime(eventDateTime_1.format(this.eventFormatter))
                 .totalSeats(60000)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -172,7 +183,7 @@ class EventControllerTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 16, 18,0))
+                .eventDateTime(eventDateTime_2.format(this.eventFormatter))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(1)
                 .build();
@@ -202,11 +213,13 @@ class EventControllerTest {
     void event_update() throws Exception {
         long eventId = 1L;
 
+        LocalDateTime eventDateTime = LocalDateTime.of(2024, 5, 16, 17, 0);
+
         UpdateEventInfo info = UpdateEventInfo.builder()
                 .title("수정된 아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2024, 5, 16, 17, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -217,7 +230,7 @@ class EventControllerTest {
                 .title("수정된 아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 5, 16, 17,0))
+                .eventDateTime(eventDateTime.format(this.eventFormatter))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -233,7 +246,7 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.title").value("수정된 아이유 콘서트"))
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
-                .andExpect(jsonPath("$.eventDate").value("2026-05-16T17:00:00"))
+                .andExpect(jsonPath("$.eventDateTime").value(eventDateTime.format(this.eventFormatter)))
                 .andExpect(jsonPath("$.totalSeats").value(14500))
                 .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }
@@ -244,13 +257,15 @@ class EventControllerTest {
     void event_delete() throws Exception {
         long eventId = 1L;
 
+        LocalDateTime eventDateTime = LocalDateTime.of(2024, 5, 16, 17, 0);
+
         EventDto response = EventDto.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("삭제된 아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 5, 16, 17,0))
+                .eventDateTime(eventDateTime.format(this.eventFormatter))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -265,7 +280,7 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.title").value("삭제된 아이유 콘서트"))
                 .andExpect(jsonPath("$.description").value("올림픽 체조 경기장에서 하는 아이유 콘서트"))
                 .andExpect(jsonPath("$.venue").value("올림픽 체조 경기장"))
-                .andExpect(jsonPath("$.eventDate").value("2026-05-16T17:00:00"))
+                .andExpect(jsonPath("$.eventDateTime").value(eventDateTime.format(this.eventFormatter)))
                 .andExpect(jsonPath("$.totalSeats").value(14500))
                 .andExpect(jsonPath("$.maxTicketsPerPerson").value(4));
     }

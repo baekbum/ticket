@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Data
 @NoArgsConstructor
@@ -28,7 +29,7 @@ public class SeatDto {
     private String artistName;
     private String title;
     private String venue;
-    private LocalDateTime eventDate;
+    private String eventDateTime;
 
     public SeatDto(Seat seat) {
         this.seatId = seat.getSeatId();
@@ -43,6 +44,8 @@ public class SeatDto {
         this.artistName = seat.getEvent().getArtistName();
         this.title = seat.getEvent().getTitle();
         this.venue = seat.getEvent().getVenue();
-        this.eventDate = seat.getEvent().getEventDate();
+
+        DateTimeFormatter eventFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
+        this.eventDateTime = seat.getEvent().getEventDateTime().format(eventFormatter);
     }
 }

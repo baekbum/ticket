@@ -26,7 +26,7 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final StringPath description = createString("description");
 
-    public final DateTimePath<java.time.LocalDateTime> eventDate = createDateTime("eventDate", java.time.LocalDateTime.class);
+    public final DateTimePath<java.time.LocalDateTime> eventDateTime = createDateTime("eventDateTime", java.time.LocalDateTime.class);
 
     public final NumberPath<Long> eventId = createNumber("eventId", Long.class);
 

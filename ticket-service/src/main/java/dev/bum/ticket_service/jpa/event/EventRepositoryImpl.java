@@ -40,7 +40,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .artistName(info.getArtistName())
                 .title(info.getTitle())
                 .venue(info.getVenue())
-                .eventDate(info.getEventDate().toLocalDate())
+                .eventDate(info.getEventDateTime().toLocalDate())
                 .status(EventStatus.ON_SALE)
                 .build();
 
@@ -170,7 +170,7 @@ public class EventRepositoryImpl implements EventRepository {
         LocalDateTime endOfDay = eventDate.atTime(LocalTime.MAX);
 
         // 3. DB의 eventDate가 이 범위 사이에 있는지 확인
-        return event.eventDate.between(startOfDay, endOfDay);
+        return event.eventDateTime.between(startOfDay, endOfDay);
     }
 
     private BooleanExpression statusEq(EventStatus status) {

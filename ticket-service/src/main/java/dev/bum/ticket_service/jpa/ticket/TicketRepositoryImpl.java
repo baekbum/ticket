@@ -75,8 +75,14 @@ public class TicketRepositoryImpl implements TicketRepository {
         // 현재 유저가 '선점 중 + 입금 대기 중 + 결제 완료한' 티켓의 총합을 구함
         long currentReservedCount = jpaRepository.countByUserIdAndEventAndStatusIn(userId, event, activeStatuses);
 
+        // 이미 최대치로 예매가 된 상태면 false 반환
+        if (event.getMaxTicketsPerPerson() == currentReservedCount) {
+            return false;
+        }
+
         // 기존 예매 수량 + 현재 예매하려는 수량이
         // 공연의 인당 최대 예매 가능 수량을 넘지 않는지 검증
-        return (currentReservedCount + selectedSeatCnt) <= event.getMaxTicketsPerPerson();
+        int result = (int) (event.getMaxTicketsPerPerson() - (currentReservedCount + selectedSeatCnt));
+        return -1 < result;
     }
 }

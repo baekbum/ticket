@@ -41,7 +41,7 @@ public class ReservationDto {
         this.reservedDate = reservation.getReservedAt().format(reservedFormatter);
 
         DateTimeFormatter eventFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
-        this.eventDateTime = reservation.getEvent().getEventDate().format(eventFormatter);
+        this.eventDateTime = reservation.getEvent().getEventDateTime().format(eventFormatter);
 
         this.venue = reservation.getEvent().getVenue();
         this.ticketCount = reservation.getTickets().size();

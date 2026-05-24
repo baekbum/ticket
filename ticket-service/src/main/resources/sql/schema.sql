@@ -1,5 +1,5 @@
 -- ==========================================
--- 1. Events 테이블
+-- 1. Events 테이블 (수정 완료 🌟)
 -- ==========================================
 CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
@@ -7,16 +7,16 @@ CREATE TABLE events (
     title VARCHAR(100) NOT NULL,
     description TEXT,
     venue VARCHAR(100) NOT NULL,
-    event_date TIMESTAMP NOT NULL,
+    event_date_time TIMESTAMP NOT NULL,
     total_seats INTEGER NOT NULL,
-    status VARCHAR(30) NOT NULL,              -- 🌟 length 30 반영
-    max_tickets_per_person INTEGER NOT NULL,  -- 🌟 @Column(nullable = false) 반영
+    status VARCHAR(30) NOT NULL,
+    max_tickets_per_person INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_event_artist_name ON events(artist_name);
-CREATE INDEX idx_event_status_date ON events(status, event_date);
+CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
 
 
 -- ==========================================

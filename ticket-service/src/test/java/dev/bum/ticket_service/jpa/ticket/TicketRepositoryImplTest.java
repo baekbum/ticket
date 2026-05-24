@@ -76,7 +76,7 @@ class TicketRepositoryImplTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
                 .totalSeats(14500)
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)

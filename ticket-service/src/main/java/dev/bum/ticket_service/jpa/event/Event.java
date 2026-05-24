@@ -41,7 +41,7 @@ public class Event {
     private String venue;
 
     @Column(nullable = false)
-    private LocalDateTime eventDate;
+    private LocalDateTime eventDateTime;
 
     @Column(nullable = false)
     private Integer totalSeats;
@@ -71,7 +71,7 @@ public class Event {
         this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         this.venue = info.getVenue();
-        this.eventDate = info.getEventDate();
+        this.eventDateTime = info.getEventDateTime();
         this.totalSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
@@ -84,7 +84,7 @@ public class Event {
         if (StringUtils.hasText(info.getTitle())) this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         if (StringUtils.hasText(info.getVenue())) this.venue = info.getVenue();
-        if (info.getEventDate() != null) this.eventDate = info.getEventDate();
+        if (info.getEventDateTime() != null) this.eventDateTime = info.getEventDateTime();
         if (info.getTotalSeats() != null) this.totalSeats = info.getTotalSeats();
         if (info.getStatus() != null) this.status = info.getStatus();
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();

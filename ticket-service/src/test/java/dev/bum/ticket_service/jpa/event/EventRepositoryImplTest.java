@@ -21,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -44,7 +45,7 @@ class EventRepositoryImplTest {
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 5, 16, 18, 0))
+                .eventDateTime(LocalDateTime.of(2026, 5, 16, 18, 0))
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .status(EventStatus.ON_SALE)
@@ -56,12 +57,14 @@ class EventRepositoryImplTest {
     @Test
     @DisplayName("이벤트 정보 추가")
     void event_insert() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
+
         InsertEventInfo info = InsertEventInfo.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
                 .venue("신한카드홀")
-                .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(1768)
                 .maxTicketsPerPerson(2)
                 .build();
@@ -72,7 +75,7 @@ class EventRepositoryImplTest {
         assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
         assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDate()).isEqualTo("2026-04-29T18:00:00");
+        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
         assertThat(response.getTotalSeats()).isEqualTo(1768);
         assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
@@ -81,12 +84,14 @@ class EventRepositoryImplTest {
     @Test
     @DisplayName("이벤트 정보 추가 시 이미 동일한 이벤트 정보가 존재하면 오류 반환")
     void event_already_exist() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 5, 16, 18, 0);
+
         InsertEventInfo info = InsertEventInfo.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
-                .eventDate(LocalDateTime.of(2026, 5, 16, 18, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(14500)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -99,12 +104,14 @@ class EventRepositoryImplTest {
     @Test
     @DisplayName("ID 값으로 이벤트 검색")
     void event_select_by_id() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
+
         InsertEventInfo info = InsertEventInfo.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
                 .venue("신한카드홀")
-                .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(1768)
                 .maxTicketsPerPerson(2)
                 .build();
@@ -120,7 +127,7 @@ class EventRepositoryImplTest {
         assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
         assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDate()).isEqualTo(LocalDateTime.of(2026, 4, 29, 18, 0));
+        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
         assertThat(response.getTotalSeats()).isEqualTo(1768);
         assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
     }
@@ -128,12 +135,15 @@ class EventRepositoryImplTest {
     @Test
     @DisplayName("조건으로 이벤트 검색")
     void event_select_by_cond() throws Exception {
+        LocalDateTime eventDateTime_1 = LocalDateTime.of(2026, 4, 29, 18, 0);
+        LocalDateTime eventDateTime_2 = LocalDateTime.of(2026, 9, 18, 18, 0);
+
         InsertEventInfo info_1 = InsertEventInfo.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
                 .venue("신한카드홀")
-                .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
+                .eventDateTime(eventDateTime_1)
                 .totalSeats(1768)
                 .maxTicketsPerPerson(2)
                 .build();
@@ -143,7 +153,7 @@ class EventRepositoryImplTest {
                 .title("아이유 콘서트")
                 .description("상암 월드컵 경기장에서 하는 아이유 콘서트")
                 .venue("상암 월드컵 경기장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(eventDateTime_2)
                 .totalSeats(60000)
                 .maxTicketsPerPerson(4)
                 .build();
@@ -184,13 +194,15 @@ class EventRepositoryImplTest {
         assertThat(event.getTitle()).isEqualTo("아이유 콘서트");
         assertThat(event.getDescription()).isEqualTo("올림픽 체조 경기장에서 하는 아이유 콘서트");
         assertThat(event.getVenue()).isEqualTo("올림픽 체조 경기장");
-        assertThat(event.getEventDate()).isEqualTo(LocalDateTime.of(2026, 5, 16, 18, 0));
+        assertThat(event.getEventDateTime()).isEqualTo(LocalDateTime.of(2026, 5, 16, 18, 0));
         assertThat(event.getTotalSeats()).isEqualTo(14500);
+
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 17, 0);
 
         UpdateEventInfo info = UpdateEventInfo.builder()
                 .description("고양 종합 운동장에서 하는 아이유 콘서트")
                 .venue("고양 종합 운동장")
-                .eventDate(LocalDateTime.of(2026, 9, 18, 17, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(43000)
                 .build();
 
@@ -199,19 +211,21 @@ class EventRepositoryImplTest {
         assertThat(response.getTitle()).isEqualTo("아이유 콘서트");
         assertThat(response.getDescription()).isEqualTo("고양 종합 운동장에서 하는 아이유 콘서트");
         assertThat(response.getVenue()).isEqualTo("고양 종합 운동장");
-        assertThat(response.getEventDate()).isEqualTo(LocalDateTime.of(2026, 9, 18, 17, 0));
+        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
         assertThat(response.getTotalSeats()).isEqualTo(43000);
     }
 
     @Test
     @DisplayName("이벤트 정보 삭제")
     void event_delete() throws Exception {
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
+
         InsertEventInfo info= InsertEventInfo.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
                 .venue("신한카드홀")
-                .eventDate(LocalDateTime.of(2026, 4, 29, 18, 0))
+                .eventDateTime(eventDateTime)
                 .totalSeats(1768)
                 .maxTicketsPerPerson(2)
                 .build();
@@ -227,7 +241,7 @@ class EventRepositoryImplTest {
         assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
         assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
         assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDate()).isEqualTo(LocalDateTime.of(2026, 4, 29, 18, 0));
+        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
         assertThat(response.getTotalSeats()).isEqualTo(1768);
         assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
 
