@@ -50,7 +50,11 @@ public class ReservationDto {
         for (Ticket ticket : reservation.getTickets()) {
             TicketDto dto = TicketDto.builder()
                     .ticketId(ticket.getTicketId())
-                    .seatNumber(ticket.getSeat().getSeatNumber())
+                    .seatId(ticket.getSeat().getSeatId())
+                    .zone(ticket.getSeat().getZone())
+                    .seatRow(ticket.getSeat().getSeatRow())
+                    .seatCol(ticket.getSeat().getSeatCol())
+                    .seatName(String.format("%s %d열 %d번", ticket.getSeat().getZone(), ticket.getSeat().getSeatRow(), ticket.getSeat().getSeatCol()))
                     .grade(ticket.getSeat().getGrade().name())
                     .price(ticket.getSeat().getPrice())
                     .status(ticket.getSeat().getStatus().name())

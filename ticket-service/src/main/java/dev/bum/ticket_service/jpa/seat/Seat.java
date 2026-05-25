@@ -5,7 +5,10 @@ import dev.bum.ticket_service.enums.SeatStatus;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.vo.seat.UpdateSeatAreaConfig;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -14,11 +17,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "seats",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "seat_number"})
+        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "zone", "seat_row", "seat_col"})
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Builder
 public class Seat {
 
     @Id
@@ -30,8 +32,14 @@ public class Seat {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @Column(nullable = false, length = 20)
-    private String seatNumber;  // ex) "A-12", "VIP-03"
+    @Column(nullable = false, length = 50)
+    private String zone;         // ex) "Floor A", "1층 W"
+
+    @Column(name = "seat_row", nullable = false)
+    private Integer seatRow;     // ex) 1열, 2열
+
+    @Column(name = "seat_col", nullable = false)
+    private Integer seatCol;     // ex) 1번, 2번
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -52,10 +60,13 @@ public class Seat {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 🌟 빌더 및 생성자 파라미터 수정
     @Builder
-    public Seat(Long seatId, Event event, String seatNumber, SeatGrade grade, Integer price, SeatStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.seatId = seatId;
-        this.seatNumber = seatNumber;
+        this.zone = zone;
+        this.seatRow = seatRow;
+        this.seatCol = seatCol;
         this.grade = grade;
         this.price = price;
         this.status = status;

@@ -58,11 +58,12 @@ public class SeatRepositoryImpl implements SeatRepository {
         for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
-                    String seatNumber = String.format("%s구역-%d열-%d번", config.getZone(), r, c);
 
                     Seat seat = Seat.builder()
                             .event(event)
-                            .seatNumber(seatNumber)
+                            .zone(config.getZone())
+                            .seatRow(r)
+                            .seatCol(c)
                             .grade(config.getGrade())
                             .price(config.getPrice())
                             .status(SeatStatus.AVAILABLE)
@@ -88,7 +89,9 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .from(seat)
                 .where(
                         eventIdEq(cond.getEventId()),
-                        seatNumberEq(cond.getSeatNumber()),
+                        zoneEq(cond.getZone()),
+                        seatRowEq(cond.getSeatRow()),
+                        seatColEq(cond.getSeatCol()),
                         statusNotAvailable()
                 )
                 .fetch();
@@ -163,7 +166,9 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
-                        seatNumberEq(cond.getSeatNumber()),
+                        zoneEq(cond.getZone()),
+                        seatRowEq(cond.getSeatRow()),
+                        seatColEq(cond.getSeatCol()),
                         gradeEq(cond.getGrade()),
                         statusEq(cond.getStatus())
                 )
@@ -179,7 +184,9 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
-                        seatNumberEq(cond.getSeatNumber()),
+                        zoneEq(cond.getZone()),
+                        seatRowEq(cond.getSeatRow()),
+                        seatColEq(cond.getSeatCol()),
                         gradeEq(cond.getGrade()),
                         statusEq(cond.getStatus())
                 )
@@ -217,8 +224,16 @@ public class SeatRepositoryImpl implements SeatRepository {
         return seat.event.eq(event);
     }
 
-    private BooleanExpression seatNumberEq(String seatNumber) {
-        return StringUtils.hasText(seatNumber) ? seat.seatNumber.eq(seatNumber) : null;
+    private BooleanExpression zoneEq(String zone) {
+        return StringUtils.hasText(zone) ? seat.zone.eq(zone) : null;
+    }
+
+    private BooleanExpression seatRowEq(Integer seatRow) {
+        return seatRow != null ? seat.seatRow.eq(seatRow) : null;
+    }
+
+    private BooleanExpression seatColEq(Integer seatCol) {
+        return seatCol != null ? seat.seatCol.eq(seatCol) : null;
     }
 
     private BooleanExpression gradeEq(SeatGrade grade) {

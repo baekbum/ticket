@@ -78,7 +78,7 @@ class ReservationControllerTest {
         this.event = event;
 
         // 2. 좌석 정보 등록
-        this.seatList = createSeat(event, SeatGrade.VIP, "Floor-A", 2, 5, 168000);
+        this.seatList = createSeat(event, SeatGrade.VIP, "Floor A구역", 2, 5, 168000);
     }
 
     @Test
@@ -378,9 +378,9 @@ class ReservationControllerTest {
                 .forEach(ticketDto -> ticketDto.setStatus(TicketStatus.CANCELLED.name()));
 
         // 티켓에 1:1로 묶여있는 좌석 상태 변경
-        List<String> seatNumberForCancel = List.of(ticketDtos.get(0).getSeatNumber(), ticketDtos.get(2).getSeatNumber());
+        List<Long> seatIdForCancel = List.of(ticketDtos.get(0).getTicketId(), ticketDtos.get(2).getTicketId());
         selectedSeats.stream()
-                .filter(seat -> seatNumberForCancel.contains(seat.getSeatNumber()))
+                .filter(seat -> seatIdForCancel.contains(seat.getSeatId()))
                 .forEach(Seat::available);
 
         // 3. 예매 부분 취소 (상태 변경)
@@ -434,12 +434,13 @@ class ReservationControllerTest {
         for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
-                    String seatNumber = String.format("%s구역-%d열-%d번", config.getZone(), r, c);
 
                     Seat seat = Seat.builder()
                             .seatId(seatId++)
                             .event(event)
-                            .seatNumber(seatNumber)
+                            .zone(config.getZone())
+                            .seatRow(r)
+                            .seatCol(c)
                             .grade(config.getGrade())
                             .price(config.getPrice())
                             .status(SeatStatus.AVAILABLE)
@@ -456,7 +457,11 @@ class ReservationControllerTest {
     private TicketDto createTicketDto(long ticketId, Seat seat) {
         return TicketDto.builder()
                 .ticketId(ticketId)
-                .seatNumber(seat.getSeatNumber())
+                .seatId(seat.getSeatId())
+                .zone(seat.getZone())
+                .seatRow(seat.getSeatRow())
+                .seatCol(seat.getSeatCol())
+                .seatName(String.format("%s %d열 %d번", seat.getZone(), seat.getSeatRow(), seat.getSeatCol()))
                 .grade(seat.getGrade().name())
                 .price(seat.getPrice())
                 .status(TicketStatus.READY_TO_PAY.name())

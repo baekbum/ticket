@@ -15,7 +15,9 @@ public class SeatCond {
 
     private Long seatId;
     private Long eventId;
-    private String seatNumber;
+    private String zone;
+    private Integer seatRow;
+    private Integer seatCol;
     private SeatGrade grade;
     private SeatStatus status;
 

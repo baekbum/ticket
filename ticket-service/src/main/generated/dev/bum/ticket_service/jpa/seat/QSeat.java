@@ -30,13 +30,17 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
+    public final NumberPath<Integer> seatCol = createNumber("seatCol", Integer.class);
+
     public final NumberPath<Long> seatId = createNumber("seatId", Long.class);
 
-    public final StringPath seatNumber = createString("seatNumber");
+    public final NumberPath<Integer> seatRow = createNumber("seatRow", Integer.class);
 
     public final EnumPath<dev.bum.ticket_service.enums.SeatStatus> status = createEnum("status", dev.bum.ticket_service.enums.SeatStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
+
+    public final StringPath zone = createString("zone");
 
     public QSeat(String variable) {
         this(Seat.class, forVariable(variable), INITS);

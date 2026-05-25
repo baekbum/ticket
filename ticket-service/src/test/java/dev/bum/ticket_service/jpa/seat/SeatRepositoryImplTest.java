@@ -76,7 +76,7 @@ class SeatRepositoryImplTest {
         // 좌석 정보 등록
         InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
-                .zone("Floor-A")
+                .zone("Floor A구역")
                 .rows(10)
                 .cols(10)
                 .price(168000)
@@ -126,7 +126,7 @@ class SeatRepositoryImplTest {
     void seat_insert() throws Exception {
         InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
-                .zone("Floor-B")
+                .zone("Floor B구역")
                 .rows(10)
                 .cols(10)
                 .price(168000)
@@ -154,7 +154,9 @@ class SeatRepositoryImplTest {
 
         assertThat(response.getSeatId()).isEqualTo(seatId);
         assertThat(response.getEvent().getEventId()).isEqualTo(this.eventId);
-        assertThat(response.getSeatNumber()).isEqualTo(firstSeat.getSeatNumber());
+        assertThat(response.getZone()).isEqualTo(firstSeat.getZone());
+        assertThat(response.getSeatRow()).isEqualTo(firstSeat.getSeatRow());
+        assertThat(response.getSeatCol()).isEqualTo(firstSeat.getSeatCol());
         assertThat(response.getGrade()).isEqualTo(firstSeat.getGrade());
         assertThat(response.getPrice()).isEqualTo(firstSeat.getPrice());
     }
@@ -164,7 +166,7 @@ class SeatRepositoryImplTest {
     void seat_select_by_cond() throws Exception {
         InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
                 .grade(SeatGrade.VIP)
-                .zone("Floor-B")
+                .zone("Floor B구역")
                 .rows(10)
                 .cols(10)
                 .price(168000)

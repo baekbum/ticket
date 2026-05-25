@@ -2,7 +2,6 @@ package dev.bum.ticket_service.dto;
 
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.SeatStatus;
-import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,11 +17,13 @@ import java.time.format.DateTimeFormatter;
 @Builder
 public class SeatDto {
     private Long seatId;
-    private String seatNumber;
+    private String zone;
+    private Integer seatRow;
+    private Integer seatCol;
+    private String seatName;
     private SeatGrade grade;
     private Integer price;
     private SeatStatus status;
-    private LocalDateTime time;
 
     // event 관련
     private Long eventId;
@@ -33,11 +34,13 @@ public class SeatDto {
 
     public SeatDto(Seat seat) {
         this.seatId = seat.getSeatId();
-        this.seatNumber = seat.getSeatNumber();
+        this.zone = seat.getZone();
+        this.seatRow = seat.getSeatRow();
+        this.seatCol = seat.getSeatCol();
+        this.seatName = String.format("%s %d열 %d번", this.zone, this.seatRow, this.seatCol);
         this.grade = seat.getGrade();
         this.price = seat.getPrice();
         this.status = seat.getStatus();
-        this.time = seat.getUpdatedAt();
 
         // event 관련
         this.eventId = seat.getEvent().getEventId();
