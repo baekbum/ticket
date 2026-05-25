@@ -49,7 +49,7 @@ public class ReservationController {
      * @param info
      * @return
      */
-    @PutMapping("/reservable")
+    @PostMapping("/reservable")
     public ResponseEntity<Void> isReservable(@Valid @RequestBody IsReservableInfo info) {
         reservationService.isReservable(info);
         return ResponseEntity.ok().build();

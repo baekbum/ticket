@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -47,6 +48,8 @@ public class ReservationDto {
         this.ticketCount = reservation.getTickets().size();
         this.status = reservation.getStatus().name();
 
+        this.tickets = new ArrayList<>();
+
         for (Ticket ticket : reservation.getTickets()) {
             TicketDto dto = TicketDto.builder()
                     .ticketId(ticket.getTicketId())
@@ -57,10 +60,10 @@ public class ReservationDto {
                     .seatName(String.format("%s %d열 %d번", ticket.getSeat().getZone(), ticket.getSeat().getSeatRow(), ticket.getSeat().getSeatCol()))
                     .grade(ticket.getSeat().getGrade().name())
                     .price(ticket.getSeat().getPrice())
-                    .status(ticket.getSeat().getStatus().name())
+                    .status(ticket.getStatus().name())
                     .build();
 
-            tickets.add(dto);
+            this.tickets.add(dto);
         }
     }
 }

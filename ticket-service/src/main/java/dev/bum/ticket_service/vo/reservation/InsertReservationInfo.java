@@ -16,14 +16,14 @@ import java.util.List;
 @Builder
 public class InsertReservationInfo {
 
-    @NotNull
+    @NotBlank
     private String userId;
 
     @NotNull
     private List<Long> seatIdList;
 
     @NotNull
-    private long eventId;
+    private Long eventId;
 
     private Event event;
 }
