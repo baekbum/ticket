@@ -12,11 +12,13 @@ COPY build.gradle .
 COPY common/build.gradle common/
 COPY auth-service/build.gradle auth-service/
 COPY user-service/build.gradle user-service/
+COPY ticket-service/build.gradle ticket-service/
 
 # 3. Gradle 구조 인식을 위한 최소한의 빈 폴더 생성
 RUN mkdir -p common/src/main/java \
              auth-service/src/main/java \
-             user-service/src/main/java
+             user-service/src/main/java \
+             ticket-service/src/main/java
 
 # 4. 의존성 미리 다운로드 (캐싱을 통한 속도 향상)
 RUN chmod +x ./gradlew

@@ -129,7 +129,9 @@ public class UserRepositoryImpl implements UserRepository {
                 )
                 .fetchOne();
 
-        return new PageImpl<>(content, pageable, total);
+        long totalCount = (total != null) ? total : 0L;
+
+        return new PageImpl<>(content, pageable, totalCount);
     }
 
     /**
@@ -172,7 +174,7 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     private BooleanExpression userIdIn(List<String> userIdList) {
-        return userIdList != null && !userIdList.isEmpty()
+        return userIdList != null || !userIdList.isEmpty()
                 ? user.userId.in(userIdList) : null;
     }
 
@@ -181,7 +183,7 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     private BooleanExpression nameIn(List<String> nameList) {
-        return nameList != null && !nameList.isEmpty()
+        return nameList != null || !nameList.isEmpty()
                 ? user.name.in(nameList) : null;
     }
 

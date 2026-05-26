@@ -4,9 +4,9 @@ services:
       context: ../
       dockerfile: user-service/Dockerfile # 루트 기준의 도커파일 위치
     deploy:
-      replicas: 2
+      replicas: 1
     environment:
-      # 1. 데이터베이스 연결 (인프라의 auth-db 컨테이너 이름 사용)
+      # 1. 데이터베이스 연결 (인프라의 user-db 컨테이너 이름 사용)
       - SPRING_DATASOURCE_URL=jdbc:postgresql://user-db:5432/user_db
       - SPRING_DATASOURCE_USERNAME=user_user
       - SPRING_DATASOURCE_PASSWORD=user_pass
