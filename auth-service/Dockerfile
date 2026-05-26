@@ -13,12 +13,14 @@ COPY build.gradle .
 COPY common/build.gradle common/
 COPY auth-service/build.gradle auth-service/
 COPY user-service/build.gradle user-service/
+COPY ticket-service/build.gradle ticket-service/
 
 # 3. [핵심] Gradle의 '출석 체크' 통과를 위해 빈 폴더 생성
 # 소스 코드를 복사하는 대신, 폴더만 만들어 Gradle을 안심시킵니다.
 RUN mkdir -p common/src/main/java \
              auth-service/src/main/java \
-             user-service/src/main/java
+             user-service/src/main/java \
+             ticket-service/src/main/java
 
 # 4. 의존성 미리 다운로드 (캐싱)
 RUN chmod +x ./gradlew
