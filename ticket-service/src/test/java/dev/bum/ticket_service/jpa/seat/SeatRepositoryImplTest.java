@@ -4,7 +4,7 @@ import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.enums.EventStatus;
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.SeatStatus;
-import dev.bum.ticket_service.exception.SeatNotExistException;
+import dev.bum.ticket_service.exception.seat.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;

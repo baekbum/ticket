@@ -7,8 +7,8 @@ import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.SeatStatus;
-import dev.bum.ticket_service.exception.SeatDuplicateException;
-import dev.bum.ticket_service.exception.SeatNotExistException;
+import dev.bum.ticket_service.exception.seat.SeatDuplicateException;
+import dev.bum.ticket_service.exception.seat.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
@@ -122,7 +122,11 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public List<Seat> selectByIdList(List<Long> idList) {
+    public List<Seat> selectBySeatList(List<SeatInfo> seatInfos) {
+        List<Long> idList = seatInfos.stream()
+                .map(SeatInfo::getId)
+                .toList();
+
         try {
             // 1. AVAILABLE 상태이면서 현재 아무도 락을 쥐고 있지 않은 좌석만 조회
             List<Seat> seats = jpaRepository.findAllBySeatIdInAndStatus(idList, SeatStatus.AVAILABLE);

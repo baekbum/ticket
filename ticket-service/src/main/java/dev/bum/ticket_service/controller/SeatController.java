@@ -4,6 +4,7 @@ import dev.bum.ticket_service.dto.SeatDto;
 import dev.bum.ticket_service.service.seat.SeatService;
 import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
 import dev.bum.ticket_service.vo.seat.SeatCond;
+import dev.bum.ticket_service.vo.seat.SeatOccupyRequest;
 import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,25 @@ public class SeatController {
     @DeleteMapping("/delete/id/{seatId}")
     public ResponseEntity<Void> delete(@PathVariable("seatId") Long seatId) {
         seatService.delete(seatId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 특정 공연의 좌석 데이터를 Redis에 예열(Warm-up)하는 관리자 API
+     */
+    @PostMapping("/warm-up/{eventId}")
+    public ResponseEntity<String> warmUpSeats(@PathVariable("eventId") Long eventId) {
+        seatService.warmUpSeatsToCache(eventId);
+        return ResponseEntity.ok("공연 ID " + eventId + "번의 좌석 데이터 예열이 완료되었습니다.");
+    }
+
+    /**
+     * 유저의 좌석 선점(임시 락) 요청 API
+     */
+    @PostMapping("/occupy")
+    public ResponseEntity<Void> occupySeat(@RequestBody SeatOccupyRequest request) {
+        seatService.occupySeat(request);
+
         return ResponseEntity.ok().build();
     }
 }

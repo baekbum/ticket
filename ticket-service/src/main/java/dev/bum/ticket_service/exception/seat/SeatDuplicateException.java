@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.exception;
+package dev.bum.ticket_service.exception.seat;
 
 public class SeatDuplicateException extends RuntimeException {
     public SeatDuplicateException(String message) {

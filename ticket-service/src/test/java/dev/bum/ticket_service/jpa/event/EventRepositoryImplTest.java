@@ -2,8 +2,8 @@ package dev.bum.ticket_service.jpa.event;
 
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.enums.EventStatus;
-import dev.bum.ticket_service.exception.EventDuplicateException;
-import dev.bum.ticket_service.exception.EventNotExistException;
+import dev.bum.ticket_service.exception.event.EventDuplicateException;
+import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.vo.event.EventCond;
 import dev.bum.ticket_service.vo.event.InsertEventInfo;
 import dev.bum.ticket_service.vo.event.UpdateEventInfo;
@@ -21,7 +21,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.*;
 
