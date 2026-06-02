@@ -1,4 +1,4 @@
-package dev.bum.common.kafka;
+package dev.bum.common.kafka.user;
 
 import dev.bum.common.kafka.enums.TopicEventType;
 import lombok.AllArgsConstructor;

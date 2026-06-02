@@ -31,6 +31,9 @@ dependencies {
 	// Kafka 추가
 	implementation 'org.springframework.kafka:spring-kafka'
 
+	// redis 추가
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
 	// --- Querydsl 추가 시작 ---
 	implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
 	annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"

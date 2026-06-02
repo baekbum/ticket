@@ -28,6 +28,9 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
       properties:
         spring.json.trusted.packages: "dev.bum.*"
+    admin:
+      properties:
+        auto.create.topics.enable: false
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}

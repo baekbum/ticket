@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.exception;
+package dev.bum.ticket_service.exception.event;
 
 public class EventDuplicateException extends RuntimeException {
     public EventDuplicateException(String message) {

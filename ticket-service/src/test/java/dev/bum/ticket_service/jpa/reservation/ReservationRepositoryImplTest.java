@@ -5,7 +5,7 @@ import dev.bum.ticket_service.enums.EventStatus;
 import dev.bum.ticket_service.enums.ReservationStatus;
 import dev.bum.ticket_service.enums.SeatGrade;
 import dev.bum.ticket_service.enums.TicketStatus;
-import dev.bum.ticket_service.exception.TicketLimitExceededException;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
@@ -18,6 +18,7 @@ import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
 import dev.bum.ticket_service.vo.reservation.ReservationCond;
 import dev.bum.ticket_service.vo.seat.InsertSeatAreaConfig;
 import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
+import dev.bum.ticket_service.vo.seat.SeatInfo;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -117,17 +118,13 @@ class ReservationRepositoryImplTest {
     void reservation_insert_1() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId, this.event);
 
         // 1. 예매 내역 생성
         reservationRepository.insert(info);
@@ -139,30 +136,22 @@ class ReservationRepositoryImplTest {
         String userId = "IU";
 
         // 처음 2매 예매
-        List<Long> seatIdList_1 = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId()
+        List<Seat> seats_1 = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1)
         );
 
-        InsertReservationInfo info_1 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList_1)
-                .build();
+        InsertReservationInfo info_1 = getInsertReservationInfo(seats_1, userId, this.event);
 
         reservationRepository.insert(info_1);
 
         // 추가적으로 2매 예매
-        List<Long> seatIdList_2 = List.of(
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId()
+        List<Seat> seats_2 = List.of(
+                this.seatList.get(2),
+                this.seatList.get(3)
         );
 
-        InsertReservationInfo info_2 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList_2)
-                .build();
+        InsertReservationInfo info_2 = getInsertReservationInfo(seats_2, userId, this.event);
 
         reservationRepository.insert(info_2);
     }
@@ -173,19 +162,15 @@ class ReservationRepositoryImplTest {
         String userId = "IU";
         int maxLimit = this.event.getMaxTicketsPerPerson();
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId(),
-                this.seatList.get(4).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2),
+                this.seatList.get(3),
+                this.seatList.get(4)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId, this.event);
 
         assertThatThrownBy(() -> reservationRepository.insert(info))
                 .isInstanceOf(TicketLimitExceededException.class)
@@ -198,30 +183,22 @@ class ReservationRepositoryImplTest {
         String userId = "IU";
         int maxLimit = this.event.getMaxTicketsPerPerson();
 
-        List<Long> seatIdList_1 = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId()
+        List<Seat> seats_1 = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1)
         );
 
-        InsertReservationInfo info_1 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList_1)
-                .build();
+        InsertReservationInfo info_1 = getInsertReservationInfo(seats_1, userId, this.event);
 
         reservationRepository.insert(info_1);
 
-        List<Long> seatIdList_2 = List.of(
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId(),
-                this.seatList.get(4).getSeatId()
+        List<Seat> seats_2 = List.of(
+                this.seatList.get(2),
+                this.seatList.get(3),
+                this.seatList.get(4)
         );
 
-        InsertReservationInfo info_2 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList_2)
-                .build();
+        InsertReservationInfo info_2 = getInsertReservationInfo(seats_2, userId, this.event);
 
         assertThatThrownBy(() -> reservationRepository.insert(info_2))
                 .isInstanceOf(TicketLimitExceededException.class)
@@ -233,17 +210,13 @@ class ReservationRepositoryImplTest {
     void reservation_select_by_id() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId, this.event);
 
         // 1. 예매 내역 생성
         Reservation savedReservation = reservationRepository.insert(info);
@@ -268,17 +241,13 @@ class ReservationRepositoryImplTest {
     void reservation_select_by_cond() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList_1 = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats_1 = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info_1 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList_1)
-                .build();
+        InsertReservationInfo info_1 = getInsertReservationInfo(seats_1, userId, this.event);
 
         // 첫번째 예매 내역 생성
         Reservation saved_1 = reservationRepository.insert(info_1);
@@ -317,18 +286,14 @@ class ReservationRepositoryImplTest {
         // 좌석 조회
         List<Seat> seats = seatRepository.selectByEventId(savedEvent.getEventId());
 
-        List<Long> seatIdList_2 = List.of(
-                seats.get(0).getSeatId(),
-                seats.get(1).getSeatId(),
-                seats.get(2).getSeatId(),
-                seats.get(3).getSeatId()
+        List<Seat> seats_2 = List.of(
+                seats.get(0),
+                seats.get(1),
+                seats.get(2),
+                seats.get(3)
         );
 
-        InsertReservationInfo info_2 = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(savedEvent.getEventId())
-                .seatIdList(seatIdList_2)
-                .build();
+        InsertReservationInfo info_2 = getInsertReservationInfo(seats_2, userId, anotherEvent);
 
         // 두번째 예매 내역 생성
         Reservation saved_2 = reservationRepository.insert(info_2);
@@ -366,18 +331,13 @@ class ReservationRepositoryImplTest {
     void reservation_cancel_all() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
-
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId, this.event);
         // 1. 예매 내역 생성
         Reservation saved = reservationRepository.insert(info);
 
@@ -388,7 +348,9 @@ class ReservationRepositoryImplTest {
 
         // 2. 전체 티켓 취소.
         CancelReservationInfo cancelInfo = CancelReservationInfo.builder()
+                .userId(userId)
                 .selectedTicketIdList(new ArrayList<>())
+                .eventId(this.event.getEventId())
                 .build();
 
         reservationRepository.cancel(saved.getReservationId(), cancelInfo);
@@ -406,17 +368,13 @@ class ReservationRepositoryImplTest {
     void reservation_cancel_some() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId, this.event);
 
         // 1. 예매 내역 생성
         Reservation saved = reservationRepository.insert(info);
@@ -430,7 +388,9 @@ class ReservationRepositoryImplTest {
         List<Long> cancelTicketIdList = List.of(saved.getTickets().get(1).getTicketId());
 
         CancelReservationInfo cancelInfo = CancelReservationInfo.builder()
+                .userId(userId)
                 .selectedTicketIdList(cancelTicketIdList)
+                .eventId(this.event.getEventId())
                 .build();
 
         reservationRepository.cancel(saved.getReservationId(), cancelInfo);
@@ -441,5 +401,22 @@ class ReservationRepositoryImplTest {
         assertThat(cancelledReservation.getTickets().get(0).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         assertThat(cancelledReservation.getTickets().get(1).getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(cancelledReservation.getTickets().get(2).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
+    }
+
+    private InsertReservationInfo getInsertReservationInfo(List<Seat> seats, String userId, Event event) {
+        List<SeatInfo> seatInfos = seats.stream()
+                .map(seat -> new SeatInfo(
+                        seat.getSeatId(),
+                        seat.getZone(),
+                        seat.getSeatRow(),
+                        seat.getSeatCol()
+                ))
+                .toList();
+
+        return InsertReservationInfo.builder()
+                .userId(userId)
+                .eventId(event.getEventId())
+                .seats(seatInfos)
+                .build();
     }
 }

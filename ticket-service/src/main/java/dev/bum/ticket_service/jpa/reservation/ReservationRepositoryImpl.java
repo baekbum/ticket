@@ -7,8 +7,8 @@ import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.ticket_service.enums.ReservationStatus;
 import dev.bum.ticket_service.enums.TicketStatus;
-import dev.bum.ticket_service.exception.ReservationNotExistException;
-import dev.bum.ticket_service.exception.TicketLimitExceededException;
+import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
@@ -54,7 +54,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     @Override
     public Reservation insert(InsertReservationInfo info) {
         // 1. 추가적으로 티켓팅이 가능한지 확인
-        isReservable(info.getUserId(), info.getEventId(), info.getSeatIdList().size());
+        isReservable(info.getUserId(), info.getEventId(), info.getSeats().size());
 
         // 2. 공연 정보 조회
         Event event = eventRepository.selectById(info.getEventId());
@@ -65,7 +65,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 4. 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)
-        List<Seat> seats = seatRepository.selectByIdList(info.getSeatIdList());
+        List<Seat> seats = seatRepository.selectBySeatList(info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
 
         // 5. 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 티켓 생성

@@ -1,6 +1,6 @@
 package dev.bum.user_service.service;
 
-import dev.bum.common.kafka.UserDtoForEvent;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.enums.UserRole;
 import dev.bum.user_service.jpa.User;
@@ -25,7 +25,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.given;

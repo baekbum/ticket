@@ -5,7 +5,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.ticket_service.dto.ReservationDto;
 import dev.bum.ticket_service.dto.TicketDto;
 import dev.bum.ticket_service.enums.*;
-import dev.bum.ticket_service.exception.TicketLimitExceededException;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.security.JwtAuthenticationFilter;
@@ -16,6 +16,7 @@ import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
 import dev.bum.ticket_service.vo.seat.InsertSeatAreaConfig;
 import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
 import dev.bum.ticket_service.vo.seat.SeatCond;
+import dev.bum.ticket_service.vo.seat.SeatInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -101,17 +102,13 @@ class ReservationControllerTest {
     void reservation_insert_1() throws Exception {
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -126,16 +123,12 @@ class ReservationControllerTest {
         // 이미 2좌석이 예매된 상태라고 가정
         String userId = "IU";
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(2),
+                this.seatList.get(3)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -150,19 +143,15 @@ class ReservationControllerTest {
         String userId = "IU";
         int maxLimit = this.event.getMaxTicketsPerPerson();
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(0).getSeatId(),
-                this.seatList.get(1).getSeatId(),
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId(),
-                this.seatList.get(4).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(0),
+                this.seatList.get(1),
+                this.seatList.get(2),
+                this.seatList.get(3),
+                this.seatList.get(4)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
 
         doThrow(new TicketLimitExceededException(
                 String.format("1인당 최대 예매 가능 수량은 %d매입니다.", maxLimit)
@@ -182,17 +171,13 @@ class ReservationControllerTest {
         String userId = "IU";
         int maxLimit = this.event.getMaxTicketsPerPerson();
 
-        List<Long> seatIdList = List.of(
-                this.seatList.get(2).getSeatId(),
-                this.seatList.get(3).getSeatId(),
-                this.seatList.get(4).getSeatId()
+        List<Seat> seats = List.of(
+                this.seatList.get(2),
+                this.seatList.get(3),
+                this.seatList.get(4)
         );
 
-        InsertReservationInfo info = InsertReservationInfo.builder()
-                .userId(userId)
-                .eventId(this.event.getEventId())
-                .seatIdList(seatIdList)
-                .build();
+        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
 
         doThrow(new TicketLimitExceededException(
                 String.format("이미 기존 예매 내역이 존재하여, 추가로 %d매를 초과하여 예매할 수 없습니다.", maxLimit)
@@ -278,7 +263,9 @@ class ReservationControllerTest {
         long reservationId = 1L;
 
         CancelReservationInfo info = CancelReservationInfo.builder()
+                .userId(userId)
                 .selectedTicketIdList(new ArrayList<>())
+                .eventId(this.event.getEventId())
                 .build();
 
         // 예메 내역에 해당하는 전체 티켓 취소.
@@ -339,7 +326,9 @@ class ReservationControllerTest {
         long reservationId = 1L;
 
         CancelReservationInfo info = CancelReservationInfo.builder()
+                .userId(userId)
                 .selectedTicketIdList(new ArrayList<>())
+                .eventId(this.event.getEventId())
                 .build();
 
         // 예메 내역에 해당하는 전체 티켓 취소.
@@ -486,6 +475,23 @@ class ReservationControllerTest {
                 .ticketCount(ticketDtos.size())
                 .status(ReservationStatus.CONFIRMED.name())
                 .tickets(ticketDtos)
+                .build();
+    }
+
+    private InsertReservationInfo getInsertReservationInfo(List<Seat> seats, String userId) {
+        List<SeatInfo> seatInfos = seats.stream()
+                .map(seat -> new SeatInfo(
+                        seat.getSeatId(),
+                        seat.getZone(),
+                        seat.getSeatRow(),
+                        seat.getSeatCol()
+                ))
+                .toList();
+
+        return InsertReservationInfo.builder()
+                .userId(userId)
+                .eventId(this.event.getEventId())
+                .seats(seatInfos)
                 .build();
     }
 }

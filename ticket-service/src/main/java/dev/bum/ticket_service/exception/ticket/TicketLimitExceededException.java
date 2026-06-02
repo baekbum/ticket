@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.exception;
+package dev.bum.ticket_service.exception.ticket;
 
 public class TicketLimitExceededException extends RuntimeException {
     public TicketLimitExceededException(String message) {

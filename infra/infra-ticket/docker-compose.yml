@@ -1,0 +1,36 @@
+services:
+  # 1. 데이터베이스 (Ticket용)
+  ticket-db:
+    image: postgres:16-alpine
+    container_name: ticket-db
+    environment:
+      - POSTGRES_USER=ticket_user
+      - POSTGRES_PASSWORD=ticket_pass
+      - POSTGRES_DB=ticket_db
+    ports:
+      - "5435:5432"
+    networks:
+      - ticket-network
+    volumes:
+      - ticket_db_data:/var/lib/postgresql/data
+
+  # 2. Redis
+  seat-redis:
+    image: redis:latest
+    container_name: seat-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - ticket-network
+    volumes:
+      - seat_redis_data:/data
+    command: redis-server --appendonly yes
+
+# 네트워크 정의 부분
+networks:
+  ticket-network:
+    external: true
+
+volumes:
+  ticket_db_data:
+  seat_redis_data:

@@ -1,6 +1,6 @@
 package dev.bum.user_service.service;
 
-import dev.bum.common.kafka.UserDtoForEvent;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.jpa.User;

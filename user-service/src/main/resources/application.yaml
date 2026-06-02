@@ -17,6 +17,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  admin:
+    properties:
+      auto.create.topics.enable: false
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
