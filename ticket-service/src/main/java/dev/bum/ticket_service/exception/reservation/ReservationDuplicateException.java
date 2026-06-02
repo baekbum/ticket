@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.exception;
+package dev.bum.ticket_service.exception.reservation;
 
 public class ReservationDuplicateException extends RuntimeException {
     public ReservationDuplicateException(String message) {

@@ -16,8 +16,30 @@ spring:
         batch_size: 500  # 500개씩 모아서 처리
         order_inserts: true
         order_updates: true
+  data:
+    redis:
+      host: localhost
+      port: 6380
+  kafka:
+    bootstrap-servers: localhost:9092  # 로컬 테스트용 (도커 컴포즈 내부 통신 시에는 서비스명:포트 사용)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "dev.bum.*"
+    admin:
+      properties:
+        auto.create.topics.enable: false
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
+
+topic:
+  reservation:
+    name: reservation-event

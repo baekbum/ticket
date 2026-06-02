@@ -1,7 +1,7 @@
 package dev.bum.auth_service.kafka;
 
 import dev.bum.auth_service.service.AuthService;
-import dev.bum.common.kafka.UserDtoForEvent;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

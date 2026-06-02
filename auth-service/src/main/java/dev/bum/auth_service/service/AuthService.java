@@ -7,7 +7,7 @@ import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.auth_service.vo.LoginInfo;
 import dev.bum.common.dto.TokenDto;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.kafka.UserDtoForEvent;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
