@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket - 마이페이지</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #f1f3f5;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;
+  }
+  .card {
+    background: #ffffff;
+    border: 0.5px solid #e9ecef;
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    width: 100%; max-width: 460px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  }
+  .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-icon { width: 36px; height: 36px; border-radius: 10px; background: #7c4dff; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+  .logo-text { font-size: 16px; font-weight: 500; color: #212529; }
+
+  .form-group { margin-bottom: 1.25rem; }
+  label { display: block; font-size: 13px; font-weight: 500; color: #495057; margin-bottom: 6px; }
+  input[type=text], input[type=password], input[type=email], input[type=tel], input[type=date] {
+    width: 100%; padding: 10px 12px; border: 0.5px solid #dee2e6; border-radius: 6px; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #7c4dff; box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12); }
+  input:disabled { background: #f8f9fa; color: #868e96; cursor: not-allowed; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .submit-btn { width: 100%; padding: 12px; background: #7c4dff; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 1rem; }
+  .submit-btn:hover { background: #651fff; }
+  .logout-btn { padding: 6px 12px; background: #e24b4a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .toast { position: fixed; top: 1.5rem; left: 50%; transform: translateX(-50%); background: #3C3489; color: white; padding: 10px 20px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 999; }
+  .toast.show { opacity: 1; }
+</style>
+<body>
+
+<div class="card">
+  <div class="header-actions">
+    <div class="logo">
+      <div class="logo-icon"><i class="ti ti-user"></i></div>
+      <span class="logo-text">회원 마이페이지</span>
+    </div>
+    <button class="logout-btn" onclick="logout()">로그아웃</button>
+  </div>
+
+  <div class="form-group">
+    <label>나의 ID</label>
+    <input type="text" id="my-id" disabled>
+  </div>
+  <div class="form-group">
+    <label>이름</label>
+    <input type="text" id="my-name" disabled>
+  </div>
+  <div class="form-group">
+    <label for="my-pw">변경할 패스워드 (공백 시 유지)</label>
+    <input type="password" id="my-pw" placeholder="8자 이상 조합">
+  </div>
+  <div class="form-group">
+    <label for="my-email">이메일 계정</label>
+    <input type="email" id="my-email">
+  </div>
+  <div class="form-group">
+    <label for="my-phone">휴대폰 번호</label>
+    <input type="tel" id="my-phone">
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label for="my-birth">생년월일</label>
+      <input type="date" id="my-birth">
+    </div>
+    <div class="form-group">
+      <label for="my-addr">배송지 주소</label>
+      <input type="text" id="my-addr" placeholder="주소 입력">
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="updateMyInfo()">회원 정보 수정 완료</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_VERSION = 'v1';
+  const BASE_URL = window.location.port === '3000' ? 'http://localhost:8081' : '';
+
+  function getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+    };
+  }
+
+  function showToast(msg, isErr) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isErr ? '#A32D2D' : '#3C3489';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // 1. 보안 조회: 내 세션 정보 로드 (/select/me 연동)
+  async function loadMyProfile() {
+    try {
+      const res = await fetch(`${BASE_URL}/api/${API_VERSION}/select/me`, { headers: getHeaders() });
+      if(res.ok) {
+        const user = await res.json();
+        document.getElementById('my-id').value = user.userId;
+        document.getElementById('my-name').value = user.name;
+        document.getElementById('my-email').value = user.email;
+        document.getElementById('my-phone').value = user.phoneNumber;
+        document.getElementById('my-birth').value = user.birthDate || '';
+        document.getElementById('my-addr').value = user.address || '';
+      } else {
+        showToast('세션 인증 실패. 다시 로그인하세요.', true);
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  // 2. 보안 수정: 본인 정보만 업데이트 수행 (/update/me 연동)
+  async function updateMyInfo() {
+    const newPassword = document.getElementById('my-pw').value;
+
+    // UpdateUserInfo 스펙 구성
+    const body = {
+      email: document.getElementById('my-email').value.trim(),
+      phoneNumber: document.getElementById('my-phone').value.trim(),
+      birthDate: document.getElementById('my-birth').value || null,
+      address: document.getElementById('my-addr').value.trim()
+    };
+
+    // 비밀번호가 채워져 있을때만 Validation 충족을 위해 탑재
+    if(newPassword) {
+      if(newPassword.length < 8) {
+        showToast('비밀번호는 최소 8글자 이상입니다.', true);
+        return;
+      }
+      body.password = newPassword;
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/${API_VERSION}/update/me`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(body)
+      });
+
+      if(res.ok) {
+        showToast('정보가 안전하게 변경되었습니다.');
+        document.getElementById('my-pw').value = ''; // 패스워드 필드 초기화
+        loadMyProfile();
+      } else {
+        showToast('수정 요청이 거부되었습니다.', true);
+      }
+    } catch(e) { showToast('통신 오류', true); }
+  }
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = '/';
+  }
+
+  document.addEventListener('DOMContentLoaded', loadMyProfile);
+</script>
+</body>
+</html>

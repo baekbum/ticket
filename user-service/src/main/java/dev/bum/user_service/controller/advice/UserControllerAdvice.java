@@ -1,5 +1,6 @@
 package dev.bum.user_service.controller.advice;
 
+import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,11 @@ public class UserControllerAdvice {
 
     @ExceptionHandler(UserNotExistException.class)
     public ResponseEntity<String> UserNotExistException(UserNotExistException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(PasswordIncorrectException.class)
+    public ResponseEntity<String> PasswordIncorrectException(PasswordIncorrectException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
 }
