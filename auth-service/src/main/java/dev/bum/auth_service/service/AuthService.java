@@ -34,6 +34,13 @@ public class AuthService {
         return repository.findByUserId(userId);
     }
 
+    @Transactional(readOnly = true)
+    public void validateInfo(LoginInfo info) {
+        Auth auth = findByUserId(info.getUserId());
+
+        comparePassword(info, auth);
+    }
+
     /**
      * 토큰을 발급하는 메서드.
      * @param info
@@ -50,9 +57,7 @@ public class AuthService {
         log.info("user role : {}", auth.getRole());
 
         // 비밀번호 검증
-        if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
-            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
-        }
+        comparePassword(info, auth);
 
         TokenDto tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
@@ -60,6 +65,13 @@ public class AuthService {
 
         return tokens;
     }
+
+    private void comparePassword(LoginInfo info, Auth auth) {
+        if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
+            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
+        }
+    }
+
 
     /**
      * refresh 토큰을 redis에 저장
@@ -83,7 +95,17 @@ public class AuthService {
      * @param event
      */
     public void insertUserTopic(UserDtoForEvent event) {
-        repository.insert(new Auth(event));
+        log.info("[유저 추가] : info : {}", event.toString());
+        repository.insert(event);
+    }
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저 정보를 수정하는
+     * @param event
+     */
+    public void updateUserTopic(UserDtoForEvent event) {
+        log.info("[유저 수정] : info : {}", event.toString());
+        repository.update(event);
     }
 
     /**
@@ -91,6 +113,7 @@ public class AuthService {
      * @param event
      */
     public void deleteUserTopic(UserDtoForEvent event) {
+        log.info("[유저 삭제] : info : {}", event.toString());
         repository.delete(event.getUserId());
     }
 

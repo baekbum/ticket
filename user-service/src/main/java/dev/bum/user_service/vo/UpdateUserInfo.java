@@ -1,7 +1,6 @@
 package dev.bum.user_service.vo;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -26,4 +25,6 @@ public class UpdateUserInfo {
     private String address;
 
     private Boolean isBlacklisted;
+
+    private String role;
 }

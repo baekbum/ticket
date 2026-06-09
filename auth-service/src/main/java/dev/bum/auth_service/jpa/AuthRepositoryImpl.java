@@ -2,6 +2,7 @@ package dev.bum.auth_service.jpa;
 
 import dev.bum.auth_service.exception.UserAlreadyExistException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -21,10 +22,10 @@ public class AuthRepositoryImpl implements AuthRepository {
     }
 
     @Override
-    public void insert(Auth auth) {
-        isExist(auth.getUserId());
+    public void insert(UserDtoForEvent event) {
+        isExist(event.getUserId());
 
-        jpaRepository.save(auth);
+        jpaRepository.save(new Auth(event));
     }
 
     @Override
@@ -37,6 +38,12 @@ public class AuthRepositoryImpl implements AuthRepository {
     public Auth findByUserId(String userId) {
         return jpaRepository.findByUserId(userId)
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
+    }
+
+    @Override
+    public void update(UserDtoForEvent event) {
+        Auth auth = findByUserId(event.getUserId());
+        auth.updateInfo(event);
     }
 
     @Override

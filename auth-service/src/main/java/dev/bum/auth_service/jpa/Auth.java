@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.StringUtils;
 
 @Getter
 @Entity
@@ -41,5 +42,15 @@ public class Auth {
         this.userId = event.getUserId();
         this.password = event.getPassword();
         this.role = UserRole.valueOf(event.getRole());
+    }
+
+    public void updateInfo(UserDtoForEvent event) {
+        if (StringUtils.hasText(event.getPassword())) {
+            this.password = event.getPassword();
+        }
+
+        if (StringUtils.hasText(event.getRole())) {
+            this.role = UserRole.valueOf(event.getRole());
+        }
     }
 }

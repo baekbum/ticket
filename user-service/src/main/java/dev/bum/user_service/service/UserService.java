@@ -3,11 +3,13 @@ package dev.bum.user_service.service;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.user_service.dto.UserDto;
+import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
 import dev.bum.user_service.vo.InsertUserInfo;
 import dev.bum.user_service.vo.UpdateUserInfo;
 import dev.bum.user_service.vo.UserCond;
+import dev.bum.user_service.vo.ValidatePasswordInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,8 +17,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,10 +32,20 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository repository;
+    private final PasswordEncoder passwordEncoder;
     private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
 
     @Value("${topic.name}")
     private String userTopic;
+
+    /**
+     * ID 중복 체크 로직
+     * @param userId
+     */
+    @Transactional(readOnly = true)
+    public void isDuplicated(String userId) {
+        repository.isExist(userId);
+    }
 
     /**
      * 유저 등록
@@ -39,6 +53,7 @@ public class UserService {
      * @return
      */
     public UserDto insert(InsertUserInfo info) {
+        log.info("[유저 등록] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
 
         UserDtoForEvent event = UserDtoForEvent.builder()
@@ -74,6 +89,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public UserDto selectById(String userId) {
+        log.info("[유저 검색] userId : {}", userId);
         return new UserDto(repository.selectById(userId));
     }
 
@@ -84,6 +100,8 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public Page<UserDto> selectByCond(UserCond cond) {
+        log.info("[검색 조건 : {}]", cond.toString());
+
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
         Page<User> users = repository.selectByCond(cond, pageRequest);
 
@@ -97,7 +115,40 @@ public class UserService {
      * @return
      */
     public UserDto update(String userId, UpdateUserInfo info) {
-        return new UserDto(repository.update(userId, info));
+        log.info("[유저 수정] updateUserInfo : {}", info.toString());
+
+        UserDto updatedUser = new UserDto(repository.update(userId, info));
+
+        // ROLE이 변경됐을 때 AUTH DB에 적용
+        if (StringUtils.hasText(info.getRole())) {
+            UserDtoForEvent event = UserDtoForEvent.builder()
+                    .eventType(TopicEventType.UPDATE)
+                    .id(updatedUser.getId())
+                    .userId(updatedUser.getUserId())
+                    .build();
+
+            sendTopicToKafka(event);
+        }
+
+        return updatedUser;
+    }
+
+    @Transactional(readOnly = true)
+    public void validateInfo(ValidatePasswordInfo info) {
+        User user = repository.selectById(info.getUserId());
+
+        if (!passwordEncoder.matches(info.getPassword(), user.getPassword())) {
+            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
+        }
+    }
+
+    public void initPassword(String userId) {
+        UpdateUserInfo info = UpdateUserInfo.builder()
+                .password("123456789!")
+                .build();
+
+        repository.update(userId, info);
+        log.info("[비밀빈호 초기화 완료] userId : {}", userId);
     }
 
     /**

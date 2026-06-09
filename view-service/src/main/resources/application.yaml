@@ -4,3 +4,14 @@ server:
 spring:
   application:
     name: view-service
+  thymeleaf:
+    cache: false # 타임리프 템플릿 엔진을 쓰신다면 필수!
+    web:
+      resources:
+        cache:
+          period: 0 # 정적 리소스(HTML/CSS/JS) 캐시 시간 0초로 설정
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
