@@ -363,7 +363,7 @@
             };
 
             try {
-                const res = await fetch(`${BASE_URL}/user/api/${API.VERSION}/select`, {
+                const res = await Fetch(`${BASE_URL}/user/api/${API.VERSION}/select`, {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify(cond)
@@ -467,7 +467,7 @@
             });
 
             try {
-                const res = await fetch(`${BASE_URL}/user/api/${API.VERSION}/select/id/${userId}`, { headers: headers });
+                const res = await Fetch(`${BASE_URL}/user/api/${API.VERSION}/select/id/${userId}`, { headers: headers });
                 if(res.ok) {
                     const u = await res.json();
                     document.getElementById('m-target-id').value = u.userId;
@@ -573,7 +573,7 @@
             });
 
             try {
-                const res = await fetch(`${BASE_URL}/user/api/${API.VERSION}/select/id/${userId}`, { headers: headers });
+                const res = await Fetch(`${BASE_URL}/user/api/${API.VERSION}/select/id/${userId}`, { headers: headers });
                 if(res.ok) {
                     const u = await res.json();
                     document.getElementById('m-target-id').value = u.userId;
@@ -653,7 +653,7 @@
             }
 
             try {
-                const res = await fetch(url, { method: method, headers: headers, body: JSON.stringify(body) });
+                const res = await Fetch(url, { method: method, headers: headers, body: JSON.stringify(body) });
                 if(res.ok) {
                     showToast(mode === 'CREATE' ? '성공적으로 등록되었습니다.' : '성공적으로 수정되었습니다.');
                     closeModal();
@@ -677,7 +677,7 @@
             const targetId = document.getElementById('m-target-id').value;
 
             try {
-                const res = await fetch(`${BASE_URL}/user/api/${API.VERSION}/init/password/${targetId}`, {
+                const res = await Fetch(`${BASE_URL}/user/api/${API.VERSION}/init/password/${targetId}`, {
                     method: 'PUT',
                     headers: headers
                 });
@@ -761,7 +761,7 @@
         window.submitDeleteConfirm = async function() {
             const targetId = document.getElementById('confirm-target-id').value;
             try {
-                const res = await fetch(`${BASE_URL}/user/api/${API.VERSION}/delete/id/${targetId}`, { method: 'DELETE', headers: headers });
+                const res = await Fetch(`${BASE_URL}/user/api/${API.VERSION}/delete/id/${targetId}`, { method: 'DELETE', headers: headers });
                 if(res.ok) {
                     showToast('유저 정보가 파기되었습니다.');
                     closeConfirmModal(); closeModal();

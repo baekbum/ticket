@@ -37,7 +37,10 @@ public class SecurityConfig {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/*/login", "/h2-console/**").permitAll() // 로그인과 DB 콘솔은 허용
+                        .requestMatchers("/api/v1/login").permitAll()
+                        .requestMatchers("/api/v1/reissue").permitAll()
+                        .requestMatchers("/api/v1/validate").permitAll()
+                        .requestMatchers("/h2-console/**").permitAll()
                         .anyRequest().authenticated() // 나머지는 인증 필요
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())); // H2 콘솔 프레임 허용
