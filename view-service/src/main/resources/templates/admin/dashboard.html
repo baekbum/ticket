@@ -116,7 +116,6 @@
     </div>
 </div>
 
-<!-- 내 정보 상세 조회 모달 -->
 <div class="d-modal" id="my-info-modal">
     <div class="d-modal-content">
         <h3 style="margin-bottom: 1.25rem; color:#212529;">내 정보 상세 조회</h3>
@@ -151,7 +150,6 @@
             </div>
         </div>
 
-        <!-- 🌟 비밀번호 계정 관리 컨테이너 동적 제어 전용 ID 부여 -->
         <div class="d-form-group" id="my-password-manage-area" style="margin-top: 0.5rem; margin-bottom: 1.5rem;">
             <label>비밀번호 계정 관리</label>
             <button class="d-btn d-btn-warning" style="font-size: 14px; padding: 12px;" onclick="openPasswordVerifyModal()">
@@ -159,9 +157,7 @@
             </button>
         </div>
 
-        <!-- 하단 액션 버튼 영역 -->
         <div id="my-info-action-area" style="margin-top: 1.5rem;">
-            <!-- 스크립트에서 동적으로 제어되므로 기본 구조만 유지합니다 -->
             <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
         </div>
     </div>
@@ -202,8 +198,54 @@
         'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
     });
 
+    // =================================================================
+    // 🌟 [신규 추가] 전역 Fetch 인터셉터 (401 발생 시 자동 토큰 재발급 루틴)
+    // =================================================================
+    async function Fetch(url, options = {}) {
+        options.headers = {
+            ...getHeaders(),
+            ...options.headers
+        };
+
+        let response = await fetch(url, options);
+
+        // 만약 401 Unauthorized 에러가 감지되면 (엑세스 토큰 만료 시)
+        if (response.status === 401) {
+            console.warn("Access Token 만료 감지, 토큰 재발급을 시도합니다.");
+            try {
+                const refreshToken = localStorage.getItem('refreshToken');
+                if (!refreshToken) throw new Error("리프레시 토큰이 스토리지에 존재하지 않습니다.");
+
+                const reissueUrl = `${base('auth')}/auth/api/${API.VERSION}/reissue`;
+                const reissueRes = await fetch(reissueUrl, {
+                    method: 'POST',
+                    headers: { 'Authorization-Refresh': `Bearer ${refreshToken}` }
+                });
+
+                if (reissueRes.ok) {
+                    const tokenDto = await reissueRes.json();
+                    localStorage.setItem('accessToken', tokenDto.accessToken);
+                    localStorage.setItem('refreshToken', tokenDto.refreshToken);
+
+                    console.info("토큰 재발급 완료. 실패했던 원래 API 요청을 다시 시도합니다.");
+
+                    // 새로운 토큰으로 헤더를 전면 교체한 뒤 원래 요청을 재수행
+                    options.headers['Authorization'] = `Bearer ${tokenDto.accessToken}`;
+                    response = await fetch(url, options);
+                } else {
+                    throw new Error("Refresh Token 검증에 실패했습니다.");
+                }
+            } catch (error) {
+                showToast('세션 정보가 완전히 만료되어 로그아웃됩니다.', true);
+                setTimeout(() => logout(), 1500);
+                return response;
+            }
+        }
+        return response;
+    }
+
     let loggedInUserRawData = null;
-    let isPasswordVerified = false; // 🌟 상태값 관리 추가: 비밀번호 인증 성공 여부
+    let isPasswordVerified = false;
 
     async function switchMenu(menuName, element) {
       if (element && element.classList.contains('disabled')) return;
@@ -216,6 +258,7 @@
       const contentArea = document.getElementById('content-area');
 
       try {
+        // 프래그먼트 HTML 원본을 긁어오는 경로는 인증 인가가 필요없으므로 원본 fetch 사용
         const res = await fetch(`/admin/fragment/${menuName}`);
         if (res.ok) {
           const htmlFragment = await res.text();
@@ -237,11 +280,11 @@
       }
     }
 
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
     async function loadMyProfileHeader() {
         try {
-            const res = await fetch(`${base('user')}/user/api/${API.VERSION}/select/me`, {
-                method: 'GET',
-                headers: getHeaders()
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/select/me`, {
+                method: 'GET'
             });
 
             if (res.ok) {
@@ -268,11 +311,9 @@
         document.getElementById('m-me-birth').value = loggedInUserRawData.birthDate || '';
         document.getElementById('m-me-addr').value = loggedInUserRawData.address || '';
 
-        // 🌟 모달 열릴 때마다 인증 상태 거짓(false)으로 완전 초기화
         isPasswordVerified = false;
         toggleMyFieldsDisableState(true);
 
-        // 🌟 비밀번호 계정 관리 영역 주황색 버튼 상태로 복원
         document.getElementById('my-password-manage-area').innerHTML = `
             <label>비밀번호 계정 관리</label>
             <button class="d-btn d-btn-warning" style="font-size: 14px; padding: 12px;" onclick="openPasswordVerifyModal()">
@@ -280,7 +321,6 @@
             </button>
         `;
 
-        // 🌟 하단 액션 영역 초기화: 인증 전이므로 [정보 수정하기] 버튼 숨김 (오직 닫기 버튼만 노출)
         const actionArea = document.getElementById('my-info-action-area');
         actionArea.className = "";
         actionArea.innerHTML = `
@@ -303,9 +343,7 @@
         document.getElementById('m-me-addr').disabled = shouldDisable;
     }
 
-    // 기본 회원 정보 수정 활성화 핸들러
     window.handleInitialModifyClick = function() {
-        // 방어 코드: 혹시 모를 비정상 접근 차단
         if(!isPasswordVerified) {
             showToast('비밀번호 확인 절차가 필요합니다.', true);
             return;
@@ -313,7 +351,6 @@
 
         toggleMyFieldsDisableState(false);
 
-        // 수정 모듈 활성화 시 [취소/변경사항 저장] 반반(Grid) 레이아웃 전직
         const actionArea = document.getElementById('my-info-action-area');
         actionArea.className = "d-form-row";
         actionArea.innerHTML = `
@@ -345,7 +382,7 @@
         }
     };
 
-    // 비밀번호 검증 API 전송 컨트롤러
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
     window.submitPasswordVerification = async function() {
         const userId = document.getElementById('m-verify-id').value;
         const password = document.getElementById('m-verify-password').value;
@@ -361,9 +398,8 @@
         };
 
         try {
-            const res = await fetch(`${base('user')}/user/api/${API.VERSION}/validate/info`, {
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/validate/info`, {
                 method: 'POST',
-                headers: getHeaders(),
                 body: JSON.stringify(loginInfoPayload)
             });
 
@@ -371,10 +407,8 @@
                 showToast('비밀번호 인증에 성공했습니다.');
                 closePasswordVerifyModal();
 
-                // 🌟 1. 인증 완료 플래그 활성화
                 isPasswordVerified = true;
 
-                // 🌟 2. 상단 계정 관리 UI를 안전하게 인증 완료된 박스 형태로 변경 (재클릭 방지 효과)
                 document.getElementById('my-password-manage-area').innerHTML = `
                     <label>비밀번호 계정 관리</label>
                     <div style="background: #e8f5e9; color: #2b8a3e; padding: 12px; border-radius: 6px; font-size: 14px; font-weight: 600; text-align: center; border: 1px solid #c8e6c9;">
@@ -382,7 +416,6 @@
                     </div>
                 `;
 
-                // 🌟 3. 하단 액션 영역에 숨겨져 있던 [정보 수정하기] 풀사이즈 보라색 버튼을 짠 하고 개방!
                 const actionArea = document.getElementById('my-info-action-area');
                 actionArea.className = "";
                 actionArea.innerHTML = `
@@ -398,6 +431,7 @@
         }
     };
 
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
     window.updateMyProfileDetails = async function() {
         const body = {
             userId: document.getElementById('m-me-id').value,
@@ -414,9 +448,8 @@
         }
 
         try {
-            const res = await fetch(`${base('user')}/user/api/${API.VERSION}/update/me`, {
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/update/me`, {
                 method: 'PUT',
-                headers: getHeaders(),
                 body: JSON.stringify(body)
             });
 
@@ -443,7 +476,7 @@
     function logout() {
       localStorage.clear();
       document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
-      window.location.href = '/login-page';
+      window.location.href = '/login';
     }
 
     document.addEventListener('DOMContentLoaded', () => {

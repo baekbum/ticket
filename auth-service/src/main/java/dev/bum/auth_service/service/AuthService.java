@@ -2,6 +2,7 @@ package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
+import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.auth_service.vo.LoginInfo;
@@ -115,6 +116,46 @@ public class AuthService {
     public void deleteUserTopic(UserDtoForEvent event) {
         log.info("[유저 삭제] : info : {}", event.toString());
         repository.delete(event.getUserId());
+    }
+
+    /**
+     * Refresh Token을 활용해 Access/Refresh Token 세트를 재발급(갱신)하는 메서드
+     */
+    public TokenDto reissueToken(String refreshToken) {
+        // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
+        if (!tokenProvider.validateToken(refreshToken)) {
+            throw new RedisException("만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
+        }
+
+        // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
+        String userId = tokenProvider.getUserId(refreshToken);
+
+        // 3. Redis에서 해당 유저의 RT 조회
+        String redisKey = "RT:" + userId;
+        String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+
+        // 4. Redis 토큰 탈락 확인 및 클라이언트가 보낸 토큰과 일치하는지 정합성 검증
+        if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
+            throw new RedisException("토큰 정보가 일치하지 않거나 이미 로그아웃된 계정입니다.");
+        }
+
+        // 5. 최신 권한(Role) 정보를 매핑하기 위해 DB 유저 조회
+        Auth auth = repository.findByUserId(userId);
+        if (auth == null) {
+            throw new UserNotExistException("존재하지 않는 유저입니다.");
+        }
+
+        // 6. 갱신된 Access Token과 새로운 Refresh Token 세트 생성 (RTR 보안 전략 적용)
+        TokenDto newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
+
+        // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화
+        try {
+            redisTemplate.opsForValue().set(redisKey, newTokens.getRefreshToken(), Duration.ofDays(14));
+        } catch (Exception e) {
+            throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
+        }
+
+        return newTokens;
     }
 
 }
