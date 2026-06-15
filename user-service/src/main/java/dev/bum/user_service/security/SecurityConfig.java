@@ -3,6 +3,7 @@ package dev.bum.user_service.security;
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.HeaderAuthenticationFilter;
+import dev.bum.common.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -57,7 +60,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/validate/info").hasAnyRole("USER", "ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
-                        // (selectAll, selectByCond, selectById, update, delete 등)
                         .anyRequest().hasRole("ADMIN")
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
@@ -75,6 +77,11 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(); // 회원가입 시 비번 암호화 & 로그인 시 대조용
     }
 
     @Bean

@@ -1,7 +1,11 @@
 server:
   port: 8082
+  servlet:
+    context-path: /ticket
 
 spring:
+  profiles:
+    default: local
   application:
     name: ticket-service
   datasource:

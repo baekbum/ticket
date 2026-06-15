@@ -1,4 +1,4 @@
-package dev.bum.user_service.security;
+package dev.bum.common.security;
 
 import dev.bum.common.jwt.JwtTokenProvider;
 import io.jsonwebtoken.ExpiredJwtException;
