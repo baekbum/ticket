@@ -1,5 +1,6 @@
 package dev.bum.user_service.service;
 
+import dev.bum.common.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.enums.UserRole;
@@ -136,9 +137,9 @@ class UserServiceTest {
 
         given(userRepository.selectAll(any())).willReturn(result);
 
-        Page<UserDto> response = userService.selectAll(cond);
+        CustomPageResponse<UserDto> response = userService.selectByCond(cond);
 
-        assertThat(response.getTotalElements()).isEqualTo(4);
+        assertThat(response.getPage().getTotalElements()).isEqualTo(4);
 
         verify(userRepository).selectAll(argThat(pageRequest ->
                 pageRequest.getPageNumber() == 0 && pageRequest.getPageSize() == 10
@@ -214,21 +215,20 @@ class UserServiceTest {
                 .build();
 
         UserCond cond = UserCond.builder()
-                .userIdList(List.of("user01", "admin"))
+                .userId("user01")
                 .build();
 
-        List<User> userList = List.of(user01, admin);
+        List<User> userList = List.of(user01);
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
         Page<User> result = new PageImpl<>(userList, pageable, userList.size());
 
         given(userRepository.selectByCond(any(), any())).willReturn(result);
 
-        Page<UserDto> response = userService.selectByCond(cond);
+        CustomPageResponse<UserDto> response = userService.selectByCond(cond);
 
-        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getPage().getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().get(0).getUserId()).isEqualTo("user01");
-        assertThat(response.getContent().get(1).getUserId()).isEqualTo("admin");
 
         verify(userRepository).selectByCond(cond, pageable);
     }

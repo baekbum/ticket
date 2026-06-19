@@ -1,6 +1,5 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.config.CommonConfig;
 import dev.bum.user_service.config.QuerydslConfig;
 import dev.bum.user_service.enums.UserRole;
 import dev.bum.user_service.exception.UserDuplicateException;
@@ -28,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
-@Import({UserRepositoryImpl.class, QuerydslConfig.class, CommonConfig.class})
+@Import({UserRepositoryImpl.class, QuerydslConfig.class})
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY) // H2 같은 내장 DB 사용 강제
@@ -202,7 +201,7 @@ class UserRepositoryImplTest {
         userRepository.insert(user02);
 
         UserCond cond = UserCond.builder()
-                .userIdList(List.of("user01", "user02"))
+                .userId("user01")
                 .build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());

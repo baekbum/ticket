@@ -1,10 +1,11 @@
 package dev.bum.user_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.bum.common.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.enums.UserRole;
-import dev.bum.user_service.security.JwtAuthenticationFilter;
+import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.UserService;
 import dev.bum.user_service.vo.InsertUserInfo;
@@ -131,7 +132,15 @@ class UserControllerTest {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
         Page<UserDto> userPage = new PageImpl<>(userList, pageable, userList.size());
 
-        given(userService.selectAll(any())).willReturn(userPage);
+        CustomPageResponse<UserDto> expectedResult = CustomPageResponse.of(
+                userPage.getContent(),
+                userPage.getSize(),
+                userPage.getNumber(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages()
+        );
+
+        given(userService.selectByCond(any())).willReturn(expectedResult);
 
         mockMvc.perform(post("/api/" + apiVersion + "/selectAll")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -179,7 +188,15 @@ class UserControllerTest {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
         Page<UserDto> userPage = new PageImpl<>(userList, pageable, userList.size());
 
-        given(userService.selectByCond(any())).willReturn(userPage);
+        CustomPageResponse<UserDto> expectedResult = CustomPageResponse.of(
+                userPage.getContent(),
+                userPage.getSize(),
+                userPage.getNumber(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages()
+        );
+
+        given(userService.selectByCond(any())).willReturn(expectedResult);
 
         mockMvc.perform(post("/api/" + apiVersion + "/select")
                         .contentType(MediaType.APPLICATION_JSON)
