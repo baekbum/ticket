@@ -1,10 +1,10 @@
 package dev.bum.auth_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenDto;
 import dev.bum.auth_service.security.SecurityConfig;
 import dev.bum.auth_service.service.AuthService;
-import dev.bum.auth_service.vo.LoginInfo;
+import dev.bum.common.service.auth.vo.LoginInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

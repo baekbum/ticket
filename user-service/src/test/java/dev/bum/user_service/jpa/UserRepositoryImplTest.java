@@ -1,12 +1,12 @@
 package dev.bum.user_service.jpa;
 
+import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
+import dev.bum.common.service.user.vo.UserCond;
 import dev.bum.user_service.config.QuerydslConfig;
-import dev.bum.user_service.enums.UserRole;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

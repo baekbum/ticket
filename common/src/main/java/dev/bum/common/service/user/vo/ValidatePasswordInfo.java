@@ -1,4 +1,4 @@
-package dev.bum.user_service.vo;
+package dev.bum.common.service.user.vo;
 
 import lombok.*;
 

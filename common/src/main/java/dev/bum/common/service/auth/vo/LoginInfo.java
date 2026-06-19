@@ -1,4 +1,4 @@
-package dev.bum.admin_service.feign.auth.vo;
+package dev.bum.common.service.auth.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

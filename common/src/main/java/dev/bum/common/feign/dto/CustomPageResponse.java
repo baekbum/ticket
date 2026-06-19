@@ -1,4 +1,4 @@
-package dev.bum.common.dto;
+package dev.bum.common.feign.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

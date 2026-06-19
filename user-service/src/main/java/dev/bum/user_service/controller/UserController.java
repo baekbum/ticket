@@ -1,15 +1,15 @@
 package dev.bum.user_service.controller;
 
-import dev.bum.user_service.dto.UserDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.user.dto.UserDto;
 import dev.bum.user_service.service.UserService;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
-import dev.bum.user_service.vo.ValidatePasswordInfo;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
+import dev.bum.common.service.user.vo.UserCond;
+import dev.bum.common.service.user.vo.ValidatePasswordInfo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +29,7 @@ public class UserController {
      * @return
      */
     @GetMapping("/check/duplication/{userId}")
-    public ResponseEntity<UserDto> isDuplicated(@PathVariable("userId") String userId) {
+    public ResponseEntity<Void> isDuplicated(@PathVariable("userId") String userId) {
         userService.isDuplicated(userId);
         log.info("[ID 중복 체크 완료 userId: {}]", userId);
         return ResponseEntity.ok().build();
@@ -44,17 +44,6 @@ public class UserController {
     @PostMapping("/insert")
     public ResponseEntity<UserDto> insert(@Valid @RequestBody InsertUserInfo info) {
         return ResponseEntity.ok(userService.insert(info));
-    }
-
-    /**
-     * 모든 유저 검색
-     * 관리자 권한만 사용 가능
-     * @param cond
-     * @return
-     */
-    @PostMapping("/selectAll")
-    public ResponseEntity<PagedModel<UserDto>> selectAll(@RequestBody UserCond cond) {
-        return ResponseEntity.ok(new PagedModel<>(userService.selectAll(cond)));
     }
 
     /**
@@ -75,8 +64,8 @@ public class UserController {
      * @return
      */
     @PostMapping("/select")
-    public ResponseEntity<PagedModel<UserDto>> selectByCond(@RequestBody UserCond cond) {
-        return ResponseEntity.ok(new PagedModel<>(userService.selectByCond(cond)));
+    public ResponseEntity<CustomPageResponse<UserDto>> selectByCond(@RequestBody UserCond cond) {
+        return ResponseEntity.ok(userService.selectByCond(cond));
     }
 
     /**

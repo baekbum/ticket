@@ -1,8 +1,8 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
+import dev.bum.common.service.user.vo.UserCond;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

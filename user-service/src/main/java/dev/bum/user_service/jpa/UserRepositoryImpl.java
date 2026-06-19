@@ -5,17 +5,17 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
+import dev.bum.common.service.user.vo.UserCond;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -30,7 +30,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     private final JPAQueryFactory queryFactory;
     private final UserJpaRepository jpaRepository;
-    private final BCryptPasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
     private QUser user;
 
     /**

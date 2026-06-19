@@ -1,14 +1,14 @@
 package dev.bum.user_service.service;
 
-import dev.bum.common.dto.CustomPageResponse;
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
-import dev.bum.user_service.dto.UserDto;
-import dev.bum.user_service.enums.UserRole;
+import dev.bum.common.service.user.dto.UserDto;
+import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
+import dev.bum.common.service.user.vo.UserCond;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

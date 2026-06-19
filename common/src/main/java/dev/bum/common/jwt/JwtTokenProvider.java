@@ -1,6 +1,6 @@
 package dev.bum.common.jwt;
 
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenDto;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;

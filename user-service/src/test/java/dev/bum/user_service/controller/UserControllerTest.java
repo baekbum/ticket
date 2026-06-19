@@ -1,7 +1,7 @@
 package dev.bum.user_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.bum.common.dto.CustomPageResponse;
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.user_service.dto.UserDto;
 import dev.bum.user_service.enums.UserRole;

@@ -1,6 +1,6 @@
 package dev.bum.auth_service.jpa;
 
-import dev.bum.auth_service.enums.UserRole;
+import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;

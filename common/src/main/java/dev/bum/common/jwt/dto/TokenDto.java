@@ -1,4 +1,4 @@
-package dev.bum.common.dto;
+package dev.bum.common.jwt.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

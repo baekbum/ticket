@@ -3,9 +3,10 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
-import dev.bum.auth_service.vo.LoginInfo;
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.service.auth.vo.LoginInfo;
+import dev.bum.common.jwt.dto.TokenDto;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.service.user.enums.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,7 +55,7 @@ class AuthServiceTest {
         Auth auth = Auth.builder()
                 .userId(userId)
                 .password(password)
-                .role(role)
+                .role(UserRole.ROLE_USER)
                 .build();
 
         TokenDto mockTokens = new TokenDto("access-token", "refresh-token");

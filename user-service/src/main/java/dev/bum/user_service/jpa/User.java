@@ -1,8 +1,9 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.enums.UserRole;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
+import dev.bum.common.service.user.dto.UserDto;
+import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.vo.InsertUserInfo;
+import dev.bum.common.service.user.vo.UpdateUserInfo;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -112,5 +113,25 @@ public class User {
         if (info.getIsBlacklisted() != null) {
             this.isBlacklisted = info.getIsBlacklisted();
         }
+    }
+
+    /**
+     * Entity -> 공통 모듈 UserDto 변환 메서드
+     * 패키지가 서로 다른 Enum(UserRole) 간의 동치 매핑 처리를 포함합니다.
+     */
+    public UserDto toDto() {
+        return UserDto.builder()
+                .id(this.id)
+                .userId(this.userId)
+                .role(this.role != null ? dev.bum.common.service.user.enums.UserRole.valueOf(this.role.name()) : null)
+                .name(this.name)
+                .phoneNumber(this.phoneNumber)
+                .email(this.email)
+                .birthDate(this.birthDate)
+                .address(this.address)
+                .isBlacklisted(this.isBlacklisted)
+                .createdAt(this.createdAt)
+                .updatedAt(this.updatedAt)
+                .build();
     }
 }
