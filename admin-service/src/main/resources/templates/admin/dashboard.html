@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket - 관리자 대시보드</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* 🌟 1. 브라우저 창 전체 가로/세로를 100% 꽉 채우고 화면을 가둡니다 */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      background: #f1f3f5;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center; /* 뷰포트 정중앙 정렬 */
+    }
+
+    /* 🌟 2. 데이터 유무와 상관없이 대시보드 흰색 카드 틀이 압축되지 않도록 최소/최대 폭을 고정합니다 */
+    .dashboard-container {
+      width: 100%;                  /* 유동적으로 가로를 채우되 */
+      max-width: 1440px;            /* 너무 커지는 것을 방지 */
+      min-width: 1024px;            /* 🌟 데이터가 없어도 1024px 미만으로 절대 쪼그라들지 않음 */
+      height: calc(100vh - 2rem);   /* 위아래 여백을 제외하고 화면에 딱 맞게 고정 */
+      background: #ffffff;
+      border: 0.5px solid #e9ecef;
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      margin: 0 1rem;               /* 양옆 여백 확보 */
+    }
+
+    /* 🌟 3. 상단 헤더 영역 - 내부 텍스트 쪼그라듦으로 인한 줄바꿈 방지 */
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1.25rem;
+      border-bottom: 0.5px solid #e9ecef;
+      margin-bottom: 1.5rem;
+      width: 100%;                  /* 가로폭 유지 */
+      flex-shrink: 0;               /* 헤더 높이가 압축되는 것 방지 */
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-title-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .header-logo-icon {
+      font-size: 24px;
+      color: #7c4dff;
+      display: flex;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #212529;
+    }
+
+    .header-welcome {
+      font-size: 13px;
+      color: #495057;
+    }
+
+    .header-welcome span {
+      font-weight: 600;
+      color: #7c4dff;
+    }
+
+    .logout-btn {
+      padding: 8px 14px;
+      background: #E24B4A;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: #be3231;
+    }
+
+    /* 🌟 4. 메인 레이아웃 (사이드바 + 본문 콘텐츠) */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 180px 1fr; /* 사이드바 180px 고정, 본문은 남은 공간 전부(1fr) */
+      gap: 1.5rem;
+      flex: 1;
+      min-height: 0;
+      align-items: stretch;
+      width: 100%;                  /* 🌟 가로폭을 항상 100% 채우도록 고정 */
+    }
+
+    /* 사이드바 영역 */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-right: 0.5px solid #f1f3f5;
+      padding-right: 1rem;
+    }
+
+    .menu-btn {
+      width: 100%;
+      padding: 10px 12px;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 500;
+      color: #495057;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .menu-btn i {
+      font-size: 16px;
+    }
+
+    .menu-btn:hover {
+      background: #f8f9fa;
+      color: #212529;
+    }
+
+    .menu-btn.active {
+      background: #f3f0ff;
+      color: #7c4dff;
+    }
+
+    /* 🌟 5. 본문 콘텐츠 영역 (프래그먼트가 주입되는 핵심 공간) */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      font-size: 13px;
+      width: 100%;                  /* 🌟 내부 콘텐츠 양에 상관없이 가로폭 최대 유지 */
+      flex-grow: 1;                 /* 🌟 남은 가로 공간을 다 채우도록 강제 확장 */
+    }
+
+    /* 토스트 메시지 */
+    .toast {
+      position: fixed;
+      top: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #3C3489;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      white-space: nowrap;
+      z-index: 999;
+    }
+
+    .toast.show { opacity: 1; }
+</style>
+
+<body>
+<div class="dashboard-container">
+    <header class="dashboard-header">
+        <div class="header-left">
+            <div class="header-title-wrap">
+                <div class="header-logo-icon"><i class="ti ti-shield-lock"></i></div>
+                <h1 class="header-title">Ticket 시스템 관리 콘솔</h1>
+                <p class="header-welcome"><span id="header-user-name">관리자</span>님 환영합니다</p>
+            </div>
+        </div>
+        <button class="logout-btn" onclick="logout()">로그아웃</button>
+    </header>
+
+    <div class="dashboard-layout">
+        <nav class="sidebar">
+            <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
+                <i class="ti ti-users"></i>유저 관리
+            </button>
+            <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
+                <i class="ti ti-calendar-event"></i>이벤트(공연) 관리
+            </button>
+            <button class="menu-btn" data-menu="seat" onclick="switchMenu('seat', this)">
+                <i class="ti ti-armchair"></i>좌석 관리
+            </button>
+            <button class="menu-btn" data-menu="ticket" onclick="switchMenu('ticket', this)" style="color: #adb5bd; cursor: default;">
+                <i class="ti ti-ticket"></i>티켓 관리 (준비중)
+            </button>
+            <button class="menu-btn" data-menu="reservation" onclick="switchMenu('reservation', this)" style="color: #adb5bd; cursor: default;">
+                <i class="ti ti-calendar-stats"></i>예매 정보 관리 (준비중)
+            </button>
+        </nav>
+
+        <main class="main-content" id="content-area">
+        </main>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+
+<script th:inline="javascript">
+    const API = {
+        VERSION: 'v1',
+        SERVICE_PORT: '8999',
+        DEV_PORT: '8080'
+    };
+
+    function base() {
+        let port = API.SERVICE_PORT;
+        return window.location.port === API.DEV_PORT ? `http://localhost:${port}` : '';
+    }
+
+    function getAuthHeader() {
+        const token = localStorage.getItem('accessToken');
+        return token ? `Bearer ${token}` : '';
+    }
+
+    // 🌟 [복원] 기존 시스템에서 사용하던 커스텀 Fetch 래퍼 엔진
+    // 프래그먼트 내부 IIFE 스코프에서도 안전하게 접근할 수 있도록 window 전역 객체에 확실하게 바인딩합니다.
+    window.Fetch = async function(url, options = {}) {
+        const token = localStorage.getItem('accessToken');
+
+        const defaultHeaders = {};
+        if (token) {
+            defaultHeaders['Authorization'] = `Bearer ${token}`;
+        }
+
+        if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+            options.body = JSON.stringify(options.body);
+            if (!options.headers || !options.headers['Content-Type']) {
+                defaultHeaders['Content-Type'] = 'application/json';
+            }
+        }
+
+        options.headers = {
+            ...defaultHeaders,
+            ...options.headers
+        };
+
+        const res = await fetch(url, options);
+
+        if (res.status === 401) {
+            showToast('인증 세션이 만료되었습니다. 다시 로그인해주세요.', true);
+            setTimeout(() => {
+                logout();
+            }, 1500);
+            throw new Error("Unauthorized");
+        }
+
+        return res;
+    };
+
+    // 문서 로드 시 유저 프로필 헤더 로드 및 첫 메뉴 자동 활성화
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadMyProfileHeader();
+
+        // 처음 켰을 때 유저 관리 탭 기본 클릭 작동
+        const defaultMenu = document.querySelector('.menu-btn[data-menu="user"]');
+        if (defaultMenu) {
+            await switchMenu('user', defaultMenu);
+        }
+    });
+
+    // 내 정보 상단 정보 바인딩
+    async function loadMyProfileHeader() {
+        try {
+            // 🌟 기존 내장 fetch 대신 복원된 커스텀 window.Fetch를 사용하여 안정적으로 인출합니다.
+            const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/select/me`, {
+                method: 'GET'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('header-user-name').textContent = data.name || '관리자';
+            }
+        } catch (e) {
+            console.error('내 프로필 로드 실패:', e);
+        }
+    }
+
+    // 메뉴 전환 비동기 함수
+    async function switchMenu(menuName, btnElement) {
+        if (menuName === 'ticket' || menuName === 'reservation') return;
+
+        document.querySelectorAll('.sidebar .menu-btn').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+
+        const contentArea = document.getElementById('content-area');
+
+        try {
+            // 프래그먼트 HTML 요청 시에는 시큐리티 필터를 통과해야 하므로 기본 fetch 대신 window.Fetch를 활용합니다.
+            const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/view/fragment/${menuName}`, {
+                method: 'GET'
+            });
+
+            if (res.ok) {
+                contentArea.innerHTML = await res.text();
+
+                // 프래그먼트 내부 script 태그가 주입된 후 정상 오브젝트들을 바인딩할 수 있도록 유도
+                const scripts = contentArea.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    newScript.text = oldScript.text;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            } else {
+                contentArea.innerHTML = `
+                    <div style="width: 100%;">
+                        <h2>준비 중인 화면</h2>
+                        <p style="color: #868e96; margin-top: 8px;">현재 준비 중인 메뉴입니다. (Status: ${res.status})</p>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.error('프래그먼트 뷰 로드 실패:', e);
+            contentArea.innerHTML = `
+                <div style="width: 100%;">
+                    <p style="color: #E24B4A; font-weight: 500;">화면을 불러오는 중 서버 통신 오류가 발생했습니다.</p>
+                </div>
+            `;
+        }
+    }
+
+    // 전역 토스트 팝업 유틸리티 (프래그먼트 공유)
+    window.showToast = function(msg, isErr) {
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.style.background = isErr ? '#A32D2D' : '#3C3489';
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    };
+
+    function logout() {
+      localStorage.clear();
+      document.cookie = "accessToken=; path=/; max-age=0;";
+      window.showToast('로그아웃 되었습니다.');
+      setTimeout(() => { location.href = `${base()}/admin/api/${API.VERSION}/view/login`; }, 800);
+    }
+</script>
+</html>

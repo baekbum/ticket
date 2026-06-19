@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .wrap {
+    min-height: 100vh;
+    background: var(--color-background-tertiary, #f5f5f7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .card {
+    background: var(--color-background-primary, #ffffff);
+    border: 0.5px solid var(--color-border-tertiary, #e5e5e5);
+    border-radius: var(--border-radius-xl, 16px);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #7c4dff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+  }
+
+  .logo-icon i {
+    font-weight: bold;
+    stroke-width: 2.5; /* Tabler Icons는 stroke-width로 두께 조절이 가능합니다 */
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary, #1d1d1f);
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 0.5px solid var(--color-border-tertiary, #e5e5e5);
+    margin-bottom: 1.75rem;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px 0;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #7c4dff;
+    border-bottom: 2px solid #7c4dff;
+    margin-bottom: -0.5px;
+    text-align: center;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary, #86868b);
+    margin-bottom: 6px;
+  }
+
+  .required {
+    color: #7c4dff;
+    margin-left: 2px;
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 0.5px solid var(--color-border-secondary, #ccccd0);
+    border-radius: var(--border-radius-md, 8px);
+    font-size: 14px;
+    background: var(--color-background-primary, #ffffff);
+    color: var(--color-text-primary, #1d1d1f);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: #7c4dff;
+    box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+  }
+
+  .input-wrap {
+    position: relative;
+  }
+
+  .input-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-secondary, #86868b);
+    font-size: 18px; /* 🌟 인풋 아이콘 크기 조정 */
+    cursor: pointer;
+  }
+
+  input.has-icon {
+    padding-right: 38px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 12px;
+    background: #7c4dff;
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-md, 8px);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 0.5rem;
+  }
+
+  .submit-btn:hover {
+    background: #651fff;
+  }
+
+  .submit-btn:active {
+    transform: scale(0.98);
+  }
+
+  .toast {
+    position: fixed;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #3C3489;
+    color: white;
+    padding: 10px 20px;
+    border-radius: var(--border-radius-md, 8px);
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    z-index: 999;
+  }
+
+  .toast.show {
+    opacity: 1;
+  }
+
+  .panel {
+    display: block;
+  }
+</style>
+
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon"><i class="ti ti-ticket"></i></div>
+      <span class="logo-text">Ticket (관리자)</span>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab">로그인</div>
+    </div>
+
+    <div id="panel-login" class="panel">
+      <div class="form-group">
+        <label for="l-id">아이디<span class="required">*</span></label>
+        <div class="input-wrap">
+          <input type="text" id="l-id" placeholder="아이디를 입력하세요" class="has-icon" onkeydown="handleLoginKeydown(event)">
+          <i class="ti ti-user input-icon"></i>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="l-pw">비밀번호<span class="required">*</span></label>
+        <div class="input-wrap">
+          <input type="password" id="l-pw" placeholder="비밀번호를 입력하세요" class="has-icon" onkeydown="handleLoginKeydown(event)">
+          <i class="ti ti-eye input-icon" id="l-eye" onclick="togglePw('l-pw','l-eye')" aria-label="비밀번호 표시"></i>
+        </div>
+      </div>
+      <button class="submit-btn" onclick="login()">로그인하기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+
+<script>
+  const API = {
+    VERSION: 'v1',
+    SERVICE_PORT: '8999',
+    DEV_PORT: '8080'
+  };
+
+  function base() {
+    let port = API.SERVICE_PORT;
+    return window.location.port === API.DEV_PORT ? `http://localhost:${port}` : '';
+  }
+
+  function togglePw(inputId, iconId) {
+    const inp = document.getElementById(inputId);
+    const ic = document.getElementById(iconId);
+
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      // 🌟 토글 시 폰트 속성이 깨지지 않도록 정식 tabler 아이콘 명칭으로 교체
+      ic.className = 'ti ti-eye-off input-icon';
+    } else {
+      inp.type = 'password';
+      ic.className = 'ti ti-eye input-icon';
+    }
+  }
+
+  function showToast(msg, err) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = err ? '#A32D2D' : '#3C3489';
+    t.classList.add('show');
+
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function handleLoginKeydown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      login();
+    }
+  }
+
+  async function login() {
+    const userId = document.getElementById('l-id').value.trim();
+    const password = document.getElementById('l-pw').value;
+
+    if (!userId || !password) {
+      showToast('아이디와 비밀번호를 모두 입력해주세요.', true);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${base()}/admin/api/${API.VERSION}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, password })
+      });
+
+      if (res.ok) {
+        const d = await res.json();
+
+        localStorage.setItem('accessToken', d.accessToken);
+        localStorage.setItem('refreshToken', d.refreshToken);
+
+        document.cookie = `accessToken=${d.accessToken}; path=/; max-age=3600; SameSite=Strict;`;
+
+        showToast(`${userId}님, 환영합니다!`);
+
+        setTimeout(() => {
+          window.location.href = `${base()}/admin/api/${API.VERSION}/view/home`;
+        }, 1000);
+
+      } else {
+        const e = await res.json().catch(() => ({}));
+        showToast(e.message || '아이디 또는 비밀번호가 일치하지 않습니다.', true);
+      }
+    } catch (e) {
+      showToast('서버와 통신 중 오류가 발생했습니다.', true);
+    }
+  }
+</script>
+</html>

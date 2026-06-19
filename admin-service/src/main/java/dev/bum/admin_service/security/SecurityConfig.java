@@ -1,4 +1,4 @@
-package dev.bum.user_service.security;
+package dev.bum.admin_service.security;
 
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -47,19 +47,18 @@ public class SecurityConfig {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
-                        // 1. 공통 인프라 통로 개방
-                        .requestMatchers("/h2-console/**").permitAll()
+                        // 로그인 화면 및 로그인 시도는 허용
+                        .requestMatchers("/api/*/view/login").permitAll()
+                        .requestMatchers("/api/*/auth/login").permitAll()
 
-                        // 2. 비로그인 유저(전체) 허용: 로그인, 회원가입, 중복 검사
-                        .requestMatchers("/api/*/check/duplication/**").permitAll()
-                        .requestMatchers("/api/*/insert").permitAll()
+                        // 로그인 성공 시 대시보드 화면 및 fragment 화면 허용
+                        .requestMatchers("/api/*/view/home").permitAll()
+                        .requestMatchers("/api/*/view/fragment/**").permitAll()
 
-                        // 3. 관리자(ADMIN) 및 유저(USER) 모두 접근 가능 (내 정보 조회 / 내 정보 수정)
-                        .requestMatchers("/api/*/select/me").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/update/me").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/validate/info").hasAnyRole("USER", "ADMIN")
+                        // 정적 리소스(CSS, JS)가 시큐리티에 막혀 화면이 깨지는 것을 방지
+                        .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
 
-                        // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
+                        // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));

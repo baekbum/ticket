@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: auth-service
+    name: admin-service
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
@@ -14,8 +14,8 @@ token:
 
 services:
   auth-service:
-    url: "http://localhost:8080"
+    url: "http://auth-service"
   user-service:
-    url: "http://localhost:8081"
+    url: "http://user-service"
   ticket-service:
-    url: "http://localhost:8082"
+    url: "http://ticket-service"

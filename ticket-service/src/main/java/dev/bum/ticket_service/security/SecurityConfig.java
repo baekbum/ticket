@@ -51,15 +51,15 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
 
                         // 1. Event 권한 설정
-                        .requestMatchers(HttpMethod.GET, "/api/v1/event/**").hasAnyRole("USER", "ADMIN") // Read는 둘 다
-                        .requestMatchers("/api/v1/event/**").hasRole("ADMIN") // 나머지는 ADMIN만
+                        .requestMatchers(HttpMethod.GET, "/api/*/event/**").hasAnyRole("USER", "ADMIN") // Read는 둘 다
+                        .requestMatchers("/api/*/event/**").hasRole("ADMIN") // 나머지는 ADMIN만
 
                         // 2. Seat 권한 설정
-                        .requestMatchers(HttpMethod.GET, "/api/v1/seat/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/v1/seat/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/*/seat/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/seat/**").hasRole("ADMIN")
 
                         // 3. Reservation 권한 설정 (일반적으로 생성/취소는 유저 본인도 가능해야 함)
-                        .requestMatchers("/api/v1/reservation/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

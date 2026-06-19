@@ -1,3 +1,23 @@
+server:
+  port: 8999
+  servlet:
+    context-path: /admin
+
 spring:
+  profiles:
+    default: local
   application:
     name: admin-service
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
+
+services:
+  auth-service:
+    url: "http://localhost:8080/auth"
+  user-service:
+    url: "http://localhost:8081/user"
+  ticket-service:
+    url: "http://localhost:8082/ticket"
