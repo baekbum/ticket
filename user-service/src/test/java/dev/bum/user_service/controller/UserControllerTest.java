@@ -3,14 +3,14 @@ package dev.bum.user_service.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.user_service.dto.UserDto;
-import dev.bum.user_service.enums.UserRole;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.UserService;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,7 +52,7 @@ class UserControllerTest {
 
     private String apiVersion = "v1";
 
-    private final UserDto IU = UserDto.builder()
+    private final UserResponse IU = UserResponse.builder()
             .id(99L)
             .userId("IU")
             .role(UserRole.ROLE_USER)
@@ -68,7 +68,7 @@ class UserControllerTest {
     @Test
     @DisplayName("토큰 값 오류")
     void token_invalid() throws Exception {
-        UserCond cond = UserCond.builder()
+        UserCondRequest cond = UserCondRequest.builder()
                 .page(0)
                 .size(10)
                 .build();
@@ -84,7 +84,7 @@ class UserControllerTest {
     @DisplayName("유저 등록 성공하면 200 코드 반환 및 등록된 유저 DTO 반환")
     void user_insert() throws Exception {
 
-        InsertUserInfo userInfo = InsertUserInfo.builder()
+        InsertUserRequest userInfo = InsertUserRequest.builder()
                 .userId("IU")
                 .password("IU05160918")
                 .name("아이유")
@@ -115,24 +115,24 @@ class UserControllerTest {
     @Test
     @DisplayName("전체 유저 조회")
     void select_all() throws Exception {
-        UserDto user01 = UserDto.builder()
+        UserResponse user01 = UserResponse.builder()
                 .userId("user01")
                 .name("유저1번")
                 .build();
 
-        UserDto user02 = UserDto.builder()
+        UserResponse user02 = UserResponse.builder()
                 .userId("user02")
                 .name("유저2번")
                 .build();
 
-        List<UserDto> userList = List.of(user01, user02);
+        List<UserResponse> userList = List.of(user01, user02);
 
-        UserCond cond = UserCond.builder().build();
+        UserCondRequest cond = UserCondRequest.builder().build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-        Page<UserDto> userPage = new PageImpl<>(userList, pageable, userList.size());
+        Page<UserResponse> userPage = new PageImpl<>(userList, pageable, userList.size());
 
-        CustomPageResponse<UserDto> expectedResult = CustomPageResponse.of(
+        CustomPageResponse<UserResponse> expectedResult = CustomPageResponse.of(
                 userPage.getContent(),
                 userPage.getSize(),
                 userPage.getNumber(),
@@ -180,15 +180,15 @@ class UserControllerTest {
     @Test
     @DisplayName("유저를 조건으로 조회")
     void select_by_cond() throws Exception {
-        List<UserDto> userList = List.of(IU);
+        List<UserResponse> userList = List.of(IU);
 
-        UserCond cond = UserCond.builder()
+        UserCondRequest cond = UserCondRequest.builder()
                 .userId("IU").build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-        Page<UserDto> userPage = new PageImpl<>(userList, pageable, userList.size());
+        Page<UserResponse> userPage = new PageImpl<>(userList, pageable, userList.size());
 
-        CustomPageResponse<UserDto> expectedResult = CustomPageResponse.of(
+        CustomPageResponse<UserResponse> expectedResult = CustomPageResponse.of(
                 userPage.getContent(),
                 userPage.getSize(),
                 userPage.getNumber(),
@@ -219,13 +219,13 @@ class UserControllerTest {
         String email = "update@test.com";
         String phoneNumber = "010-3333-4444";
 
-        UpdateUserInfo info = UpdateUserInfo.builder()
+        UpdateUserRequest info = UpdateUserRequest.builder()
                 .phoneNumber(phoneNumber)
                 .email(email)
                 .isBlacklisted(true)
                 .build();
 
-        UserDto userDto = UserDto.builder()
+        UserResponse userResponse = UserResponse.builder()
                 .id(1L)
                 .userId(userId)
                 .role(UserRole.ROLE_USER)
@@ -238,7 +238,7 @@ class UserControllerTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        given(userService.update(any(), any())).willReturn(userDto);
+        given(userService.update(any(), any())).willReturn(userResponse);
 
         mockMvc.perform(put("/api/" + apiVersion + "/update/id/" + userId)
                         .contentType(MediaType.APPLICATION_JSON)

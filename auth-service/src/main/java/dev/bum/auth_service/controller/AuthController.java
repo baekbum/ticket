@@ -1,8 +1,8 @@
 package dev.bum.auth_service.controller;
 
-import dev.bum.common.jwt.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.auth_service.service.AuthService;
-import dev.bum.common.service.auth.vo.LoginInfo;
+import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ public class AuthController {
     private final JwtTokenProvider tokenProvider;
 
     @PostMapping("/login")
-    public ResponseEntity<TokenDto> login(@Valid @RequestBody LoginInfo info) {
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest info) {
         return ResponseEntity.ok(authService.LoginAndCreateToken(info));
     }
 
@@ -72,14 +72,14 @@ public class AuthController {
      * 클라이언트가 직접 호출하는 토큰 재발급(갱신) 엔드포인트
      */
     @PostMapping("/reissue")
-    public ResponseEntity<TokenDto> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+    public ResponseEntity<TokenResponse> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
         if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
         String refreshToken = refreshHeader.substring(7);
-        TokenDto tokenDto = authService.reissueToken(refreshToken);
+        TokenResponse tokenResponse = authService.reissueToken(refreshToken);
 
-        return ResponseEntity.ok(tokenDto);
+        return ResponseEntity.ok(tokenResponse);
     }
 }

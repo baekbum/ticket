@@ -1,10 +1,10 @@
 package dev.bum.auth_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.bum.common.jwt.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.auth_service.security.SecurityConfig;
 import dev.bum.auth_service.service.AuthService;
-import dev.bum.common.service.auth.vo.LoginInfo;
+import dev.bum.common.service.auth.dto.LoginRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,9 +40,9 @@ class AuthControllerTest {
         String userId = "user01";
         String password = "user123!";
 
-        LoginInfo info = new LoginInfo(userId, password);
+        LoginRequest info = new LoginRequest(userId, password);
 
-        given(authService.LoginAndCreateToken(any())).willReturn(new TokenDto("access-token", "refresh-token"));
+        given(authService.LoginAndCreateToken(any())).willReturn(new TokenResponse("access-token", "refresh-token"));
 
         mockMvc.perform(post("/api/" + apiVersion + "/login")
                         .contentType(MediaType.APPLICATION_JSON)

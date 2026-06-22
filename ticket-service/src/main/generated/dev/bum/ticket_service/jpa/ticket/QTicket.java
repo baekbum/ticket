@@ -28,7 +28,7 @@ public class QTicket extends EntityPathBase<Ticket> {
 
     public final dev.bum.ticket_service.jpa.seat.QSeat seat;
 
-    public final EnumPath<dev.bum.ticket_service.enums.TicketStatus> status = createEnum("status", dev.bum.ticket_service.enums.TicketStatus.class);
+    public final EnumPath<dev.bum.common.service.ticket.ticket.enums.TicketStatus> status = createEnum("status", dev.bum.common.service.ticket.ticket.enums.TicketStatus.class);
 
     public final NumberPath<Long> ticketId = createNumber("ticketId", Long.class);
 

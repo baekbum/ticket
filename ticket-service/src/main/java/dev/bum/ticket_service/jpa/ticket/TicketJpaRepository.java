@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.jpa.ticket;
 
-import dev.bum.ticket_service.enums.TicketStatus;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;

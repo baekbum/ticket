@@ -1,13 +1,13 @@
 package dev.bum.admin_service.feign.user;
 
-import dev.bum.admin_service.feign.user.dto.UserDto;
-import dev.bum.admin_service.feign.user.vo.InsertUserInfo;
-import dev.bum.admin_service.feign.user.vo.UpdateUserInfo;
-import dev.bum.admin_service.feign.user.vo.UserCond;
-import dev.bum.admin_service.feign.user.vo.ValidatePasswordInfo;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.ValidatePasswordRequest;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.data.web.PagedModel;
 import org.springframework.web.bind.annotation.*;
 
 @FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1")
@@ -17,24 +17,24 @@ public interface UserServiceClient {
     void isDuplicated(@PathVariable("userId") String userId);
 
     @PostMapping("/insert")
-    UserDto insert(@RequestBody InsertUserInfo info);
+    UserResponse insert(@RequestBody InsertUserRequest info);
 
     @GetMapping("/select/id/{userId}")
-    UserDto selectById(@PathVariable("userId") String userId);
+    UserResponse selectById(@PathVariable("userId") String userId);
 
     @PostMapping("/select")
-    PagedModel<UserDto> selectByCond(@RequestBody UserCond cond);
+    CustomPageResponse<UserResponse> selectByCond(@RequestBody UserCondRequest cond);
 
     @PostMapping("/validate/info")
-    void validateInfo(@Valid @RequestBody ValidatePasswordInfo info);
+    void validateInfo(@Valid @RequestBody ValidatePasswordRequest info);
 
     @PutMapping("/update/id/{userId}")
-    UserDto update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserInfo info);
+    UserResponse update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info);
 
     @PutMapping("/init/password/{userId}")
     void initPassword(@PathVariable("userId") String userId);
 
     @DeleteMapping("/delete/id/{userId}")
-    UserDto delete(@PathVariable("userId") String userId);
+    UserResponse delete(@PathVariable("userId") String userId);
 }
 

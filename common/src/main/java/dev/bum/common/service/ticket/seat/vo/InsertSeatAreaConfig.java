@@ -1,0 +1,27 @@
+package dev.bum.common.service.ticket.seat.vo;
+
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Builder
+public class InsertSeatAreaConfig {
+    @NotNull
+    private SeatGrade grade;
+
+    @NotBlank
+    private String zone;
+
+    @NotNull
+    private Integer rows;
+
+    @NotNull
+    private Integer cols;
+
+    @NotNull
+    private Integer price;
+}

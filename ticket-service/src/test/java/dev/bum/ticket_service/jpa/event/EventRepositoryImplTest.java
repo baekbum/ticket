@@ -1,12 +1,12 @@
 package dev.bum.ticket_service.jpa.event;
 
+import dev.bum.common.service.ticket.event.enums.EventStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
-import dev.bum.ticket_service.enums.EventStatus;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,7 +58,7 @@ class EventRepositoryImplTest {
     void event_insert() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
 
-        InsertEventInfo info = InsertEventInfo.builder()
+        InsertEventRequest info = InsertEventRequest.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
@@ -85,7 +85,7 @@ class EventRepositoryImplTest {
     void event_already_exist() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 5, 16, 18, 0);
 
-        InsertEventInfo info = InsertEventInfo.builder()
+        InsertEventRequest info = InsertEventRequest.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
@@ -105,7 +105,7 @@ class EventRepositoryImplTest {
     void event_select_by_id() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
 
-        InsertEventInfo info = InsertEventInfo.builder()
+        InsertEventRequest info = InsertEventRequest.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
@@ -137,7 +137,7 @@ class EventRepositoryImplTest {
         LocalDateTime eventDateTime_1 = LocalDateTime.of(2026, 4, 29, 18, 0);
         LocalDateTime eventDateTime_2 = LocalDateTime.of(2026, 9, 18, 18, 0);
 
-        InsertEventInfo info_1 = InsertEventInfo.builder()
+        InsertEventRequest info_1 = InsertEventRequest.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")
@@ -147,7 +147,7 @@ class EventRepositoryImplTest {
                 .maxTicketsPerPerson(2)
                 .build();
 
-        InsertEventInfo info_2 = InsertEventInfo.builder()
+        InsertEventRequest info_2 = InsertEventRequest.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("상암 월드컵 경기장에서 하는 아이유 콘서트")
@@ -160,7 +160,7 @@ class EventRepositoryImplTest {
         eventRepository.insert(info_1);
         eventRepository.insert(info_2);
 
-        EventCond cond = EventCond.builder()
+        EventCondRequest cond = EventCondRequest.builder()
                 .artistName("아이유")
                 .build();
 
@@ -178,7 +178,7 @@ class EventRepositoryImplTest {
     @Test
     @DisplayName("이벤트 정보 수정")
     void event_update() throws Exception {
-        EventCond cond = EventCond.builder()
+        EventCondRequest cond = EventCondRequest.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .venue("올림픽 체조 경기장")
@@ -198,7 +198,7 @@ class EventRepositoryImplTest {
 
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 17, 0);
 
-        UpdateEventInfo info = UpdateEventInfo.builder()
+        UpdateEventRequest info = UpdateEventRequest.builder()
                 .description("고양 종합 운동장에서 하는 아이유 콘서트")
                 .venue("고양 종합 운동장")
                 .eventDateTime(eventDateTime)
@@ -219,7 +219,7 @@ class EventRepositoryImplTest {
     void event_delete() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
 
-        InsertEventInfo info= InsertEventInfo.builder()
+        InsertEventRequest info= InsertEventRequest.builder()
                 .artistName("윤하")
                 .title("윤하 소극장 콘서트")
                 .description("2026 윤하 소극장 콘서트")

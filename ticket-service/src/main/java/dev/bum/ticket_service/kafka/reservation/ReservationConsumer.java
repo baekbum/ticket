@@ -1,7 +1,7 @@
 package dev.bum.ticket_service.kafka.reservation;
 
 import dev.bum.ticket_service.service.reservation.ReservationService;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,7 +19,7 @@ public class ReservationConsumer {
     private String reservationTopic;
 
     @KafkaListener(topics = "${topic.reservation.name}", groupId = "reservation-group")
-    public void consumeInsert(InsertReservationInfo info) {
+    public void consumeInsert(InsertReservationRequest info) {
         log.info(">>>> Kafka로부터 메시지 도착: [eventId: {}, userId: {}, seatSize: {}]", info.getEventId(), info.getUserId(), info.getSeats().size());
 
         try {

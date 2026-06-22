@@ -5,8 +5,8 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.ticket_service.enums.ReservationStatus;
-import dev.bum.ticket_service.enums.TicketStatus;
+import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.Event;
@@ -16,9 +16,9 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.ticket_service.vo.reservation.CancelReservationInfo;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.reservation.ReservationCond;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,16 +52,15 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @param info
      */
     @Override
-    public Reservation insert(InsertReservationInfo info) {
+    public Reservation insert(InsertReservationRequest info) {
         // 1. 추가적으로 티켓팅이 가능한지 확인
         isReservable(info.getUserId(), info.getEventId(), info.getSeats().size());
 
         // 2. 공연 정보 조회
         Event event = eventRepository.selectById(info.getEventId());
-        info.setEvent(event);
 
         // 3. 조회한 공연 정보를 통해 예매 정보(프레임)를 생성
-        Reservation reservation = new Reservation(info);
+        Reservation reservation = new Reservation(info, event);
 
         // 4. 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)
@@ -111,7 +110,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @return
      */
     @Override
-    public Page<Reservation> selectByCond(ReservationCond cond, Pageable pageable) {
+    public Page<Reservation> selectByCond(ReservationCondRequest cond, Pageable pageable) {
         reservation = QReservation.reservation;
         QEvent event = QEvent.event;
 
@@ -125,13 +124,15 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(property)));
         });
 
+        Event targetEvent = eventRepository.selectById(cond.getEventId());
+
         // 1. 컨텐츠 조회 (Ticket, Seat 조인 제거)
         List<Reservation> content = queryFactory
                 .selectFrom(reservation)
                 .join(reservation.event, event).fetchJoin() // 공연 정보는 상세 내역에 필요하므로 FetchJoin
                 .where(
                         userIdEq(cond.getUserId()),
-                        eventEq(cond.getEvent()), // Reservation에 있는 event_id로 바로 필터링
+                        eventEq(targetEvent), // Reservation에 있는 event_id로 바로 필터링
                         dateBetween(cond.getStartDate(), cond.getEndDate()),
                         statusEq(cond.getStatus())
                 )
@@ -146,7 +147,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .from(reservation)
                 .where(
                         userIdEq(cond.getUserId()),
-                        eventEq(cond.getEvent()),
+                        eventEq(targetEvent),
                         dateBetween(cond.getStartDate(), cond.getEndDate()),
                         statusEq(cond.getStatus())
                 )
@@ -162,7 +163,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @param id
      */
     @Override
-    public void cancel(long id, CancelReservationInfo info) {
+    public void cancel(long id, CancelReservationRequest info) {
         // 1. 예매, 티켓 정보 조회.
         Reservation foundReservation = selectById(id);
         List<Long> selectedTicketIdList = info.getSelectedTicketIdList();

@@ -1,12 +1,12 @@
 package dev.bum.user_service.controller;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.user.dto.UserDto;
+import dev.bum.common.service.user.dto.UserResponse;
 import dev.bum.user_service.service.UserService;
-import dev.bum.common.service.user.vo.InsertUserInfo;
-import dev.bum.common.service.user.vo.UpdateUserInfo;
-import dev.bum.common.service.user.vo.UserCond;
-import dev.bum.common.service.user.vo.ValidatePasswordInfo;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.ValidatePasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,7 @@ public class UserController {
      * @return
      */
     @PostMapping("/insert")
-    public ResponseEntity<UserDto> insert(@Valid @RequestBody InsertUserInfo info) {
+    public ResponseEntity<UserResponse> insert(@Valid @RequestBody InsertUserRequest info) {
         return ResponseEntity.ok(userService.insert(info));
     }
 
@@ -53,7 +53,7 @@ public class UserController {
      * @return
      */
     @GetMapping("/select/id/{userId}")
-    public ResponseEntity<UserDto> selectById(@PathVariable("userId") String userId) {
+    public ResponseEntity<UserResponse> selectById(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userService.selectById(userId));
     }
 
@@ -64,7 +64,7 @@ public class UserController {
      * @return
      */
     @PostMapping("/select")
-    public ResponseEntity<CustomPageResponse<UserDto>> selectByCond(@RequestBody UserCond cond) {
+    public ResponseEntity<CustomPageResponse<UserResponse>> selectByCond(@RequestBody UserCondRequest cond) {
         return ResponseEntity.ok(userService.selectByCond(cond));
     }
 
@@ -75,7 +75,7 @@ public class UserController {
      * @return
      */
     @GetMapping("/select/me")
-    public ResponseEntity<UserDto> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
+    public ResponseEntity<UserResponse> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
         // Principal에 저장된 '현재 로그인한 유저의 ID'로만 조회하므로 남의 정보를 볼 방법이 없음!
         return ResponseEntity.ok(userService.selectById(currentUserId));
     }
@@ -88,9 +88,9 @@ public class UserController {
      * @return
      */
     @PutMapping("/update/me")
-    public ResponseEntity<UserDto> updateMyInfo(
+    public ResponseEntity<UserResponse> updateMyInfo(
             @AuthenticationPrincipal String currentUserId,
-            @Valid @RequestBody UpdateUserInfo info) {
+            @Valid @RequestBody UpdateUserRequest info) {
         // 내 아이디로만 업데이트를 수행
         return ResponseEntity.ok(userService.update(currentUserId, info));
     }
@@ -101,7 +101,7 @@ public class UserController {
      * @return
      */
     @PostMapping("/validate/info")
-    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordInfo info) {
+    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
         userService.validateInfo(info);
         return ResponseEntity.ok().build();
     }
@@ -114,7 +114,7 @@ public class UserController {
      * @return
      */
     @PutMapping("/update/id/{userId}")
-    public ResponseEntity<UserDto> update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserInfo info) {
+    public ResponseEntity<UserResponse> update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info) {
         return ResponseEntity.ok(userService.update(userId, info));
     }
 
@@ -136,7 +136,7 @@ public class UserController {
      * @return
      */
     @DeleteMapping("/delete/id/{userId}")
-    public ResponseEntity<UserDto> delete(@PathVariable("userId") String userId) {
+    public ResponseEntity<UserResponse> delete(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userService.delete(userId));
     }
 }

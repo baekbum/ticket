@@ -26,7 +26,7 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final dev.bum.ticket_service.jpa.event.QEvent event;
 
-    public final EnumPath<dev.bum.ticket_service.enums.SeatGrade> grade = createEnum("grade", dev.bum.ticket_service.enums.SeatGrade.class);
+    public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatGrade> grade = createEnum("grade", dev.bum.common.service.ticket.seat.enums.SeatGrade.class);
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
@@ -36,7 +36,7 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final NumberPath<Integer> seatRow = createNumber("seatRow", Integer.class);
 
-    public final EnumPath<dev.bum.ticket_service.enums.SeatStatus> status = createEnum("status", dev.bum.ticket_service.enums.SeatStatus.class);
+    public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatStatus> status = createEnum("status", dev.bum.common.service.ticket.seat.enums.SeatStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

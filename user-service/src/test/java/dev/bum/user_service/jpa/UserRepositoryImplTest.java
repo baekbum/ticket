@@ -1,9 +1,9 @@
 package dev.bum.user_service.jpa;
 
 import dev.bum.common.service.user.enums.UserRole;
-import dev.bum.common.service.user.vo.InsertUserInfo;
-import dev.bum.common.service.user.vo.UpdateUserInfo;
-import dev.bum.common.service.user.vo.UserCond;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import dev.bum.user_service.config.QuerydslConfig;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
@@ -69,7 +69,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("유저 저장")
     void user_insert() throws Exception {
-        InsertUserInfo info = InsertUserInfo.builder()
+        InsertUserRequest info = InsertUserRequest.builder()
                 .userId("addUser")
                 .password("addUser1234!")
                 .name("추가유저")
@@ -94,7 +94,7 @@ class UserRepositoryImplTest {
     void fail_already_exist() throws Exception {
         String userId = "IU";
 
-        InsertUserInfo info = InsertUserInfo.builder()
+        InsertUserRequest info = InsertUserRequest.builder()
                 .userId(userId)
                 .password("IU05160918")
                 .name("아이유")
@@ -112,7 +112,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("유저 전체 조회")
     void select_all() throws Exception {
-        InsertUserInfo user01 = InsertUserInfo.builder()
+        InsertUserRequest user01 = InsertUserRequest.builder()
                 .userId("user01")
                 .password("user1234!")
                 .name("유저01")
@@ -122,7 +122,7 @@ class UserRepositoryImplTest {
                 .address("주소 없음")
                 .build();
 
-        InsertUserInfo user02 = InsertUserInfo.builder()
+        InsertUserRequest user02 = InsertUserRequest.builder()
                 .userId("user02")
                 .password("user1234!")
                 .name("유저02")
@@ -135,7 +135,7 @@ class UserRepositoryImplTest {
         userRepository.insert(user01);
         userRepository.insert(user02);
 
-        UserCond cond = UserCond.builder().build();
+        UserCondRequest cond = UserCondRequest.builder().build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
 
@@ -176,7 +176,7 @@ class UserRepositoryImplTest {
     @DisplayName("조건을 통해 유저 검색")
     void select_by_cond() throws Exception {
 
-        InsertUserInfo user01 = InsertUserInfo.builder()
+        InsertUserRequest user01 = InsertUserRequest.builder()
                 .userId("user01")
                 .password("user1234!")
                 .name("유저01")
@@ -186,7 +186,7 @@ class UserRepositoryImplTest {
                 .address("주소 없음")
                 .build();
 
-        InsertUserInfo user02 = InsertUserInfo.builder()
+        InsertUserRequest user02 = InsertUserRequest.builder()
                 .userId("user02")
                 .password("user1234!")
                 .name("유저02")
@@ -199,7 +199,7 @@ class UserRepositoryImplTest {
         userRepository.insert(user01);
         userRepository.insert(user02);
 
-        UserCond cond = UserCond.builder()
+        UserCondRequest cond = UserCondRequest.builder()
                 .userId("user01")
                 .build();
 
@@ -215,7 +215,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("조건에 해당하는 데이터가 0건인 경우")
     void return_zero_data() throws Exception {
-        UserCond cond = UserCond.builder().address("존재하지 않는 주소").build();
+        UserCondRequest cond = UserCondRequest.builder().address("존재하지 않는 주소").build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
 
@@ -229,7 +229,7 @@ class UserRepositoryImplTest {
     void user_info_update() throws Exception {
         String userId = "IU";
 
-        UpdateUserInfo info = UpdateUserInfo.builder()
+        UpdateUserRequest info = UpdateUserRequest.builder()
                 .phoneNumber("010-8888-9999")
                 .email("update@test.com")
                 .build();

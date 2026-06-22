@@ -1,7 +1,7 @@
 package dev.bum.admin_service.feign.auth;
 
-import dev.bum.common.jwt.dto.TokenDto;
-import dev.bum.common.service.auth.vo.LoginInfo;
+import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.service.auth.dto.LoginRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,5 +10,5 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface AuthServiceClient {
 
     @PostMapping("/login")
-    TokenDto login(@RequestBody LoginInfo info);
+    TokenResponse login(@RequestBody LoginRequest info);
 }

@@ -3,15 +3,15 @@ package dev.bum.user_service.service;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
-import dev.bum.common.service.user.dto.UserDto;
+import dev.bum.common.service.user.dto.UserResponse;
 import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
-import dev.bum.common.service.user.vo.InsertUserInfo;
-import dev.bum.common.service.user.vo.UpdateUserInfo;
-import dev.bum.common.service.user.vo.UserCond;
-import dev.bum.common.service.user.vo.ValidatePasswordInfo;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.ValidatePasswordRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,7 +53,7 @@ public class UserService {
      * @param info
      * @return
      */
-    public UserDto insert(InsertUserInfo info) {
+    public UserResponse insert(InsertUserRequest info) {
         log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
 
@@ -67,7 +67,7 @@ public class UserService {
 
         sendTopicToKafka(event);
 
-        return savedUser.toDto();
+        return savedUser.toResponse();
     }
 
     /**
@@ -76,9 +76,9 @@ public class UserService {
      * @return
      */
     @Transactional(readOnly = true)
-    public UserDto selectById(String userId) {
+    public UserResponse selectById(String userId) {
         log.info("[SELECT] userId : {}", userId);
-        return repository.selectById(userId).toDto();
+        return repository.selectById(userId).toResponse();
     }
 
     /**
@@ -87,11 +87,11 @@ public class UserService {
      * @return
      */
     @Transactional(readOnly = true)
-    public CustomPageResponse<UserDto> selectByCond(UserCond cond) {
+    public CustomPageResponse<UserResponse> selectByCond(UserCondRequest cond) {
         log.info("[SELECT : {}]", cond.toString());
 
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<UserDto> userPage = repository.selectByCond(cond, pageRequest).map(User::toDto);
+        Page<UserResponse> userPage = repository.selectByCond(cond, pageRequest).map(User::toResponse);
 
         return CustomPageResponse.of(
                 userPage.getContent(),
@@ -108,11 +108,11 @@ public class UserService {
      * @param info
      * @return
      */
-    public UserDto update(String userId, UpdateUserInfo info) {
+    public UserResponse update(String userId, UpdateUserRequest info) {
         log.info("[UPDATE] updateUserInfo : {}", info.toString());
 
         UserRole originalRole = repository.selectById(userId).getRole();
-        UserDto updatedUser = repository.update(userId, info).toDto();
+        UserResponse updatedUser = repository.update(userId, info).toResponse();
 
         // ROLE이 변경됐을 때 AUTH DB에 적용
         if (!originalRole.name().equals(info.getRole())) {
@@ -129,7 +129,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public void validateInfo(ValidatePasswordInfo info) {
+    public void validateInfo(ValidatePasswordRequest info) {
         log.info("[VALIDATE] : {}", info);
         User user = repository.selectById(info.getUserId());
 
@@ -140,7 +140,7 @@ public class UserService {
 
     public void initPassword(String userId) {
         log.info("[INIT PASSWORD] userId : {}", userId);
-        UpdateUserInfo info = UpdateUserInfo.builder()
+        UpdateUserRequest info = UpdateUserRequest.builder()
                 .password("123456789!")
                 .build();
 
@@ -153,7 +153,7 @@ public class UserService {
      * @param userId
      * @return
      */
-    public UserDto delete(String userId) {
+    public UserResponse delete(String userId) {
         log.info("[DELETE] userId : {}", userId);
 
         User deletedUser = repository.delete(userId);
@@ -166,7 +166,7 @@ public class UserService {
 
         sendTopicToKafka(event);
 
-        return deletedUser.toDto();
+        return deletedUser.toResponse();
     }
 
     /**
