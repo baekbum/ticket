@@ -1,8 +1,9 @@
 package dev.bum.admin_service.controller.auth;
 
 import dev.bum.admin_service.feign.auth.AuthServiceClient;
-import dev.bum.admin_service.feign.auth.vo.LoginInfo;
-import dev.bum.common.dto.TokenDto;
+
+import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.service.auth.dto.LoginRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +25,7 @@ public class AdminAuthController {
      * @return
      */
     @PostMapping("/login")
-    public ResponseEntity<TokenDto> login(@RequestBody LoginInfo info) {
+    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest info) {
         return ResponseEntity.ok(authServiceClient.login(info));
     }
 }

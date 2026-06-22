@@ -1,15 +1,15 @@
 package dev.bum.admin_service.controller.user;
 
 import dev.bum.admin_service.feign.user.UserServiceClient;
-import dev.bum.admin_service.feign.user.dto.UserDto;
-import dev.bum.admin_service.feign.user.vo.InsertUserInfo;
-import dev.bum.admin_service.feign.user.vo.UpdateUserInfo;
-import dev.bum.admin_service.feign.user.vo.UserCond;
-import dev.bum.admin_service.feign.user.vo.ValidatePasswordInfo;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.ValidatePasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +28,7 @@ public class AdminUserController {
      * @return
      */
     @PostMapping("/insert")
-    public ResponseEntity<UserDto> insert(@Valid @RequestBody InsertUserInfo info) {
+    public ResponseEntity<UserResponse> insert(@Valid @RequestBody InsertUserRequest info) {
         return ResponseEntity.ok(userServiceClient.insert(info));
     }
 
@@ -38,7 +38,7 @@ public class AdminUserController {
      * @return
      */
     @GetMapping("/select/id/{userId}")
-    public ResponseEntity<UserDto> selectById(@PathVariable("userId") String userId) {
+    public ResponseEntity<UserResponse> selectById(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userServiceClient.selectById(userId));
     }
 
@@ -48,7 +48,7 @@ public class AdminUserController {
      * @return
      */
     @PostMapping("/select")
-    public ResponseEntity<PagedModel<UserDto>> selectByCond(@RequestBody UserCond cond) {
+    public ResponseEntity<CustomPageResponse<UserResponse>> selectByCond(@RequestBody UserCondRequest cond) {
         return ResponseEntity.ok(userServiceClient.selectByCond(cond));
     }
 
@@ -58,9 +58,9 @@ public class AdminUserController {
      * @return
      */
     @GetMapping("/select/me")
-    public ResponseEntity<UserDto> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
-        UserDto userDto = userServiceClient.selectById(currentUserId);
-        return ResponseEntity.ok(userDto);
+    public ResponseEntity<UserResponse> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
+        UserResponse userResponse = userServiceClient.selectById(currentUserId);
+        return ResponseEntity.ok(userResponse);
     }
 
     /**
@@ -70,9 +70,9 @@ public class AdminUserController {
      * @return
      */
     @PutMapping("/update/me")
-    public ResponseEntity<UserDto> updateMyInfo(
+    public ResponseEntity<UserResponse> updateMyInfo(
             @AuthenticationPrincipal String currentUserId,
-            @Valid @RequestBody UpdateUserInfo info) {
+            @Valid @RequestBody UpdateUserRequest info) {
         return ResponseEntity.ok(userServiceClient.update(currentUserId, info));
     }
 
@@ -82,7 +82,7 @@ public class AdminUserController {
      * @return
      */
     @PostMapping("/validate/info")
-    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordInfo info) {
+    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
         userServiceClient.validateInfo(info);
         return ResponseEntity.ok().build();
     }
@@ -94,7 +94,7 @@ public class AdminUserController {
      * @return
      */
     @PutMapping("/update/id/{userId}")
-    public ResponseEntity<UserDto> update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserInfo info) {
+    public ResponseEntity<UserResponse> update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info) {
         return ResponseEntity.ok(userServiceClient.update(userId, info));
     }
 
@@ -115,7 +115,7 @@ public class AdminUserController {
      * @return
      */
     @DeleteMapping("/delete/id/{userId}")
-    public ResponseEntity<UserDto> delete(@PathVariable("userId") String userId) {
+    public ResponseEntity<UserResponse> delete(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userServiceClient.delete(userId));
     }
 }
