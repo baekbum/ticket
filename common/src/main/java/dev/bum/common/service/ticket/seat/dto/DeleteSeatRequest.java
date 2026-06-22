@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 
 @Data
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Builder
 public class DeleteSeatRequest {
     List<Long> seatIdList;

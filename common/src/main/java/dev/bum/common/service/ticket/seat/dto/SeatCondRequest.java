@@ -10,7 +10,7 @@ import java.util.StringJoiner;
 @Data
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class SeatCondRequest {
 
     private Long seatId;

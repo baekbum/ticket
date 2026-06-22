@@ -12,7 +12,7 @@ import org.springframework.util.StringUtils;
 @Getter
 @Entity
 @Table(name = "auth")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class Auth {
 
     @Id

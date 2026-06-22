@@ -9,7 +9,7 @@ import java.util.StringJoiner;
 @Data
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class UserCondRequest {
 
     private String userId;

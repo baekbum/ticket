@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_users_email", columnList = "email")
 })
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class User {

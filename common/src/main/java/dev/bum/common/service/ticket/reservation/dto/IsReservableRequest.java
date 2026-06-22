@@ -6,7 +6,7 @@ import lombok.*;
 
 @Data
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Builder
 public class IsReservableRequest {
     @NotBlank

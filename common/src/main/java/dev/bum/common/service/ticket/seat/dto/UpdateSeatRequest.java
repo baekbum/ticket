@@ -7,7 +7,7 @@ import java.util.List;
 
 @Data
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Builder
 public class UpdateSeatRequest {
     private List<UpdateSeatAreaConfig> updateSeatAreaConfigs;
