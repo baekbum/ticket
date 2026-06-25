@@ -1,366 +1,810 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8">
-    <title>Ticket - 관리자 대시보드</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <meta charset="UTF-8">
+  <title>Ticket - 관리자 대시보드</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-    /* 🌟 1. 브라우저 창 전체 가로/세로를 100% 꽉 채우고 화면을 가둡니다 */
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      background: #f1f3f5;
-      font-family: 'Segoe UI', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center; /* 뷰포트 정중앙 정렬 */
-    }
+  :root {
+    --purple: #7c4dff;
+    --purple-hover: #6836f5;
+    --purple-dim: rgba(124, 77, 255, 0.09);
+    --purple-ring: rgba(124, 77, 255, 0.16);
+    --bg: #f4f3f8;
+    --card-bg: #ffffff;
+    --border: #e6e4ef;
+    --sidebar-active-bg: #f0edff;
+    --text-primary: #18172b;
+    --text-secondary: #6e6b85;
+    --text-muted: #a09db8;
+    --red: #d63b3b;
+    --success-bg: #3C3489;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+  }
 
-    /* 🌟 2. 데이터 유무와 상관없이 대시보드 흰색 카드 틀이 압축되지 않도록 최소/최대 폭을 고정합니다 */
-    .dashboard-container {
-      width: 100%;                  /* 유동적으로 가로를 채우되 */
-      max-width: 1440px;            /* 너무 커지는 것을 방지 */
-      min-width: 1024px;            /* 🌟 데이터가 없어도 1024px 미만으로 절대 쪼그라들지 않음 */
-      height: calc(100vh - 2rem);   /* 위아래 여백을 제외하고 화면에 딱 맞게 고정 */
-      background: #ffffff;
-      border: 0.5px solid #e9ecef;
-      border-radius: 12px;
-      padding: 1.5rem 2rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-      display: flex;
-      flex-direction: column;
-      margin: 0 1rem;               /* 양옆 여백 확보 */
-    }
+  html, body {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-    /* 🌟 3. 상단 헤더 영역 - 내부 텍스트 쪼그라듦으로 인한 줄바꿈 방지 */
-    .dashboard-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 1.25rem;
-      border-bottom: 0.5px solid #e9ecef;
-      margin-bottom: 1.5rem;
-      width: 100%;                  /* 가로폭 유지 */
-      flex-shrink: 0;               /* 헤더 높이가 압축되는 것 방지 */
-    }
+  /* ── Shell ── */
+  .dashboard-container {
+    width: 100%;
+    max-width: 1440px;
+    min-width: 1024px;
+    height: calc(100vh - 2rem);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 0;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.04),
+      0 8px 32px rgba(100,80,200,0.07),
+      0 24px 64px rgba(100,80,200,0.04);
+    display: flex;
+    flex-direction: column;
+    margin: 0 1rem;
+    overflow: hidden;
+  }
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+  /* ── Header ── */
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1.75rem;
+    height: 60px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--card-bg);
+  }
 
-    .header-title-wrap {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-    }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-    .header-logo-icon {
-      font-size: 24px;
-      color: #7c4dff;
-      display: flex;
-      align-items: center;
-    }
+  .header-logo-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--purple);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(124,77,255,0.28);
+  }
 
-    .header-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #212529;
-    }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+  }
 
-    .header-welcome {
-      font-size: 13px;
-      color: #495057;
-    }
+  .header-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--purple);
+    background: var(--purple-dim);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
 
-    .header-welcome span {
-      font-weight: 600;
-      color: #7c4dff;
-    }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
 
-    .logout-btn {
-      padding: 8px 14px;
-      background: #E24B4A;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
+  .header-welcome {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
 
-    .logout-btn:hover {
-      background: #be3231;
-    }
+  .user-name-link {
+    color: var(--purple);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
+  }
 
-    /* 🌟 4. 메인 레이아웃 (사이드바 + 본문 콘텐츠) */
-    .dashboard-layout {
-      display: grid;
-      grid-template-columns: 180px 1fr; /* 사이드바 180px 고정, 본문은 남은 공간 전부(1fr) */
-      gap: 1.5rem;
-      flex: 1;
-      min-height: 0;
-      align-items: stretch;
-      width: 100%;                  /* 🌟 가로폭을 항상 100% 채우도록 고정 */
-    }
+  .user-name-link:hover {
+    border-bottom-color: var(--purple);
+  }
 
-    /* 사이드바 영역 */
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      border-right: 0.5px solid #f1f3f5;
-      padding-right: 1rem;
-    }
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    background: rgba(214,59,59,0.08);
+    color: var(--red);
+    border: 1px solid rgba(214,59,59,0.18);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s;
+  }
 
-    .menu-btn {
-      width: 100%;
-      padding: 10px 12px;
-      background: none;
-      border: none;
-      border-radius: 6px;
-      text-align: left;
-      font-size: 13px;
-      font-weight: 500;
-      color: #495057;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background 0.2s, color 0.2s;
-    }
+  .logout-btn:hover {
+    background: rgba(214,59,59,0.14);
+    border-color: rgba(214,59,59,0.30);
+  }
 
-    .menu-btn i {
-      font-size: 16px;
-    }
+  /* ── Layout ── */
+  .dashboard-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+  }
 
-    .menu-btn:hover {
-      background: #f8f9fa;
-      color: #212529;
-    }
+  /* ── Sidebar ── */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-right: 1px solid var(--border);
+    padding: 1.25rem 0.875rem;
+    overflow-y: auto;
+    background: #faf9fd;
+  }
 
-    .menu-btn.active {
-      background: #f3f0ff;
-      color: #7c4dff;
-    }
+  .sidebar-section-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0 10px;
+    margin-bottom: 6px;
+    margin-top: 4px;
+  }
 
-    /* 🌟 5. 본문 콘텐츠 영역 (프래그먼트가 주입되는 핵심 공간) */
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-      font-size: 13px;
-      width: 100%;                  /* 🌟 내부 콘텐츠 양에 상관없이 가로폭 최대 유지 */
-      flex-grow: 1;                 /* 🌟 남은 가로 공간을 다 채우도록 강제 확장 */
-    }
+  .menu-btn {
+    width: 100%;
+    padding: 9px 10px;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    text-align: left;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    transition: background 0.15s, color 0.15s;
+    letter-spacing: -0.1px;
+  }
 
-    /* 토스트 메시지 */
-    .toast {
-      position: fixed;
-      top: 1.5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #3C3489;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-size: 13px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s;
-      white-space: nowrap;
-      z-index: 999;
-    }
+  .menu-btn i {
+    font-size: 16px;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
 
-    .toast.show { opacity: 1; }
+  .menu-btn:hover {
+    background: var(--purple-dim);
+    color: var(--purple);
+  }
+
+  .menu-btn.active {
+    background: var(--sidebar-active-bg);
+    color: var(--purple);
+    font-weight: 600;
+  }
+
+  .menu-btn.active i {
+    opacity: 1;
+  }
+
+  .menu-btn.disabled {
+    color: var(--text-muted);
+    cursor: default;
+  }
+
+  .menu-btn.disabled:hover {
+    background: none;
+    color: var(--text-muted);
+  }
+
+  .menu-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: #ece9f5;
+    border-radius: 4px;
+    padding: 1px 5px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Main content ── */
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-size: 13px;
+    width: 100%;
+    flex-grow: 1;
+    overflow: hidden;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--success-bg);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    white-space: nowrap;
+    z-index: 9999;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ── Modal ── */
+  .d-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20,16,40,0.45);
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(2px);
+  }
+
+  .d-modal-content {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: var(--radius-md);
+    width: 100%;
+    max-width: 480px;
+    text-align: left;
+    position: relative;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 40px rgba(60,40,120,0.14);
+  }
+
+  #my-password-modal { z-index: 3000; }
+  #my-password-modal .d-modal-content { max-width: 380px; }
+
+  .d-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.2px;
+  }
+
+  .d-modal-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+  }
+
+  .d-modal-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 1.25rem 0;
+  }
+
+  .d-form-group { margin-bottom: 1rem; }
+
+  .d-form-group label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    letter-spacing: 0.1px;
+  }
+
+  .d-form-group input,
+  .d-form-group select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    font-family: inherit;
+    background: #fafafa;
+    color: var(--text-primary);
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+
+  .d-form-group input:focus,
+  .d-form-group select:focus {
+    outline: none;
+    border-color: var(--purple);
+    background: #fff;
+    box-shadow: 0 0 0 3px var(--purple-ring);
+  }
+
+  .d-form-group input:disabled,
+  .d-form-group select:disabled {
+    background: #f4f3f8;
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+
+  .d-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ── Shared button system ── */
+  .d-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(124,77,255,0.18);
+    letter-spacing: -0.1px;
+  }
+
+  .d-btn:hover { background: var(--purple-hover); box-shadow: 0 4px 14px rgba(124,77,255,0.25); }
+  .d-btn:active { transform: scale(0.98); }
+
+  .d-btn-secondary {
+    background: #f0eef8;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .d-btn-secondary:hover { background: #e8e4f4; color: var(--text-primary); box-shadow: none; }
+
+  .d-btn-success { background: #2b8a3e; box-shadow: 0 2px 8px rgba(43,138,62,0.18); }
+  .d-btn-success:hover { background: #237032; }
+
+  .d-btn-warning { background: #f59f00; box-shadow: 0 2px 8px rgba(245,159,0,0.18); }
+  .d-btn-warning:hover { background: #e67700; }
+
+  .d-btn-danger {
+    background: rgba(214,59,59,0.09);
+    color: var(--red);
+    border: 1px solid rgba(214,59,59,0.18);
+    box-shadow: none;
+  }
+  .d-btn-danger:hover { background: rgba(214,59,59,0.15); box-shadow: none; }
 </style>
 
 <body>
 <div class="dashboard-container">
-    <header class="dashboard-header">
-        <div class="header-left">
-            <div class="header-title-wrap">
-                <div class="header-logo-icon"><i class="ti ti-shield-lock"></i></div>
-                <h1 class="header-title">Ticket 시스템 관리 콘솔</h1>
-                <p class="header-welcome"><span id="header-user-name">관리자</span>님 환영합니다</p>
-            </div>
-        </div>
-        <button class="logout-btn" onclick="logout()">로그아웃</button>
-    </header>
 
-    <div class="dashboard-layout">
-        <nav class="sidebar">
-            <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
-                <i class="ti ti-users"></i>유저 관리
-            </button>
-            <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
-                <i class="ti ti-calendar-event"></i>이벤트(공연) 관리
-            </button>
-            <button class="menu-btn" data-menu="seat" onclick="switchMenu('seat', this)">
-                <i class="ti ti-armchair"></i>좌석 관리
-            </button>
-            <button class="menu-btn" data-menu="ticket" onclick="switchMenu('ticket', this)" style="color: #adb5bd; cursor: default;">
-                <i class="ti ti-ticket"></i>티켓 관리 (준비중)
-            </button>
-            <button class="menu-btn" data-menu="reservation" onclick="switchMenu('reservation', this)" style="color: #adb5bd; cursor: default;">
-                <i class="ti ti-calendar-stats"></i>예매 정보 관리 (준비중)
-            </button>
-        </nav>
-
-        <main class="main-content" id="content-area">
-        </main>
+  <!-- Header -->
+  <header class="dashboard-header">
+    <div class="header-left">
+      <div class="header-logo-icon"><i class="ti ti-ticket"></i></div>
+      <h1 class="header-title">Ticket</h1>
+      <span class="header-badge">Admin Console</span>
     </div>
+    <div class="header-right">
+      <p class="header-welcome">
+        <span id="header-user-name" class="user-name-link" onclick="openMyInfoModal()">관리자</span>님 환영합니다
+      </p>
+      <button class="logout-btn" onclick="logout()">
+        <i class="ti ti-logout"></i>로그아웃
+      </button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="dashboard-layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-section-label">관리 메뉴</div>
+      <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
+        <i class="ti ti-users"></i>유저 관리
+      </button>
+      <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
+        <i class="ti ti-calendar-event"></i>이벤트 관리
+      </button>
+      <button class="menu-btn" data-menu="seat" onclick="switchMenu('seat', this)">
+        <i class="ti ti-armchair"></i>좌석 관리
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top: 1rem;">준비 중</div>
+      <button class="menu-btn disabled" data-menu="ticket" onclick="switchMenu('ticket', this)">
+        <i class="ti ti-ticket"></i>티켓 관리
+        <span class="menu-badge">Soon</span>
+      </button>
+      <button class="menu-btn disabled" data-menu="reservation" onclick="switchMenu('reservation', this)">
+        <i class="ti ti-calendar-stats"></i>예매 관리
+        <span class="menu-badge">Soon</span>
+      </button>
+    </nav>
+
+    <!-- Main -->
+    <main class="main-content" id="content-area"></main>
+  </div>
+</div>
+
+<!-- My Info Modal -->
+<div class="d-modal" id="my-info-modal">
+  <div class="d-modal-content">
+    <p class="d-modal-title">내 정보 상세 조회</p>
+    <p class="d-modal-subtitle">계정 정보를 확인하고 수정할 수 있습니다.</p>
+    <div class="d-modal-divider"></div>
+
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>아이디</label>
+        <input type="text" id="m-me-id" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>이름</label>
+        <input type="text" id="m-me-name" disabled>
+      </div>
+    </div>
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>이메일</label>
+        <input type="email" id="m-me-email" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>휴대폰 번호</label>
+        <input type="text" id="m-me-phone" disabled>
+      </div>
+    </div>
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>생년월일</label>
+        <input type="date" id="m-me-birth" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>주소</label>
+        <input type="text" id="m-me-addr" disabled>
+      </div>
+    </div>
+
+    <div class="d-form-group" id="my-password-manage-area" style="margin-top: 0.5rem; margin-bottom: 1.25rem;">
+      <label>비밀번호 계정 관리</label>
+      <button class="d-btn d-btn-warning" style="font-size: 13.5px; padding: 11px;" onclick="openPasswordVerifyModal()">
+        <i class="ti ti-lock-open"></i> 비밀번호 확인하기
+      </button>
+    </div>
+
+    <div id="my-info-action-area" style="margin-top: 1.25rem;">
+      <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Password Verify Modal -->
+<div class="d-modal" id="my-password-modal">
+  <div class="d-modal-content">
+    <p class="d-modal-title">비밀번호 재확인</p>
+    <p class="d-modal-subtitle">안전한 계정 인증을 위해 현재 비밀번호를 입력해주세요.</p>
+    <div class="d-modal-divider"></div>
+
+    <div class="d-form-group">
+      <label>아이디</label>
+      <input type="text" id="m-verify-id" disabled>
+    </div>
+    <div class="d-form-group">
+      <label>비밀번호</label>
+      <input type="password" id="m-verify-password" placeholder="현재 비밀번호를 입력하세요" onkeydown="handleVerifyKeydown(event)">
+    </div>
+
+    <div class="d-form-row" style="margin-top: 1.25rem;">
+      <button class="d-btn d-btn-secondary" onclick="closePasswordVerifyModal()">취소</button>
+      <button class="d-btn d-btn-success" onclick="submitPasswordVerification()">
+        <i class="ti ti-shield-check"></i>확인하기
+      </button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
-</body>
 
 <script th:inline="javascript">
-    const API = {
-        VERSION: 'v1',
-        SERVICE_PORT: '8999',
-        DEV_PORT: '8080'
-    };
+  const API = {
+    VERSION: 'v1',
+    SERVICE_PORT: '8999',
+    DEV_PORT: '8080'
+  };
 
-    function base() {
-        let port = API.SERVICE_PORT;
-        return window.location.port === API.DEV_PORT ? `http://localhost:${port}` : '';
+  let loggedInUserRawData = null;
+  let isPasswordVerified = false;
+
+  function base() {
+    let port = API.SERVICE_PORT;
+    return window.location.port === API.DEV_PORT ? `http://localhost:${port}` : '';
+  }
+
+  function getAuthHeader() {
+    const token = localStorage.getItem('accessToken');
+    return token ? `Bearer ${token}` : '';
+  }
+
+  window.Fetch = async function(url, options = {}) {
+    const token = localStorage.getItem('accessToken');
+    const defaultHeaders = {};
+    if (token) defaultHeaders['Authorization'] = `Bearer ${token}`;
+
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+      options.body = JSON.stringify(options.body);
+      if (!options.headers || !options.headers['Content-Type']) {
+        defaultHeaders['Content-Type'] = 'application/json';
+      }
     }
 
-    function getAuthHeader() {
-        const token = localStorage.getItem('accessToken');
-        return token ? `Bearer ${token}` : '';
+    options.headers = { ...defaultHeaders, ...options.headers };
+    const res = await fetch(url, options);
+
+    if (res.status === 401) {
+      showToast('인증 세션이 만료되었습니다. 다시 로그인해주세요.', true);
+      setTimeout(() => logout(), 1500);
+      throw new Error("Unauthorized");
     }
 
-    // 🌟 [복원] 기존 시스템에서 사용하던 커스텀 Fetch 래퍼 엔진
-    // 프래그먼트 내부 IIFE 스코프에서도 안전하게 접근할 수 있도록 window 전역 객체에 확실하게 바인딩합니다.
-    window.Fetch = async function(url, options = {}) {
-        const token = localStorage.getItem('accessToken');
+    return res;
+  };
 
-        const defaultHeaders = {};
-        if (token) {
-            defaultHeaders['Authorization'] = `Bearer ${token}`;
-        }
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadMyProfileHeader();
+    const defaultMenu = document.querySelector('.menu-btn[data-menu="user"]');
+    if (defaultMenu) await switchMenu('user', defaultMenu);
+  });
 
-        if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
-            options.body = JSON.stringify(options.body);
-            if (!options.headers || !options.headers['Content-Type']) {
-                defaultHeaders['Content-Type'] = 'application/json';
-            }
-        }
+  async function loadMyProfileHeader() {
+    try {
+      const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/select/me`, { method: 'GET' });
+      if (res.ok) {
+        loggedInUserRawData = await res.json();
+        document.getElementById('header-user-name').textContent = loggedInUserRawData.name || '관리자';
+      }
+    } catch (e) {
+      console.error('내 프로필 로드 실패:', e);
+    }
+  }
 
-        options.headers = {
-            ...defaultHeaders,
-            ...options.headers
-        };
+  window.openMyInfoModal = function() {
+    if (!loggedInUserRawData) { showToast('사용자 정보 데이터가 비어있습니다.', true); return; }
 
-        const res = await fetch(url, options);
+    document.getElementById('m-me-id').value    = loggedInUserRawData.userId    || '';
+    document.getElementById('m-me-name').value  = loggedInUserRawData.name      || '';
+    document.getElementById('m-me-email').value = loggedInUserRawData.email     || '';
+    document.getElementById('m-me-phone').value = loggedInUserRawData.phoneNumber || '';
+    document.getElementById('m-me-birth').value = loggedInUserRawData.birthDate || '';
+    document.getElementById('m-me-addr').value  = loggedInUserRawData.address   || '';
 
-        if (res.status === 401) {
-            showToast('인증 세션이 만료되었습니다. 다시 로그인해주세요.', true);
-            setTimeout(() => {
-                logout();
-            }, 1500);
-            throw new Error("Unauthorized");
-        }
+    isPasswordVerified = false;
+    toggleMyFieldsDisableState(true);
 
-        return res;
+    document.getElementById('my-password-manage-area').innerHTML = `
+      <label>비밀번호 계정 관리</label>
+      <button class="d-btn d-btn-warning" style="font-size: 13.5px; padding: 11px;" onclick="openPasswordVerifyModal()">
+        <i class="ti ti-lock-open"></i> 비밀번호 확인하기
+      </button>
+    `;
+
+    const actionArea = document.getElementById('my-info-action-area');
+    actionArea.className = '';
+    actionArea.innerHTML = `<button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>`;
+
+    document.getElementById('my-info-modal').style.display = 'flex';
+  };
+
+  window.closeMyInfoModal = function() {
+    document.getElementById('my-info-modal').style.display = 'none';
+  };
+
+  function toggleMyFieldsDisableState(shouldDisable) {
+    document.getElementById('m-me-id').disabled    = true;
+    document.getElementById('m-me-name').disabled  = shouldDisable;
+    document.getElementById('m-me-email').disabled = shouldDisable;
+    document.getElementById('m-me-phone').disabled = shouldDisable;
+    document.getElementById('m-me-birth').disabled = shouldDisable;
+    document.getElementById('m-me-addr').disabled  = shouldDisable;
+  }
+
+  window.handleInitialModifyClick = function() {
+    if (!isPasswordVerified) { showToast('비밀번호 확인 절차가 필요합니다.', true); return; }
+    toggleMyFieldsDisableState(false);
+    const actionArea = document.getElementById('my-info-action-area');
+    actionArea.className = 'd-form-row';
+    actionArea.innerHTML = `
+      <button class="d-btn d-btn-secondary" onclick="openMyInfoModal()">취소</button>
+      <button class="d-btn" onclick="updateMyProfileDetails()">변경사항 저장</button>
+    `;
+  };
+
+  window.openPasswordVerifyModal = function() {
+    const currentUserId = document.getElementById('m-me-id').value;
+    if (!currentUserId) { showToast('유저 아이디를 식별할 수 없습니다.', true); return; }
+    document.getElementById('m-verify-id').value = currentUserId;
+    document.getElementById('m-verify-password').value = '';
+    document.getElementById('my-password-modal').style.display = 'flex';
+    document.getElementById('m-verify-password').focus();
+  };
+
+  window.closePasswordVerifyModal = function() {
+    document.getElementById('my-password-modal').style.display = 'none';
+  };
+
+  window.handleVerifyKeydown = function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitPasswordVerification(); }
+  };
+
+  window.submitPasswordVerification = async function() {
+    const userId   = document.getElementById('m-verify-id').value;
+    const password = document.getElementById('m-verify-password').value;
+    if (!password) { showToast('비밀번호를 입력해 주세요.', true); return; }
+
+    try {
+      const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/validate/info`, {
+        method: 'POST', body: { userId, password }
+      });
+
+      if (res.ok) {
+        showToast('비밀번호 인증에 성공했습니다.');
+        closePasswordVerifyModal();
+        isPasswordVerified = true;
+
+        document.getElementById('my-password-manage-area').innerHTML = `
+          <label>비밀번호 계정 관리</label>
+          <div style="background: #e8f5e9; color: #2b8a3e; padding: 11px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; border: 1px solid #c8e6c9;">
+            <i class="ti ti-circle-check" style="font-size: 17px;"></i> 계정 소유자 인증 완료
+          </div>
+        `;
+
+        const actionArea = document.getElementById('my-info-action-area');
+        actionArea.className = '';
+        actionArea.innerHTML = `
+          <button class="d-btn" style="margin-bottom: 0.625rem;" onclick="handleInitialModifyClick()">정보 수정하기</button>
+          <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+        `;
+      } else {
+        showToast('비밀번호가 일치하지 않습니다. 다시 시도해 주세요.', true);
+      }
+    } catch (e) {
+      showToast('서버 인증 통신 장애 발생', true);
+    }
+  };
+
+  window.updateMyProfileDetails = async function() {
+    const body = {
+      userId:      document.getElementById('m-me-id').value,
+      name:        document.getElementById('m-me-name').value.trim(),
+      email:       document.getElementById('m-me-email').value.trim(),
+      phoneNumber: document.getElementById('m-me-phone').value.trim(),
+      birthDate:   document.getElementById('m-me-birth').value || null,
+      address:     document.getElementById('m-me-addr').value.trim()
     };
 
-    // 문서 로드 시 유저 프로필 헤더 로드 및 첫 메뉴 자동 활성화
-    document.addEventListener('DOMContentLoaded', async () => {
+    if (!body.name) { showToast('이름은 공백으로 둘 수 없습니다.', true); return; }
+
+    try {
+      const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/update/me`, { method: 'PUT', body });
+      if (res.ok) {
+        showToast('내 정보가 성공적으로 업데이트되었습니다.');
         await loadMyProfileHeader();
-
-        // 처음 켰을 때 유저 관리 탭 기본 클릭 작동
-        const defaultMenu = document.querySelector('.menu-btn[data-menu="user"]');
-        if (defaultMenu) {
-            await switchMenu('user', defaultMenu);
-        }
-    });
-
-    // 내 정보 상단 정보 바인딩
-    async function loadMyProfileHeader() {
-        try {
-            // 🌟 기존 내장 fetch 대신 복원된 커스텀 window.Fetch를 사용하여 안정적으로 인출합니다.
-            const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/select/me`, {
-                method: 'GET'
-            });
-            if (res.ok) {
-                const data = await res.json();
-                document.getElementById('header-user-name').textContent = data.name || '관리자';
-            }
-        } catch (e) {
-            console.error('내 프로필 로드 실패:', e);
-        }
+        closeMyInfoModal();
+      } else {
+        showToast('정보 업데이트 수정 처리에 실패했습니다.', true);
+      }
+    } catch (e) {
+      showToast('통신 오류가 발생했습니다.', true);
     }
+  };
 
-    // 메뉴 전환 비동기 함수
-    async function switchMenu(menuName, btnElement) {
-        if (menuName === 'ticket' || menuName === 'reservation') return;
+  async function switchMenu(menuName, btnElement) {
+    if (menuName === 'ticket' || menuName === 'reservation') return;
 
-        document.querySelectorAll('.sidebar .menu-btn').forEach(btn => btn.classList.remove('active'));
-        btnElement.classList.add('active');
+    document.querySelectorAll('.sidebar .menu-btn').forEach(btn => btn.classList.remove('active'));
+    btnElement.classList.add('active');
 
-        const contentArea = document.getElementById('content-area');
+    const contentArea = document.getElementById('content-area');
 
-        try {
-            // 프래그먼트 HTML 요청 시에는 시큐리티 필터를 통과해야 하므로 기본 fetch 대신 window.Fetch를 활용합니다.
-            const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/view/fragment/${menuName}`, {
-                method: 'GET'
-            });
-
-            if (res.ok) {
-                contentArea.innerHTML = await res.text();
-
-                // 프래그먼트 내부 script 태그가 주입된 후 정상 오브젝트들을 바인딩할 수 있도록 유도
-                const scripts = contentArea.querySelectorAll('script');
-                scripts.forEach(oldScript => {
-                    const newScript = document.createElement('script');
-                    newScript.text = oldScript.text;
-                    oldScript.parentNode.replaceChild(newScript, oldScript);
-                });
-            } else {
-                contentArea.innerHTML = `
-                    <div style="width: 100%;">
-                        <h2>준비 중인 화면</h2>
-                        <p style="color: #868e96; margin-top: 8px;">현재 준비 중인 메뉴입니다. (Status: ${res.status})</p>
-                    </div>
-                `;
-            }
-        } catch (e) {
-            console.error('프래그먼트 뷰 로드 실패:', e);
-            contentArea.innerHTML = `
-                <div style="width: 100%;">
-                    <p style="color: #E24B4A; font-weight: 500;">화면을 불러오는 중 서버 통신 오류가 발생했습니다.</p>
-                </div>
-            `;
-        }
+    try {
+      const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/view/fragment/${menuName}`, { method: 'GET' });
+      if (res.ok) {
+        contentArea.innerHTML = await res.text();
+        const scripts = contentArea.querySelectorAll('script');
+        scripts.forEach(oldScript => {
+          const newScript = document.createElement('script');
+          newScript.text = oldScript.text;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+      } else {
+        contentArea.innerHTML = `
+          <div style="padding: 2rem; color: var(--text-secondary);">
+            <p style="font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">준비 중인 화면입니다</p>
+            <p style="font-size: 12.5px;">현재 개발 중인 메뉴입니다. (Status: ${res.status})</p>
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.error('프래그먼트 뷰 로드 실패:', e);
+      contentArea.innerHTML = `
+        <div style="padding: 2rem;">
+          <p style="color: var(--red); font-weight: 500; font-size: 13px;">화면을 불러오는 중 서버 통신 오류가 발생했습니다.</p>
+        </div>
+      `;
     }
+  }
 
-    // 전역 토스트 팝업 유틸리티 (프래그먼트 공유)
-    window.showToast = function(msg, isErr) {
-      const t = document.getElementById('toast');
-      if (!t) return;
-      t.textContent = msg;
-      t.style.background = isErr ? '#A32D2D' : '#3C3489';
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2500);
-    };
+  window.showToast = function(msg, isErr) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.background = isErr ? '#A32D2D' : '#3C3489';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  };
 
-    function logout() {
-      localStorage.clear();
-      document.cookie = "accessToken=; path=/; max-age=0;";
-      window.showToast('로그아웃 되었습니다.');
-      setTimeout(() => { location.href = `${base()}/admin/api/${API.VERSION}/view/login`; }, 800);
-    }
+  function logout() {
+    localStorage.clear();
+    document.cookie = "accessToken=; path=/; max-age=0;";
+    window.showToast('로그아웃 되었습니다.');
+    setTimeout(() => { location.href = `${base()}/admin/api/${API.VERSION}/view/login`; }, 800);
+  }
 </script>
+</body>
 </html>

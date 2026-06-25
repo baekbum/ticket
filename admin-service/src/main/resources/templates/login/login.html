@@ -4,237 +4,320 @@
   <meta charset="UTF-8">
   <title>Ticket</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <style>
-  * {
+  *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
   }
 
-  .wrap {
+  :root {
+    --purple: #7c4dff;
+    --purple-hover: #6836f5;
+    --purple-dim: rgba(124, 77, 255, 0.10);
+    --purple-ring: rgba(124, 77, 255, 0.18);
+    --bg: #f4f3f8;
+    --card-bg: #ffffff;
+    --border: #e6e4ef;
+    --text-primary: #18172b;
+    --text-secondary: #6e6b85;
+    --text-muted: #a09db8;
+    --red: #d63b3b;
+    --red-dim: rgba(214, 59, 59, 0.12);
+    --success-bg: #3C3489;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+  }
+
+  body {
     min-height: 100vh;
-    background: var(--color-background-tertiary, #f5f5f7);
+    background: var(--bg);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 2rem 1rem;
-    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Background subtle pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124,77,255,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 85% 90%, rgba(124,77,255,0.05) 0%, transparent 55%);
+    pointer-events: none;
   }
 
   .card {
-    background: var(--color-background-primary, #ffffff);
-    border: 0.5px solid var(--color-border-tertiary, #e5e5e5);
-    border-radius: var(--border-radius-xl, 16px);
-    padding: 2.5rem 2rem;
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2.75rem 2.25rem 2.25rem;
     width: 100%;
-    max-width: 440px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    max-width: 420px;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.04),
+      0 8px 32px rgba(100,80,200,0.08),
+      0 24px 64px rgba(100,80,200,0.05);
   }
 
+  /* ── Logo ── */
   .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 1.5rem;
+    gap: 11px;
+    margin-bottom: 2rem;
   }
 
   .logo-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: #7c4dff;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: var(--purple);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    font-size: 20px;
-  }
-
-  .logo-icon i {
-    font-weight: bold;
-    stroke-width: 2.5; /* Tabler Icons는 stroke-width로 두께 조절이 가능합니다 */
+    color: #fff;
+    font-size: 19px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(124,77,255,0.30);
   }
 
   .logo-text {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
-    color: var(--color-text-primary, #1d1d1f);
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
   }
 
-  .tab-bar {
-    display: flex;
-    border-bottom: 0.5px solid var(--color-border-tertiary, #e5e5e5);
-    margin-bottom: 1.75rem;
-  }
-
-  .tab {
-    flex: 1;
-    padding: 10px 0;
-    background: none;
-    border: none;
-    font-size: 14px;
-    font-weight: 500;
-    color: #7c4dff;
-    border-bottom: 2px solid #7c4dff;
-    margin-bottom: -0.5px;
-    text-align: center;
-  }
-
-  .form-group {
-    margin-bottom: 1rem;
-  }
-
-  label {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text-secondary, #86868b);
-    margin-bottom: 6px;
-  }
-
-  .required {
-    color: #7c4dff;
+  .logo-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--purple);
+    background: var(--purple-dim);
+    border-radius: 4px;
+    padding: 2px 6px;
     margin-left: 2px;
   }
 
-  input[type=text], input[type=password] {
-    width: 100%;
-    padding: 10px 12px;
-    border: 0.5px solid var(--color-border-secondary, #ccccd0);
-    border-radius: var(--border-radius-md, 8px);
-    font-size: 14px;
-    background: var(--color-background-primary, #ffffff);
-    color: var(--color-text-primary, #1d1d1f);
-    transition: border-color 0.2s, box-shadow 0.2s;
+  /* ── Heading ── */
+  .card-heading {
+    margin-bottom: 1.75rem;
   }
 
-  input:focus {
-    outline: none;
-    border-color: #7c4dff;
-    box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+  .card-heading h2 {
+    font-size: 21px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.4px;
+    line-height: 1.3;
+  }
+
+  .card-heading p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 1.75rem;
+  }
+
+  /* ── Form ── */
+  .form-group {
+    margin-bottom: 1.1rem;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 7px;
+    letter-spacing: 0.1px;
+  }
+
+  .required {
+    color: var(--purple);
+    font-size: 14px;
+    line-height: 1;
   }
 
   .input-wrap {
     position: relative;
   }
 
+  input[type=text],
+  input[type=password] {
+    width: 100%;
+    padding: 10px 38px 10px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: inherit;
+    background: #fafafa;
+    color: var(--text-primary);
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+    -webkit-appearance: none;
+  }
+
+  input::placeholder {
+    color: var(--text-muted);
+    font-size: 13.5px;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--purple);
+    background: #fff;
+    box-shadow: 0 0 0 3px var(--purple-ring);
+  }
+
   .input-icon {
     position: absolute;
-    right: 12px;
+    right: 11px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--color-text-secondary, #86868b);
-    font-size: 18px; /* 🌟 인풋 아이콘 크기 조정 */
+    color: var(--text-muted);
+    font-size: 17px;
     cursor: pointer;
+    transition: color 0.15s;
+    line-height: 1;
   }
 
-  input.has-icon {
-    padding-right: 38px;
+  .input-icon:hover {
+    color: var(--purple);
   }
 
+  /* ── Submit button ── */
   .submit-btn {
     width: 100%;
-    padding: 12px;
-    background: #7c4dff;
-    color: white;
+    padding: 11.5px;
+    background: var(--purple);
+    color: #fff;
     border: none;
-    border-radius: var(--border-radius-md, 8px);
-    font-size: 15px;
-    font-weight: 500;
+    border-radius: var(--radius-sm);
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    margin-top: 0.5rem;
+    letter-spacing: -0.1px;
+    transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+    margin-top: 1.4rem;
+    box-shadow: 0 2px 10px rgba(124,77,255,0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
   }
 
   .submit-btn:hover {
-    background: #651fff;
+    background: var(--purple-hover);
+    box-shadow: 0 4px 18px rgba(124,77,255,0.30);
   }
 
   .submit-btn:active {
-    transform: scale(0.98);
+    transform: scale(0.985);
   }
 
+  /* ── Toast ── */
   .toast {
     position: fixed;
     top: 1.5rem;
     left: 50%;
-    transform: translateX(-50%);
-    background: #3C3489;
-    color: white;
-    padding: 10px 20px;
-    border-radius: var(--border-radius-md, 8px);
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--success-bg);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
     font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s;
+    transition: opacity 0.25s, transform 0.25s;
     white-space: nowrap;
     z-index: 999;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   }
 
   .toast.show {
     opacity: 1;
-  }
-
-  .panel {
-    display: block;
+    transform: translateX(-50%) translateY(0);
   }
 </style>
 
 <body>
-<div class="wrap">
-  <div class="card">
-    <div class="logo">
-      <div class="logo-icon"><i class="ti ti-ticket"></i></div>
-      <span class="logo-text">Ticket (관리자)</span>
-    </div>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon"><i class="ti ti-ticket"></i></div>
+    <span class="logo-text">Ticket</span>
+    <span class="logo-badge">Admin</span>
+  </div>
 
-    <div class="tab-bar">
-      <div class="tab">로그인</div>
-    </div>
+  <div class="card-heading">
+    <h2>관리자 로그인</h2>
+    <p>관리 콘솔에 접속하려면 계정 정보를 입력하세요.</p>
+  </div>
 
-    <div id="panel-login" class="panel">
-      <div class="form-group">
-        <label for="l-id">아이디<span class="required">*</span></label>
-        <div class="input-wrap">
-          <input type="text" id="l-id" placeholder="아이디를 입력하세요" class="has-icon" onkeydown="handleLoginKeydown(event)">
-          <i class="ti ti-user input-icon"></i>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="l-pw">비밀번호<span class="required">*</span></label>
-        <div class="input-wrap">
-          <input type="password" id="l-pw" placeholder="비밀번호를 입력하세요" class="has-icon" onkeydown="handleLoginKeydown(event)">
-          <i class="ti ti-eye input-icon" id="l-eye" onclick="togglePw('l-pw','l-eye')" aria-label="비밀번호 표시"></i>
-        </div>
-      </div>
-      <button class="submit-btn" onclick="login()">로그인하기</button>
+  <div class="divider"></div>
+
+  <div class="form-group">
+    <label for="l-id">아이디<span class="required">*</span></label>
+    <div class="input-wrap">
+      <input type="text" id="l-id" placeholder="아이디를 입력하세요" onkeydown="handleLoginKeydown(event)" autocomplete="username">
+      <i class="ti ti-user input-icon"></i>
     </div>
   </div>
+
+  <div class="form-group">
+    <label for="l-pw">비밀번호<span class="required">*</span></label>
+    <div class="input-wrap">
+      <input type="password" id="l-pw" placeholder="비밀번호를 입력하세요" onkeydown="handleLoginKeydown(event)" autocomplete="current-password">
+      <i class="ti ti-eye input-icon" id="l-eye" onclick="togglePw('l-pw','l-eye')" aria-label="비밀번호 표시"></i>
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="login()">
+    <i class="ti ti-login"></i>
+    로그인하기
+  </button>
 </div>
 
 <div class="toast" id="toast"></div>
-</body>
 
 <script>
   const API = {
     VERSION: 'v1',
-    SERVICE_PORT: '8999',
+    LOCAL_PORT: '8999',
     DEV_PORT: '8080'
   };
 
-  function base() {
-    let port = API.SERVICE_PORT;
-    return window.location.port === API.DEV_PORT ? `http://localhost:${port}` : '';
-  }
+  const BASE_URL = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
+  const PATH = { API_VERSION: `api/${API.VERSION}` };
+  const AUTH_URL = `${BASE_URL}/${PATH.API_VERSION}/auth`;
+  const VIEW_URL = `${BASE_URL}/${PATH.API_VERSION}/view`;
 
   function togglePw(inputId, iconId) {
     const inp = document.getElementById(inputId);
     const ic = document.getElementById(iconId);
-
     if (inp.type === 'password') {
       inp.type = 'text';
-      // 🌟 토글 시 폰트 속성이 깨지지 않도록 정식 tabler 아이콘 명칭으로 교체
       ic.className = 'ti ti-eye-off input-icon';
     } else {
       inp.type = 'password';
@@ -247,7 +330,6 @@
     t.textContent = msg;
     t.style.background = err ? '#A32D2D' : '#3C3489';
     t.classList.add('show');
-
     setTimeout(() => t.classList.remove('show'), 2800);
   }
 
@@ -268,7 +350,7 @@
     }
 
     try {
-      const res = await fetch(`${base()}/admin/api/${API.VERSION}/auth/login`, {
+      const res = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, password })
@@ -276,18 +358,11 @@
 
       if (res.ok) {
         const d = await res.json();
-
         localStorage.setItem('accessToken', d.accessToken);
         localStorage.setItem('refreshToken', d.refreshToken);
-
         document.cookie = `accessToken=${d.accessToken}; path=/; max-age=3600; SameSite=Strict;`;
-
         showToast(`${userId}님, 환영합니다!`);
-
-        setTimeout(() => {
-          window.location.href = `${base()}/admin/api/${API.VERSION}/view/home`;
-        }, 1000);
-
+        setTimeout(() => { window.location.href = `${VIEW_URL}/home`; }, 1000);
       } else {
         const e = await res.json().catch(() => ({}));
         showToast(e.message || '아이디 또는 비밀번호가 일치하지 않습니다.', true);
@@ -297,4 +372,5 @@
     }
   }
 </script>
+</body>
 </html>
