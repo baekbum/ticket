@@ -66,7 +66,7 @@ public class AdminEventController {
      * @param eventId
      * @return
      */
-    @DeleteMapping("/delete/id/{userId}")
+    @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventServiceClient.delete(eventId));
     }

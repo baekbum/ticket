@@ -9,7 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "ticket-service", url = "${services.ticket-service.url}", path = "/api/v1/event")
+@FeignClient(name = "event-service", url = "${services.ticket-service.url}", path = "/api/v1/event")
 public interface EventServiceClient {
 
     @PostMapping("/insert")
