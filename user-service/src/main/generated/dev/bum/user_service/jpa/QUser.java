@@ -37,7 +37,7 @@ public class QUser extends EntityPathBase<User> {
 
     public final StringPath phoneNumber = createString("phoneNumber");
 
-    public final EnumPath<dev.bum.user_service.enums.UserRole> role = createEnum("role", dev.bum.user_service.enums.UserRole.class);
+    public final EnumPath<dev.bum.common.service.user.enums.UserRole> role = createEnum("role", dev.bum.common.service.user.enums.UserRole.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

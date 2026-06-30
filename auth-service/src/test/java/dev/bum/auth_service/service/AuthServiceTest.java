@@ -3,9 +3,10 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
-import dev.bum.auth_service.vo.LoginInfo;
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.service.auth.dto.LoginRequest;
+import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.service.user.enums.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,16 +55,16 @@ class AuthServiceTest {
         Auth auth = Auth.builder()
                 .userId(userId)
                 .password(password)
-                .role(role)
+                .role(UserRole.ROLE_USER)
                 .build();
 
-        TokenDto mockTokens = new TokenDto("access-token", "refresh-token");
+        TokenResponse mockTokens = new TokenResponse("access-token", "refresh-token");
 
         given(authRepository.findByUserId(userId)).willReturn(auth);
         given(passwordEncoder.matches(password, auth.getPassword())).willReturn(true);
         given(tokenProvider.createToken(anyString(), anyString())).willReturn(mockTokens);
 
-        TokenDto response = authService.LoginAndCreateToken(new LoginInfo(userId, password));
+        TokenResponse response = authService.LoginAndCreateToken(new LoginRequest(userId, password));
 
         assertThat(response.getAccessToken()).isNotNull();
         verify(authRepository).findByUserId(userId);
@@ -82,7 +83,7 @@ class AuthServiceTest {
 
         given(authRepository.findByUserId(userId)).willThrow(new UserNotExistException("해당 유저를 발견하지 못했습니다."));
 
-        assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginInfo(userId, password)))
+        assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest(userId, password)))
                 .isInstanceOf(UserNotExistException.class)
                 .hasMessageContaining("해당 유저를 발견하지 못했습니다.");
     }

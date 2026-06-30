@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.jpa.seat;
 
-import dev.bum.ticket_service.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,4 +24,6 @@ public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
             @Param("seatIdList") List<Long> seatIdList,
             @Param("status") SeatStatus status
     );
+
+    void deleteBySeatIdIn(List<Long> seatIdList);
 }

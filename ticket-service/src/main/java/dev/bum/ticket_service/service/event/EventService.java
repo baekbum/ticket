@@ -1,11 +1,12 @@
 package dev.bum.ticket_service.service.event;
 
-import dev.bum.ticket_service.dto.EventDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -30,8 +31,10 @@ public class EventService {
      * @param info
      * @return
      */
-    public EventDto insert(InsertEventInfo info) {
-        return new EventDto(repository.insert(info));
+    public EventResponse insert(InsertEventRequest info) {
+        log.info("[INSERT] Info : {}", info.toString());
+
+        return repository.insert(info).toResponse();
     }
 
     /**
@@ -40,8 +43,10 @@ public class EventService {
      * @return
      */
     @Transactional(readOnly = true)
-    public EventDto selectById(Long id) {
-        return new EventDto(repository.selectById(id));
+    public EventResponse selectById(Long id) {
+        log.info("[SELECT] EventId : {}", id);
+
+        return repository.selectById(id).toResponse();
     }
 
     /**
@@ -50,12 +55,19 @@ public class EventService {
      * @return
      */
     @Transactional(readOnly = true)
-    public Page<EventDto> selectByCond(EventCond cond) {
+    public CustomPageResponse<EventResponse> selectByCond(EventCondRequest cond) {
+        log.info("[SELECT] Info : {}", cond.toString());
+
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<Event> events = repository.selectByCond(cond, pageRequest);
+        Page<EventResponse> eventPage = repository.selectByCond(cond, pageRequest).map(Event::toResponse);
 
-        return events.map(EventDto::new);
-
+        return CustomPageResponse.of(
+                eventPage.getContent(),
+                eventPage.getSize(),
+                eventPage.getNumber(),
+                eventPage.getTotalElements(),
+                eventPage.getTotalPages()
+        );
     }
 
     /**
@@ -64,8 +76,9 @@ public class EventService {
      * @param info
      * @return
      */
-    public EventDto update(Long id, UpdateEventInfo info) {
-        return new EventDto(repository.update(id, info));
+    public EventResponse update(Long id, UpdateEventRequest info) {
+        log.info("[UPDATE] Id : {}, Info : {}", id, info);
+        return repository.update(id, info).toResponse();
     }
 
     /**
@@ -73,8 +86,10 @@ public class EventService {
      * @param id
      * @return
      */
-    public EventDto delete(Long id) {
-        return new EventDto(repository.delete(id));
+    public EventResponse delete(Long id) {
+        log.info("[DELETE] EventId : {}", id);
+
+        return repository.delete(id).toResponse();
     }
 
     /**

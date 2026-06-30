@@ -3,6 +3,7 @@ package dev.bum.user_service.security;
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.HeaderAuthenticationFilter;
+import dev.bum.common.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -48,16 +51,15 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
 
                         // 2. 비로그인 유저(전체) 허용: 로그인, 회원가입, 중복 검사
-                        .requestMatchers("/api/v1/check/duplication/**").permitAll()
-                        .requestMatchers("/api/v1/insert").permitAll()
+                        .requestMatchers("/api/*/check/duplication/**").permitAll()
+                        .requestMatchers("/api/*/insert").permitAll()
 
                         // 3. 관리자(ADMIN) 및 유저(USER) 모두 접근 가능 (내 정보 조회 / 내 정보 수정)
-                        .requestMatchers("/api/v1/select/me").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/v1/update/me").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/v1/validate/info").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/select/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/update/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/validate/info").hasAnyRole("USER", "ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
-                        // (selectAll, selectByCond, selectById, update, delete 등)
                         .anyRequest().hasRole("ADMIN")
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
@@ -75,6 +77,11 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(); // 회원가입 시 비번 암호화 & 로그인 시 대조용
     }
 
     @Bean

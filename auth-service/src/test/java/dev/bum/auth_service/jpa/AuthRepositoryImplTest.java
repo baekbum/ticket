@@ -1,6 +1,7 @@
 package dev.bum.auth_service.jpa;
 
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.common.service.user.enums.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,7 @@ class AuthRepositoryImplTest {
                 .id(1L)
                 .userId("testUser")
                 .password("encoded_pw")
-                .role("ROLE_USER")
+                .role(UserRole.ROLE_USER)
                 .build();
 
         jpaRepository.save(sample);

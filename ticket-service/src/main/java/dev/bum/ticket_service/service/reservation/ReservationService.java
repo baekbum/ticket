@@ -1,14 +1,11 @@
 package dev.bum.ticket_service.service.reservation;
 
-import dev.bum.ticket_service.dto.ReservationDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.reservation.dto.*;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.ReservationRepository;
 import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
 import dev.bum.ticket_service.service.seat.SeatService;
-import dev.bum.ticket_service.vo.reservation.CancelReservationInfo;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.reservation.IsReservableInfo;
-import dev.bum.ticket_service.vo.reservation.ReservationCond;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,7 +28,7 @@ public class ReservationService {
     private final SeatService seatService;
     private final ReservationProducer reservationProducer;
 
-    public void insert(InsertReservationInfo info) {
+    public void insert(InsertReservationRequest info) {
         // 1. Redis에 좌석 정보가 일치하는지 검증 및 좌석 정보 업데이트
         seatService.validateOccupiedSeat(info);
         log.info("[좌석 선점 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());
@@ -41,7 +38,7 @@ public class ReservationService {
     }
 
     // 카프카 컨슈머 전용 최종 예매 등록 메서드 (Consumer로부터 진입)
-    public void createReservationFromQueue(InsertReservationInfo info) {
+    public void createReservationFromQueue(InsertReservationRequest info) {
         repository.insert(info);
         log.info("[DB INSERT 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());
 
@@ -55,19 +52,25 @@ public class ReservationService {
         );
     }
 
-    public ReservationDto selectById(long id) {
-        return new ReservationDto(repository.selectById(id));
+    public ReservationResponse selectById(long id) {
+        return repository.selectById(id).toResponse();
     }
 
-    public Page<ReservationDto> selectByCond(ReservationCond cond) {
+    public CustomPageResponse<ReservationResponse> selectByCond(ReservationCondRequest cond) {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
-        Page<Reservation> reservations = repository.selectByCond(cond, pageable);
+        Page<ReservationResponse> reservationPage = repository.selectByCond(cond, pageable).map(Reservation::toResponse);
 
-        return reservations.map(ReservationDto::new);
+        return CustomPageResponse.of(
+                reservationPage.getContent(),
+                reservationPage.getSize(),
+                reservationPage.getNumber(),
+                reservationPage.getTotalElements(),
+                reservationPage.getTotalPages()
+        );
     }
 
-    public void cancel(long id, CancelReservationInfo info) {
+    public void cancel(long id, CancelReservationRequest info) {
         repository.cancel(id, info);
 
         // 레디스에 취소한 표만큼 매수를 줄임.
@@ -80,7 +83,7 @@ public class ReservationService {
         );
     }
 
-    public void isReservable(IsReservableInfo info) {
+    public void isReservable(IsReservableRequest info) {
         repository.isReservable(info.getUserId(), info.getEventId(), info.getSelectedSeatCnt());
     }
 

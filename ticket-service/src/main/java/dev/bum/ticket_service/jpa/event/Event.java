@@ -1,9 +1,10 @@
 package dev.bum.ticket_service.jpa.event;
 
-import dev.bum.ticket_service.enums.EventStatus;
+import dev.bum.common.service.ticket.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.enums.EventStatus;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -11,23 +12,26 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "events")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Event {
+
+    // 🌟 가독성과 성능을 위해 포맷터를 상수로 분리
+    private static final DateTimeFormatter EVENT_FORMATTER = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시 mm분");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "event_id")
     private Long eventId;
 
-    // 아티스트 필드 추가
     @Column(nullable = false, length = 100)
     private String artistName;
 
@@ -65,8 +69,23 @@ public class Event {
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
 
+    public EventResponse toResponse() {
+        EventStatus.valueOf(this.status.name());
+        return EventResponse.builder()
+                .eventId(this.eventId)
+                .artistName(this.artistName)
+                .title(this.title)
+                .description(this.description)
+                .venue(this.venue)
+                .eventDateTime(this.eventDateTime != null ? this.eventDateTime.format(EVENT_FORMATTER) : null)
+                .totalSeats(this.totalSeats)
+                .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
+                .maxTicketsPerPerson(this.maxTicketsPerPerson)
+                .build();
+    }
+
     // 비즈니스 메서드: 생성자 수정
-    public Event(InsertEventInfo info) {
+    public Event(InsertEventRequest info) {
         this.artistName = info.getArtistName();
         this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
@@ -79,7 +98,7 @@ public class Event {
     }
 
     // 비즈니스 메서드: 수정 로직 추가
-    public void update(UpdateEventInfo info) {
+    public void update(UpdateEventRequest info) {
         if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName();
         if (StringUtils.hasText(info.getTitle())) this.title = info.getTitle();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();

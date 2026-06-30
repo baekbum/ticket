@@ -1,19 +1,24 @@
 package dev.bum.ticket_service.service.seat;
 
-import dev.bum.ticket_service.dto.SeatDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
 import dev.bum.ticket_service.exception.seat.SeatCacheNotFoundException;
 import dev.bum.ticket_service.exception.seat.SeatOccupationFailedException;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.seat.*;
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,11 +43,25 @@ public class SeatService {
      * @param info
      * @return
      */
-    public void insert(InsertSeatInfo info) {
+    public void insert(InsertSeatRequest info) {
+        if (!info.getInsertSeatAreaConfigs().isEmpty()) {
+            for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
+                log.info("[INSERT] EventId : {}, Zone : {}, Rows : {}, Cols : {}, Price : {}, Grade : {}",
+                        info.getEventId(),
+                        config.getZone(),
+                        config.getRows(),
+                        config.getCols(),
+                        config.getPrice(),
+                        config.getGrade()
+                );
+            }
+        }
+
         repository.insert(info);
     }
 
     public long countByEventId(Long eventId) {
+        log.info("[COUNT] EventId : {}", eventId);
         return repository.countByEventId(eventId);
     }
 
@@ -52,8 +71,9 @@ public class SeatService {
      * @return
      */
     @Transactional(readOnly = true)
-    public SeatDto selectById(Long id) {
-        return new SeatDto(repository.selectById(id));
+    public SeatResponse selectById(Long id) {
+        log.info("[SELECT] SeatId : {}", id);
+        return repository.selectById(id).toDto();
     }
 
     /**
@@ -62,13 +82,19 @@ public class SeatService {
      * @return
      */
     @Transactional(readOnly = true)
-    public Page<SeatDto> selectByCond(SeatCond cond) {
-
+    public CustomPageResponse<SeatResponse> selectByCond(SeatCondRequest cond) {
+        log.info("[SELECT] cond : {}", cond.toString());
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
-        Page<Seat> seats = repository.selectByCond(cond, pageable);
+        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable).map(Seat::toDto);
 
-        return seats.map(SeatDto::new);
+        return CustomPageResponse.of(
+                seatPage.getContent(),
+                seatPage.getSize(),
+                seatPage.getNumber(),
+                seatPage.getTotalElements(),
+                seatPage.getTotalPages()
+        );
     }
 
     /**
@@ -76,7 +102,8 @@ public class SeatService {
      * @param info
      * @return
      */
-    public void update(UpdateSeatInfo info) {
+    public void update(UpdateSeatRequest info) {
+        log.info("[UPDATE] {}", info.toString());
         repository.update(info);
     }
 
@@ -86,7 +113,19 @@ public class SeatService {
      * @return
      */
     public void delete(Long id) {
+        log.info("[DELETE] SeatId : {}", id);
         repository.delete(id);
+    }
+
+    /**
+     * 선택된 좌석 일괄 삭제
+     * @param info
+     */
+    public void deleteBySeatIdList(DeleteSeatRequest info) {
+        if (!info.getSeatIdList().isEmpty()) {
+            log.info("[DELETE] {}", info);
+            repository.deleteByIdList(info.getSeatIdList());
+        }
     }
 
     /**
@@ -120,30 +159,40 @@ public class SeatService {
      */
     @Transactional(readOnly = true)
     public void warmUpSeatsToCache(Long eventId) {
-        // 1. DB에서 해당 공연의 좌석 마스터 데이터를 전부 가져옴
+        log.info("[REDIS-WARM-UP] EventId : {}", eventId);
         List<Seat> seats = repository.selectByEventId(eventId);
 
-        // 2. Redis에 벌크(mset)로 밀어 넣기 위한 Map 생성
         Map<String, String> seatCacheMap = new HashMap<>();
-
         for (Seat seat : seats) {
-            // Key 포맷 예시: event:1:seat:Floor_A:10:5
+            String sanitizedZone = seat.getZone().replace(" ", "_");
             String redisKey = String.format("event:%d:seat:%s:%d:%d",
-                    eventId, seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
-
-            // 초기 상태는 무조건 예매 가능(AVAILABLE)
+                    eventId, sanitizedZone, seat.getSeatRow(), seat.getSeatCol());
             seatCacheMap.put(redisKey, "AVAILABLE");
         }
 
-        // 3. 별도의 커스텀 레포지토리 없이 RedisTemplate으로 다이렉트 벌크 인서트!
-        seatRedisTemplate.opsForValue().multiSet(seatCacheMap);
+        // 🌟 multiSet 대신 multiSetIfAbsent 사용!
+        // 맵 안의 키들이 Redis에 없을 때만 전체가 '원자적'으로 한 번에 들어갑니다.
+        Boolean success = seatRedisTemplate.opsForValue().multiSetIfAbsent(seatCacheMap);
 
-        // 4. 메모리 누수 방지를 위한 TTL(만료 시간) 설정 (예: 7일)
-        for (String key : seatCacheMap.keySet()) {
-            seatRedisTemplate.expire(key, Duration.ofDays(7));
+        if (Boolean.TRUE.equals(success)) {
+            // 성공 시에만 TTL 만료시간 설정 가동
+            // 🌟 RedisCallback 대신 SessionCallback을 사용하여 제네릭 캡처 에러 원천 차단!
+            seatRedisTemplate.executePipelined(new SessionCallback<Void>() {
+                @Override
+                public <K, V> Void execute(RedisOperations<K, V> operations) throws DataAccessException {
+                    // 주입된 operations 객체는 타입 추론이 깔끔하게 맞아떨어집니다.
+                    for (String key : seatCacheMap.keySet()) {
+                        // 고레벨의 expire 메서드를 직접 호출하므로 복잡한 바이트 변환이 필요 없습니다.
+                        operations.expire((K) key, Duration.ofDays(7));
+                    }
+                    return null;
+                }
+            });
+
+            log.info("[REDIS에 좌석 정보 최초 업데이트 성공]");
+        } else {
+            log.warn("[REDIS 웜업 무시] 이미 예매가 진행 중이거나 기존 좌석 캐시 데이터가 존재하므로 데이터를 보호합니다.");
         }
-
-        log.info("[REDIS에 좌석 정보 업데이트 성공]");
     }
 
     /**
@@ -257,7 +306,7 @@ public class SeatService {
      * 해당 좌석의 정보가 예매한 유저와 일치하는지 확인하는 메서드
      * @param info
      */
-    public void validateOccupiedSeat(InsertReservationInfo info) {
+    public void validateOccupiedSeat(InsertReservationRequest info) {
         long eventId = info.getEventId();
         String userId = info.getUserId();
         List<SeatInfo> seats = info.getSeats();

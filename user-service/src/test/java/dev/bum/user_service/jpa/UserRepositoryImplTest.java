@@ -1,13 +1,12 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.config.CommonConfig;
+import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import dev.bum.user_service.config.QuerydslConfig;
-import dev.bum.user_service.enums.UserRole;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,13 +21,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
-@Import({UserRepositoryImpl.class, QuerydslConfig.class, CommonConfig.class})
+@Import({UserRepositoryImpl.class, QuerydslConfig.class})
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY) // H2 같은 내장 DB 사용 강제
@@ -71,7 +69,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("유저 저장")
     void user_insert() throws Exception {
-        InsertUserInfo info = InsertUserInfo.builder()
+        InsertUserRequest info = InsertUserRequest.builder()
                 .userId("addUser")
                 .password("addUser1234!")
                 .name("추가유저")
@@ -96,7 +94,7 @@ class UserRepositoryImplTest {
     void fail_already_exist() throws Exception {
         String userId = "IU";
 
-        InsertUserInfo info = InsertUserInfo.builder()
+        InsertUserRequest info = InsertUserRequest.builder()
                 .userId(userId)
                 .password("IU05160918")
                 .name("아이유")
@@ -114,7 +112,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("유저 전체 조회")
     void select_all() throws Exception {
-        InsertUserInfo user01 = InsertUserInfo.builder()
+        InsertUserRequest user01 = InsertUserRequest.builder()
                 .userId("user01")
                 .password("user1234!")
                 .name("유저01")
@@ -124,7 +122,7 @@ class UserRepositoryImplTest {
                 .address("주소 없음")
                 .build();
 
-        InsertUserInfo user02 = InsertUserInfo.builder()
+        InsertUserRequest user02 = InsertUserRequest.builder()
                 .userId("user02")
                 .password("user1234!")
                 .name("유저02")
@@ -137,7 +135,7 @@ class UserRepositoryImplTest {
         userRepository.insert(user01);
         userRepository.insert(user02);
 
-        UserCond cond = UserCond.builder().build();
+        UserCondRequest cond = UserCondRequest.builder().build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
 
@@ -178,7 +176,7 @@ class UserRepositoryImplTest {
     @DisplayName("조건을 통해 유저 검색")
     void select_by_cond() throws Exception {
 
-        InsertUserInfo user01 = InsertUserInfo.builder()
+        InsertUserRequest user01 = InsertUserRequest.builder()
                 .userId("user01")
                 .password("user1234!")
                 .name("유저01")
@@ -188,7 +186,7 @@ class UserRepositoryImplTest {
                 .address("주소 없음")
                 .build();
 
-        InsertUserInfo user02 = InsertUserInfo.builder()
+        InsertUserRequest user02 = InsertUserRequest.builder()
                 .userId("user02")
                 .password("user1234!")
                 .name("유저02")
@@ -201,8 +199,8 @@ class UserRepositoryImplTest {
         userRepository.insert(user01);
         userRepository.insert(user02);
 
-        UserCond cond = UserCond.builder()
-                .userIdList(List.of("user01", "user02"))
+        UserCondRequest cond = UserCondRequest.builder()
+                .userId("user01")
                 .build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
@@ -217,7 +215,7 @@ class UserRepositoryImplTest {
     @Test
     @DisplayName("조건에 해당하는 데이터가 0건인 경우")
     void return_zero_data() throws Exception {
-        UserCond cond = UserCond.builder().address("존재하지 않는 주소").build();
+        UserCondRequest cond = UserCondRequest.builder().address("존재하지 않는 주소").build();
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
 
@@ -231,7 +229,7 @@ class UserRepositoryImplTest {
     void user_info_update() throws Exception {
         String userId = "IU";
 
-        UpdateUserInfo info = UpdateUserInfo.builder()
+        UpdateUserRequest info = UpdateUserRequest.builder()
                 .phoneNumber("010-8888-9999")
                 .email("update@test.com")
                 .build();

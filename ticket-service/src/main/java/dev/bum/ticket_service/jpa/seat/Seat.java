@@ -1,9 +1,10 @@
 package dev.bum.ticket_service.jpa.seat;
 
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.dto.SeatResponse;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.vo.seat.UpdateSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -13,6 +14,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Entity
 @Table(
@@ -20,8 +22,11 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "zone", "seat_row", "seat_col"})
 )
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class Seat {
+
+    // 🌟 날짜 포맷 최적화를 위한 포맷터 상수화
+    private static final DateTimeFormatter EVENT_FORMATTER = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,13 +38,13 @@ public class Seat {
     private Event event;
 
     @Column(nullable = false, length = 50)
-    private String zone;         // ex) "Floor A", "1층 W"
+    private String zone;
 
     @Column(name = "seat_row", nullable = false)
-    private Integer seatRow;     // ex) 1열, 2열
+    private Integer seatRow;
 
     @Column(name = "seat_col", nullable = false)
-    private Integer seatCol;     // ex) 1번, 2번
+    private Integer seatCol;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -60,7 +65,26 @@ public class Seat {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    // 🌟 빌더 및 생성자 파라미터 수정
+    public SeatResponse toDto() {
+        return SeatResponse.builder()
+                .seatId(this.seatId)
+                .zone(this.zone)
+                .seatRow(this.seatRow)
+                .seatCol(this.seatCol)
+                .seatName(String.format("%s %d열 %d번", this.zone, this.seatRow, this.seatCol))
+                .grade(this.grade)
+                .price(this.price)
+                .status(this.status)
+                // 연관관계 Event 데이터 조립 (N+1 고려 필수, 서비스단 fetch join 권장)
+                .eventId(this.event != null ? this.event.getEventId() : null)
+                .artistName(this.event != null ? this.event.getArtistName() : null)
+                .title(this.event != null ? this.event.getTitle() : null)
+                .venue(this.event != null ? this.event.getVenue() : null)
+                .eventDateTime(this.event != null && this.event.getEventDateTime() != null ?
+                        this.event.getEventDateTime().format(EVENT_FORMATTER) : null)
+                .build();
+    }
+
     @Builder
     public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.seatId = seatId;
@@ -93,7 +117,6 @@ public class Seat {
         if (config.getStatus() != null) this.status = config.getStatus();
     }
 
-    // 비즈니스 로직
     public void available() {
         this.status = SeatStatus.AVAILABLE;
     }

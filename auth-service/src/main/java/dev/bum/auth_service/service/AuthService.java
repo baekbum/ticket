@@ -5,8 +5,8 @@ import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
-import dev.bum.auth_service.vo.LoginInfo;
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public void validateInfo(LoginInfo info) {
+    public void validateInfo(LoginRequest info) {
         Auth auth = findByUserId(info.getUserId());
 
         comparePassword(info, auth);
@@ -48,7 +48,7 @@ public class AuthService {
      * @return
      */
     @Transactional(readOnly = true)
-    public TokenDto LoginAndCreateToken(LoginInfo info) {
+    public TokenResponse LoginAndCreateToken(LoginRequest info) {
         log.info("login info : {}", info.toString());
         Auth auth = findByUserId(info.getUserId());
 
@@ -60,14 +60,14 @@ public class AuthService {
         // 비밀번호 검증
         comparePassword(info, auth);
 
-        TokenDto tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
+        TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
         addRefreshTokenToRedis(auth.getUserId(), tokens.getRefreshToken());
 
         return tokens;
     }
 
-    private void comparePassword(LoginInfo info, Auth auth) {
+    private void comparePassword(LoginRequest info, Auth auth) {
         if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
             throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
         }
@@ -121,7 +121,7 @@ public class AuthService {
     /**
      * Refresh Token을 활용해 Access/Refresh Token 세트를 재발급(갱신)하는 메서드
      */
-    public TokenDto reissueToken(String refreshToken) {
+    public TokenResponse reissueToken(String refreshToken) {
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new RedisException("만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
@@ -146,7 +146,7 @@ public class AuthService {
         }
 
         // 6. 갱신된 Access Token과 새로운 Refresh Token 세트 생성 (RTR 보안 전략 적용)
-        TokenDto newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
+        TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
         // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화
         try {

@@ -5,14 +5,17 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.exception.seat.SeatDuplicateException;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
-import dev.bum.ticket_service.vo.seat.*;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,14 +41,14 @@ public class SeatRepositoryImpl implements SeatRepository {
     private QSeat seat;
 
     @Override
-    public void insert(InsertSeatInfo info) {
+    public void insert(InsertSeatRequest info) {
         Long eventId = info.getEventId();
 
         // 공연 정보가 존재하는 지 확인.
         Event event = eventRepository.selectById(eventId);
 
         // 해당 공연 정보가 이미 등록되어있는지 확인.
-        SeatCond cond = SeatCond.builder()
+        SeatCondRequest cond = SeatCondRequest.builder()
                 .eventId(info.getEventId())
                 .build();
 
@@ -81,7 +84,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public void isExist(SeatCond cond) {
+    public void isExist(SeatCondRequest cond) {
         seat = QSeat.seat;
 
         List<Seat> found = queryFactory
@@ -150,7 +153,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public Page<Seat> selectByCond(SeatCond cond, Pageable pageable) {
+    public Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable) {
         seat = QSeat.seat;
         QEvent event = QEvent.event;
 
@@ -202,7 +205,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public void update(UpdateSeatInfo info) {
+    public void update(UpdateSeatRequest info) {
         for (UpdateSeatAreaConfig config : info.getUpdateSeatAreaConfigs()) {
             Seat seat = selectById(config.getId());
             seat.update(config);
@@ -213,6 +216,11 @@ public class SeatRepositoryImpl implements SeatRepository {
     public void delete(Long id) {
         Seat seat = selectById(id);
         jpaRepository.delete(seat);
+    }
+
+    @Override
+    public void deleteByIdList(List<Long> seatIdList) {
+        jpaRepository.deleteBySeatIdIn(seatIdList);
     }
 
     // QueryDsl 동적 쿼리 관련 메서드

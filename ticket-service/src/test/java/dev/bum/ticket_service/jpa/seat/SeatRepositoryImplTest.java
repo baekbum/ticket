@@ -1,14 +1,18 @@
 package dev.bum.ticket_service.jpa.seat;
 
+import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
+import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.config.QuerydslConfig;
-import dev.bum.ticket_service.enums.EventStatus;
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.SeatStatus;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
-import dev.bum.ticket_service.vo.seat.*;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
 @Import({
@@ -108,7 +113,7 @@ class SeatRepositoryImplTest {
 
         List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat, r_seat, s_seat, a_seat);
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(this.eventId)
                 .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
@@ -134,7 +139,7 @@ class SeatRepositoryImplTest {
 
         List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(this.eventId)
                 .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
@@ -174,14 +179,14 @@ class SeatRepositoryImplTest {
 
         List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(this.eventId)
                 .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
 
         seatRepository.insert(info);
 
-        SeatCond cond = SeatCond.builder()
+        SeatCondRequest cond = SeatCondRequest.builder()
                 .grade(SeatGrade.VIP)
                 .build();
 
@@ -208,7 +213,7 @@ class SeatRepositoryImplTest {
 
         List<UpdateSeatAreaConfig> updateSeatAreaConfigList = List.of(config_1, config_2);
 
-        UpdateSeatInfo info = UpdateSeatInfo.builder()
+        UpdateSeatRequest info = UpdateSeatRequest.builder()
                 .updateSeatAreaConfigs(updateSeatAreaConfigList)
                 .build();
 

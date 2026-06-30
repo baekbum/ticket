@@ -1,17 +1,17 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface UserRepository {
-    User insert(InsertUserInfo info);
+    User insert(InsertUserRequest info);
     void isExist(String userId);
     Page<User> selectAll(Pageable pageable);
     User selectById(String userId);
-    Page<User> selectByCond(UserCond cond, Pageable pageable);
-    User update(String userId, UpdateUserInfo info);
+    Page<User> selectByCond(UserCondRequest cond, Pageable pageable);
+    User update(String userId, UpdateUserRequest info);
     User delete(String userId);
 }

@@ -1,0 +1,1192 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+  /* ── Design tokens (login / dashboard / user / event 동일 시스템) ── */
+  :root {
+    --purple:      #7c4dff;
+    --purple-hover:#6836f5;
+    --purple-dim:  rgba(124, 77, 255, 0.09);
+    --purple-ring: rgba(124, 77, 255, 0.16);
+    --bg:          #f4f3f8;
+    --card-bg:     #ffffff;
+    --border:      #e6e4ef;
+    --text-primary:   #18172b;
+    --text-secondary: #6e6b85;
+    --text-muted:     #a09db8;
+    --red:         #d63b3b;
+    --red-dim:     rgba(214, 59, 59, 0.09);
+    --red-border:  rgba(214, 59, 59, 0.18);
+    --green:       #2b8a3e;
+    --amber:       #f59f00;
+    --radius-sm:   8px;
+    --radius-md:   12px;
+  }
+
+  /* ── Page header ── */
+  .frag-header { margin-bottom: 1.5rem; padding: 1.5rem 1.75rem 0; }
+  .frag-header h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    margin-bottom: 3px;
+  }
+  .sub-txt { font-size: 12.5px; color: var(--text-muted); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1.75rem;
+    margin-bottom: 1rem;
+    gap: 10px;
+  }
+  .toolbar-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .search-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    width: 180px;
+    background: #fafafa;
+    color: var(--text-primary);
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .search-input::placeholder { color: var(--text-muted); }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--purple);
+    background: #fff;
+    box-shadow: 0 0 0 3px var(--purple-ring);
+  }
+
+  /* ── Button system ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 14px;
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    letter-spacing: -0.1px;
+    transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+    box-shadow: 0 2px 8px rgba(124,77,255,0.18);
+  }
+  .btn:hover  { background: var(--purple-hover); box-shadow: 0 4px 14px rgba(124,77,255,0.25); }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-outline {
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .btn-outline:hover { background: var(--bg); color: var(--text-primary); box-shadow: none; }
+
+  .btn-secondary {
+    background: #f0eef8;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .btn-secondary:hover { background: #e8e4f4; color: var(--text-primary); box-shadow: none; }
+
+  .btn-success { background: var(--green); box-shadow: 0 2px 8px rgba(43,138,62,0.18); }
+  .btn-success:hover { background: #237032; }
+
+  .btn-danger {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid var(--red-border);
+    box-shadow: none;
+  }
+  .btn-danger:hover { background: rgba(214,59,59,0.15); box-shadow: none; }
+
+  .btn-danger-solid { background: var(--red); color: #fff; box-shadow: 0 2px 8px rgba(214,59,59,0.2); border: none; }
+  .btn-danger-solid:hover { background: #bb2f2f; }
+
+  .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; font-weight: 600; }
+
+  /* ── Bulk action bar ── */
+  .bulk-action-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: #fff8e8;
+    border: 1px solid rgba(245,159,0,0.30);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #7a5800;
+  }
+  .bulk-action-bar.visible { display: flex; }
+  .bulk-action-bar i { font-size: 15px; color: var(--amber); }
+  .bulk-count { font-weight: 700; color: #5a4000; }
+
+  /* ── Table container ── */
+  .table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin: 0 1.75rem;
+    position: relative;
+    background: var(--card-bg);
+  }
+
+  /* ── Table ── */
+  .seat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+  }
+  .seat-table th,
+  .seat-table td {
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 컬럼 너비 */
+  .seat-table th:nth-child(1),  .seat-table td:nth-child(1)  { width: 40px; text-align: center; } /* checkbox */
+  .seat-table th:nth-child(2),  .seat-table td:nth-child(2)  { width: 7%;  text-align: center; } /* 좌석 ID */
+  .seat-table th:nth-child(3),  .seat-table td:nth-child(3)  { width: 8%;  text-align: center; } /* 공연 ID */
+  .seat-table th:nth-child(4),  .seat-table td:nth-child(4)  { width: 14%; }                     /* 구역 */
+  .seat-table th:nth-child(5),  .seat-table td:nth-child(5)  { width: 7%;  text-align: center; } /* 행 */
+  .seat-table th:nth-child(6),  .seat-table td:nth-child(6)  { width: 7%;  text-align: center; } /* 열 */
+  .seat-table th:nth-child(7),  .seat-table td:nth-child(7)  { width: 12%; text-align: right;  } /* 가격 */
+  .seat-table th:nth-child(8),  .seat-table td:nth-child(8)  { width: 8%;  text-align: center; } /* 등급 */
+  .seat-table th:nth-child(9),  .seat-table td:nth-child(9)  { width: 11%; text-align: center; } /* 상태 */
+  .seat-table th:nth-child(10), .seat-table td:nth-child(10) { width: 13%; text-align: center; } /* 관리 */
+
+  .seat-table th {
+    background: #faf9fd;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.1px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1px solid var(--border);
+  }
+  .seat-table th.actions, .seat-table td.actions { text-align: center; }
+  .seat-table tbody tr { cursor: pointer; transition: background 0.12s; }
+  .seat-table tbody tr:hover { background: var(--purple-dim); }
+  .seat-table tbody tr.selected-row { background: rgba(124,77,255,0.06); }
+  .seat-table tbody tr:last-child td { border-bottom: none; }
+
+  /* ── Checkbox ── */
+  .row-checkbox, #select-all-checkbox {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--purple);
+    cursor: pointer;
+  }
+
+  /* ── Pagination ── */
+  .table-pagination {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin-top: 1.1rem;
+    padding: 0 1.75rem 1.5rem;
+  }
+  .page-size-selector {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .page-size-selector select {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px; font-family: inherit;
+    background: #fafafa; color: var(--text-primary);
+    outline: none; cursor: pointer;
+  }
+  .page-size-selector select:focus { border-color: var(--purple); }
+  .pagination-controls { grid-column: 2; display: flex; align-items: center; gap: 4px; }
+  .btn-page-nav {
+    padding: 6px 10px; background: var(--card-bg); border: 1px solid var(--border);
+    color: var(--text-secondary); border-radius: 6px; font-size: 11px; font-weight: 600;
+    font-family: inherit; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-page-nav:hover { background: var(--bg); border-color: #ccc8e0; }
+  .page-number-viewer {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-secondary); padding: 0 6px;
+  }
+  .page-number-viewer input[type=number] {
+    width: 42px; padding: 4px 5px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 12px; font-family: inherit;
+    text-align: center; outline: none; background: #fafafa;
+  }
+  .page-number-viewer input[type=number]:focus { border-color: var(--purple); }
+
+  /* ── Badge ── */
+  .badge {
+    padding: 3px 7px; border-radius: 4px; font-size: 11px;
+    font-weight: 700; display: inline-block; letter-spacing: 0.2px; min-width: 54px; text-align: center;
+  }
+  .badge-available { background: #e6fcf5; color: #0ca678; }
+  .badge-locked    { background: #fff9db; color: #f08c00; }
+  .badge-reserved  { background: var(--red-dim); color: var(--red); }
+
+  /* 등급 컬러 */
+  .grade-txt { font-weight: 700; font-size: 12px; }
+  .grade-vip { color: #e8590c; }
+  .grade-r   { color: #7048e8; }
+  .grade-s   { color: #1098ad; }
+  .grade-a   { color: #37b24d; }
+
+  /* ── Modals ── */
+  .f-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(20,16,40,0.45);
+    justify-content: center; align-items: center;
+    z-index: 1000; backdrop-filter: blur(2px);
+  }
+  .f-modal-content {
+    background: var(--card-bg); padding: 2rem;
+    border-radius: var(--radius-md); width: 100%; max-width: 500px;
+    text-align: left; border: 1px solid var(--border);
+    box-shadow: 0 8px 40px rgba(60,40,120,0.14);
+  }
+
+  .modal-title {
+    font-size: 16px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: -0.2px; margin-bottom: 0.25rem;
+  }
+  .modal-subtitle { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 1.25rem; }
+  .modal-divider  { height: 1px; background: var(--border); margin: 1rem 0 1.25rem; }
+
+  .form-group { margin-bottom: 1rem; }
+  .form-group label {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); margin-bottom: 6px; letter-spacing: 0.1px;
+  }
+  .form-group input, .form-group select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 13px; font-family: inherit;
+    background: #fafafa; color: var(--text-primary);
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    outline: none; border-color: var(--purple);
+    background: #fff; box-shadow: 0 0 0 3px var(--purple-ring);
+  }
+  .form-group input:disabled, .form-group select:disabled {
+    background: var(--bg); color: var(--text-muted); cursor: not-allowed;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+  .confirm-modal-content { max-width: 360px; text-align: center; padding: 2rem 1.75rem; }
+  .confirm-icon { font-size: 38px; margin-bottom: 10px; display: block; }
+
+  /* ── 좌석 일괄 등록 모달 전용 ── */
+  .bulk-modal-content {
+    max-width: 720px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 모달 탭 */
+  .modal-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    gap: 0;
+  }
+  .modal-tab {
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .modal-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+  .modal-tab:hover:not(.active) { color: var(--text-secondary); }
+
+  .modal-tab-panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .modal-tab-panel.active { display: flex; }
+
+  /* 구역 카드 */
+  .zone-cards-wrap {
+    flex: 1;
+    min-height: 0;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 2px 2px 4px;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .zone-card {
+    background: #faf9fd;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--purple);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.1rem;
+    transition: box-shadow 0.18s;
+  }
+  .zone-card:hover { box-shadow: 0 4px 14px rgba(124,77,255,0.08); }
+
+  .zone-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .zone-card-title {
+    font-size: 12.5px; font-weight: 700;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .zone-card-title i { color: var(--purple); font-size: 14px; }
+
+  /* 구역 카드 내부 그리드 (5열) */
+  .zone-card-grid {
+    display: grid;
+    grid-template-columns: 2fr 1.4fr 1fr 1fr 1.8fr;
+    gap: 8px;
+    align-items: end;
+  }
+  .zone-field { display: flex; flex-direction: column; gap: 4px; }
+  .zone-field span {
+    font-size: 10.5px; font-weight: 600;
+    color: var(--text-muted); letter-spacing: 0.2px;
+  }
+  .zone-field input, .zone-field select {
+    padding: 7px 9px; font-size: 12.5px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; color: var(--text-primary); width: 100%;
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .zone-field input:focus, .zone-field select:focus {
+    outline: none; border-color: var(--purple);
+    box-shadow: 0 0 0 2px var(--purple-ring);
+  }
+
+  /* 미리보기 칩 */
+  .zone-preview-chip {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+  .zone-preview-chip strong { color: var(--purple); font-weight: 700; }
+
+  /* 구역 추가 버튼 (dashed) */
+  .btn-add-zone {
+    width: 100%;
+    padding: 11px;
+    background: none;
+    border: 1.5px dashed var(--purple);
+    border-radius: var(--radius-sm);
+    color: var(--purple);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 1.25rem;
+  }
+  .btn-add-zone:hover { background: var(--purple-dim); }
+
+  /* 총 좌석 수 표시 */
+  .total-seats-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px;
+    background: var(--purple-dim);
+    border: 1px solid rgba(124,77,255,0.18);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+  }
+  .total-seats-preview strong { color: var(--purple); font-size: 15px; font-weight: 700; }
+
+  /* 일괄 수정 탭 전용 */
+  .bulk-edit-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #fff8e8;
+    border: 1px solid rgba(245,159,0,0.28);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: #7a5800;
+    margin-bottom: 1.25rem;
+  }
+  .bulk-edit-info i { color: var(--amber); font-size: 16px; flex-shrink: 0; }
+</style>
+
+<!-- ── Page header ── -->
+<div class="frag-header">
+  <h2>공연 좌석 마스터 관리</h2>
+  <p class="sub-txt">공연별 배치 구역을 등록하고 실물 좌석의 예약 상태 및 티켓 가격을 조율합니다.</p>
+</div>
+
+<!-- ── Toolbar ── -->
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="number" class="search-input" id="search-event-id" placeholder="공연(Event) ID 입력…">
+    <button class="btn" onclick="triggerNormalSearch()"><i class="ti ti-search"></i>조회</button>
+    <button class="btn btn-outline" onclick="openSearchModal()"><i class="ti ti-adjustments-horizontal"></i>상세 필터</button>
+
+    <!-- 다중 선택 시 나타나는 액션 바 -->
+    <div class="bulk-action-bar" id="bulk-action-bar">
+      <i class="ti ti-checkbox"></i>
+      <span><span class="bulk-count" id="bulk-count">0</span>석 선택됨</span>
+      <button class="btn btn-danger-solid btn-sm" onclick="openBulkDeleteConfirmModal()">
+        <i class="ti ti-trash"></i>선택 삭제
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="openBulkEditModal()">
+        <i class="ti ti-edit"></i>일괄 수정
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="clearAllSelections()">선택 해제</button>
+    </div>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn btn-success" onclick="openSeatBulkModal()">
+      <i class="ti ti-layout-grid-add"></i>구역 일괄 등록
+    </button>
+  </div>
+</div>
+
+<!-- ── Table ── -->
+<div class="table-wrap">
+  <table class="seat-table">
+    <thead>
+      <tr>
+        <th style="text-align:center;">
+          <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this)" title="전체 선택">
+        </th>
+        <th style="text-align:center;">좌석 ID</th>
+        <th style="text-align:center;">공연 ID</th>
+        <th>구역(Zone)</th>
+        <th style="text-align:center;">행</th>
+        <th style="text-align:center;">열</th>
+        <th style="text-align:right;">가격(원)</th>
+        <th style="text-align:center;">등급</th>
+        <th style="text-align:center;">상태</th>
+        <th class="actions">관리</th>
+      </tr>
+    </thead>
+    <tbody id="seat-table-body"></tbody>
+  </table>
+</div>
+
+<!-- ── Pagination ── -->
+<div class="table-pagination">
+  <div class="page-size-selector">
+    <span>페이지당:</span>
+    <select id="pagination-size" onchange="handleSizeChange()">
+      <option value="10" selected>10개</option>
+      <option value="20">20개</option>
+      <option value="50">50개</option>
+      <option value="100">100개</option>
+    </select>
+  </div>
+  <div class="pagination-controls">
+    <button class="btn-page-nav" onclick="navigatePage(-5)">«</button>
+    <button class="btn-page-nav" onclick="navigatePage(-1)">‹</button>
+    <div class="page-number-viewer">
+      <input type="number" id="pagination-current" value="1" min="1"
+             onkeydown="handlePageKeydown(event)" onchange="handlePageInputChange()">
+      <span style="color:var(--text-muted);">/</span>
+      <span id="pagination-total" style="font-weight:600; color:var(--text-primary);">1</span>
+    </div>
+    <button class="btn-page-nav" onclick="navigatePage(1)">›</button>
+    <button class="btn-page-nav" onclick="navigatePage(5)">»</button>
+  </div>
+  <div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     상세 검색 모달
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="search-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">좌석 상세 검색</p>
+    <p class="modal-subtitle">원하는 조건을 조합해 좌석을 필터링합니다.</p>
+    <div class="modal-divider"></div>
+    <div class="form-row">
+      <div class="form-group"><label>좌석 고유 ID</label><input type="number" id="cond-seat-id" placeholder="seatId 직접 검색"></div>
+      <div class="form-group"><label>공연 ID (eventId)</label><input type="number" id="cond-event-id" placeholder="공연 번호"></div>
+    </div>
+    <div class="form-group"><label>구역 이름 (Zone)</label><input type="text" id="cond-zone" placeholder="예: Floor A"></div>
+    <div class="form-row">
+      <div class="form-group"><label>행 번호 (Row)</label><input type="number" id="cond-seat-row" placeholder="X행"></div>
+      <div class="form-group"><label>열 번호 (Col)</label><input type="number" id="cond-seat-col" placeholder="Y열"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>좌석 등급 (Grade)</label>
+        <select id="cond-grade">
+          <option value="">전체 등급</option>
+          <option value="VIP">VIP석</option>
+          <option value="R">R석</option>
+          <option value="S">S석</option>
+          <option value="A">A석</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>예약 상태 (Status)</label>
+        <select id="cond-status">
+          <option value="">전체 상태</option>
+          <option value="AVAILABLE">AVAILABLE (예매 가능)</option>
+          <option value="LOCKED">LOCKED (결제 진행)</option>
+          <option value="RESERVED">RESERVED (예매 완료)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:1.25rem;">
+      <button class="btn btn-secondary" onclick="closeSearchModal()">취소</button>
+      <button class="btn" onclick="submitDetailedSearch()"><i class="ti ti-search"></i>이 조건으로 검색</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     구역 일괄 등록 모달 (탭 UI)
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="seat-bulk-modal">
+  <div class="f-modal-content bulk-modal-content">
+
+    <p class="modal-title">공연 좌석 구역 일괄 등록</p>
+    <p class="modal-subtitle">구역별 행/열 구조를 입력하면 백엔드가 실물 좌석 레코드를 자동 생성합니다.</p>
+
+    <!-- 공연 ID 고정 입력 -->
+    <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--purple-dim); border:1px solid rgba(124,77,255,0.18); border-radius:var(--radius-sm); margin-bottom:1.25rem;">
+      <i class="ti ti-calendar-event" style="color:var(--purple); font-size:17px; flex-shrink:0;"></i>
+      <label style="font-size:12.5px; font-weight:700; color:var(--purple); white-space:nowrap; margin:0;">타겟 공연 ID</label>
+      <input type="number" id="bulk-event-id" placeholder="숫자 ID 필수" required
+             style="flex:1; max-width:160px; padding:6px 10px; font-size:13px; font-family:inherit; border:1px solid rgba(124,77,255,0.3); border-radius:6px; outline:none; background:#fff; color:var(--text-primary);"
+             oninput="recalcTotalSeats()">
+    </div>
+
+    <!-- 총 좌석 수 미리보기 -->
+    <div class="total-seats-preview" id="total-seats-preview">
+      <span><i class="ti ti-armchair" style="margin-right:5px;"></i>등록 예정 총 좌석</span>
+      <strong id="total-seats-count">0</strong>석
+    </div>
+
+    <!-- 구역 카드 목록 -->
+    <div class="zone-cards-wrap" id="seat-zone-wrapper"></div>
+
+    <!-- 구역 추가 버튼 -->
+    <button type="button" class="btn-add-zone" onclick="addZoneCard()">
+      <i class="ti ti-plus"></i>새 배정 구역 추가
+    </button>
+
+    <div class="form-row">
+      <button class="btn btn-secondary" onclick="closeSeatBulkModal()">취소</button>
+      <button class="btn btn-success" onclick="submitBulkSeats()"><i class="ti ti-check"></i>좌석 일괄 생성 실행</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     선택 좌석 일괄 수정 모달
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="bulk-edit-modal">
+  <div class="f-modal-content" style="max-width:400px;">
+    <p class="modal-title">선택 좌석 일괄 수정</p>
+    <p class="modal-subtitle" id="bulk-edit-subtitle">선택한 0석의 가격·상태를 한번에 변경합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="bulk-edit-info">
+      <i class="ti ti-info-circle"></i>
+      <span>변경하지 않을 항목은 비워두면 기존 값이 유지됩니다.</span>
+    </div>
+
+    <div class="form-group">
+      <label>티켓 단가 일괄 변경 (Price)</label>
+      <input type="number" id="bulk-edit-price" placeholder="변경할 금액 입력 (선택)" min="0" style="text-align:right;">
+    </div>
+    <div class="form-group">
+      <label>예약 상태 일괄 전환 (Status)</label>
+      <select id="bulk-edit-status">
+        <option value="">변경 안 함</option>
+        <option value="AVAILABLE">AVAILABLE (예매 가능)</option>
+        <option value="LOCKED">LOCKED (결제 진행)</option>
+        <option value="RESERVED">RESERVED (예매 완료)</option>
+      </select>
+    </div>
+
+    <div class="form-row" style="margin-top:1.25rem;">
+      <button class="btn btn-secondary" onclick="closeBulkEditModal()">취소</button>
+      <button class="btn" onclick="submitBulkEdit()"><i class="ti ti-check"></i>일괄 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     단건 수정 모달
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="seat-update-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">단일 좌석 정보 수정</p>
+    <p class="modal-subtitle">가격과 예약 상태를 변경할 수 있습니다.</p>
+    <div class="modal-divider"></div>
+
+    <input type="hidden" id="u-seat-id">
+
+    <div class="form-row">
+      <div class="form-group"><label>공연 ID</label><input type="text" id="u-event-id" disabled></div>
+      <div class="form-group"><label>배정 등급</label><input type="text" id="u-grade" disabled></div>
+    </div>
+    <div class="form-group"><label>소속 구역</label><input type="text" id="u-zone" disabled></div>
+    <div class="form-row">
+      <div class="form-group"><label>행 (Row)</label><input type="number" id="u-row" disabled style="text-align:center;"></div>
+      <div class="form-group"><label>열 (Col)</label><input type="number" id="u-col" disabled style="text-align:center;"></div>
+    </div>
+    <div class="form-group">
+      <label style="color:var(--green); font-weight:600;">티켓 단가 (Price) *</label>
+      <input type="number" id="u-price" min="0" required style="text-align:right;">
+    </div>
+    <div class="form-group">
+      <label style="color:var(--red); font-weight:600;">예약 상태 (Status) *</label>
+      <select id="u-status">
+        <option value="AVAILABLE">AVAILABLE (예매 가능)</option>
+        <option value="LOCKED">LOCKED (결제 진행)</option>
+        <option value="RESERVED">RESERVED (예매 완료)</option>
+      </select>
+    </div>
+
+    <div class="form-row" style="margin-top:1.25rem;">
+      <button class="btn btn-secondary" onclick="closeUpdateModal()">취소</button>
+      <button class="btn" onclick="submitUpdateSeat()">변경사항 저장</button>
+    </div>
+    <button class="btn btn-danger-solid" style="width:100%; margin-top:8px;" onclick="openSingleDeleteConfirmModal()">
+      <i class="ti ti-trash"></i>이 좌석 영구 삭제
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     단건 삭제 확인 모달
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="confirm-modal">
+  <div class="f-modal-content confirm-modal-content">
+    <i class="ti ti-alert-triangle confirm-icon" style="color:var(--red);"></i>
+    <p class="modal-title" style="text-align:center;">좌석을 삭제하시겠습니까?</p>
+    <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 1.5rem;">삭제는 영구적이며 결제 데이터 정합성에 영향을 줄 수 있습니다.</p>
+    <input type="hidden" id="confirm-target-id">
+    <div class="form-row">
+      <button class="btn btn-secondary" onclick="closeConfirmModal()">취소</button>
+      <button class="btn btn-danger-solid" onclick="submitDeleteConfirm()"><i class="ti ti-trash"></i>삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     다중 삭제 확인 모달
+══════════════════════════════════════════════ -->
+<div class="f-modal" id="bulk-delete-modal">
+  <div class="f-modal-content confirm-modal-content">
+    <i class="ti ti-trash-x confirm-icon" style="color:var(--red);"></i>
+    <p class="modal-title" style="text-align:center;">
+      선택한 <span id="bulk-delete-count" style="color:var(--red);">0</span>석을 삭제하시겠습니까?
+    </p>
+    <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 1.5rem;">삭제된 좌석은 복구할 수 없으며 시스템 정합성에 영향을 줄 수 있습니다.</p>
+    <div class="form-row">
+      <button class="btn btn-secondary" onclick="closeBulkDeleteConfirmModal()">취소</button>
+      <button class="btn btn-danger-solid" onclick="submitBulkDelete()"><i class="ti ti-trash"></i>일괄 삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const API = { VERSION: 'v1', LOCAL_PORT: '8999', DEV_PORT: '8080' };
+    const BASE_URL  = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
+    const SEAT_URL  = `${BASE_URL}/api/${API.VERSION}/seat`;
+    const headers  = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
+
+    let currentSearchFilters = { seatId: null, eventId: null, zone: null, seatRow: null, seatCol: null, grade: null, status: null };
+    let serverTotalPages     = 1;
+    let currentSortFilters   = {};
+
+    /* ─────────────────── 뱃지 / 등급 헬퍼 ─────────────────── */
+    function getSeatStatusBadge(status) {
+      if (status === 'AVAILABLE') return `<span class="badge badge-available">예매 가능</span>`;
+      if (status === 'LOCKED')    return `<span class="badge badge-locked">결제 진행</span>`;
+      if (status === 'RESERVED')  return `<span class="badge badge-reserved">예매 완료</span>`;
+      return `<span style="color:var(--text-muted);">${status || '-'}</span>`;
+    }
+    function getGradeCssClass(grade) {
+      if (!grade) return '';
+      return `grade-txt grade-${grade.toLowerCase()}`;
+    }
+
+    /* ─────────────────── 다중 선택 상태 ─────────────────── */
+    let selectedIds = new Set(); // Set of seatId (Number)
+
+    function updateBulkBar() {
+      const bar = document.getElementById('bulk-action-bar');
+      document.getElementById('bulk-count').textContent = selectedIds.size;
+      if (selectedIds.size > 0) bar.classList.add('visible');
+      else                      bar.classList.remove('visible');
+    }
+
+    window.toggleSelectAll = function (masterCb) {
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = masterCb.checked;
+        const id  = parseInt(cb.dataset.id, 10);
+        const row = cb.closest('tr');
+        if (masterCb.checked) { selectedIds.add(id);    row.classList.add('selected-row'); }
+        else                  { selectedIds.delete(id); row.classList.remove('selected-row'); }
+      });
+      updateBulkBar();
+    };
+
+    window.toggleRowCheckbox = function (cb, id) {
+      const row = cb.closest('tr');
+      if (cb.checked) { selectedIds.add(id);    row.classList.add('selected-row'); }
+      else            { selectedIds.delete(id); row.classList.remove('selected-row'); }
+      const all    = document.querySelectorAll('.row-checkbox');
+      const master = document.getElementById('select-all-checkbox');
+      if (master) master.checked = all.length > 0 && [...all].every(c => c.checked);
+      updateBulkBar();
+    };
+
+    window.clearAllSelections = function () {
+      selectedIds.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = false; cb.closest('tr').classList.remove('selected-row'); });
+      const master = document.getElementById('select-all-checkbox');
+      if (master) master.checked = false;
+      updateBulkBar();
+    };
+
+    /* ─────────────────── 다중 삭제 ─────────────────── */
+    window.openBulkDeleteConfirmModal = function () {
+      if (selectedIds.size === 0) { showToast('삭제할 좌석을 선택해주세요.', true); return; }
+      document.getElementById('bulk-delete-count').textContent = selectedIds.size;
+      document.getElementById('bulk-delete-modal').style.display = 'flex';
+    };
+    window.closeBulkDeleteConfirmModal = function () {
+      document.getElementById('bulk-delete-modal').style.display = 'none';
+    };
+
+    window.submitBulkDelete = async function () {
+      const idList = [...selectedIds];
+      try {
+        const res = await Fetch(`${SEAT_URL}/delete`, {
+          method: 'DELETE', headers, body: JSON.stringify({ seatIdList: idList })
+        });
+        if (res.ok) {
+          showToast(`${idList.length}석이 일괄 삭제되었습니다.`);
+          closeBulkDeleteConfirmModal();
+          selectedIds.clear(); updateBulkBar();
+          loadSeatList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+        } else { showToast('일괄 삭제 처리 중 오류가 발생했습니다.', true); }
+      } catch { showToast('서버 통신 실패', true); }
+    };
+
+    /* ─────────────────── 선택 좌석 일괄 수정 ─────────────────── */
+    window.openBulkEditModal = function () {
+      if (selectedIds.size === 0) { showToast('수정할 좌석을 선택해주세요.', true); return; }
+      document.getElementById('bulk-edit-subtitle').textContent = `선택한 ${selectedIds.size}석의 가격·상태를 한번에 변경합니다.`;
+      document.getElementById('bulk-edit-price').value  = '';
+      document.getElementById('bulk-edit-status').value = '';
+      document.getElementById('bulk-edit-modal').style.display = 'flex';
+    };
+    window.closeBulkEditModal = function () {
+      document.getElementById('bulk-edit-modal').style.display = 'none';
+    };
+
+    window.submitBulkEdit = async function () {
+      const priceVal  = document.getElementById('bulk-edit-price').value;
+      const statusVal = document.getElementById('bulk-edit-status').value;
+
+      if (!priceVal && !statusVal) { showToast('변경할 항목을 최소 하나 입력해주세요.', true); return; }
+
+      const configs = [...selectedIds].map(id => {
+        const entry = { id };
+        if (priceVal)  entry.price  = parseInt(priceVal, 10);
+        if (statusVal) entry.status = statusVal;
+        return entry;
+      });
+
+      try {
+        const res = await Fetch(`${SEAT_URL}/update`, {
+          method: 'PUT', headers, body: JSON.stringify({ updateSeatAreaConfigs: configs })
+        });
+        if (res.ok) {
+          showToast(`${selectedIds.size}석이 일괄 수정되었습니다.`);
+          closeBulkEditModal();
+          selectedIds.clear(); updateBulkBar();
+          loadSeatList(parseInt(document.getElementById('pagination-current').value, 10) - 1);
+        } else { showToast('일괄 수정 처리 중 오류가 발생했습니다.', true); }
+      } catch { showToast('서버 통신 실패', true); }
+    };
+
+    /* ─────────────────── 목록 로드 ─────────────────── */
+    window.loadSeatList = async function (pageZeroIndexed = 0) {
+      const pageSize  = parseInt(document.getElementById('pagination-size').value, 10);
+      const sortArray = Object.keys(currentSortFilters).reduce((acc, f) => {
+        if (currentSortFilters[f]) acc.push(`${f}-${currentSortFilters[f]}`);
+        return acc;
+      }, []);
+
+      const cond = { ...currentSearchFilters, page: pageZeroIndexed, size: pageSize, sort: sortArray.length ? sortArray : null };
+
+      // 페이지 전환 시 선택 초기화
+      selectedIds.clear(); updateBulkBar();
+      const master = document.getElementById('select-all-checkbox');
+      if (master) master.checked = false;
+
+      try {
+        const res = await Fetch(`${SEAT_URL}/select`, {
+          method: 'POST', headers, body: JSON.stringify(cond)
+        });
+
+        if (!res.ok) { showToast('좌석 정보 조회에 실패했습니다.', true); return; }
+
+        const pagedModel = await res.json();
+        const list       = pagedModel.content || [];
+        serverTotalPages = Math.max(pagedModel.page?.totalPages || pagedModel.totalPages || 1, 1);
+
+        document.getElementById('pagination-total').textContent = serverTotalPages;
+        document.getElementById('pagination-current').value      = pageZeroIndexed + 1;
+
+        const tbody = document.getElementById('seat-table-body');
+        tbody.innerHTML = '';
+
+        if (list.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:2.5rem; font-size:13px;">검색 조건에 해당하는 좌석이 없습니다.</td></tr>`;
+          return;
+        }
+
+        list.forEach(seat => {
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-pk', seat.seatId);
+
+          tr.innerHTML = `
+            <td style="text-align:center;" onclick="event.stopPropagation()">
+              <input type="checkbox" class="row-checkbox" data-id="${seat.seatId}"
+                     onclick="event.stopPropagation(); toggleRowCheckbox(this, ${seat.seatId})">
+            </td>
+            <td style="text-align:center;"><code style="font-family:inherit; font-weight:600; color:var(--text-secondary);">${seat.seatId}</code></td>
+            <td style="text-align:center; color:var(--text-secondary);">${seat.eventId}</td>
+            <td><strong style="color:var(--text-primary);">${seat.zone}</strong></td>
+            <td style="text-align:center; color:var(--text-secondary);">${seat.seatRow}행</td>
+            <td style="text-align:center; color:var(--text-secondary);">${seat.seatCol}열</td>
+            <td style="text-align:right; font-weight:600; color:var(--text-primary);">${Number(seat.price).toLocaleString()}원</td>
+            <td style="text-align:center;"><span class="${getGradeCssClass(seat.grade)}">${seat.grade}</span></td>
+            <td style="text-align:center;">${getSeatStatusBadge(seat.status)}</td>
+            <td class="actions">
+              <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openModalForUpdate('${seat.seatId}')">수정</button>
+              <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); openConfirmModalFromRow('${seat.seatId}')">삭제</button>
+            </td>
+          `;
+
+          tr.onclick = () => openModalForUpdate(seat.seatId);
+          tbody.appendChild(tr);
+        });
+      } catch (e) { console.error(e); showToast('서버 통신 장애', true); }
+    };
+
+    /* ─────────────────── 구역 일괄 등록 모달 ─────────────────── */
+    window.recalcTotalSeats = function () {
+      let total = 0;
+      document.querySelectorAll('.zone-card').forEach(card => {
+        const r = parseInt(card.querySelector('.b-rows')?.value, 10) || 0;
+        const c = parseInt(card.querySelector('.b-cols')?.value, 10) || 0;
+        total  += r * c;
+      });
+      document.getElementById('total-seats-count').textContent = total.toLocaleString();
+    };
+
+    window.addZoneCard = function (data = {}) {
+      const wrapper = document.getElementById('seat-zone-wrapper');
+      const cardId  = 'z-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+      const div = document.createElement('div');
+      div.id        = cardId;
+      div.className = 'zone-card';
+
+      div.innerHTML = `
+        <div class="zone-card-header">
+          <div class="zone-card-title">
+            <i class="ti ti-layers-intersect"></i>
+            <span class="zone-card-title-text">배정 구역</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger"
+                  onclick="document.getElementById('${cardId}').remove(); updateCardLabels(); recalcTotalSeats();">
+            <i class="ti ti-x"></i>제거
+          </button>
+        </div>
+        <div class="zone-card-grid">
+          <div class="zone-field">
+            <span>구역 명칭 (Zone)</span>
+            <input type="text" class="b-zone" placeholder="예: Floor A" value="${data.zone || ''}" required>
+          </div>
+          <div class="zone-field">
+            <span>등급 (Grade)</span>
+            <select class="b-grade">
+              <option value="VIP" ${data.grade === 'VIP' ? 'selected' : ''}>VIP석</option>
+              <option value="R"   ${data.grade === 'R'   ? 'selected' : ''}>R석</option>
+              <option value="S"   ${data.grade === 'S'   ? 'selected' : ''}>S석</option>
+              <option value="A"   ${data.grade === 'A'   ? 'selected' : ''}>A석</option>
+            </select>
+          </div>
+          <div class="zone-field">
+            <span>행 수 (Rows)</span>
+            <input type="number" class="b-rows" placeholder="행" min="1" value="${data.rows || ''}" required
+                   style="text-align:center;" oninput="recalcTotalSeats()">
+          </div>
+          <div class="zone-field">
+            <span>열 수 (Cols)</span>
+            <input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols || ''}" required
+                   style="text-align:center;" oninput="recalcTotalSeats()">
+          </div>
+          <div class="zone-field">
+            <span>티켓 단가 (Price)</span>
+            <input type="number" class="b-price" placeholder="원" min="0" value="${data.price || ''}" required
+                   style="text-align:right;">
+          </div>
+        </div>
+        <div class="zone-preview-chip">
+          <i class="ti ti-armchair" style="color:var(--purple);"></i>
+          이 구역 생성 좌석 수:
+          <strong class="zone-seat-count">0</strong>석
+          <span style="color:var(--text-muted);">(행 × 열)</span>
+        </div>
+      `;
+
+      // 행/열 변경 시 이 카드의 미리보기도 갱신
+      div.querySelectorAll('.b-rows, .b-cols').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const r = parseInt(div.querySelector('.b-rows').value, 10) || 0;
+          const c = parseInt(div.querySelector('.b-cols').value, 10) || 0;
+          div.querySelector('.zone-seat-count').textContent = (r * c).toLocaleString();
+        });
+      });
+
+      wrapper.appendChild(div);
+      updateCardLabels();
+      recalcTotalSeats();
+
+      // 초기값 있으면 미리보기 즉시 계산
+      if (data.rows && data.cols) {
+        const count = (parseInt(data.rows, 10) || 0) * (parseInt(data.cols, 10) || 0);
+        div.querySelector('.zone-seat-count').textContent = count.toLocaleString();
+      }
+    };
+
+    function updateCardLabels() {
+      document.querySelectorAll('.zone-card').forEach((card, idx) => {
+        const el = card.querySelector('.zone-card-title-text');
+        if (el) el.textContent = `배정 구역 #${idx + 1}`;
+      });
+    }
+
+    window.openSeatBulkModal = function () {
+      document.getElementById('bulk-event-id').value = document.getElementById('search-event-id').value || '';
+      const wrapper = document.getElementById('seat-zone-wrapper');
+      wrapper.innerHTML = '';
+      addZoneCard({ zone: 'Floor A',    grade: 'VIP', rows: 10, cols: 10, price: 168000 });
+      addZoneCard({ zone: '1층 1구역',  grade: 'R',   rows: 12, cols: 15, price: 145000 });
+      document.getElementById('seat-bulk-modal').style.display = 'flex';
+    };
+    window.closeSeatBulkModal = function () {
+      document.getElementById('seat-bulk-modal').style.display = 'none';
+    };
+
+    window.submitBulkSeats = async function () {
+      const eventIdVal = document.getElementById('bulk-event-id').value;
+      if (!eventIdVal) { showToast('공연 ID를 입력해주세요.', true); return; }
+
+      const cards = document.querySelectorAll('.zone-card');
+      if (cards.length === 0) { showToast('구역을 최소 1개 이상 추가해주세요.', true); return; }
+
+      const configs = [];
+      let isValid = true;
+
+      cards.forEach(card => {
+        const zone  = card.querySelector('.b-zone').value.trim();
+        const grade = card.querySelector('.b-grade').value;
+        const rNum  = card.querySelector('.b-rows').value;
+        const cNum  = card.querySelector('.b-cols').value;
+        const price = card.querySelector('.b-price').value;
+        if (!zone || !rNum || !cNum || !price) { isValid = false; return; }
+        configs.push({ grade, zone, rows: parseInt(rNum, 10), cols: parseInt(cNum, 10), price: parseInt(price, 10) });
+      });
+
+      if (!isValid) { showToast('모든 구역 항목을 빠짐없이 입력해주세요.', true); return; }
+
+      const totalSeats = configs.reduce((sum, c) => sum + c.rows * c.cols, 0);
+
+      try {
+        const res = await Fetch(`${SEAT_URL}/insert`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ eventId: parseInt(eventIdVal, 10), insertSeatAreaConfigs: configs })
+        });
+        if (res.ok) {
+          showToast(`${totalSeats.toLocaleString()}석 일괄 생성이 완료되었습니다.`);
+          closeSeatBulkModal();
+          loadSeatList(0);
+        } else { showToast('좌석 생성 처리 중 오류가 발생했습니다.', true); }
+      } catch { showToast('서버 통신 실패', true); }
+    };
+
+    /* ─────────────────── 단건 수정 모달 ─────────────────── */
+    window.openModalForUpdate = async function (seatId) {
+      try {
+        const res = await Fetch(`${SEAT_URL}/select/id/${seatId}`, { headers });
+        if (!res.ok) { showToast('좌석 정보 조회 실패', true); return; }
+        const data = await res.json();
+
+        document.getElementById('u-seat-id').value   = data.seatId;
+        document.getElementById('u-event-id').value  = data.eventId;
+        document.getElementById('u-zone').value      = data.zone;
+        document.getElementById('u-row').value       = data.seatRow;
+        document.getElementById('u-col').value       = data.seatCol;
+        document.getElementById('u-grade').value     = data.grade;
+        document.getElementById('u-price').value     = data.price;
+        document.getElementById('u-status').value    = data.status || 'AVAILABLE';
+
+        document.getElementById('seat-update-modal').style.display = 'flex';
+      } catch { showToast('좌석 정보 조회 실패', true); }
+    };
+    window.closeUpdateModal = function () { document.getElementById('seat-update-modal').style.display = 'none'; };
+
+    window.submitUpdateSeat = async function () {
+      const seatId = document.getElementById('u-seat-id').value;
+      const price  = document.getElementById('u-price').value;
+      const status = document.getElementById('u-status').value;
+      if (!price) { showToast('가격은 필수 입력 항목입니다.', true); return; }
+
+      try {
+        const res = await Fetch(`${SEAT_URL}/update`, {
+          method: 'PUT', headers,
+          body: JSON.stringify({ updateSeatAreaConfigs: [{ id: parseInt(seatId, 10), price: parseInt(price, 10), status }] })
+        });
+        if (res.ok) {
+          showToast('좌석 정보가 수정되었습니다.');
+          closeUpdateModal();
+          loadSeatList(parseInt(document.getElementById('pagination-current').value, 10) - 1);
+        } else { showToast('수정 처리 중 오류가 발생했습니다.', true); }
+      } catch { showToast('서버 통신 실패', true); }
+    };
+
+    /* ─────────────────── 단건 삭제 ─────────────────── */
+    window.openConfirmModalFromRow = function (seatId) {
+      document.getElementById('confirm-target-id').value = seatId;
+      document.getElementById('confirm-modal').style.display = 'flex';
+    };
+    window.openSingleDeleteConfirmModal = function () {
+      document.getElementById('confirm-target-id').value = document.getElementById('u-seat-id').value;
+      document.getElementById('confirm-modal').style.display = 'flex';
+    };
+    window.closeConfirmModal = function () { document.getElementById('confirm-modal').style.display = 'none'; };
+
+    window.submitDeleteConfirm = async function () {
+      const targetId = document.getElementById('confirm-target-id').value;
+      try {
+        const res = await Fetch(`${SEAT_URL}/delete/id/${targetId}`, { method: 'DELETE', headers });
+        if (res.ok) {
+          showToast('좌석이 삭제되었습니다.');
+          closeConfirmModal(); closeUpdateModal();
+          loadSeatList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+        } else { showToast('삭제 처리에 실패했습니다.', true); }
+      } catch { showToast('통신 오류', true); }
+    };
+
+    /* ─────────────────── 검색 ─────────────────── */
+    window.triggerNormalSearch = function () {
+      const evId = document.getElementById('search-event-id').value.trim();
+      currentSearchFilters = { seatId: null, eventId: evId ? parseInt(evId, 10) : null, zone: null, seatRow: null, seatCol: null, grade: null, status: null };
+      loadSeatList(0);
+    };
+    window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
+    window.closeSearchModal = function () { document.getElementById('search-modal').style.display = 'none'; };
+
+    window.submitDetailedSearch = function () {
+      const sId = document.getElementById('cond-seat-id').value.trim();
+      const eId = document.getElementById('cond-event-id').value.trim();
+      currentSearchFilters = {
+        seatId:  sId ? parseInt(sId, 10) : null,
+        eventId: eId ? parseInt(eId, 10) : null,
+        zone:    document.getElementById('cond-zone').value.trim()     || null,
+        seatRow: document.getElementById('cond-seat-row').value ? parseInt(document.getElementById('cond-seat-row').value, 10) : null,
+        seatCol: document.getElementById('cond-seat-col').value ? parseInt(document.getElementById('cond-seat-col').value, 10) : null,
+        grade:   document.getElementById('cond-grade').value           || null,
+        status:  document.getElementById('cond-status').value          || null,
+      };
+      loadSeatList(0);
+      closeSearchModal();
+    };
+
+    /* ─────────────────── 페이지네이션 ─────────────────── */
+    window.handleSizeChange = function () { loadSeatList(0); };
+
+    window.navigatePage = function (offset) {
+      const inputEl = document.getElementById('pagination-current');
+      let curr   = parseInt(inputEl.value, 10) || 1;
+      let target = Math.min(Math.max(curr + offset, 1), serverTotalPages);
+      if (curr !== target) { inputEl.value = target; loadSeatList(target - 1); }
+    };
+
+    window.handlePageKeydown     = function (e) { if (e.key === 'Enter') { e.preventDefault(); _jump(); } };
+    window.handlePageInputChange = function ()  { _jump(); };
+
+    function _jump() {
+      const inputEl = document.getElementById('pagination-current');
+      let t = parseInt(inputEl.value, 10);
+      if (isNaN(t) || t < 1) t = 1;
+      else if (t > serverTotalPages) t = serverTotalPages;
+      inputEl.value = t;
+      loadSeatList(t - 1);
+    }
+
+    /* ─────────────────── 초기화 ─────────────────── */
+    loadSeatList(0);
+  })();
+</script>

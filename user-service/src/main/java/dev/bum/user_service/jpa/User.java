@@ -1,8 +1,9 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.user_service.enums.UserRole;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,7 +19,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_users_email", columnList = "email")
 })
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class User {
@@ -66,7 +67,7 @@ public class User {
     /**
      * InsertInfo -> Entity
      */
-    public User(InsertUserInfo info) {
+    public User(InsertUserRequest info) {
         this.userId = info.getUserId();
         this.password = info.getPassword();
         this.role = UserRole.ROLE_USER;
@@ -88,7 +89,7 @@ public class User {
     /**
      * 사용자 정보 수정
      */
-    public void updateInfo(UpdateUserInfo info) {
+    public void updateInfo(UpdateUserRequest info) {
         if (StringUtils.hasText(info.getPassword())) {
             this.password = info.getPassword();
         }
@@ -112,5 +113,21 @@ public class User {
         if (info.getIsBlacklisted() != null) {
             this.isBlacklisted = info.getIsBlacklisted();
         }
+    }
+
+    public UserResponse toResponse() {
+        return UserResponse.builder()
+                .id(this.id)
+                .userId(this.userId)
+                .role(this.role != null ? dev.bum.common.service.user.enums.UserRole.valueOf(this.role.name()) : null)
+                .name(this.name)
+                .phoneNumber(this.phoneNumber)
+                .email(this.email)
+                .birthDate(this.birthDate)
+                .address(this.address)
+                .isBlacklisted(this.isBlacklisted)
+                .createdAt(this.createdAt)
+                .updatedAt(this.updatedAt)
+                .build();
     }
 }

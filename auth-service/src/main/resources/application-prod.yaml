@@ -6,36 +6,16 @@ server:
 spring:
   application:
     name: auth-service
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    # 환경변수가 있으면 쓰고, 없으면 비워둠 (가독성 유지)
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST}
-      port: ${SPRING_DATA_REDIS_PORT}
-  kafka:
-    bootstrap-servers: ${KAFKA_SERVER}
-    consumer:
-      group-id: auth-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
-      properties:
-        spring.json.trusted.packages: "dev.bum.*"
-    admin:
-      properties:
-        auto.create.topics.enable: false
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 1209600000
 
-topic:
-  name: user-event
+services:
+  auth-service:
+    url: "http://localhost:8080"
+  user-service:
+    url: "http://localhost:8081"
+  ticket-service:
+    url: "http://localhost:8082"

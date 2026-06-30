@@ -34,7 +34,7 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final ListPath<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat> seats = this.<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat>createList("seats", dev.bum.ticket_service.jpa.seat.Seat.class, dev.bum.ticket_service.jpa.seat.QSeat.class, PathInits.DIRECT2);
 
-    public final EnumPath<dev.bum.ticket_service.enums.EventStatus> status = createEnum("status", dev.bum.ticket_service.enums.EventStatus.class);
+    public final EnumPath<dev.bum.common.service.ticket.event.enums.EventStatus> status = createEnum("status", dev.bum.common.service.ticket.event.enums.EventStatus.class);
 
     public final StringPath title = createString("title");
 

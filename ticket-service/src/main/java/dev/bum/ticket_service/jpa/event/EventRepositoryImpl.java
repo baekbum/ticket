@@ -5,12 +5,12 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.ticket_service.enums.EventStatus;
+import dev.bum.common.service.ticket.event.enums.EventStatus;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,8 +35,8 @@ public class EventRepositoryImpl implements EventRepository {
     private QEvent event;
 
     @Override
-    public Event insert(InsertEventInfo info) {
-        EventCond cond = EventCond.builder()
+    public Event insert(InsertEventRequest info) {
+        EventCondRequest cond = EventCondRequest.builder()
                 .artistName(info.getArtistName())
                 .title(info.getTitle())
                 .venue(info.getVenue())
@@ -51,7 +51,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public void isExist(EventCond cond) {
+    public void isExist(EventCondRequest cond) {
         event = QEvent.event;
 
         List<Event> content = queryFactory
@@ -78,7 +78,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public Page<Event> selectByCond(EventCond cond, Pageable pageable) {
+    public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
         event = QEvent.event;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -126,7 +126,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public Event update(Long id, UpdateEventInfo info) {
+    public Event update(Long id, UpdateEventRequest info) {
         Event event = selectById(id);
         event.update(info);
 

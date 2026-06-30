@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket - 관리자 대시보드</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<link rel="stylesheet" th:href="@{/css/dashboard/dashboard.css}">
+<link rel="stylesheet" th:href="@{/css/common/toast.css}">
+<link rel="stylesheet" th:href="@{/css/common/modal.css}">
+<link rel="stylesheet" th:href="@{/css/common/table-common.css}">
+
+<body>
+<div class="dashboard-container">
+
+  <!-- Header -->
+  <header class="dashboard-header">
+    <div class="header-left">
+      <div class="header-logo-icon"><i class="ti ti-ticket"></i></div>
+      <h1 class="header-title">Ticket</h1>
+      <span class="header-badge">Admin Console</span>
+    </div>
+    <div class="header-right">
+      <p class="header-welcome">
+        <span id="header-user-name" class="user-name-link" onclick="openMyInfoModal()">관리자</span>님 환영합니다
+      </p>
+      <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="테마 변경">
+        <i class="ti ti-moon" id="theme-toggle-icon"></i>
+      </button>
+      <button class="logout-btn" onclick="logout()">
+        <i class="ti ti-logout"></i>로그아웃
+      </button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="dashboard-layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-section-label">관리 메뉴</div>
+      <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
+        <i class="ti ti-users"></i>유저 관리
+      </button>
+      <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
+        <i class="ti ti-calendar-event"></i>이벤트 관리
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top: 1rem;">준비 중</div>
+      <button class="menu-btn disabled" data-menu="ticket" onclick="switchMenu('ticket', this)">
+        <i class="ti ti-ticket"></i>티켓 관리
+        <span class="menu-badge">Soon</span>
+      </button>
+      <button class="menu-btn disabled" data-menu="reservation" onclick="switchMenu('reservation', this)">
+        <i class="ti ti-calendar-stats"></i>예매 관리
+        <span class="menu-badge">Soon</span>
+      </button>
+    </nav>
+
+    <!-- Main -->
+    <main class="main-content" id="content-area"></main>
+  </div>
+</div>
+
+<!-- My Info Modal -->
+<div class="d-modal" id="my-info-modal">
+  <div class="d-modal-content">
+    <p class="d-modal-title">내 정보 상세 조회</p>
+    <p class="d-modal-subtitle">계정 정보를 확인하고 수정할 수 있습니다.</p>
+    <div class="d-modal-divider"></div>
+
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>아이디</label>
+        <input type="text" id="m-me-id" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>이름</label>
+        <input type="text" id="m-me-name" disabled>
+      </div>
+    </div>
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>이메일</label>
+        <input type="email" id="m-me-email" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>휴대폰 번호</label>
+        <input type="text" id="m-me-phone" disabled>
+      </div>
+    </div>
+    <div class="d-form-row">
+      <div class="d-form-group">
+        <label>생년월일</label>
+        <input type="date" id="m-me-birth" disabled>
+      </div>
+      <div class="d-form-group">
+        <label>주소</label>
+        <input type="text" id="m-me-addr" disabled>
+      </div>
+    </div>
+
+    <input type="hidden" id="m-me-role">
+
+    <div class="d-form-group" id="my-password-manage-area" style="margin-top: 0.5rem; margin-bottom: 1.25rem;">
+      <label>비밀번호 계정 관리</label>
+      <button class="d-btn d-btn-warning" style="font-size: 13.5px; padding: 11px;" onclick="openPasswordVerifyModal()">
+        <i class="ti ti-lock-open"></i> 비밀번호 확인하기
+      </button>
+    </div>
+
+    <div id="my-info-action-area" style="margin-top: 1.25rem;">
+      <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Password Verify Modal -->
+<div class="d-modal" id="my-password-modal">
+  <div class="d-modal-content">
+    <p class="d-modal-title">비밀번호 재확인</p>
+    <p class="d-modal-subtitle">안전한 계정 인증을 위해 현재 비밀번호를 입력해주세요.</p>
+    <div class="d-modal-divider"></div>
+
+    <div class="d-form-group">
+      <label>아이디</label>
+      <input type="text" id="m-verify-id" disabled>
+    </div>
+    <div class="d-form-group">
+      <label>비밀번호</label>
+      <input type="password" id="m-verify-password" placeholder="현재 비밀번호를 입력하세요" onkeydown="handleVerifyKeydown(event)">
+    </div>
+
+    <div class="d-form-row" style="margin-top: 1.25rem;">
+      <button class="d-btn d-btn-secondary" onclick="closePasswordVerifyModal()">취소</button>
+      <button class="d-btn d-btn-success" onclick="submitPasswordVerification()">
+        <i class="ti ti-shield-check"></i>확인하기
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script th:src="@{/js/common/api.js}"></script>
+<script th:src="@{/js/common/toast.js}"></script>
+<script th:src="@{/js/common/modal.js}"></script>
+<script th:src="@{/js/dashboard/dashboard.js}"></script>
+<script th:src="@{/js/dashboard/profile.js}"></script>
+</body>
+</html>

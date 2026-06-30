@@ -5,17 +5,17 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -30,7 +30,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     private final JPAQueryFactory queryFactory;
     private final UserJpaRepository jpaRepository;
-    private final BCryptPasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
     private QUser user;
 
     /**
@@ -39,7 +39,7 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public User insert(InsertUserInfo info) {
+    public User insert(InsertUserRequest info) {
         isExist(info.getUserId());
 
         // 비밀번호 암호화 작업
@@ -91,7 +91,7 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public Page<User> selectByCond(UserCond cond, Pageable pageable) {
+    public Page<User> selectByCond(UserCondRequest cond, Pageable pageable) {
         user = QUser.user;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -147,7 +147,7 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public User update(String userId, UpdateUserInfo info) {
+    public User update(String userId, UpdateUserRequest info) {
         User user = selectById(userId);
 
         if (StringUtils.hasText(info.getPassword())) {
