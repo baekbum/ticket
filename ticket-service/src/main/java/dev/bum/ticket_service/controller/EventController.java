@@ -9,8 +9,10 @@ import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RequestMapping("/api/v1/event")
@@ -20,9 +22,12 @@ public class EventController {
 
     private final EventService eventService;
 
-    @PostMapping("/insert")
-    public ResponseEntity<EventResponse> insert(@Valid @RequestBody InsertEventRequest info) {
-        return ResponseEntity.ok(eventService.insert(info));
+    @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventResponse> insert(
+            @Valid @RequestPart("event") InsertEventRequest info,
+            @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
+    ) {
+        return ResponseEntity.ok(eventService.insert(info, posterImage));
     }
 
     @GetMapping("/select/id/{eventId}")

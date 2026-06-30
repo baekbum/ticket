@@ -17,7 +17,16 @@ public class EventCondRequest {
     private String artistName;
     private String title;
     private String venue;
+    private String venueAddress;
+    private String posterUrl;
     private LocalDate eventDate;
+    private LocalDate saleStartDate;
+    private LocalDate saleEndDate;
+    private LocalDate cancelDeadlineDate;
+    private Integer runningMinutes;
+    private Integer ageLimit;
+    private Integer totalSeats;
+    private Integer availableSeats;
     private EventStatus status;
 
     @Builder.Default // 빌더 패턴을 사용해서 만들 때도 기본값을 유지
@@ -42,7 +51,16 @@ public class EventCondRequest {
         if (artistName != null) sj.add("artistName='" + artistName + "'");
         if (title != null) sj.add("title='" + title + "'");
         if (venue != null) sj.add("venue='" + venue + "'");
+        if (venueAddress != null) sj.add("venueAddress='" + venueAddress + "'");
+        if (posterUrl != null) sj.add("posterUrl='" + posterUrl + "'");
         if (eventDate != null) sj.add("eventDate=" + eventDate);
+        if (saleStartDate != null) sj.add("saleStartDate=" + saleStartDate);
+        if (saleEndDate != null) sj.add("saleEndDate=" + saleEndDate);
+        if (cancelDeadlineDate != null) sj.add("cancelDeadlineDate=" + cancelDeadlineDate);
+        if (runningMinutes != null) sj.add("runningMinutes=" + runningMinutes);
+        if (ageLimit != null) sj.add("ageLimit=" + ageLimit);
+        if (totalSeats != null) sj.add("totalSeats=" + totalSeats);
+        if (availableSeats != null) sj.add("availableSeats=" + availableSeats);
         if (status != null) sj.add("status=" + status);
 
         // 정렬 조건 필드 검증 (List 포맷팅 적용)

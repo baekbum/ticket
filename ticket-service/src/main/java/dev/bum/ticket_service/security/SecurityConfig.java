@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. 공통 인프라 통로 개방
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
 
                         // 1. Event 권한 설정
                         .requestMatchers(HttpMethod.GET, "/api/*/event/**").hasAnyRole("USER", "ADMIN") // Read는 둘 다

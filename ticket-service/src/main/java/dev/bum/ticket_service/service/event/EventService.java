@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.dto.EventResponse;
+import dev.bum.ticket_service.service.file.FileStorageService;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.common.service.ticket.event.dto.EventCondRequest;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +27,18 @@ import java.util.List;
 public class EventService {
 
     private final EventRepository repository;
+    private final FileStorageService fileStorageService;
 
     /**
      * 공연 정보 등록
      * @param info
      * @return
      */
-    public EventResponse insert(InsertEventRequest info) {
-        log.info("[INSERT] Info : {}", info.toString());
+    public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
+        String posterUrl = fileStorageService.saveEventPoster(posterImage);
+        info.setPosterUrl(posterUrl);
+
+        log.info("[INSERT WITH POSTER] Info : {}", info.toString());
 
         return repository.insert(info).toResponse();
     }

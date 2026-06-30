@@ -14,8 +14,16 @@ public class UpdateEventRequest {
     private String title;
     private String description;
     private String venue;
+    private String venueAddress;
+    private String posterUrl;
     private LocalDateTime eventDateTime;
+    private LocalDateTime saleStartAt;
+    private LocalDateTime saleEndAt;
+    private LocalDateTime cancelDeadlineAt;
+    private Integer runningMinutes;
+    private Integer ageLimit;
     private Integer totalSeats;
+    private Integer availableSeats;
     private EventStatus status;
     private Integer maxTicketsPerPerson;
 }

@@ -3,6 +3,7 @@ package dev.bum.ticket_service.jpa.event;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.service.ticket.event.enums.EventStatus;
@@ -95,12 +96,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .select(event)
                 .from(event)
                 .where(
-                        eventIdEq(cond.getEventId()),
-                        artistNameLike(cond.getArtistName()),
-                        titleLike(cond.getTitle()),
-                        venueLike(cond.getVenue()),
-                        eventDateLike(cond.getEventDate()),
-                        statusEq(cond.getStatus())
+                        searchConditions(cond)
                 )
                 .offset(pageable.getOffset()) // 오프셋 적용
                 .limit(pageable.getPageSize()) // 페이지 크기 적용
@@ -111,12 +107,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .select(event.count())
                 .from(event)
                 .where(
-                        eventIdEq(cond.getEventId()),
-                        artistNameLike(cond.getArtistName()),
-                        titleLike(cond.getTitle()),
-                        venueLike(cond.getVenue()),
-                        eventDateLike(cond.getEventDate()),
-                        statusEq(cond.getStatus())
+                        searchConditions(cond)
                 )
                 .fetchOne();
 
@@ -158,7 +149,47 @@ public class EventRepositoryImpl implements EventRepository {
         return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
     }
 
+    private BooleanExpression venueAddressLike(String venueAddress) {
+        return StringUtils.hasText(venueAddress) ? event.venueAddress.like("%" + venueAddress + "%") : null;
+    }
+
+    private BooleanExpression posterUrlLike(String posterUrl) {
+        return StringUtils.hasText(posterUrl) ? event.posterUrl.like("%" + posterUrl + "%") : null;
+    }
+
     private BooleanExpression eventDateLike(LocalDate eventDate) {
+        return dateLike(eventDate, event.eventDateTime);
+    }
+
+    private BooleanExpression saleStartDateLike(LocalDate saleStartDate) {
+        return dateLike(saleStartDate, event.saleStartAt);
+    }
+
+    private BooleanExpression saleEndDateLike(LocalDate saleEndDate) {
+        return dateLike(saleEndDate, event.saleEndAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateLike(LocalDate cancelDeadlineDate) {
+        return dateLike(cancelDeadlineDate, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression runningMinutesEq(Integer runningMinutes) {
+        return runningMinutes != null ? event.runningMinutes.eq(runningMinutes) : null;
+    }
+
+    private BooleanExpression ageLimitEq(Integer ageLimit) {
+        return ageLimit != null ? event.ageLimit.eq(ageLimit) : null;
+    }
+
+    private BooleanExpression totalSeatsEq(Integer totalSeats) {
+        return totalSeats != null ? event.totalSeats.eq(totalSeats) : null;
+    }
+
+    private BooleanExpression availableSeatsEq(Integer availableSeats) {
+        return availableSeats != null ? event.availableSeats.eq(availableSeats) : null;
+    }
+
+    private BooleanExpression dateLike(LocalDate eventDate, DateTimePath<LocalDateTime> target) {
         if (eventDate == null) {
             return null;
         }
@@ -170,10 +201,30 @@ public class EventRepositoryImpl implements EventRepository {
         LocalDateTime endOfDay = eventDate.atTime(LocalTime.MAX);
 
         // 3. DB의 eventDate가 이 범위 사이에 있는지 확인
-        return event.eventDateTime.between(startOfDay, endOfDay);
+        return target.between(startOfDay, endOfDay);
     }
 
     private BooleanExpression statusEq(EventStatus status) {
         return status != null ? event.status.eq(status) : null;
+    }
+
+    private BooleanExpression[] searchConditions(EventCondRequest cond) {
+        return new BooleanExpression[]{
+                eventIdEq(cond.getEventId()),
+                artistNameLike(cond.getArtistName()),
+                titleLike(cond.getTitle()),
+                venueLike(cond.getVenue()),
+                venueAddressLike(cond.getVenueAddress()),
+                posterUrlLike(cond.getPosterUrl()),
+                eventDateLike(cond.getEventDate()),
+                saleStartDateLike(cond.getSaleStartDate()),
+                saleEndDateLike(cond.getSaleEndDate()),
+                cancelDeadlineDateLike(cond.getCancelDeadlineDate()),
+                runningMinutesEq(cond.getRunningMinutes()),
+                ageLimitEq(cond.getAgeLimit()),
+                totalSeatsEq(cond.getTotalSeats()),
+                availableSeatsEq(cond.getAvailableSeats()),
+                statusEq(cond.getStatus())
+        };
     }
 }
