@@ -10,6 +10,16 @@ let currentSearchFilters = { eventId: null, title: null, artistName: null, venue
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
 
+function formatDigitInput(input) {
+if (!input) return;
+const raw = input.value.replace(/[^\d]/g, '');
+input.value = raw ? Number(raw).toLocaleString() : '';
+}
+
+function parseDigitInputValue(inputId) {
+return parseInt((document.getElementById(inputId).value || '').replace(/,/g, ''), 10);
+}
+
 /* ─────────────────── 다중 선택 ─────────────────── */
 let selectedIds = new Set(); // Set of ev.eventId (Number)
 
@@ -201,6 +211,7 @@ _set('m-artist-name',      ev.artistName);
 _set('m-title',            ev.title);
 _set('m-venue',            ev.venue);
 _set('m-total-seats',      ev.totalSeats);
+formatDigitInput(document.getElementById('m-total-seats'));
 _set('m-status',           ev.status || 'ON_SALE');
 _set('m-max-tickets',      String(ev.maxTicketsPerPerson || 2));
 _set('m-description-text', ev.description);
@@ -294,6 +305,7 @@ _setAllInputsState(false);
 _set('m-status',      'ON_SALE');
 _set('m-max-tickets', '2');
 _set('m-event-id',    '자동 발급');
+formatDigitInput(document.getElementById('m-total-seats'));
 _setFieldDisabled('m-event-id');
 
 const actionRow = document.getElementById('modal-action-row');
@@ -319,7 +331,7 @@ const artistVal    = document.getElementById('m-artist-name').value.trim();
 const titleVal     = document.getElementById('m-title').value.trim();
 const venueVal     = document.getElementById('m-venue').value.trim();
 const datetimeInput= document.getElementById('m-event-date-time').value;
-const seatsVal     = parseInt(document.getElementById('m-total-seats').value, 10);
+const seatsVal     = parseDigitInputValue('m-total-seats');
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
 const descVal      = document.getElementById('m-description-text').value.trim();
 
@@ -413,6 +425,9 @@ closeSearchModal();
 window.Pagination.register({
 load: loadEventList,
 getTotalPages: function () { return serverTotalPages; }
+});
+document.getElementById('m-total-seats')?.addEventListener('input', function () {
+formatDigitInput(this);
 });
 loadEventList(0);
 })();

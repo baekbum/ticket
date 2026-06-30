@@ -10,6 +10,7 @@
 <link rel="stylesheet" th:href="@{/css/dashboard/dashboard.css}">
 <link rel="stylesheet" th:href="@{/css/common/toast.css}">
 <link rel="stylesheet" th:href="@{/css/common/modal.css}">
+<link rel="stylesheet" th:href="@{/css/common/table-common.css}">
 
 <body>
 <div class="dashboard-container">
@@ -25,6 +26,9 @@
       <p class="header-welcome">
         <span id="header-user-name" class="user-name-link" onclick="openMyInfoModal()">관리자</span>님 환영합니다
       </p>
+      <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="테마 변경">
+        <i class="ti ti-moon" id="theme-toggle-icon"></i>
+      </button>
       <button class="logout-btn" onclick="logout()">
         <i class="ti ti-logout"></i>로그아웃
       </button>

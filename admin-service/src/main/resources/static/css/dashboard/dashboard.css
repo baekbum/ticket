@@ -152,6 +152,27 @@
     border-color: rgba(214,59,59,0.30);
   }
 
+  .theme-toggle-btn {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 17px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .theme-toggle-btn:hover {
+    background: var(--purple-dim);
+    color: var(--purple);
+    border-color: rgba(124,77,255,0.28);
+  }
+
   /* ── Layout ── */
   .dashboard-layout {
     display: grid;
@@ -255,6 +276,61 @@
     width: 100%;
     flex-grow: 1;
     overflow: hidden;
+  }
+
+  body.dark-mode {
+    --bg: #10111a;
+    --card-bg: #181a26;
+    --border: #303345;
+    --sidebar-active-bg: rgba(124, 77, 255, 0.20);
+    --text-primary: #f3f1ff;
+    --text-secondary: #c2bfd6;
+    --text-muted: #85829a;
+    --purple-dim: rgba(124, 77, 255, 0.16);
+    --purple-ring: rgba(124, 77, 255, 0.30);
+  }
+
+  body.dark-mode .dashboard-container,
+  body.dark-mode .dashboard-header,
+  body.dark-mode .d-modal-content,
+  body.dark-mode .f-modal-content,
+  body.dark-mode .table-wrap,
+  body.dark-mode .seat-modal-list-wrap {
+    background: var(--card-bg);
+  }
+
+  body.dark-mode .sidebar,
+  body.dark-mode .event-table th,
+  body.dark-mode .user-table th,
+  body.dark-mode .seat-inner-table th {
+    background: #151722;
+  }
+
+  body.dark-mode input,
+  body.dark-mode select,
+  body.dark-mode textarea,
+  body.dark-mode .btn-outline,
+  body.dark-mode .btn-secondary,
+  body.dark-mode .btn-page-nav,
+  body.dark-mode .page-number-viewer {
+    background: #202231 !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border) !important;
+  }
+
+  body.dark-mode .user-table td,
+  body.dark-mode .event-table td,
+  body.dark-mode .seat-inner-table td {
+    color: var(--text-primary);
+  }
+
+  body.dark-mode input::placeholder,
+  body.dark-mode textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  body.dark-mode .menu-badge {
+    background: #25283a;
   }
 
   

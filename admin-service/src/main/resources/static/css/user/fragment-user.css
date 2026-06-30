@@ -176,7 +176,6 @@
   }
 
   /* 컬럼 너비 */
-  .user-table th:nth-child(1), .user-table td:nth-child(1) { width: 15px; text-align: center; } /* checkbox */
   .user-table th:nth-child(2), .user-table td:nth-child(2) { width: 6%;  text-align: center; } /* 순서 */
   .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 16%; } /* 유저 ID */
   .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 15%; } /* 이름 */
@@ -203,15 +202,6 @@
   .user-table tbody tr:hover { background: var(--purple-dim); }
   .user-table tbody tr.selected-row { background: rgba(124,77,255,0.06); }
   .user-table tbody tr:last-child td { border-bottom: none; }
-
-  /* ── Checkbox styling ── */
-  .row-checkbox, #select-all-checkbox {
-    width: 15px;
-    height: 15px;
-    accent-color: var(--purple);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
 
   /* ── Sort ── */
   .sortable { cursor: pointer; user-select: none; transition: background 0.15s; }

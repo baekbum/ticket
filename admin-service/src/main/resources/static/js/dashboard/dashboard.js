@@ -1,5 +1,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
 
+      applySavedTheme();
+
       await loadMyProfileHeader();
 
       const defaultMenu = document.querySelector('.menu-btn[data-menu="user"]');
@@ -9,6 +11,33 @@
       }
 
   });
+
+  function applySavedTheme() {
+    const savedTheme = localStorage.getItem('adminTheme') || 'light';
+    document.body.classList.toggle('dark-mode', savedTheme === 'dark');
+    syncThemeToggleIcon();
+  }
+
+  function syncThemeToggleIcon() {
+    const icon = document.getElementById('theme-toggle-icon');
+    const button = document.getElementById('theme-toggle-btn');
+    const isDarkMode = document.body.classList.contains('dark-mode');
+
+    if (icon) {
+      icon.className = isDarkMode ? 'ti ti-sun' : 'ti ti-moon';
+    }
+
+    if (button) {
+      button.title = isDarkMode ? '일반 모드' : '다크 모드';
+      button.setAttribute('aria-label', button.title);
+    }
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('adminTheme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+    syncThemeToggleIcon();
+  }
 
   async function loadMyProfileHeader() {
     try {
@@ -136,3 +165,4 @@
   }
 
   window.switchMenu = switchMenu;
+  window.toggleTheme = toggleTheme;

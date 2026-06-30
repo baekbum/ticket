@@ -8,6 +8,12 @@ spring:
     default: local
   application:
     name: admin-service
+  thymeleaf:
+    cache: false
+  web:
+    resources:
+      cache:
+        period: 0
 
 token:
   secret: ticket-project-secret-value-is-made-by-random

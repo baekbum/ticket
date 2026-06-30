@@ -297,6 +297,16 @@
     /* ── 구역 일괄 등록 ── */
     let sbcZoneCount = 0;
 
+    function _formatDigitInput(input) {
+      if (!input) return;
+      const raw = input.value.replace(/[^\d]/g, '');
+      input.value = raw ? Number(raw).toLocaleString() : '';
+    }
+
+    function _parseDigitValue(value) {
+      return parseInt((value || '').replace(/,/g, ''), 10);
+    }
+
     function _sbcRecalc() {
       let total = 0;
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach(card => {
@@ -307,6 +317,7 @@
       });
       document.getElementById('sbc-total-count').textContent = total.toLocaleString();
     }
+    window._sbcRecalc = _sbcRecalc;
 
     function _sbcUpdateLabels() {
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach((card, i) => {
@@ -314,6 +325,7 @@
         if (el) el.textContent = `배정 구역 #${i+1}`;
       });
     }
+    window._sbcUpdateLabels = _sbcUpdateLabels;
 
     window.sbcAddZoneCard = function (data = {}) {
       const wrapper = document.getElementById('sbc-zone-wrapper');
@@ -340,7 +352,7 @@
           </div>
           <div class="zone-field"><span>행 수 (Rows)</span><input type="number" class="b-rows" placeholder="행" min="1" value="${data.rows||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>열 수 (Cols)</span><input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
-          <div class="zone-field"><span>단가 (Price)</span><input type="number" class="b-price" placeholder="원" min="0" value="${data.price||''}" required style="text-align:right;"></div>
+          <div class="zone-field"><span>단가 (Price)</span><input type="text" class="b-price" placeholder="원" inputmode="numeric" value="${data.price ? Number(data.price).toLocaleString() : ''}" required style="text-align:right;" oninput="_sbcFormatPrice(this)"></div>
         </div>
         <div class="zone-preview-chip">
           <i class="ti ti-armchair" style="color:var(--purple);"></i>이 구역: <strong class="zone-seat-count">0</strong>석
@@ -348,15 +360,16 @@
       `;
       wrapper.appendChild(div);
       _sbcUpdateLabels();
-      if (data.rows && data.cols) _sbcRecalc();
+      _sbcRecalc();
     };
+    window._sbcFormatPrice = _formatDigitInput;
 
     window.openSeatBulkCreatePanel = function () {
       document.getElementById('sbc-subtitle').textContent = `이벤트 ID ${smEventId}에 좌석 구역을 일괄 등록합니다.`;
       const wrapper = document.getElementById('sbc-zone-wrapper');
       wrapper.innerHTML = '';
       sbcAddZoneCard({ zone: 'Floor A',   grade: 'VIP', rows: 10, cols: 10, price: 168000 });
-      sbcAddZoneCard({ zone: '1층 1구역', grade: 'R',   rows: 12, cols: 15, price: 145000 });
+      _sbcRecalc();
       document.getElementById('seat-bulk-create-modal').style.display = 'flex';
     };
     window.closeSeatBulkCreateModal = function () {
@@ -373,7 +386,7 @@
         const cols  = card.querySelector('.b-cols').value;
         const price = card.querySelector('.b-price').value;
         if (!zone||!rows||!cols||!price) { valid = false; return; }
-        configs.push({ grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), price: parseInt(price,10) });
+        configs.push({ grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), price: _parseDigitValue(price) });
       });
       if (!valid) { showToast('모든 구역 항목을 빠짐없이 입력해주세요.', true); return; }
       const totalSeats = configs.reduce((s,c) => s + c.rows*c.cols, 0);

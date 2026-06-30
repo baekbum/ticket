@@ -35,6 +35,16 @@
 <!-- ── Table ── -->
 <div class="table-wrap">
   <table class="event-table">
+    <colgroup>
+      <col class="table-checkbox-col">
+      <col style="width:5%;">
+      <col style="width:8%;">
+      <col style="width:12%;">
+      <col style="width:26%;">
+      <col style="width:15%;">
+      <col style="width:8%;">
+      <col style="width:16%;">
+    </colgroup>
     <thead>
     <tr>
       <th style="text-align:center;">
@@ -140,7 +150,7 @@
       </div>
       <div class="form-group">
         <label>전체 배정 좌석수</label>
-        <input type="number" id="m-total-seats" placeholder="ex) 15000" min="1">
+        <input type="text" id="m-total-seats" placeholder="ex) 15,000" inputmode="numeric">
       </div>
     </div>
     <div class="form-row">
@@ -287,6 +297,17 @@
     <!-- 좌석 테이블 -->
     <div class="seat-modal-list-wrap">
       <table class="seat-inner-table">
+        <colgroup>
+          <col class="table-checkbox-col">
+          <col style="width:6%;">
+          <col style="width:18%;">
+          <col style="width:6%;">
+          <col style="width:6%;">
+          <col style="width:14%;">
+          <col style="width:7%;">
+          <col style="width:12%;">
+          <col style="width:12%;">
+        </colgroup>
         <thead>
         <tr>
           <th style="text-align:center;"><input type="checkbox" id="sm-select-all" onclick="smToggleAll(this)" style="width:14px;height:14px;accent-color:var(--purple);cursor:pointer;"></th>
@@ -305,20 +326,24 @@
     </div>
 
     <!-- 페이지네이션 -->
-    <div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-top:0.75rem; flex-shrink:0;">
-      <button class="btn-page-nav" onclick="smNavigatePage(-1)">‹</button>
-      <span style="font-size:12px; color:var(--text-secondary);">
+    <div class="seat-modal-pagination">
+      <button class="btn-page-nav" onclick="smNavigatePage(-5)" title="5페이지 앞">«</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(-1)" title="이전">‹</button>
+      <div class="page-number-viewer">
         <input type="number" id="sm-page-current" value="1" min="1"
-               style="width:38px; padding:4px; border:1px solid var(--border); border-radius:6px; text-align:center; font-size:12px; outline:none;"
                onkeydown="if(event.key==='Enter'){smJump();}" onchange="smJump()">
-        / <span id="sm-page-total" style="font-weight:600; color:var(--text-primary);">1</span>
-      </span>
-      <button class="btn-page-nav" onclick="smNavigatePage(1)">›</button>
-      <select id="sm-page-size" onchange="loadSeatMgmtList(0)" style="padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; background:#fafafa; outline:none; margin-left:6px;">
-        <option value="10" selected>10개</option>
-        <option value="20">20개</option>
-        <option value="50">50개</option>
-      </select>
+        <span style="color:var(--text-muted);">/</span>
+        <span id="sm-page-total" style="font-weight:600; color:var(--text-primary);">1</span>
+      </div>
+      <button class="btn-page-nav" onclick="smNavigatePage(1)" title="다음">›</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(5)" title="5페이지 뒤">»</button>
+      <div class="page-size-selector">
+        <select id="sm-page-size" onchange="loadSeatMgmtList(0)">
+          <option value="10" selected>10개</option>
+          <option value="20">20개</option>
+          <option value="50">50개</option>
+        </select>
+      </div>
     </div>
 
     <!-- 하단 -->

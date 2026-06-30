@@ -173,7 +173,6 @@
   }
 
   /* 컬럼 너비 — [수정][삭제][좌석] 3버튼 대응 */
-  .event-table th:nth-child(1), .event-table td:nth-child(1) { width: 15px; text-align: center; } /* checkbox */
   .event-table th:nth-child(2), .event-table td:nth-child(2) { width: 5%;  text-align: center; } /* 순서 */
   .event-table th:nth-child(3), .event-table td:nth-child(3) { width: 8%;  } /* 이벤트 ID */
   .event-table th:nth-child(4), .event-table td:nth-child(4) { width: 12%; } /* 아티스트 */
@@ -349,14 +348,6 @@
   .event-table tbody tr:hover { background: var(--purple-dim); }
   .event-table tbody tr.selected-row { background: rgba(124,77,255,0.06); }
   .event-table tbody tr:last-child td { border-bottom: none; }
-
-  /* ── Checkbox ── */
-  .row-checkbox, #select-all-checkbox {
-    width: 15px;
-    height: 15px;
-    accent-color: var(--purple);
-    cursor: pointer;
-  }
 
   /* ── Sort ── */
   .sortable { cursor: pointer; user-select: none; transition: background 0.15s; }
