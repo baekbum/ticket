@@ -37,13 +37,23 @@
   <table class="event-table">
     <colgroup>
       <col class="table-checkbox-col">
-      <col style="width:5%;">
-      <col style="width:8%;">
-      <col style="width:12%;">
-      <col style="width:26%;">
-      <col style="width:15%;">
-      <col style="width:8%;">
-      <col style="width:16%;">
+      <col style="width:60px;">
+      <col style="width:90px;">
+      <col style="width:90px;">
+      <col style="width:120px;">
+      <col style="width:220px;">
+      <col style="width:120px;">
+      <col style="width:220px;">
+      <col style="width:150px;">
+      <col style="width:150px;">
+      <col style="width:150px;">
+      <col style="width:150px;">
+      <col style="width:90px;">
+      <col style="width:80px;">
+      <col style="width:100px;">
+      <col style="width:100px;">
+      <col style="width:90px;">
+      <col style="width:190px;">
     </colgroup>
     <thead>
     <tr>
@@ -51,10 +61,20 @@
         <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this)" title="전체 선택">
       </th>
       <th>순서</th>
+      <th>포스터</th>
       <th class="sortable" data-sort-field="eventId"    onclick="handleSortClick(this, event)">이벤트 ID <i class="sort-icon">↕</i></th>
       <th class="sortable" data-sort-field="artistName" onclick="handleSortClick(this, event)">아티스트 <i class="sort-icon">↕</i></th>
       <th class="sortable" data-sort-field="title"      onclick="handleSortClick(this, event)">공연 타이틀 <i class="sort-icon">↕</i></th>
+      <th>장소</th>
+      <th>주소</th>
       <th>공연 일시</th>
+      <th>판매 시작</th>
+      <th>판매 종료</th>
+      <th>취소 마감</th>
+      <th>공연 시간</th>
+      <th>연령</th>
+      <th>총 좌석</th>
+      <th>잔여석</th>
       <th>상태</th>
       <th class="actions">관리</th>
     </tr>
@@ -67,7 +87,7 @@
 
 <!-- ── 상세 검색 모달 ── -->
 <div class="f-modal" id="search-modal">
-  <div class="f-modal-content">
+  <div class="f-modal-content" style="max-width:760px;">
     <p class="modal-title">상세 검색 조건</p>
     <p class="modal-subtitle">원하는 조건을 조합해 공연을 검색합니다.</p>
     <div class="modal-divider"></div>
@@ -93,6 +113,16 @@
     </div>
     <div class="form-row">
       <div class="form-group">
+        <label>공연장 주소</label>
+        <input type="text" id="cond-venueAddress" placeholder="주소 입력">
+      </div>
+      <div class="form-group">
+        <label>포스터 URL</label>
+        <input type="text" id="cond-posterUrl" placeholder="포스터 경로 입력">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>공연 개최일</label>
         <input type="date" id="cond-eventDate">
       </div>
@@ -106,6 +136,43 @@
         </select>
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>판매 시작일</label>
+        <input type="date" id="cond-saleStartDate">
+      </div>
+      <div class="form-group">
+        <label>판매 종료일</label>
+        <input type="date" id="cond-saleEndDate">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>취소 마감일</label>
+        <input type="date" id="cond-cancelDeadlineDate">
+      </div>
+      <div class="form-group">
+        <label>공연 시간(분)</label>
+        <input type="number" id="cond-runningMinutes" min="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>관람 연령</label>
+        <input type="number" id="cond-ageLimit" min="0">
+      </div>
+      <div class="form-group">
+        <label>총 좌석</label>
+        <input type="number" id="cond-totalSeats" min="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>잔여석</label>
+        <input type="number" id="cond-availableSeats" min="0">
+      </div>
+      <div class="form-group"></div>
+    </div>
     <div class="form-row" style="margin-top:1.25rem;">
       <button class="btn btn-secondary" onclick="closeSearchModal()">취소</button>
       <button class="btn" onclick="submitDetailedSearch()"><i class="ti ti-search"></i>이 조건으로 검색</button>
@@ -115,7 +182,7 @@
 
 <!-- ── 공연 등록/수정/조회 모달 ── -->
 <div class="f-modal" id="event-modal">
-  <div class="f-modal-content">
+  <div class="f-modal-content" style="max-width:820px;">
     <p class="modal-title" id="modal-title">공연 상세 정보</p>
     <p class="modal-subtitle" id="modal-subtitle">정보를 수정한 뒤 저장 버튼을 눌러주세요.</p>
     <div class="modal-divider"></div>
@@ -145,12 +212,56 @@
     </div>
     <div class="form-row">
       <div class="form-group">
+        <label>공연장 주소</label>
+        <input type="text" id="m-venue-address" placeholder="ex) 서울특별시 송파구 올림픽로 424">
+      </div>
+      <div class="form-group">
+        <label>포스터 이미지</label>
+        <input type="file" id="m-poster-image" accept="image/jpeg,image/png,image/webp">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>포스터 URL</label>
+      <input type="text" id="m-poster-url" placeholder="서버 저장 후 자동 입력">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>공연 일정</label>
         <input type="datetime-local" id="m-event-date-time">
       </div>
       <div class="form-group">
         <label>전체 배정 좌석수</label>
         <input type="text" id="m-total-seats" placeholder="ex) 15,000" inputmode="numeric">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>판매 시작</label>
+        <input type="datetime-local" id="m-sale-start-at">
+      </div>
+      <div class="form-group">
+        <label>판매 종료</label>
+        <input type="datetime-local" id="m-sale-end-at">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>취소 마감</label>
+        <input type="datetime-local" id="m-cancel-deadline-at">
+      </div>
+      <div class="form-group">
+        <label>잔여석</label>
+        <input type="text" id="m-available-seats" placeholder="자동 계산" inputmode="numeric">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>공연 시간(분)</label>
+        <input type="number" id="m-running-minutes" min="1" placeholder="ex) 150">
+      </div>
+      <div class="form-group">
+        <label>관람 연령</label>
+        <input type="number" id="m-age-limit" min="0" placeholder="ex) 8">
       </div>
     </div>
     <div class="form-row">

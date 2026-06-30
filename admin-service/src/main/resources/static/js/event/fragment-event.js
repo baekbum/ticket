@@ -1,12 +1,18 @@
 (function () {
 const API = { VERSION: 'v1', LOCAL_PORT: '8999', DEV_PORT: '8080' };
 const BASE_URL  = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
+const TICKET_PUBLIC_BASE_URL = window.location.port === API.LOCAL_PORT ? 'http://localhost:8082' : '';
 const EVENT_URL = `${BASE_URL}/api/${API.VERSION}/event`;
 const SEAT_URL  = `${BASE_URL}/api/${API.VERSION}/seat`;
 const headers   = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
+const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
 let currentEventList    = [];
-let currentSearchFilters = { eventId: null, title: null, artistName: null, venue: null, eventDate: null, status: null };
+let currentSearchFilters = {
+eventId: null, title: null, artistName: null, venue: null, venueAddress: null, posterUrl: null,
+eventDate: null, saleStartDate: null, saleEndDate: null, cancelDeadlineDate: null,
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+};
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
 
@@ -17,7 +23,23 @@ input.value = raw ? Number(raw).toLocaleString() : '';
 }
 
 function parseDigitInputValue(inputId) {
-return parseInt((document.getElementById(inputId).value || '').replace(/,/g, ''), 10);
+const el = document.getElementById(inputId);
+return parseInt((el?.value || '').replace(/,/g, ''), 10);
+}
+
+function inputValue(id) {
+return document.getElementById(id)?.value?.trim() || '';
+}
+
+function nullableNumber(id) {
+const value = inputValue(id);
+return value ? parseInt(value.replace(/,/g, ''), 10) : null;
+}
+
+function resolvePosterUrl(url) {
+if (!url) return '';
+if (/^https?:\/\//i.test(url)) return url;
+return `${TICKET_PUBLIC_BASE_URL}${url}`;
 }
 
 /* ─────────────────── 다중 선택 ─────────────────── */
@@ -118,7 +140,16 @@ if (currentSearchFilters.eventId    !== null) cond.eventId    = currentSearchFil
 if (currentSearchFilters.title      !== null) cond.title      = currentSearchFilters.title;
 if (currentSearchFilters.artistName !== null) cond.artistName = currentSearchFilters.artistName;
 if (currentSearchFilters.venue      !== null) cond.venue      = currentSearchFilters.venue;
+if (currentSearchFilters.venueAddress !== null) cond.venueAddress = currentSearchFilters.venueAddress;
+if (currentSearchFilters.posterUrl !== null) cond.posterUrl = currentSearchFilters.posterUrl;
 if (currentSearchFilters.eventDate  !== null) cond.eventDate  = currentSearchFilters.eventDate;
+if (currentSearchFilters.saleStartDate !== null) cond.saleStartDate = currentSearchFilters.saleStartDate;
+if (currentSearchFilters.saleEndDate !== null) cond.saleEndDate = currentSearchFilters.saleEndDate;
+if (currentSearchFilters.cancelDeadlineDate !== null) cond.cancelDeadlineDate = currentSearchFilters.cancelDeadlineDate;
+if (currentSearchFilters.runningMinutes !== null) cond.runningMinutes = currentSearchFilters.runningMinutes;
+if (currentSearchFilters.ageLimit !== null) cond.ageLimit = currentSearchFilters.ageLimit;
+if (currentSearchFilters.totalSeats !== null) cond.totalSeats = currentSearchFilters.totalSeats;
+if (currentSearchFilters.availableSeats !== null) cond.availableSeats = currentSearchFilters.availableSeats;
 if (currentSearchFilters.status     !== null) cond.status     = currentSearchFilters.status;
 
 try {
@@ -159,10 +190,20 @@ tr.innerHTML = `
          onclick="event.stopPropagation(); toggleRowCheckbox(this, ${ev.eventId})">
 </td>
 <td style="text-align:center; color:var(--text-muted); font-size:12px;">${rowOrder}</td>
+<td>${ev.posterUrl ? `<img class="event-poster-thumb" src="${resolvePosterUrl(ev.posterUrl)}" alt="">` : ''}</td>
 <td><strong style="color:var(--text-primary);">${ev.eventId}</strong></td>
 <td>${ev.artistName}</td>
 <td style="color:var(--text-primary); font-weight:500;">${ev.title}</td>
+<td>${ev.venue || ''}</td>
+<td title="${ev.venueAddress || ''}">${ev.venueAddress || ''}</td>
 <td style="color:var(--text-secondary); font-size:12px;">${ev.eventDateTime || ''}</td>
+<td style="color:var(--text-secondary); font-size:12px;">${ev.saleStartAt || ''}</td>
+<td style="color:var(--text-secondary); font-size:12px;">${ev.saleEndAt || ''}</td>
+<td style="color:var(--text-secondary); font-size:12px;">${ev.cancelDeadlineAt || ''}</td>
+<td>${ev.runningMinutes != null ? ev.runningMinutes + '분' : ''}</td>
+<td>${ev.ageLimit != null ? ev.ageLimit + '+' : ''}</td>
+<td>${ev.totalSeats != null ? Number(ev.totalSeats).toLocaleString() : ''}</td>
+<td>${ev.availableSeats != null ? Number(ev.availableSeats).toLocaleString() : ''}</td>
 <td>${statusHtml}</td>
 <td class="actions">
   <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
@@ -210,12 +251,23 @@ _set('m-event-id',         ev.eventId);
 _set('m-artist-name',      ev.artistName);
 _set('m-title',            ev.title);
 _set('m-venue',            ev.venue);
+_set('m-venue-address',    ev.venueAddress);
+_set('m-poster-url',       ev.posterUrl);
 _set('m-total-seats',      ev.totalSeats);
 formatDigitInput(document.getElementById('m-total-seats'));
+_set('m-available-seats',  ev.availableSeats);
+formatDigitInput(document.getElementById('m-available-seats'));
 _set('m-status',           ev.status || 'ON_SALE');
 _set('m-max-tickets',      String(ev.maxTicketsPerPerson || 2));
 _set('m-description-text', ev.description);
 _set('m-event-date-time',  formatToDatetimeLocal(ev.eventDateTime));
+_set('m-sale-start-at',    formatToDatetimeLocal(ev.saleStartAt));
+_set('m-sale-end-at',      formatToDatetimeLocal(ev.saleEndAt));
+_set('m-cancel-deadline-at', formatToDatetimeLocal(ev.cancelDeadlineAt));
+_set('m-running-minutes',  ev.runningMinutes);
+_set('m-age-limit',        ev.ageLimit);
+const posterInput = document.getElementById('m-poster-image');
+if (posterInput) posterInput.value = '';
 }
 
 function _set(id, val) {
@@ -278,6 +330,7 @@ document.getElementById('modal-subtitle').textContent = '정보를 수정한 뒤
 _setAllInputsState(false);
 _setFieldDisabled('m-event-id');
 _bindEventToModal(ev);
+_setFieldDisabled('m-poster-image');
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -301,12 +354,20 @@ document.getElementById('modal-subtitle').textContent = '새로운 공연 일정
 
 _setAllInputsState(false);
 
-['m-target-id','m-artist-name','m-title','m-venue','m-event-date-time','m-total-seats','m-description-text'].forEach(id => _set(id, ''));
+[
+'m-target-id','m-artist-name','m-title','m-venue','m-venue-address','m-poster-url','m-event-date-time',
+'m-sale-start-at','m-sale-end-at','m-cancel-deadline-at','m-total-seats','m-available-seats',
+'m-running-minutes','m-age-limit','m-description-text'
+].forEach(id => _set(id, ''));
+const posterInput = document.getElementById('m-poster-image');
+if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
 _set('m-max-tickets', '2');
 _set('m-event-id',    '자동 발급');
 formatDigitInput(document.getElementById('m-total-seats'));
 _setFieldDisabled('m-event-id');
+_setFieldDisabled('m-poster-url');
+_setFieldDisabled('m-available-seats');
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -330,31 +391,61 @@ const mode         = document.getElementById('m-modal-mode').value;
 const artistVal    = document.getElementById('m-artist-name').value.trim();
 const titleVal     = document.getElementById('m-title').value.trim();
 const venueVal     = document.getElementById('m-venue').value.trim();
+const venueAddressVal = document.getElementById('m-venue-address').value.trim();
+const posterUrlVal = document.getElementById('m-poster-url').value.trim();
 const datetimeInput= document.getElementById('m-event-date-time').value;
+const saleStartInput = document.getElementById('m-sale-start-at').value;
+const saleEndInput = document.getElementById('m-sale-end-at').value;
+const cancelDeadlineInput = document.getElementById('m-cancel-deadline-at').value;
 const seatsVal     = parseDigitInputValue('m-total-seats');
+const availableSeatsVal = parseDigitInputValue('m-available-seats');
+const runningMinutesVal = parseInt(document.getElementById('m-running-minutes').value, 10);
+const ageLimitVal = parseInt(document.getElementById('m-age-limit').value, 10);
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
 const descVal      = document.getElementById('m-description-text').value.trim();
 
-if (!artistVal || !titleVal || !venueVal || !datetimeInput) {
+if (!artistVal || !titleVal || !venueVal || !venueAddressVal || !datetimeInput || !saleStartInput || !saleEndInput || !cancelDeadlineInput) {
 showToast('필수 항목을 모두 입력해 주세요.', true); return;
 }
 if (!seatsVal || seatsVal <= 0) {
 showToast('배정 좌석수는 1석 이상이어야 합니다.', true); return;
 }
+if (!runningMinutesVal || runningMinutesVal <= 0 || Number.isNaN(ageLimitVal) || ageLimitVal < 0) {
+showToast('공연 시간과 관람 연령을 확인해 주세요.', true); return;
+}
 
 const body = {
-artistName: artistVal, title: titleVal, venue: venueVal,
+artistName: artistVal, title: titleVal, venue: venueVal, venueAddress: venueAddressVal,
+posterUrl: posterUrlVal || null,
 eventDateTime: datetimeInput + ':00',
+saleStartAt: saleStartInput + ':00',
+saleEndAt: saleEndInput + ':00',
+cancelDeadlineAt: cancelDeadlineInput + ':00',
+runningMinutes: runningMinutesVal,
+ageLimit: ageLimitVal,
 totalSeats: seatsVal, maxTicketsPerPerson: maxTicketsVal,
 description: descVal
 };
 
 const url    = mode === 'CREATE' ? `${EVENT_URL}/insert` : `${EVENT_URL}/update/id/${document.getElementById('m-target-id').value}`;
 const method = mode === 'CREATE' ? 'POST' : 'PUT';
-if (mode !== 'CREATE') body.status = document.getElementById('m-status').value;
+if (mode !== 'CREATE') {
+body.status = document.getElementById('m-status').value;
+if (!Number.isNaN(availableSeatsVal)) body.availableSeats = availableSeatsVal;
+}
 
 try {
-const res = await Fetch(url, { method, headers, body: JSON.stringify(body) });
+let requestOptions;
+if (mode === 'CREATE') {
+const formData = new FormData();
+formData.append('event', new Blob([JSON.stringify(body)], { type: 'application/json' }));
+const posterFile = document.getElementById('m-poster-image')?.files?.[0];
+if (posterFile) formData.append('posterImage', posterFile);
+requestOptions = { method, headers: authHeaders, body: formData };
+} else {
+requestOptions = { method, headers, body: JSON.stringify(body) };
+}
+const res = await Fetch(url, requestOptions);
 if (res.ok) {
 showToast(mode === 'CREATE' ? '성공적으로 등록되었습니다.' : '성공적으로 수정되었습니다.');
 closeModal();
@@ -401,7 +492,11 @@ else         { showToast('웜업 실패: 백엔드 처리 중 오류가 발생�
 
 /* ─────────────────── 검색 ─────────────────── */
 window.triggerNormalSearch = function () {
-currentSearchFilters = { eventId: null, title: document.getElementById('search-id').value.trim() || null, artistName: null, venue: null, eventDate: null, status: null };
+currentSearchFilters = {
+eventId: null, title: document.getElementById('search-id').value.trim() || null, artistName: null,
+venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
+cancelDeadlineDate: null, runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+};
 loadEventList(0);
 };
 window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
@@ -414,7 +509,16 @@ eventId:    eventIdRaw ? parseInt(eventIdRaw, 10) : null,
 title:      document.getElementById('cond-title').value.trim()      || null,
 artistName: document.getElementById('cond-artistName').value.trim() || null,
 venue:      document.getElementById('cond-venue').value.trim()      || null,
+venueAddress: document.getElementById('cond-venueAddress').value.trim() || null,
+posterUrl: document.getElementById('cond-posterUrl').value.trim() || null,
 eventDate:  document.getElementById('cond-eventDate').value         || null,
+saleStartDate: document.getElementById('cond-saleStartDate').value || null,
+saleEndDate: document.getElementById('cond-saleEndDate').value || null,
+cancelDeadlineDate: document.getElementById('cond-cancelDeadlineDate').value || null,
+runningMinutes: nullableNumber('cond-runningMinutes'),
+ageLimit: nullableNumber('cond-ageLimit'),
+totalSeats: nullableNumber('cond-totalSeats'),
+availableSeats: nullableNumber('cond-availableSeats'),
 status:     document.getElementById('cond-status').value            || null,
 };
 loadEventList(0);
@@ -427,6 +531,9 @@ load: loadEventList,
 getTotalPages: function () { return serverTotalPages; }
 });
 document.getElementById('m-total-seats')?.addEventListener('input', function () {
+formatDigitInput(this);
+});
+document.getElementById('m-available-seats')?.addEventListener('input', function () {
 formatDigitInput(this);
 });
 loadEventList(0);
