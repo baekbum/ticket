@@ -1,5 +1,7 @@
 package dev.bum.ticket_service.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.ticket_service.service.event.EventService;
@@ -21,13 +23,14 @@ import org.springframework.web.multipart.MultipartFile;
 public class EventController {
 
     private final EventService eventService;
+    private final ObjectMapper objectMapper;
 
     @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventResponse> insert(
-            @Valid @RequestPart("event") InsertEventRequest info,
+            @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventService.insert(info, posterImage));
+        return ResponseEntity.ok(eventService.insert(readEvent(event, InsertEventRequest.class), posterImage));
     }
 
     @GetMapping("/select/id/{eventId}")
@@ -40,7 +43,7 @@ public class EventController {
         return ResponseEntity.ok(eventService.selectByCond(cond));
     }
 
-    @PutMapping("/update/id/{eventId}")
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<EventResponse> update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info) {
         return ResponseEntity.ok(eventService.update(eventId, info));
     }
@@ -48,14 +51,22 @@ public class EventController {
     @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventResponse> update(
             @PathVariable("eventId") Long eventId,
-            @Valid @RequestPart("event") UpdateEventRequest info,
+            @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventService.update(eventId, info, posterImage));
+        return ResponseEntity.ok(eventService.update(eventId, readEvent(event, UpdateEventRequest.class), posterImage));
     }
 
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventService.delete(eventId));
+    }
+
+    private <T> T readEvent(String event, Class<T> type) {
+        try {
+            return objectMapper.readValue(event, type);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid event payload.", e);
+        }
     }
 }

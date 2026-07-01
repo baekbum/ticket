@@ -1,5 +1,7 @@
 package dev.bum.admin_service.controller.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.feign.event.EventServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.dto.EventCondRequest;
@@ -21,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminEventController {
 
     private final EventServiceClient eventServiceClient;
+    private final ObjectMapper objectMapper;
 
     /**
      * 이벤트 등록 기능
@@ -32,7 +35,7 @@ public class AdminEventController {
             @Valid @RequestPart("event") InsertEventRequest info,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventServiceClient.insert(info, posterImage));
+        return ResponseEntity.ok(eventServiceClient.insert(toJson(info), posterImage));
     }
 
     /**
@@ -61,7 +64,7 @@ public class AdminEventController {
      * @param info
      * @return
      */
-    @PutMapping("/update/id/{eventId}")
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<EventResponse> update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info) {
         return ResponseEntity.ok(eventServiceClient.update(eventId, info));
     }
@@ -72,7 +75,7 @@ public class AdminEventController {
             @Valid @RequestPart("event") UpdateEventRequest info,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventServiceClient.update(eventId, info, posterImage));
+        return ResponseEntity.ok(eventServiceClient.update(eventId, toJson(info), posterImage));
     }
 
     /**
@@ -83,5 +86,13 @@ public class AdminEventController {
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventServiceClient.delete(eventId));
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid event payload.", e);
+        }
     }
 }

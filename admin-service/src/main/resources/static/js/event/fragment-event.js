@@ -5,7 +5,6 @@ const TICKET_PUBLIC_BASE_URL = window.location.port === API.LOCAL_PORT ? 'http:/
 const EVENT_URL = `${BASE_URL}/api/${API.VERSION}/event`;
 const SEAT_URL  = `${BASE_URL}/api/${API.VERSION}/seat`;
 const headers   = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
-const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
 let currentEventList    = [];
 let currentSearchFilters = {
@@ -40,6 +39,11 @@ function resolvePosterUrl(url) {
 if (!url) return '';
 if (/^https?:\/\//i.test(url)) return url;
 return `${TICKET_PUBLIC_BASE_URL}${url}`;
+}
+
+function authOnlyHeaders() {
+const token = localStorage.getItem('accessToken');
+return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
 /* ─────────────────── 다중 선택 ─────────────────── */
@@ -317,7 +321,6 @@ _setAllInputsState(true);
 _bindEventToModal(ev);
 
 document.getElementById('btn-modal-submit').style.display     = 'none';
-document.getElementById('btn-modal-delete').style.display     = 'none';
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'block';
@@ -348,7 +351,6 @@ actionRow.style.gridTemplateColumns = 'repeat(2, 1fr)';
 
 document.getElementById('btn-modal-submit').textContent = '변경사항 저장';
 document.getElementById('btn-modal-submit').style.display   = 'block';
-document.getElementById('btn-modal-delete').style.display   = 'block';
 
 const cancelBtn = document.querySelector('#event-modal .btn-secondary');
 if (cancelBtn) { cancelBtn.textContent = '취소'; cancelBtn.style.width = 'auto'; }
@@ -385,7 +387,6 @@ actionRow.style.gridTemplateColumns = 'repeat(2, 1fr)';
 
 document.getElementById('btn-modal-submit').textContent       = '신규 오픈 등록하기';
 document.getElementById('btn-modal-submit').style.display     = 'block';
-document.getElementById('btn-modal-delete').style.display     = 'none';
 
 const cancelBtn = document.querySelector('#event-modal .btn-secondary');
 if (cancelBtn) { cancelBtn.textContent = '취소'; cancelBtn.style.width = 'auto'; }
@@ -451,7 +452,7 @@ if (mode === 'CREATE' || posterFile) {
 const formData = new FormData();
 formData.append('event', new Blob([JSON.stringify(body)], { type: 'application/json' }));
 if (posterFile) formData.append('posterImage', posterFile);
-requestOptions = { method, headers: authHeaders, body: formData };
+requestOptions = { method, headers: authOnlyHeaders(), body: formData };
 } else {
 requestOptions = { method, headers, body: JSON.stringify(body) };
 }
@@ -467,10 +468,6 @@ loadEventList(mode === 'CREATE' ? 0 : parseInt(document.getElementById('paginati
 /* ─────────────────── 단건 삭제 ─────────────────── */
 window.openConfirmModalFromRow = function (id) {
 document.getElementById('confirm-target-id').value = id;
-document.getElementById('confirm-modal').style.display = 'flex';
-};
-window.openConfirmModalFromModal = function () {
-document.getElementById('confirm-target-id').value = document.getElementById('m-target-id').value;
 document.getElementById('confirm-modal').style.display = 'flex';
 };
 window.closeConfirmModal = function () { document.getElementById('confirm-modal').style.display = 'none'; };

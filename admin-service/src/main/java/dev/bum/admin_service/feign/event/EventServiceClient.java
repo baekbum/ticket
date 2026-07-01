@@ -16,7 +16,7 @@ public interface EventServiceClient {
 
     @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     EventResponse insert(
-            @Valid @RequestPart("event") InsertEventRequest info,
+            @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     );
 
@@ -26,17 +26,16 @@ public interface EventServiceClient {
     @PostMapping("/select")
     CustomPageResponse<EventResponse> selectByCond(@RequestBody EventCondRequest cond);
 
-    @PutMapping("/update/id/{eventId}")
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     EventResponse update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info);
 
     @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     EventResponse update(
             @PathVariable("eventId") Long eventId,
-            @Valid @RequestPart("event") UpdateEventRequest info,
+            @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     );
 
     @DeleteMapping("/delete/id/{eventId}")
     EventResponse delete(@PathVariable("eventId") Long eventId);
 }
-
