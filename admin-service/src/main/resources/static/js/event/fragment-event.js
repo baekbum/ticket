@@ -414,6 +414,21 @@ const runningMinutesVal = parseInt(document.getElementById('m-running-minutes').
 const ageLimitVal = parseInt(document.getElementById('m-age-limit').value, 10);
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
 const descVal      = document.getElementById('m-description-text').value.trim();
+const posterFile = document.getElementById('m-poster-image')?.files?.[0];
+const missingFields = [];
+if (!artistVal) missingFields.push('아티스트');
+if (!titleVal) missingFields.push('공연 타이틀');
+if (!venueVal) missingFields.push('개최 장소');
+if (!venueAddressVal) missingFields.push('공연장 주소');
+if (!datetimeInput) missingFields.push('공연 일정');
+if (!saleStartInput) missingFields.push('판매 시작');
+if (!saleEndInput) missingFields.push('판매 종료');
+if (!cancelDeadlineInput) missingFields.push('취소 마감');
+if (mode === 'CREATE' && !posterFile) missingFields.push('포스터 이미지');
+
+if (missingFields.length > 0) {
+showToast(`필수 항목을 입력해 주세요: ${missingFields.join(', ')}`, true); return;
+}
 
 if (!artistVal || !titleVal || !venueVal || !venueAddressVal || !datetimeInput || !saleStartInput || !saleEndInput || !cancelDeadlineInput) {
 showToast('필수 항목을 모두 입력해 주세요.', true); return;
@@ -447,7 +462,6 @@ if (!Number.isNaN(availableSeatsVal)) body.availableSeats = availableSeatsVal;
 
 try {
 let requestOptions;
-const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 if (mode === 'CREATE' || posterFile) {
 const formData = new FormData();
 formData.append('event', new Blob([JSON.stringify(body)], { type: 'application/json' }));
