@@ -124,7 +124,15 @@
     <div class="form-row">
       <div class="form-group">
         <label>공연 개최일</label>
-        <input type="date" id="cond-eventDate">
+        <div class="date-search-control date-mode" id="cond-eventDate-control">
+          <select id="cond-eventDate-mode">
+            <option value="date">날짜</option>
+            <option value="range">기간</option>
+          </select>
+          <input type="date" id="cond-eventDate-from">
+          <span class="date-range-separator">~</span>
+          <input type="date" id="cond-eventDate-to">
+        </div>
       </div>
       <div class="form-group">
         <label>판매 상태</label>
@@ -139,17 +147,41 @@
     <div class="form-row">
       <div class="form-group">
         <label>판매 시작일</label>
-        <input type="date" id="cond-saleStartDate">
+        <div class="date-search-control date-mode" id="cond-saleStartDate-control">
+          <select id="cond-saleStartDate-mode">
+            <option value="date">날짜</option>
+            <option value="range">기간</option>
+          </select>
+          <input type="date" id="cond-saleStartDate-from">
+          <span class="date-range-separator">~</span>
+          <input type="date" id="cond-saleStartDate-to">
+        </div>
       </div>
       <div class="form-group">
         <label>판매 종료일</label>
-        <input type="date" id="cond-saleEndDate">
+        <div class="date-search-control date-mode" id="cond-saleEndDate-control">
+          <select id="cond-saleEndDate-mode">
+            <option value="date">날짜</option>
+            <option value="range">기간</option>
+          </select>
+          <input type="date" id="cond-saleEndDate-from">
+          <span class="date-range-separator">~</span>
+          <input type="date" id="cond-saleEndDate-to">
+        </div>
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>취소 마감일</label>
-        <input type="date" id="cond-cancelDeadlineDate">
+        <div class="date-search-control date-mode" id="cond-cancelDeadlineDate-control">
+          <select id="cond-cancelDeadlineDate-mode">
+            <option value="date">날짜</option>
+            <option value="range">기간</option>
+          </select>
+          <input type="date" id="cond-cancelDeadlineDate-from">
+          <span class="date-range-separator">~</span>
+          <input type="date" id="cond-cancelDeadlineDate-to">
+        </div>
       </div>
       <div class="form-group">
         <label>공연 시간(분)</label>
@@ -174,6 +206,7 @@
       <div class="form-group"></div>
     </div>
     <div class="form-row" style="margin-top:1.25rem;">
+      <button class="btn btn-outline" onclick="resetDetailedSearchForm()"><i class="ti ti-refresh"></i>검색 조건 초기화</button>
       <button class="btn btn-secondary" onclick="closeSearchModal()">취소</button>
       <button class="btn" onclick="submitDetailedSearch()"><i class="ti ti-search"></i>이 조건으로 검색</button>
     </div>

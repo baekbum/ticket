@@ -161,16 +161,32 @@ public class EventRepositoryImpl implements EventRepository {
         return dateLike(eventDate, event.eventDateTime);
     }
 
+    private BooleanExpression eventDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.eventDateTime);
+    }
+
     private BooleanExpression saleStartDateLike(LocalDate saleStartDate) {
         return dateLike(saleStartDate, event.saleStartAt);
+    }
+
+    private BooleanExpression saleStartDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleStartAt);
     }
 
     private BooleanExpression saleEndDateLike(LocalDate saleEndDate) {
         return dateLike(saleEndDate, event.saleEndAt);
     }
 
+    private BooleanExpression saleEndDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleEndAt);
+    }
+
     private BooleanExpression cancelDeadlineDateLike(LocalDate cancelDeadlineDate) {
         return dateLike(cancelDeadlineDate, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.cancelDeadlineAt);
     }
 
     private BooleanExpression runningMinutesEq(Integer runningMinutes) {
@@ -204,6 +220,22 @@ public class EventRepositoryImpl implements EventRepository {
         return target.between(startOfDay, endOfDay);
     }
 
+    private BooleanExpression dateBetween(LocalDate from, LocalDate to, DateTimePath<LocalDateTime> target) {
+        if (from == null && to == null) {
+            return null;
+        }
+
+        if (from != null && to != null) {
+            return target.between(from.atStartOfDay(), to.atTime(LocalTime.MAX));
+        }
+
+        if (from != null) {
+            return target.goe(from.atStartOfDay());
+        }
+
+        return target.loe(to.atTime(LocalTime.MAX));
+    }
+
     private BooleanExpression statusEq(EventStatus status) {
         return status != null ? event.status.eq(status) : null;
     }
@@ -217,9 +249,13 @@ public class EventRepositoryImpl implements EventRepository {
                 venueAddressLike(cond.getVenueAddress()),
                 posterUrlLike(cond.getPosterUrl()),
                 eventDateLike(cond.getEventDate()),
+                eventDateBetween(cond.getEventDateFrom(), cond.getEventDateTo()),
                 saleStartDateLike(cond.getSaleStartDate()),
+                saleStartDateBetween(cond.getSaleStartDateFrom(), cond.getSaleStartDateTo()),
                 saleEndDateLike(cond.getSaleEndDate()),
+                saleEndDateBetween(cond.getSaleEndDateFrom(), cond.getSaleEndDateTo()),
                 cancelDeadlineDateLike(cond.getCancelDeadlineDate()),
+                cancelDeadlineDateBetween(cond.getCancelDeadlineDateFrom(), cond.getCancelDeadlineDateTo()),
                 runningMinutesEq(cond.getRunningMinutes()),
                 ageLimitEq(cond.getAgeLimit()),
                 totalSeatsEq(cond.getTotalSeats()),

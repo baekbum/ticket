@@ -10,6 +10,8 @@ let currentEventList    = [];
 let currentSearchFilters = {
 eventId: null, title: null, artistName: null, venue: null, venueAddress: null, posterUrl: null,
 eventDate: null, saleStartDate: null, saleEndDate: null, cancelDeadlineDate: null,
+eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
+saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
 runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
 };
 let serverTotalPages    = 1;
@@ -147,9 +149,17 @@ if (currentSearchFilters.venue      !== null) cond.venue      = currentSearchFil
 if (currentSearchFilters.venueAddress !== null) cond.venueAddress = currentSearchFilters.venueAddress;
 if (currentSearchFilters.posterUrl !== null) cond.posterUrl = currentSearchFilters.posterUrl;
 if (currentSearchFilters.eventDate  !== null) cond.eventDate  = currentSearchFilters.eventDate;
+if (currentSearchFilters.eventDateFrom !== null) cond.eventDateFrom = currentSearchFilters.eventDateFrom;
+if (currentSearchFilters.eventDateTo !== null) cond.eventDateTo = currentSearchFilters.eventDateTo;
 if (currentSearchFilters.saleStartDate !== null) cond.saleStartDate = currentSearchFilters.saleStartDate;
+if (currentSearchFilters.saleStartDateFrom !== null) cond.saleStartDateFrom = currentSearchFilters.saleStartDateFrom;
+if (currentSearchFilters.saleStartDateTo !== null) cond.saleStartDateTo = currentSearchFilters.saleStartDateTo;
 if (currentSearchFilters.saleEndDate !== null) cond.saleEndDate = currentSearchFilters.saleEndDate;
+if (currentSearchFilters.saleEndDateFrom !== null) cond.saleEndDateFrom = currentSearchFilters.saleEndDateFrom;
+if (currentSearchFilters.saleEndDateTo !== null) cond.saleEndDateTo = currentSearchFilters.saleEndDateTo;
 if (currentSearchFilters.cancelDeadlineDate !== null) cond.cancelDeadlineDate = currentSearchFilters.cancelDeadlineDate;
+if (currentSearchFilters.cancelDeadlineDateFrom !== null) cond.cancelDeadlineDateFrom = currentSearchFilters.cancelDeadlineDateFrom;
+if (currentSearchFilters.cancelDeadlineDateTo !== null) cond.cancelDeadlineDateTo = currentSearchFilters.cancelDeadlineDateTo;
 if (currentSearchFilters.runningMinutes !== null) cond.runningMinutes = currentSearchFilters.runningMinutes;
 if (currentSearchFilters.ageLimit !== null) cond.ageLimit = currentSearchFilters.ageLimit;
 if (currentSearchFilters.totalSeats !== null) cond.totalSeats = currentSearchFilters.totalSeats;
@@ -516,15 +526,58 @@ window.triggerNormalSearch = function () {
 currentSearchFilters = {
 eventId: null, title: document.getElementById('search-id').value.trim() || null, artistName: null,
 venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
-cancelDeadlineDate: null, runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+cancelDeadlineDate: null, eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
+saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
 };
 loadEventList(0);
 };
 window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
 window.closeSearchModal = function () { document.getElementById('search-modal').style.display = 'none'; };
 
+function readDateSearch(prefix) {
+const mode = document.getElementById(`${prefix}-mode`)?.value || 'date';
+const from = document.getElementById(`${prefix}-from`)?.value || null;
+const to = document.getElementById(`${prefix}-to`)?.value || null;
+
+if (mode === 'range') {
+return { single: null, from, to };
+}
+
+return { single: from, from: null, to: null };
+}
+
+function syncDateSearchMode(prefix) {
+const mode = document.getElementById(`${prefix}-mode`)?.value || 'date';
+const control = document.getElementById(`${prefix}-control`);
+const toInput = document.getElementById(`${prefix}-to`);
+
+control?.classList.toggle('date-mode', mode !== 'range');
+if (toInput && mode !== 'range') {
+toInput.value = '';
+}
+}
+
+window.resetDetailedSearchForm = function () {
+document.querySelectorAll('#search-modal input, #search-modal textarea').forEach(el => {
+el.value = '';
+});
+
+document.querySelectorAll('#search-modal select').forEach(el => {
+el.selectedIndex = 0;
+});
+
+['cond-eventDate', 'cond-saleStartDate', 'cond-saleEndDate', 'cond-cancelDeadlineDate'].forEach(prefix => {
+syncDateSearchMode(prefix);
+});
+};
+
 window.submitDetailedSearch = function () {
 const eventIdRaw = document.getElementById('cond-eventId').value.trim();
+const eventDateSearch = readDateSearch('cond-eventDate');
+const saleStartDateSearch = readDateSearch('cond-saleStartDate');
+const saleEndDateSearch = readDateSearch('cond-saleEndDate');
+const cancelDeadlineDateSearch = readDateSearch('cond-cancelDeadlineDate');
 currentSearchFilters = {
 eventId:    eventIdRaw ? parseInt(eventIdRaw, 10) : null,
 title:      document.getElementById('cond-title').value.trim()      || null,
@@ -532,10 +585,18 @@ artistName: document.getElementById('cond-artistName').value.trim() || null,
 venue:      document.getElementById('cond-venue').value.trim()      || null,
 venueAddress: document.getElementById('cond-venueAddress').value.trim() || null,
 posterUrl: document.getElementById('cond-posterUrl').value.trim() || null,
-eventDate:  document.getElementById('cond-eventDate').value         || null,
-saleStartDate: document.getElementById('cond-saleStartDate').value || null,
-saleEndDate: document.getElementById('cond-saleEndDate').value || null,
-cancelDeadlineDate: document.getElementById('cond-cancelDeadlineDate').value || null,
+eventDate: eventDateSearch.single,
+eventDateFrom: eventDateSearch.from,
+eventDateTo: eventDateSearch.to,
+saleStartDate: saleStartDateSearch.single,
+saleStartDateFrom: saleStartDateSearch.from,
+saleStartDateTo: saleStartDateSearch.to,
+saleEndDate: saleEndDateSearch.single,
+saleEndDateFrom: saleEndDateSearch.from,
+saleEndDateTo: saleEndDateSearch.to,
+cancelDeadlineDate: cancelDeadlineDateSearch.single,
+cancelDeadlineDateFrom: cancelDeadlineDateSearch.from,
+cancelDeadlineDateTo: cancelDeadlineDateSearch.to,
 runningMinutes: nullableNumber('cond-runningMinutes'),
 ageLimit: nullableNumber('cond-ageLimit'),
 totalSeats: nullableNumber('cond-totalSeats'),
@@ -558,5 +619,11 @@ document.getElementById('m-available-seats')?.addEventListener('input', function
 formatDigitInput(this);
 });
 document.getElementById('m-poster-image')?.addEventListener('change', _setPosterFileName);
+['cond-eventDate', 'cond-saleStartDate', 'cond-saleEndDate', 'cond-cancelDeadlineDate'].forEach(prefix => {
+syncDateSearchMode(prefix);
+document.getElementById(`${prefix}-mode`)?.addEventListener('change', function () {
+syncDateSearchMode(prefix);
+});
+});
 loadEventList(0);
 })();
