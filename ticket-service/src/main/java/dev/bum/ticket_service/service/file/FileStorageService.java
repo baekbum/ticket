@@ -29,16 +29,19 @@ public class FileStorageService {
         this.publicUrlPrefix = trimTrailingSlash(publicUrlPrefix);
     }
 
-    public String saveEventPoster(MultipartFile file) {
+    public String saveEventPoster(Long eventId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return null;
+        }
+        if (eventId == null) {
+            throw new IllegalArgumentException("Event id is required.");
         }
 
         String extension = extractExtension(file.getOriginalFilename());
         validateImage(file, extension);
 
         String storedFileName = UUID.randomUUID() + "." + extension;
-        Path posterDir = uploadRoot.resolve("events").resolve("posters").normalize();
+        Path posterDir = uploadRoot.resolve("events").resolve("posters").resolve(String.valueOf(eventId)).normalize();
         Path target = posterDir.resolve(storedFileName).normalize();
 
         if (!target.startsWith(posterDir)) {
@@ -52,7 +55,26 @@ public class FileStorageService {
             throw new IllegalStateException("Failed to store event poster.", e);
         }
 
-        return publicUrlPrefix + "/events/posters/" + storedFileName;
+        return publicUrlPrefix + "/events/posters/" + eventId + "/" + storedFileName;
+    }
+
+    public void deleteByPublicUrl(String publicUrl) {
+        if (!StringUtils.hasText(publicUrl) || !publicUrl.startsWith(publicUrlPrefix + "/")) {
+            return;
+        }
+
+        String relativePath = publicUrl.substring((publicUrlPrefix + "/").length());
+        Path target = uploadRoot.resolve(relativePath).normalize();
+
+        if (!target.startsWith(uploadRoot)) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to delete event poster.", e);
+        }
     }
 
     private void validateImage(MultipartFile file, String extension) {

@@ -35,12 +35,13 @@ public class EventService {
      * @return
      */
     public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
-        String posterUrl = fileStorageService.saveEventPoster(posterImage);
-        info.setPosterUrl(posterUrl);
-
         log.info("[INSERT WITH POSTER] Info : {}", info.toString());
 
-        return repository.insert(info).toResponse();
+        Event event = repository.insert(info);
+        String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
+        event.updatePosterUrl(posterUrl);
+
+        return event.toResponse();
     }
 
     /**
@@ -85,6 +86,26 @@ public class EventService {
     public EventResponse update(Long id, UpdateEventRequest info) {
         log.info("[UPDATE] Id : {}, Info : {}", id, info);
         return repository.update(id, info).toResponse();
+    }
+
+    public EventResponse update(Long id, UpdateEventRequest info, MultipartFile posterImage) {
+        log.info("[UPDATE WITH POSTER] Id : {}, Info : {}", id, info);
+
+        Event event = repository.selectById(id);
+        String previousPosterUrl = event.getPosterUrl();
+        String newPosterUrl = fileStorageService.saveEventPoster(id, posterImage);
+
+        if (newPosterUrl != null) {
+            info.setPosterUrl(newPosterUrl);
+        }
+
+        event.update(info);
+
+        if (newPosterUrl != null) {
+            fileStorageService.deleteByPublicUrl(previousPosterUrl);
+        }
+
+        return event.toResponse();
     }
 
     /**

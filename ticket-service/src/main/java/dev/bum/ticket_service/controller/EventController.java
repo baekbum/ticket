@@ -45,6 +45,15 @@ public class EventController {
         return ResponseEntity.ok(eventService.update(eventId, info));
     }
 
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventResponse> update(
+            @PathVariable("eventId") Long eventId,
+            @Valid @RequestPart("event") UpdateEventRequest info,
+            @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
+    ) {
+        return ResponseEntity.ok(eventService.update(eventId, info, posterImage));
+    }
+
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventService.delete(eventId));

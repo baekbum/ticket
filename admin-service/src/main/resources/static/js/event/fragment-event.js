@@ -268,6 +268,7 @@ _set('m-running-minutes',  ev.runningMinutes);
 _set('m-age-limit',        ev.ageLimit);
 const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
+_setPosterFileName();
 }
 
 function _set(id, val) {
@@ -291,6 +292,16 @@ el.disabled        = true;
 el.style.background = 'var(--bg)';
 el.style.color      = 'var(--text-muted)';
 el.style.cursor     = 'not-allowed';
+}
+
+function _setPosterFileName() {
+const fileInput = document.getElementById('m-poster-image');
+const fileName = document.getElementById('m-poster-file-name');
+if (!fileInput || !fileName) return;
+
+fileName.textContent = fileInput.files && fileInput.files.length > 0
+? fileInput.files[0].name
+: '선택된 파일 없음';
 }
 
 /* ─────────────────── 모달: VIEW ─────────────────── */
@@ -330,7 +341,6 @@ document.getElementById('modal-subtitle').textContent = '정보를 수정한 뒤
 _setAllInputsState(false);
 _setFieldDisabled('m-event-id');
 _bindEventToModal(ev);
-_setFieldDisabled('m-poster-image');
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -436,10 +446,10 @@ if (!Number.isNaN(availableSeatsVal)) body.availableSeats = availableSeatsVal;
 
 try {
 let requestOptions;
-if (mode === 'CREATE') {
+const posterFile = document.getElementById('m-poster-image')?.files?.[0];
+if (mode === 'CREATE' || posterFile) {
 const formData = new FormData();
 formData.append('event', new Blob([JSON.stringify(body)], { type: 'application/json' }));
-const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 if (posterFile) formData.append('posterImage', posterFile);
 requestOptions = { method, headers: authHeaders, body: formData };
 } else {
@@ -536,5 +546,6 @@ formatDigitInput(this);
 document.getElementById('m-available-seats')?.addEventListener('input', function () {
 formatDigitInput(this);
 });
+document.getElementById('m-poster-image')?.addEventListener('change', _setPosterFileName);
 loadEventList(0);
 })();

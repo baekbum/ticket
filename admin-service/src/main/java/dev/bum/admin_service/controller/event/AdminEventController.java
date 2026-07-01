@@ -66,6 +66,15 @@ public class AdminEventController {
         return ResponseEntity.ok(eventServiceClient.update(eventId, info));
     }
 
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventResponse> update(
+            @PathVariable("eventId") Long eventId,
+            @Valid @RequestPart("event") UpdateEventRequest info,
+            @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
+    ) {
+        return ResponseEntity.ok(eventServiceClient.update(eventId, info, posterImage));
+    }
+
     /**
      * 이벤트를 삭제하는 기능
      * @param eventId

@@ -29,6 +29,13 @@ public interface EventServiceClient {
     @PutMapping("/update/id/{eventId}")
     EventResponse update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info);
 
+    @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    EventResponse update(
+            @PathVariable("eventId") Long eventId,
+            @Valid @RequestPart("event") UpdateEventRequest info,
+            @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
+    );
+
     @DeleteMapping("/delete/id/{eventId}")
     EventResponse delete(@PathVariable("eventId") Long eventId);
 }

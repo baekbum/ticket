@@ -150,4 +150,8 @@ public class Event {
         if (info.getStatus() != null) this.status = info.getStatus();
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
     }
+
+    public void updatePosterUrl(String posterUrl) {
+        if (StringUtils.hasText(posterUrl)) this.posterUrl = posterUrl;
+    }
 }
