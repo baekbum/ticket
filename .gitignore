@@ -37,3 +37,7 @@ out/
 .vscode/
 
 common/src/test/java/dev/bum/common/JwtGenerator.java
+
+### Uploaded files ###
+uploads/
+ticket-service/uploads/
