@@ -22,9 +22,11 @@ public class SeatResponse {
     private SeatStatus status;
     private Double positionX;
     private Double positionY;
+    private Double seatWidth;
+    private Double seatHeight;
     private Double rotation;
+    private Double layoutAngle;
 
-    // event 관련
     private Long eventId;
     private String artistName;
     private String title;

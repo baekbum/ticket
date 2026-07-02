@@ -143,8 +143,16 @@
 .zone-card-title i { color: var(--purple); font-size: 13px; }
 .zone-card-grid {
   display: grid;
-  grid-template-columns: 1.4fr repeat(3, 0.7fr) 0.8fr 1fr;
+  grid-template-columns: 1.5fr 0.8fr 0.7fr 0.7fr 1fr;
   gap: 8px;
+}
+.zone-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
 }
 .zone-field { display: flex; flex-direction: column; gap: 3px; }
 .zone-field span { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.2px; }

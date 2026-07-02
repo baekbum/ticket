@@ -63,7 +63,16 @@ public class Seat {
     @Column(name = "position_y")
     private Double positionY;
 
+    @Column(name = "seat_width")
+    private Double seatWidth;
+
+    @Column(name = "seat_height")
+    private Double seatHeight;
+
     private Double rotation;
+
+    @Column(name = "layout_angle")
+    private Double layoutAngle;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -85,7 +94,10 @@ public class Seat {
                 .status(this.status)
                 .positionX(this.positionX)
                 .positionY(this.positionY)
+                .seatWidth(this.seatWidth)
+                .seatHeight(this.seatHeight)
                 .rotation(this.rotation)
+                .layoutAngle(this.layoutAngle)
                 // 연관관계 Event 데이터 조립 (N+1 고려 필수, 서비스단 fetch join 권장)
                 .eventId(this.event != null ? this.event.getEventId() : null)
                 .artistName(this.event != null ? this.event.getArtistName() : null)
@@ -97,7 +109,7 @@ public class Seat {
     }
 
     @Builder
-    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, Double positionX, Double positionY, Double rotation, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, Double positionX, Double positionY, Double seatWidth, Double seatHeight, Double rotation, Double layoutAngle, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.seatId = seatId;
         this.zone = zone;
         this.seatRow = seatRow;
@@ -107,7 +119,10 @@ public class Seat {
         this.status = status;
         this.positionX = positionX;
         this.positionY = positionY;
+        this.seatWidth = seatWidth;
+        this.seatHeight = seatHeight;
         this.rotation = rotation;
+        this.layoutAngle = layoutAngle;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
 
@@ -131,7 +146,10 @@ public class Seat {
         if (config.getStatus() != null) this.status = config.getStatus();
         if (config.getPositionX() != null) this.positionX = config.getPositionX();
         if (config.getPositionY() != null) this.positionY = config.getPositionY();
+        if (config.getSeatWidth() != null) this.seatWidth = config.getSeatWidth();
+        if (config.getSeatHeight() != null) this.seatHeight = config.getSeatHeight();
         if (config.getRotation() != null) this.rotation = config.getRotation();
+        if (config.getLayoutAngle() != null) this.layoutAngle = config.getLayoutAngle();
     }
 
     public void available() {

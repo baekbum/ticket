@@ -28,19 +28,25 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatGrade> grade = createEnum("grade", dev.bum.common.service.ticket.seat.enums.SeatGrade.class);
 
-    public final NumberPath<Integer> price = createNumber("price", Integer.class);
+    public final NumberPath<Double> layoutAngle = createNumber("layoutAngle", Double.class);
 
     public final NumberPath<Double> positionX = createNumber("positionX", Double.class);
 
     public final NumberPath<Double> positionY = createNumber("positionY", Double.class);
 
+    public final NumberPath<Integer> price = createNumber("price", Integer.class);
+
     public final NumberPath<Double> rotation = createNumber("rotation", Double.class);
 
     public final NumberPath<Integer> seatCol = createNumber("seatCol", Integer.class);
 
+    public final NumberPath<Double> seatHeight = createNumber("seatHeight", Double.class);
+
     public final NumberPath<Long> seatId = createNumber("seatId", Long.class);
 
     public final NumberPath<Integer> seatRow = createNumber("seatRow", Integer.class);
+
+    public final NumberPath<Double> seatWidth = createNumber("seatWidth", Double.class);
 
     public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatStatus> status = createEnum("status", dev.bum.common.service.ticket.seat.enums.SeatStatus.class);
 

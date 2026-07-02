@@ -40,7 +40,10 @@ CREATE TABLE seats (
     status VARCHAR(30) NOT NULL,
     position_x DOUBLE PRECISION,
     position_y DOUBLE PRECISION,
+    seat_width DOUBLE PRECISION,
+    seat_height DOUBLE PRECISION,
     rotation DOUBLE PRECISION,
+    layout_angle DOUBLE PRECISION,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

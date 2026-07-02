@@ -307,6 +307,13 @@
       return parseInt((value || '').replace(/,/g, ''), 10);
     }
 
+    function _nullableFloat(value) {
+      const trimmed = (value || '').trim();
+      if (!trimmed) return null;
+      const parsed = parseFloat(trimmed);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
     function _sbcRecalc() {
       let total = 0;
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach(card => {
@@ -329,6 +336,15 @@
 
     window.sbcAddZoneCard = function (data = {}) {
       const wrapper = document.getElementById('sbc-zone-wrapper');
+      const zoneIndex = wrapper.querySelectorAll('.zone-card').length;
+      const startX = data.startX ?? 80;
+      const startY = data.startY ?? (80 + zoneIndex * 140);
+      const seatWidth = data.seatWidth ?? 14;
+      const seatHeight = data.seatHeight ?? 14;
+      const gapX = data.gapX ?? 4;
+      const gapY = data.gapY ?? 4;
+      const rotation = data.rotation ?? 0;
+      const layoutAngle = data.layoutAngle ?? 0;
       const cid = 'sbc-' + Date.now() + '-' + (sbcZoneCount++);
       const div = document.createElement('div');
       div.id = cid; div.className = 'zone-card';
@@ -354,6 +370,16 @@
           <div class="zone-field"><span>열 수 (Cols)</span><input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>단가 (Price)</span><input type="text" class="b-price" placeholder="원" inputmode="numeric" value="${data.price ? Number(data.price).toLocaleString() : ''}" required style="text-align:right;" oninput="_sbcFormatPrice(this)"></div>
         </div>
+        <div class="zone-layout-grid">
+          <div class="zone-field"><span>시작 X</span><input type="number" class="b-start-x" step="0.1" value="${startX}" style="text-align:right;"></div>
+          <div class="zone-field"><span>시작 Y</span><input type="number" class="b-start-y" step="0.1" value="${startY}" style="text-align:right;"></div>
+          <div class="zone-field"><span>좌석 너비</span><input type="number" class="b-seat-width" step="0.1" min="0" value="${seatWidth}" style="text-align:right;"></div>
+          <div class="zone-field"><span>좌석 높이</span><input type="number" class="b-seat-height" step="0.1" min="0" value="${seatHeight}" style="text-align:right;"></div>
+          <div class="zone-field"><span>가로 간격</span><input type="number" class="b-gap-x" step="0.1" min="0" value="${gapX}" style="text-align:right;"></div>
+          <div class="zone-field"><span>세로 간격</span><input type="number" class="b-gap-y" step="0.1" min="0" value="${gapY}" style="text-align:right;"></div>
+          <div class="zone-field"><span>회전</span><input type="number" class="b-rotation" step="0.1" value="${rotation}" style="text-align:right;"></div>
+          <div class="zone-field"><span>배치 각도</span><input type="number" class="b-layout-angle" step="0.1" value="${layoutAngle}" style="text-align:right;"></div>
+        </div>
         <div class="zone-preview-chip">
           <i class="ti ti-armchair" style="color:var(--purple);"></i>이 구역: <strong class="zone-seat-count">0</strong>석
         </div>
@@ -368,7 +394,7 @@
       document.getElementById('sbc-subtitle').textContent = `이벤트 ID ${smEventId}에 좌석 구역을 일괄 등록합니다.`;
       const wrapper = document.getElementById('sbc-zone-wrapper');
       wrapper.innerHTML = '';
-      sbcAddZoneCard({ zone: 'Floor A',   grade: 'VIP', rows: 10, cols: 10, price: 168000 });
+      sbcAddZoneCard({ zone: 'Floor A', grade: 'VIP', rows: 10, cols: 10, price: 168000, startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 });
       _sbcRecalc();
       document.getElementById('seat-bulk-create-modal').style.display = 'flex';
     };
@@ -385,8 +411,25 @@
         const rows  = card.querySelector('.b-rows').value;
         const cols  = card.querySelector('.b-cols').value;
         const price = card.querySelector('.b-price').value;
+        const startX = _nullableFloat(card.querySelector('.b-start-x').value);
+        const startY = _nullableFloat(card.querySelector('.b-start-y').value);
+        const seatWidth = _nullableFloat(card.querySelector('.b-seat-width').value);
+        const seatHeight = _nullableFloat(card.querySelector('.b-seat-height').value);
+        const gapX = _nullableFloat(card.querySelector('.b-gap-x').value);
+        const gapY = _nullableFloat(card.querySelector('.b-gap-y').value);
+        const rotation = _nullableFloat(card.querySelector('.b-rotation').value);
+        const layoutAngle = _nullableFloat(card.querySelector('.b-layout-angle').value);
         if (!zone||!rows||!cols||!price) { valid = false; return; }
-        configs.push({ grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), price: _parseDigitValue(price) });
+        const config = { grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), price: _parseDigitValue(price) };
+        if (startX !== null) config.startX = startX;
+        if (startY !== null) config.startY = startY;
+        if (seatWidth !== null) config.seatWidth = seatWidth;
+        if (seatHeight !== null) config.seatHeight = seatHeight;
+        if (gapX !== null) config.gapX = gapX;
+        if (gapY !== null) config.gapY = gapY;
+        if (rotation !== null) config.rotation = rotation;
+        if (layoutAngle !== null) config.layoutAngle = layoutAngle;
+        configs.push(config);
       });
       if (!valid) { showToast('모든 구역 항목을 빠짐없이 입력해주세요.', true); return; }
       const totalSeats = configs.reduce((s,c) => s + c.rows*c.cols, 0);

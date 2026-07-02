@@ -34,6 +34,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SeatRepositoryImpl implements SeatRepository {
 
+    private static final double DEFAULT_SEAT_WIDTH = 14D;
+    private static final double DEFAULT_SEAT_HEIGHT = 14D;
+    private static final double DEFAULT_GAP_X = 4D;
+    private static final double DEFAULT_GAP_Y = 4D;
+    private static final double DEFAULT_ANGLE = 0D;
+
     private final JPAQueryFactory queryFactory;
     private final SeatJpaRepository jpaRepository;
     private final EventRepository  eventRepository;
@@ -59,10 +65,17 @@ public class SeatRepositoryImpl implements SeatRepository {
         int count = 0;
 
         for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
+            Double seatWidth = valueOrDefault(config.getSeatWidth(), DEFAULT_SEAT_WIDTH);
+            Double seatHeight = valueOrDefault(config.getSeatHeight(), DEFAULT_SEAT_HEIGHT);
+            Double gapX = valueOrDefault(config.getGapX(), DEFAULT_GAP_X);
+            Double gapY = valueOrDefault(config.getGapY(), DEFAULT_GAP_Y);
+            Double rotation = valueOrDefault(config.getRotation(), DEFAULT_ANGLE);
+            Double layoutAngle = valueOrDefault(config.getLayoutAngle(), DEFAULT_ANGLE);
+
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
-                    Double positionX = calculatePosition(config.getStartX(), config.getGapX(), c);
-                    Double positionY = calculatePosition(config.getStartY(), config.getGapY(), r);
+                    Double positionX = calculatePositionX(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
+                    Double positionY = calculatePositionY(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
 
                     Seat seat = Seat.builder()
                             .event(event)
@@ -74,7 +87,10 @@ public class SeatRepositoryImpl implements SeatRepository {
                             .status(SeatStatus.AVAILABLE)
                             .positionX(positionX)
                             .positionY(positionY)
-                            .rotation(config.getRotation())
+                            .seatWidth(seatWidth)
+                            .seatHeight(seatHeight)
+                            .rotation(rotation)
+                            .layoutAngle(layoutAngle)
                             .build();
 
                     jpaRepository.save(seat); // 하나씩 save 호출 (실제 쿼리는 batch 옵션에 따라 모임)
@@ -88,12 +104,36 @@ public class SeatRepositoryImpl implements SeatRepository {
         }
     }
 
-    private Double calculatePosition(Double start, Double gap, int index) {
-        if (start == null || gap == null) {
+    private Double calculatePositionX(Double startX, Double startY, Double seatWidth, Double seatHeight, Double gapX, Double gapY, Double layoutAngle, int row, int col) {
+        if (startX == null || startY == null) {
             return null;
         }
 
-        return start + ((index - 1) * gap);
+        double rad = Math.toRadians(layoutAngle);
+        double colMove = seatWidth + gapX;
+        double rowMove = seatHeight + gapY;
+
+        return startX
+                + ((col - 1) * Math.cos(rad) * colMove)
+                - ((row - 1) * Math.sin(rad) * rowMove);
+    }
+
+    private Double calculatePositionY(Double startX, Double startY, Double seatWidth, Double seatHeight, Double gapX, Double gapY, Double layoutAngle, int row, int col) {
+        if (startX == null || startY == null) {
+            return null;
+        }
+
+        double rad = Math.toRadians(layoutAngle);
+        double colMove = seatWidth + gapX;
+        double rowMove = seatHeight + gapY;
+
+        return startY
+                + ((col - 1) * Math.sin(rad) * colMove)
+                + ((row - 1) * Math.cos(rad) * rowMove);
+    }
+
+    private Double valueOrDefault(Double value, Double defaultValue) {
+        return value != null ? value : defaultValue;
     }
 
     @Override

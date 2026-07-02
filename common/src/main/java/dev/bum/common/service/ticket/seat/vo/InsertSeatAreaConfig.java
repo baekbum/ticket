@@ -23,7 +23,10 @@ public class InsertSeatAreaConfig {
 
     private Double startX;
     private Double startY;
+    private Double seatWidth;
+    private Double seatHeight;
     private Double gapX;
     private Double gapY;
     private Double rotation;
+    private Double layoutAngle;
 }
