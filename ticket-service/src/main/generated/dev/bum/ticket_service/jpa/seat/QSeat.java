@@ -30,6 +30,12 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
+    public final NumberPath<Double> positionX = createNumber("positionX", Double.class);
+
+    public final NumberPath<Double> positionY = createNumber("positionY", Double.class);
+
+    public final NumberPath<Double> rotation = createNumber("rotation", Double.class);
+
     public final NumberPath<Integer> seatCol = createNumber("seatCol", Integer.class);
 
     public final NumberPath<Long> seatId = createNumber("seatId", Long.class);

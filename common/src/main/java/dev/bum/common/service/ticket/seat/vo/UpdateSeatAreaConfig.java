@@ -11,6 +11,9 @@ public class UpdateSeatAreaConfig {
     private long id;
     private Integer price;
     private SeatStatus status;
+    private Double positionX;
+    private Double positionY;
+    private Double rotation;
 
     @Override
     public String toString() {
@@ -18,6 +21,9 @@ public class UpdateSeatAreaConfig {
                 "id=" + id +
                 ", price=" + price +
                 ", status=" + status +
+                ", positionX=" + positionX +
+                ", positionY=" + positionY +
+                ", rotation=" + rotation +
                 '}';
     }
 }

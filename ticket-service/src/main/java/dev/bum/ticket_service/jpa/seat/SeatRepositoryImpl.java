@@ -61,6 +61,8 @@ public class SeatRepositoryImpl implements SeatRepository {
         for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
+                    Double positionX = calculatePosition(config.getStartX(), config.getGapX(), c);
+                    Double positionY = calculatePosition(config.getStartY(), config.getGapY(), r);
 
                     Seat seat = Seat.builder()
                             .event(event)
@@ -70,6 +72,9 @@ public class SeatRepositoryImpl implements SeatRepository {
                             .grade(config.getGrade())
                             .price(config.getPrice())
                             .status(SeatStatus.AVAILABLE)
+                            .positionX(positionX)
+                            .positionY(positionY)
+                            .rotation(config.getRotation())
                             .build();
 
                     jpaRepository.save(seat); // 하나씩 save 호출 (실제 쿼리는 batch 옵션에 따라 모임)
@@ -81,6 +86,14 @@ public class SeatRepositoryImpl implements SeatRepository {
                 }
             }
         }
+    }
+
+    private Double calculatePosition(Double start, Double gap, int index) {
+        if (start == null || gap == null) {
+            return null;
+        }
+
+        return start + ((index - 1) * gap);
     }
 
     @Override

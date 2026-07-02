@@ -12,16 +12,18 @@ import lombok.*;
 public class InsertSeatAreaConfig {
     @NotNull
     private SeatGrade grade;
-
     @NotBlank
     private String zone;
-
     @NotNull
     private Integer rows;
-
     @NotNull
     private Integer cols;
-
     @NotNull
     private Integer price;
+
+    private Double startX;
+    private Double startY;
+    private Double gapX;
+    private Double gapY;
+    private Double rotation;
 }

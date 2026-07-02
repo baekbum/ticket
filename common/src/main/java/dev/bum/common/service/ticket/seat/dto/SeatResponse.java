@@ -20,6 +20,9 @@ public class SeatResponse {
     private SeatGrade grade;
     private Integer price;
     private SeatStatus status;
+    private Double positionX;
+    private Double positionY;
+    private Double rotation;
 
     // event 관련
     private Long eventId;

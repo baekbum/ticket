@@ -57,6 +57,14 @@ public class Seat {
     @Column(nullable = false, length = 30)
     private SeatStatus status;
 
+    @Column(name = "position_x")
+    private Double positionX;
+
+    @Column(name = "position_y")
+    private Double positionY;
+
+    private Double rotation;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -75,6 +83,9 @@ public class Seat {
                 .grade(this.grade)
                 .price(this.price)
                 .status(this.status)
+                .positionX(this.positionX)
+                .positionY(this.positionY)
+                .rotation(this.rotation)
                 // 연관관계 Event 데이터 조립 (N+1 고려 필수, 서비스단 fetch join 권장)
                 .eventId(this.event != null ? this.event.getEventId() : null)
                 .artistName(this.event != null ? this.event.getArtistName() : null)
@@ -86,7 +97,7 @@ public class Seat {
     }
 
     @Builder
-    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, Double positionX, Double positionY, Double rotation, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.seatId = seatId;
         this.zone = zone;
         this.seatRow = seatRow;
@@ -94,6 +105,9 @@ public class Seat {
         this.grade = grade;
         this.price = price;
         this.status = status;
+        this.positionX = positionX;
+        this.positionY = positionY;
+        this.rotation = rotation;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
 
@@ -115,6 +129,9 @@ public class Seat {
     public void update(UpdateSeatAreaConfig config) {
         if (config.getPrice() != null) this.price = config.getPrice();
         if (config.getStatus() != null) this.status = config.getStatus();
+        if (config.getPositionX() != null) this.positionX = config.getPositionX();
+        if (config.getPositionY() != null) this.positionY = config.getPositionY();
+        if (config.getRotation() != null) this.rotation = config.getRotation();
     }
 
     public void available() {
