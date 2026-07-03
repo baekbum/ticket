@@ -2,6 +2,8 @@ package dev.bum.ticket_service.controller.advice;
 
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
+import dev.bum.ticket_service.exception.area.AreaDuplicateException;
+import dev.bum.ticket_service.exception.area.AreaNotExistException;
 import dev.bum.ticket_service.exception.reservation.ReservationDuplicateException;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.seat.*;
@@ -29,6 +31,19 @@ public class ControllerAdvice {
     @ExceptionHandler(EventDuplicateException.class)
     public ResponseEntity<String> handleEventDuplicateException(EventDuplicateException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
+    }
+
+    // ==========================================
+    // Area 관련 예외 처리
+    // ==========================================
+    @ExceptionHandler(AreaNotExistException.class)
+    public ResponseEntity<String> handleAreaNotExistException(AreaNotExistException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(AreaDuplicateException.class)
+    public ResponseEntity<String> handleAreaDuplicateException(AreaDuplicateException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
 
     // ==========================================

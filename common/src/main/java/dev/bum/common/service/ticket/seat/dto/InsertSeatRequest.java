@@ -15,6 +15,8 @@ public class InsertSeatRequest {
     @NotNull
     private Long eventId;
 
+    private Long areaId;
+
     @NotNull
     private List<InsertSeatAreaConfig> insertSeatAreaConfigs;
 }

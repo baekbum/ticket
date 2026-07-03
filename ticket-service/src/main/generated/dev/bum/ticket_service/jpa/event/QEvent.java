@@ -22,6 +22,8 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final NumberPath<Integer> ageLimit = createNumber("ageLimit", Integer.class);
 
+    public final ListPath<dev.bum.ticket_service.jpa.area.Area, dev.bum.ticket_service.jpa.area.QArea> areas = this.<dev.bum.ticket_service.jpa.area.Area, dev.bum.ticket_service.jpa.area.QArea>createList("areas", dev.bum.ticket_service.jpa.area.Area.class, dev.bum.ticket_service.jpa.area.QArea.class, PathInits.DIRECT2);
+
     public final StringPath artistName = createString("artistName");
 
     public final NumberPath<Integer> availableSeats = createNumber("availableSeats", Integer.class);

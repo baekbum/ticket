@@ -27,11 +27,37 @@ CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
 
 -- ==========================================
+-- 2. Areas table
+-- ==========================================
+CREATE TABLE areas (
+    area_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    area_name VARCHAR(80) NOT NULL,
+    grade VARCHAR(10) NOT NULL,
+    price INTEGER NOT NULL,
+    position_x DOUBLE PRECISION,
+    position_y DOUBLE PRECISION,
+    area_width DOUBLE PRECISION,
+    area_height DOUBLE PRECISION,
+    rotation DOUBLE PRECISION,
+    layout_angle DOUBLE PRECISION,
+    status VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_event_area_name UNIQUE (event_id, area_name)
+);
+
+CREATE INDEX idx_area_event_id ON areas(event_id);
+CREATE INDEX idx_area_event_name ON areas(event_id, area_name);
+
+-- ==========================================
 -- 2. Seats 테이블
 -- ==========================================
 CREATE TABLE seats (
     seat_id BIGSERIAL PRIMARY KEY,
     event_id BIGINT NOT NULL,
+    area_id BIGINT,
     zone VARCHAR(50) NOT NULL,
     seat_row INTEGER NOT NULL,
     seat_col INTEGER NOT NULL,
@@ -51,6 +77,7 @@ CREATE TABLE seats (
 );
 
 CREATE INDEX idx_seat_event_location ON seats(event_id, zone, seat_row, seat_col);
+CREATE INDEX idx_seat_area_id ON seats(area_id);
 
 
 -- ==========================================

@@ -1,13 +1,21 @@
+  let fragmentContext = {};
+
   document.addEventListener('DOMContentLoaded', async () => {
 
       applySavedTheme();
 
       await loadMyProfileHeader();
 
-      const defaultMenu = document.querySelector('.menu-btn[data-menu="user"]');
+      const params = new URLSearchParams(window.location.search);
+      const requestedMenu = params.get('menu') || 'user';
+      const eventId = params.get('eventId');
+      if (eventId) fragmentContext.area = { eventId: parseInt(eventId, 10) };
+
+      const defaultMenu = document.querySelector(`.menu-btn[data-menu="${requestedMenu}"]`)
+          || document.querySelector('.menu-btn[data-menu="user"]');
 
       if (defaultMenu) {
-          await switchMenu('user', defaultMenu);
+          await switchMenu(defaultMenu.dataset.menu || 'user', defaultMenu);
       }
 
   });
@@ -51,9 +59,13 @@
     }
   }
 
-  async function switchMenu(menuName, btnElement) {
+  async function switchMenu(menuName, btnElement, context = null) {
 
     if (menuName === 'ticket' || menuName === 'reservation') return;
+
+    if (context) {
+      fragmentContext[menuName] = context;
+    }
 
     document.querySelectorAll('.sidebar .menu-btn')
         .forEach(btn => btn.classList.remove('active'));
@@ -88,6 +100,13 @@
       contentArea.innerHTML = html;
 
       await loadFragmentAssets(contentArea);
+
+      window.dispatchEvent(new CustomEvent('admin:fragment-loaded', {
+        detail: {
+          menuName,
+          context: fragmentContext[menuName] || {}
+        }
+      }));
 
     } catch (e) {
 
@@ -131,6 +150,23 @@
 
   async function loadFragmentAssets(contentArea) {
     document.querySelectorAll('script[data-fragment-script="true"]').forEach(script => script.remove());
+    document.querySelectorAll('link[data-fragment-style="true"]').forEach(link => link.remove());
+
+    const links = [...contentArea.querySelectorAll('link[rel="stylesheet"]')];
+
+    for (const oldLink of links) {
+      const rawHref = oldLink.getAttribute('href') || oldLink.getAttribute('th:href');
+      const href = resolveFragmentAssetUrl(rawHref);
+
+      oldLink.remove();
+      if (!href) continue;
+
+      const newLink = document.createElement('link');
+      newLink.rel = 'stylesheet';
+      newLink.href = href;
+      newLink.dataset.fragmentStyle = 'true';
+      document.head.appendChild(newLink);
+    }
 
     const scripts = [...contentArea.querySelectorAll('script')];
 
@@ -165,4 +201,8 @@
   }
 
   window.switchMenu = switchMenu;
+  window.switchMenuWithContext = function (menuName, context = {}) {
+    const btn = document.querySelector(`.menu-btn[data-menu="${menuName}"]`);
+    return switchMenu(menuName, btn, context);
+  };
   window.toggleTheme = toggleTheme;

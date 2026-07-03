@@ -13,6 +13,9 @@ import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.exception.seat.SeatDuplicateException;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaRepository;
+import dev.bum.ticket_service.jpa.area.QArea;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
@@ -43,6 +46,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     private final JPAQueryFactory queryFactory;
     private final SeatJpaRepository jpaRepository;
     private final EventRepository  eventRepository;
+    private final AreaRepository areaRepository;
     private final EntityManager entityManager;
     private QSeat seat;
 
@@ -52,6 +56,7 @@ public class SeatRepositoryImpl implements SeatRepository {
 
         // 공연 정보가 존재하는 지 확인.
         Event event = eventRepository.selectById(eventId);
+        Area area = info.getAreaId() != null ? areaRepository.selectById(info.getAreaId()) : null;
 
         // 해당 공연 정보가 이미 등록되어있는지 확인.
         SeatCondRequest cond = SeatCondRequest.builder()
@@ -79,6 +84,7 @@ public class SeatRepositoryImpl implements SeatRepository {
 
                     Seat seat = Seat.builder()
                             .event(event)
+                            .area(area)
                             .zone(config.getZone())
                             .seatRow(r)
                             .seatCol(c)
@@ -209,6 +215,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     public Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable) {
         seat = QSeat.seat;
         QEvent event = QEvent.event;
+        QArea area = QArea.area;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
         List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
@@ -223,9 +230,11 @@ public class SeatRepositoryImpl implements SeatRepository {
         List<Seat> content = queryFactory
                 .selectFrom(seat)
                 .join(seat.event, event).fetchJoin()
+                .leftJoin(seat.area, area).fetchJoin()
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
+                        areaIdEq(cond.getAreaId()),
                         zoneEq(cond.getZone()),
                         seatRowEq(cond.getSeatRow()),
                         seatColEq(cond.getSeatCol()),
@@ -241,9 +250,11 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .select(seat.count())
                 .from(seat)
                 .join(seat.event, event)
+                .leftJoin(seat.area, area)
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
+                        areaIdEq(cond.getAreaId()),
                         zoneEq(cond.getZone()),
                         seatRowEq(cond.getSeatRow()),
                         seatColEq(cond.getSeatCol()),
@@ -287,6 +298,14 @@ public class SeatRepositoryImpl implements SeatRepository {
         Event event = eventRepository.selectById(eventId);
 
         return seat.event.eq(event);
+    }
+
+    private BooleanExpression areaIdEq(Long areaId) {
+        if (areaId == null) return null;
+
+        Area area = areaRepository.selectById(areaId);
+
+        return seat.area.eq(area);
     }
 
     private BooleanExpression zoneEq(String zone) {

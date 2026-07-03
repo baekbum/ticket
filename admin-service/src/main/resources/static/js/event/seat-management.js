@@ -11,16 +11,20 @@
 
     /* ── 상태 ── */
     let smEventId    = null;
+    let smAreaId     = null;
+    let smAreaName   = null;
     let smTotalPages = 1;
     let smSelectedIds = new Set();
     let smDetailFilters = { zone: null, seatRow: null, seatCol: null, grade: null, status: null };
 
     /* ── 좌석 관리 모달 열기 ── */
-    window.openSeatModal = function (eventId, title, artist) {
+    window.openSeatModal = function (eventId, title, artist, areaId = null, areaName = null) {
       smEventId = parseInt(eventId, 10);
+      smAreaId = areaId ? parseInt(areaId, 10) : null;
+      smAreaName = areaName || null;
       smSelectedIds.clear();
       smDetailFilters = { zone: null, seatRow: null, seatCol: null, grade: null, status: null };
-      document.getElementById('sm-event-title').textContent  = `${title} — ${artist}`;
+      document.getElementById('sm-event-title').textContent  = smAreaName ? `${smAreaName} — ${title}` : `${title} — ${artist}`;
       document.getElementById('sm-event-id-label').textContent = eventId;
       document.getElementById('sm-filter-grade').value  = '';
       document.getElementById('sm-filter-status').value = '';
@@ -43,6 +47,7 @@
 
       const body = {
         eventId: smEventId,
+        areaId: smAreaId,
         grade,
         status,
         zone:    smDetailFilters.zone    || null,
@@ -436,7 +441,7 @@
       try {
         const res = await Fetch(`${SEAT_API}/insert`, {
           method: 'POST', headers: authHeader(),
-          body: JSON.stringify({ eventId: smEventId, insertSeatAreaConfigs: configs })
+          body: JSON.stringify({ eventId: smEventId, areaId: smAreaId, insertSeatAreaConfigs: configs })
         });
         if (res.ok) {
           showToast(`${totalSeats.toLocaleString()}석 일괄 생성 완료!`);

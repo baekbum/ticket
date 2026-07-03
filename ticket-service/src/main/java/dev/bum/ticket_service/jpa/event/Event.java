@@ -2,6 +2,7 @@ package dev.bum.ticket_service.jpa.event;
 
 import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
@@ -87,6 +88,10 @@ public class Event {
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
 
+    @OneToMany(mappedBy = "event")
+    @Builder.Default
+    private List<Area> areas = new ArrayList<>();
+
     public EventResponse toResponse() {
         EventStatus.valueOf(this.status.name());
         return EventResponse.builder()
@@ -129,6 +134,7 @@ public class Event {
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
         this.seats = new ArrayList<>();
+        this.areas = new ArrayList<>();
     }
 
     // 비즈니스 메서드: 수정 로직 추가

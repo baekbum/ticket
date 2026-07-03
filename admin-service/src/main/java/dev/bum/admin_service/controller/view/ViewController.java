@@ -43,6 +43,8 @@ public class ViewController {
             return "fragment/fragment-user";
         } else if ("event".equals(menuName)) {
             return "fragment/fragment-event";
+        } else if ("area".equals(menuName)) {
+            return "fragment/fragment-area";
         } else if ("seat".equals(menuName)) {
             return "fragment/fragment-seat";
         }

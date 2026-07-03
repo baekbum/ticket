@@ -3,6 +3,7 @@ package dev.bum.ticket_service.jpa.seat;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import jakarta.persistence.*;
@@ -36,6 +37,10 @@ public class Seat {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id")
+    private Area area;
 
     @Column(nullable = false, length = 50)
     private String zone;
@@ -100,6 +105,8 @@ public class Seat {
                 .layoutAngle(this.layoutAngle)
                 // 연관관계 Event 데이터 조립 (N+1 고려 필수, 서비스단 fetch join 권장)
                 .eventId(this.event != null ? this.event.getEventId() : null)
+                .areaId(this.area != null ? this.area.getAreaId() : null)
+                .areaName(this.area != null ? this.area.getAreaName() : null)
                 .artistName(this.event != null ? this.event.getArtistName() : null)
                 .title(this.event != null ? this.event.getTitle() : null)
                 .venue(this.event != null ? this.event.getVenue() : null)
@@ -109,8 +116,9 @@ public class Seat {
     }
 
     @Builder
-    public Seat(Long seatId, Event event, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, Double positionX, Double positionY, Double seatWidth, Double seatHeight, Double rotation, Double layoutAngle, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Seat(Long seatId, Event event, Area area, String zone, Integer seatRow, Integer seatCol, SeatGrade grade, Integer price, SeatStatus status, Double positionX, Double positionY, Double seatWidth, Double seatHeight, Double rotation, Double layoutAngle, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.seatId = seatId;
+        this.area = area;
         this.zone = zone;
         this.seatRow = seatRow;
         this.seatCol = seatCol;

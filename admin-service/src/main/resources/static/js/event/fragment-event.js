@@ -222,7 +222,7 @@ tr.innerHTML = `
 <td class="actions">
   <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
   <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
-  <button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openSeatModal(${ev.eventId}, '${ev.title.replace(/'/g,"\\'")}', '${ev.artistName.replace(/'/g,"\\'")}')"><i class="ti ti-armchair"></i>좌석</button>
+  <button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openAreaMenu(${ev.eventId})"><i class="ti ti-armchair"></i>구역</button>
 </td>
 `;
 
@@ -534,6 +534,14 @@ loadEventList(0);
 };
 window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
 window.closeSearchModal = function () { document.getElementById('search-modal').style.display = 'none'; };
+
+window.openAreaMenu = function (eventId) {
+if (typeof window.switchMenuWithContext === 'function') {
+window.switchMenuWithContext('area', { eventId });
+return;
+}
+window.location.href = `/admin/api/v1/view/home?menu=area&eventId=${eventId}`;
+};
 
 function readDateSearch(prefix) {
 const mode = document.getElementById(`${prefix}-mode`)?.value || 'date';

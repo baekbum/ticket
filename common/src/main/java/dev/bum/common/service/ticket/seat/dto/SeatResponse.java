@@ -28,6 +28,8 @@ public class SeatResponse {
     private Double layoutAngle;
 
     private Long eventId;
+    private Long areaId;
+    private String areaName;
     private String artistName;
     private String title;
     private String venue;
