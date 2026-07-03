@@ -51,21 +51,21 @@ public class Area {
     private Integer price;
 
     @Column(name = "position_x")
-    private Double positionX;
+    private Double positionX; // 구역 X축 좌상단 시작점
 
     @Column(name = "position_y")
-    private Double positionY;
+    private Double positionY; // 구역 Y축 좌상단 시작점
 
     @Column(name = "area_width")
-    private Double width;
+    private Double width; // 구역 X 종료 지점 ( positionX + width )
 
     @Column(name = "area_height")
-    private Double height;
+    private Double height; // 구역 Y 종료 지점 ( positionY + height )
 
-    private Double rotation;
+    private Double rotation; // 구역 박스 자체를 돌리는 각도
 
     @Column(name = "layout_angle")
-    private Double layoutAngle;
+    private Double layoutAngle; // 그 구역 안에 좌석을 자동 생성할 때 좌석들이 진행되는 방향
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

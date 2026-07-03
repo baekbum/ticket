@@ -3,8 +3,12 @@ package dev.bum.ticket_service.service.area;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
+import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
+import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +29,39 @@ import java.util.List;
 public class AreaService {
 
     private final AreaRepository repository;
+    private final ObjectMapper objectMapper;
 
     public AreaResponse insert(InsertAreaRequest info) {
         log.info("[AREA INSERT] {}", info);
         return repository.insert(info).toResponse();
+    }
+
+    public List<AreaResponse> insertBulk(InsertAreaBulkRequest info) {
+        if (info.getAreas() == null || info.getAreas().isEmpty()) {
+            throw new IllegalArgumentException("등록할 구역 정보가 없습니다.");
+        }
+
+        log.info("[AREA BULK INSERT] count : {}", info.getAreas().size());
+        return info.getAreas().stream()
+                .map(repository::insert)
+                .map(Area::toResponse)
+                .toList();
+    }
+
+    public List<AreaResponse> insertJson(InsertAreaJsonRequest info) {
+        log.info("[AREA JSON INSERT]");
+        try {
+            List<InsertAreaRequest> areas = objectMapper.readValue(
+                    info.getJsonText(),
+                    new TypeReference<List<InsertAreaRequest>>() {}
+            );
+
+            return insertBulk(InsertAreaBulkRequest.builder()
+                    .areas(areas)
+                    .build());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("구역 JSON 형식이 올바르지 않습니다.", e);
+        }
     }
 
     @Transactional(readOnly = true)

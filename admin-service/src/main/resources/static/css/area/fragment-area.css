@@ -154,3 +154,129 @@
 
 .area-context-chip { display: none; align-items: center; gap: 6px; padding: 8px 12px; background: var(--purple-dim); border: 1px solid rgba(124,77,255,0.18); border-radius: var(--radius-sm); color: var(--purple); font-size: 12px; font-weight: 700; }
 .area-context-chip.visible { display: inline-flex; }
+
+.area-bulk-content {
+  max-width: 980px;
+}
+
+.area-bulk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.area-bulk-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.area-bulk-count strong {
+  color: var(--text-primary);
+}
+
+.area-bulk-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.area-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: 14px;
+}
+
+.area-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.area-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.area-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.area-field span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.area-field input,
+.area-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+}
+
+.area-field input:focus,
+.area-field select:focus {
+  border-color: var(--purple);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+.area-json-content {
+  max-width: 860px;
+}
+
+.area-json-textarea {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #111827;
+  color: #f8fafc;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  outline: none;
+}
+
+.area-json-textarea:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+@media (max-width: 980px) {
+  .area-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .area-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

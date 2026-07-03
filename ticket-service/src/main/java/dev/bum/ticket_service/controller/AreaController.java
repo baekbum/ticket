@@ -3,6 +3,8 @@ package dev.bum.ticket_service.controller;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
+import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
+import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.ticket_service.service.area.AreaService;
@@ -11,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RequestMapping("/api/v1/area")
@@ -23,6 +27,16 @@ public class AreaController {
     @PostMapping("/insert")
     public ResponseEntity<AreaResponse> insert(@Valid @RequestBody InsertAreaRequest info) {
         return ResponseEntity.ok(areaService.insert(info));
+    }
+
+    @PostMapping("/insert/bulk")
+    public ResponseEntity<List<AreaResponse>> insertBulk(@Valid @RequestBody InsertAreaBulkRequest info) {
+        return ResponseEntity.ok(areaService.insertBulk(info));
+    }
+
+    @PostMapping("/insert/json")
+    public ResponseEntity<List<AreaResponse>> insertJson(@Valid @RequestBody InsertAreaJsonRequest info) {
+        return ResponseEntity.ok(areaService.insertJson(info));
     }
 
     @GetMapping("/select/id/{areaId}")

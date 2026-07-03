@@ -8,6 +8,7 @@ let currentAreaList = [];
 let currentAreaFilters = { eventId: null, areaName: null };
 let serverTotalPages = 1;
 let initialized = false;
+let areaBulkCardSeq = 0;
 
 function inputValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
@@ -127,6 +128,182 @@ window.resetAreaSearch = function () {
   setValue('area-search-name', '');
   currentAreaFilters = { eventId: null, areaName: null };
   loadAreaList(0);
+};
+
+function refreshAreaBulkCount() {
+  const countEl = document.getElementById('area-bulk-count');
+  if (countEl) countEl.textContent = document.querySelectorAll('#area-bulk-wrapper .area-card').length;
+}
+
+function removeAreaBulkCard(cardId) {
+  document.getElementById(cardId)?.remove();
+  refreshAreaBulkCount();
+}
+
+function areaBulkCardTemplate(data = {}) {
+  const cardId = `area-bulk-card-${Date.now()}-${areaBulkCardSeq++}`;
+  const eventId = data.eventId ?? currentAreaFilters.eventId ?? '';
+  const areaName = data.areaName ?? '';
+  const grade = data.grade ?? 'VIP';
+  const price = data.price != null ? Number(data.price).toLocaleString() : '';
+  const positionX = data.positionX ?? 80;
+  const positionY = data.positionY ?? 80;
+  const width = data.width ?? 100;
+  const height = data.height ?? 100;
+  const rotation = data.rotation ?? 0;
+  const layoutAngle = data.layoutAngle ?? 0;
+  const status = data.status ?? 'ACTIVE';
+
+  return `
+    <div class="area-card" id="${cardId}">
+      <div class="area-card-header">
+        <div class="area-card-title"><i class="ti ti-layout-grid"></i><span>구역 정보</span></div>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeAreaBulkCard('${cardId}')">
+          <i class="ti ti-x"></i>제거
+        </button>
+      </div>
+      <div class="area-card-grid">
+        <label class="area-field"><span>이벤트 ID</span><input type="number" class="ab-event-id" min="1" value="${eventId}"></label>
+        <label class="area-field"><span>구역명</span><input type="text" class="ab-area-name" value="${areaName}" placeholder="예: FLOOR-가"></label>
+        <label class="area-field"><span>등급</span>
+          <select class="ab-grade">
+            <option value="VIP" ${grade === 'VIP' ? 'selected' : ''}>VIP</option>
+            <option value="R" ${grade === 'R' ? 'selected' : ''}>R</option>
+            <option value="S" ${grade === 'S' ? 'selected' : ''}>S</option>
+            <option value="A" ${grade === 'A' ? 'selected' : ''}>A</option>
+          </select>
+        </label>
+        <label class="area-field"><span>가격</span><input type="text" class="ab-price" inputmode="numeric" value="${price}" oninput="formatAreaBulkPrice(this)"></label>
+        <label class="area-field"><span>위치 X</span><input type="number" class="ab-position-x" step="0.1" value="${positionX}"></label>
+        <label class="area-field"><span>위치 Y</span><input type="number" class="ab-position-y" step="0.1" value="${positionY}"></label>
+        <label class="area-field"><span>구역 너비</span><input type="number" class="ab-width" step="0.1" min="0" value="${width}"></label>
+        <label class="area-field"><span>구역 높이</span><input type="number" class="ab-height" step="0.1" min="0" value="${height}"></label>
+        <label class="area-field"><span>회전</span><input type="number" class="ab-rotation" step="0.1" value="${rotation}"></label>
+        <label class="area-field"><span>배치 각도</span><input type="number" class="ab-layout-angle" step="0.1" value="${layoutAngle}"></label>
+        <label class="area-field"><span>상태</span>
+          <select class="ab-status">
+            <option value="ACTIVE" ${status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
+            <option value="INACTIVE" ${status === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  `;
+}
+
+window.formatAreaBulkPrice = function (input) {
+  formatDigitInput(input);
+};
+
+window.removeAreaBulkCard = removeAreaBulkCard;
+
+window.addAreaBulkCard = function (data = {}) {
+  const wrapper = document.getElementById('area-bulk-wrapper');
+  wrapper.insertAdjacentHTML('beforeend', areaBulkCardTemplate(data));
+  refreshAreaBulkCount();
+};
+
+window.openAreaBulkModal = function () {
+  const wrapper = document.getElementById('area-bulk-wrapper');
+  wrapper.innerHTML = '';
+  addAreaBulkCard();
+  document.getElementById('area-bulk-modal').style.display = 'flex';
+};
+
+window.closeAreaBulkModal = function () {
+  document.getElementById('area-bulk-modal').style.display = 'none';
+};
+
+function readAreaBulkCard(card) {
+  const value = selector => card.querySelector(selector)?.value?.trim() || '';
+  const numberValue = selector => {
+    const raw = value(selector).replace(/,/g, '');
+    return raw ? Number(raw) : null;
+  };
+
+  return {
+    eventId: numberValue('.ab-event-id'),
+    areaName: value('.ab-area-name'),
+    grade: value('.ab-grade'),
+    price: numberValue('.ab-price'),
+    positionX: numberValue('.ab-position-x'),
+    positionY: numberValue('.ab-position-y'),
+    width: numberValue('.ab-width'),
+    height: numberValue('.ab-height'),
+    rotation: numberValue('.ab-rotation'),
+    layoutAngle: numberValue('.ab-layout-angle'),
+    status: value('.ab-status') || 'ACTIVE'
+  };
+}
+
+window.submitAreaBulkForm = async function () {
+  const cards = [...document.querySelectorAll('#area-bulk-wrapper .area-card')];
+  if (cards.length === 0) {
+    showToast('등록할 구역을 추가해주세요.', true);
+    return;
+  }
+
+  const areas = cards.map(readAreaBulkCard);
+  const invalidIndex = areas.findIndex(area => !area.eventId || !area.areaName || !area.grade || !area.price);
+  if (invalidIndex >= 0) {
+    showToast(`${invalidIndex + 1}번째 구역의 이벤트 ID, 구역명, 등급, 가격을 입력해주세요.`, true);
+    return;
+  }
+
+  areas.forEach(area => Object.keys(area).forEach(key => area[key] === null && delete area[key]));
+
+  try {
+    const res = await Fetch(`${AREA_URL}/insert/bulk`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ areas })
+    });
+
+    if (res.ok) {
+      showToast(`${areas.length}개 구역을 등록했습니다.`);
+      closeAreaBulkModal();
+      loadAreaList(0);
+    } else {
+      showToast('구역 일괄 등록에 실패했습니다.', true);
+    }
+  } catch (e) {
+    showToast('구역 일괄 등록 통신 오류가 발생했습니다.', true);
+  }
+};
+
+window.openAreaJsonModal = function () {
+  document.getElementById('area-json-modal').style.display = 'flex';
+};
+
+window.closeAreaJsonModal = function () {
+  document.getElementById('area-json-modal').style.display = 'none';
+};
+
+window.submitAreaJsonForm = async function () {
+  const jsonText = inputValue('area-json-text');
+  if (!jsonText) {
+    showToast('등록할 JSON을 입력해주세요.', true);
+    return;
+  }
+
+  try {
+    const res = await Fetch(`${AREA_URL}/insert/json`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ jsonText })
+    });
+
+    if (res.ok) {
+      const inserted = await res.json();
+      showToast(`${inserted.length}개 구역을 등록했습니다.`);
+      closeAreaJsonModal();
+      loadAreaList(0);
+    } else {
+      showToast('구역 JSON 등록에 실패했습니다.', true);
+    }
+  } catch (e) {
+    showToast('구역 JSON 등록 통신 오류가 발생했습니다.', true);
+  }
 };
 
 window.openAreaModalForCreate = function () {
