@@ -38,14 +38,37 @@
 .btn-warning { background: var(--amber); color: #fff; }
 .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
 
+.bulk-action-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #fff8e8;
+  border: 1px solid rgba(245,159,0,.3);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #7a5800;
+}
+.bulk-action-bar.visible { display: flex; }
+.bulk-action-bar i { color: var(--amber); font-size: 15px; }
+.bulk-count { color: #5a4000; font-weight: 700; }
+
 .table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); margin: 0 1.75rem; background: var(--card-bg); }
-.area-table { width: 100%; min-width: 1320px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-.area-table th, .area-table td { padding: 10px; border-right: 1px solid rgba(230,228,239,.45); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.area-table { width: 100%; min-width: 1426px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.area-table th, .area-table td { padding: 10px; border-right: 1px solid rgba(230,228,239,.45); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
 .area-table th { background: #faf9fd; font-size: 12px; font-weight: 600; color: var(--text-secondary); position: sticky; top: 0; z-index: 2; }
 .area-table th:last-child, .area-table td:last-child { border-right: none; }
 .area-table tbody tr { cursor: pointer; transition: background 0.12s; }
 .area-table tbody tr:hover { background: var(--purple-dim); }
+.area-table tbody tr.selected-row { background: rgba(124,77,255,0.06); }
 .area-table .actions { text-align: center; }
+.area-row-checkbox,
+#area-select-all-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--purple);
+  cursor: pointer;
+}
 
 .table-pagination {
   display: grid;
@@ -157,6 +180,9 @@
 
 .area-bulk-content {
   max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem 2rem 1.5rem;
 }
 
 .area-bulk-top {
@@ -180,7 +206,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 56vh;
+  max-height: 54vh;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -267,6 +293,62 @@
 .area-json-textarea:focus {
   border-color: var(--purple);
   box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+.btn-add-area {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: transparent;
+  border: 1.5px dashed var(--purple);
+  border-radius: var(--radius-sm);
+  color: var(--purple);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-add-area:hover {
+  background: rgba(124, 77, 255, 0.08);
+  border-color: var(--purple-hover);
+}
+
+body.dark-mode .area-table th,
+body.dark-mode .area-table td {
+  color: var(--text-primary);
+}
+
+body.dark-mode .area-table th {
+  background: rgba(255,255,255,0.04);
+}
+
+body.dark-mode .area-table tbody tr:hover,
+body.dark-mode .area-table tbody tr.selected-row {
+  background: rgba(124, 77, 255, 0.14);
+}
+
+body.dark-mode .area-card,
+body.dark-mode .page-number-viewer,
+body.dark-mode .page-size-selector select,
+body.dark-mode .area-field input,
+body.dark-mode .area-field select,
+body.dark-mode .form-group input,
+body.dark-mode .form-group select,
+body.dark-mode .search-input {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+body.dark-mode .bulk-action-bar {
+  background: rgba(245,159,0,0.13);
+  color: #ffd27a;
+}
+
+body.dark-mode .bulk-count {
+  color: #ffe0a3;
 }
 
 @media (max-width: 980px) {

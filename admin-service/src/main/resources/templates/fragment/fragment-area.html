@@ -19,6 +19,14 @@
       <i class="ti ti-filter"></i>
       이벤트 ID <span id="area-context-event-id">-</span>
     </div>
+    <div class="bulk-action-bar" id="area-bulk-action-bar">
+      <i class="ti ti-checkbox"></i>
+      <span><span class="bulk-count" id="area-selected-count">0</span>건 선택됨</span>
+      <button class="btn btn-danger-solid btn-sm" onclick="openAreaBulkDeleteConfirmModal()">
+        <i class="ti ti-trash"></i>선택 삭제
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="clearAreaSelections()">선택 해제</button>
+    </div>
   </div>
   <div class="toolbar-right">
     <button class="btn btn-outline" onclick="openAreaJsonModal()">
@@ -36,6 +44,8 @@
 <div class="table-wrap">
   <table class="area-table">
     <colgroup>
+      <col style="width:46px;">
+      <col style="width:60px;">
       <col style="width:80px;">
       <col style="width:90px;">
       <col style="width:140px;">
@@ -52,6 +62,10 @@
     </colgroup>
     <thead>
     <tr>
+      <th style="text-align:center;">
+        <input type="checkbox" id="area-select-all-checkbox" onclick="toggleAreaSelectAll(this)" title="전체 선택">
+      </th>
+      <th style="text-align:center;">순서</th>
       <th>ID</th>
       <th>이벤트 ID</th>
       <th>구역명</th>
@@ -140,19 +154,31 @@
     <div class="modal-divider"></div>
 
     <div class="area-bulk-top">
-      <button type="button" class="btn btn-outline" onclick="addAreaBulkCard()">
-        <i class="ti ti-plus"></i>새 구역 추가
-      </button>
       <span class="area-bulk-count">등록 예정 <strong id="area-bulk-count">0</strong>개</span>
     </div>
 
     <div class="area-bulk-wrapper" id="area-bulk-wrapper"></div>
+    <button type="button" class="btn-add-area" onclick="addAreaBulkCard()">
+      <i class="ti ti-plus"></i>새 구역 추가
+    </button>
 
     <div class="form-row" style="margin-top:1.2rem;">
       <button class="btn btn-secondary" onclick="closeAreaBulkModal()">취소</button>
       <button class="btn btn-success" onclick="submitAreaBulkForm()">
         <i class="ti ti-check"></i>구역 일괄 등록
       </button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="area-bulk-delete-modal">
+  <div class="f-modal-content" style="max-width:360px;text-align:center;">
+    <i class="ti ti-trash-x" style="font-size:38px;color:var(--red);"></i>
+    <p class="modal-title" style="text-align:center;margin-top:8px;">선택한 <span id="area-bulk-delete-count">0</span>개 구역을 삭제할까요?</p>
+    <p class="modal-subtitle" style="text-align:center;">연결된 좌석이 있다면 삭제에 실패할 수 있습니다.</p>
+    <div class="form-row">
+      <button class="btn btn-secondary" onclick="closeAreaBulkDeleteConfirmModal()">취소</button>
+      <button class="btn btn-danger-solid" onclick="submitAreaBulkDelete()">삭제</button>
     </div>
   </div>
 </div>

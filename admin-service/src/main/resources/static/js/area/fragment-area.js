@@ -9,6 +9,7 @@ let currentAreaFilters = { eventId: null, areaName: null };
 let serverTotalPages = 1;
 let initialized = false;
 let areaBulkCardSeq = 0;
+let selectedAreaIds = new Set();
 
 function inputValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
@@ -50,6 +51,95 @@ function syncContextChip() {
   }
 }
 
+function updateAreaBulkBar() {
+  const bar = document.getElementById('area-bulk-action-bar');
+  const count = document.getElementById('area-selected-count');
+  if (!bar || !count) return;
+  count.textContent = selectedAreaIds.size;
+  if (selectedAreaIds.size > 0) bar.classList.add('visible');
+  else bar.classList.remove('visible');
+}
+
+window.toggleAreaSelectAll = function (masterCb) {
+  document.querySelectorAll('.area-row-checkbox').forEach(cb => {
+    cb.checked = masterCb.checked;
+    const id = parseInt(cb.dataset.id, 10);
+    const row = cb.closest('tr');
+    if (masterCb.checked) {
+      selectedAreaIds.add(id);
+      row?.classList.add('selected-row');
+    } else {
+      selectedAreaIds.delete(id);
+      row?.classList.remove('selected-row');
+    }
+  });
+  updateAreaBulkBar();
+};
+
+window.toggleAreaRowCheckbox = function (cb, id) {
+  const row = cb.closest('tr');
+  if (cb.checked) {
+    selectedAreaIds.add(id);
+    row?.classList.add('selected-row');
+  } else {
+    selectedAreaIds.delete(id);
+    row?.classList.remove('selected-row');
+  }
+
+  const all = document.querySelectorAll('.area-row-checkbox');
+  const master = document.getElementById('area-select-all-checkbox');
+  if (master) master.checked = all.length > 0 && [...all].every(c => c.checked);
+  updateAreaBulkBar();
+};
+
+window.clearAreaSelections = function () {
+  selectedAreaIds.clear();
+  document.querySelectorAll('.area-row-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.closest('tr')?.classList.remove('selected-row');
+  });
+  const master = document.getElementById('area-select-all-checkbox');
+  if (master) master.checked = false;
+  updateAreaBulkBar();
+};
+
+window.openAreaBulkDeleteConfirmModal = function () {
+  if (selectedAreaIds.size === 0) {
+    showToast('삭제할 구역을 선택해주세요.', true);
+    return;
+  }
+  document.getElementById('area-bulk-delete-count').textContent = selectedAreaIds.size;
+  document.getElementById('area-bulk-delete-modal').style.display = 'flex';
+};
+
+window.closeAreaBulkDeleteConfirmModal = function () {
+  document.getElementById('area-bulk-delete-modal').style.display = 'none';
+};
+
+window.submitAreaBulkDelete = async function () {
+  const ids = [...selectedAreaIds];
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const id of ids) {
+    try {
+      const res = await Fetch(`${AREA_URL}/delete/id/${id}`, { method: 'DELETE', headers });
+      res.ok ? successCount++ : failCount++;
+    } catch (e) {
+      failCount++;
+    }
+  }
+
+  closeAreaBulkDeleteConfirmModal();
+  selectedAreaIds.clear();
+  updateAreaBulkBar();
+
+  if (failCount === 0) showToast(`${successCount}개 구역을 삭제했습니다.`);
+  else showToast(`${successCount}개 삭제 완료, ${failCount}개 실패했습니다.`, true);
+
+  loadAreaList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+};
+
 window.loadAreaList = async function (pageZeroIndexed = 0) {
   const pageSize = parseInt(document.getElementById('pagination-size').value, 10);
   const cond = {
@@ -78,16 +168,26 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
 
     const tbody = document.getElementById('area-table-body');
     tbody.innerHTML = '';
+    selectedAreaIds.clear();
+    updateAreaBulkBar();
+    const master = document.getElementById('area-select-all-checkbox');
+    if (master) master.checked = false;
 
     if (currentAreaList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
       return;
     }
 
-    currentAreaList.forEach(area => {
+    currentAreaList.forEach((area, index) => {
       const tr = document.createElement('tr');
       const statusClass = area.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive';
+      const rowNumber = pageZeroIndexed * pageSize + index + 1;
       tr.innerHTML = `
+        <td style="text-align:center;" onclick="event.stopPropagation()">
+          <input type="checkbox" class="area-row-checkbox" data-id="${area.areaId}"
+                 onclick="event.stopPropagation(); toggleAreaRowCheckbox(this, ${area.areaId})">
+        </td>
+        <td style="text-align:center;color:var(--text-muted);">${rowNumber}</td>
         <td><strong>${area.areaId}</strong></td>
         <td>${area.eventId ?? ''}</td>
         <td title="${area.areaName || ''}">${area.areaName || ''}</td>
@@ -201,6 +301,7 @@ window.addAreaBulkCard = function (data = {}) {
   const wrapper = document.getElementById('area-bulk-wrapper');
   wrapper.insertAdjacentHTML('beforeend', areaBulkCardTemplate(data));
   refreshAreaBulkCount();
+  wrapper.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' });
 };
 
 window.openAreaBulkModal = function () {
