@@ -118,26 +118,25 @@ window.closeAreaBulkDeleteConfirmModal = function () {
 
 window.submitAreaBulkDelete = async function () {
   const ids = [...selectedAreaIds];
-  let successCount = 0;
-  let failCount = 0;
+  try {
+    const res = await Fetch(`${AREA_URL}/delete/bulk`, {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify({ areaIds: ids })
+    });
 
-  for (const id of ids) {
-    try {
-      const res = await Fetch(`${AREA_URL}/delete/id/${id}`, { method: 'DELETE', headers });
-      res.ok ? successCount++ : failCount++;
-    } catch (e) {
-      failCount++;
+    if (res.ok) {
+      closeAreaBulkDeleteConfirmModal();
+      selectedAreaIds.clear();
+      updateAreaBulkBar();
+      showToast(`${ids.length}개 구역을 삭제했습니다.`);
+      loadAreaList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+    } else {
+      showToast('구역 일괄 삭제 처리 중 오류가 발생했습니다.', true);
     }
+  } catch (e) {
+    showToast('서버 통신 실패', true);
   }
-
-  closeAreaBulkDeleteConfirmModal();
-  selectedAreaIds.clear();
-  updateAreaBulkBar();
-
-  if (failCount === 0) showToast(`${successCount}개 구역을 삭제했습니다.`);
-  else showToast(`${successCount}개 삭제 완료, ${failCount}개 실패했습니다.`, true);
-
-  loadAreaList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
 };
 
 window.loadAreaList = async function (pageZeroIndexed = 0) {

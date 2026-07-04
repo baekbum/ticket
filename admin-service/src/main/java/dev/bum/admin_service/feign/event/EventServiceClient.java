@@ -1,6 +1,7 @@
 package dev.bum.admin_service.feign.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
@@ -38,4 +39,7 @@ public interface EventServiceClient {
 
     @DeleteMapping("/delete/id/{eventId}")
     EventResponse delete(@PathVariable("eventId") Long eventId);
+
+    @DeleteMapping("/delete/bulk")
+    void deleteBulk(@Valid @RequestBody DeleteEventBulkRequest info);
 }

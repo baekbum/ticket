@@ -816,7 +816,7 @@
     window.submitBulkDelete = async function () {
       const idList = [...selectedIds];
       try {
-        const res = await Fetch(`${SEAT_URL}/delete`, {
+        const res = await Fetch(`${SEAT_URL}/delete/bulk`, {
           method: 'DELETE', headers, body: JSON.stringify({ seatIdList: idList })
         });
         if (res.ok) {

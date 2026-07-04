@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.area;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
+import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
@@ -94,6 +95,15 @@ public class AreaService {
     public AreaResponse delete(Long id) {
         log.info("[AREA DELETE] areaId : {}", id);
         return repository.delete(id).toResponse();
+    }
+
+    public void deleteBulk(DeleteAreaBulkRequest info) {
+        if (info.getAreaIds() == null || info.getAreaIds().isEmpty()) {
+            throw new IllegalArgumentException("삭제할 구역 정보가 없습니다.");
+        }
+
+        log.info("[AREA BULK DELETE] areaIds : {}", info.getAreaIds());
+        info.getAreaIds().forEach(this::delete);
     }
 
     private Sort makeSortInfo(List<String> sorts) {

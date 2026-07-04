@@ -251,17 +251,24 @@
     };
     window.submitSeatBulkDelete = async function () {
       const ids = [...smSelectedIds];
-      let ok = 0, fail = 0;
-      for (const id of ids) {
-        try {
-          const r = await Fetch(`${SEAT_API}/delete/id/${id}`, { method: 'DELETE', headers: authHeader() });
-          r.ok ? ok++ : fail++;
-        } catch { fail++; }
+      try {
+        const res = await Fetch(`${SEAT_API}/delete/bulk`, {
+          method: 'DELETE',
+          headers: authHeader(),
+          body: JSON.stringify({ seatIdList: ids })
+        });
+
+        if (res.ok) {
+          closeSeatBulkDeleteConfirm();
+          smSelectedIds.clear(); _smUpdateBulkBar();
+          showToast(`${ids.length}석 삭제 완료.`);
+          loadSeatMgmtList(Math.max(parseInt(document.getElementById('sm-page-current').value,10)-1, 0));
+        } else {
+          showToast('좌석 일괄 삭제 처리 중 오류가 발생했습니다.', true);
+        }
+      } catch {
+        showToast('서버 통신 실패', true);
       }
-      closeSeatBulkDeleteConfirm();
-      smSelectedIds.clear(); _smUpdateBulkBar();
-      showToast(fail === 0 ? `${ok}석 삭제 완료.` : `${ok}석 완료, ${fail}석 실패.`, fail > 0);
-      loadSeatMgmtList(Math.max(parseInt(document.getElementById('sm-page-current').value,10)-1, 0));
     };
 
     /* ── 선택 일괄 수정 패널 ── */

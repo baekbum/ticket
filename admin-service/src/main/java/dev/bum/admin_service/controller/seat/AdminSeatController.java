@@ -51,6 +51,12 @@ public class AdminSeatController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/delete/bulk")
+    public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteSeatRequest info) {
+        seatServiceClient.deleteBulk(info);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/warm-up/{eventId}")
     public ResponseEntity<String> warmUpSeats(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(seatServiceClient.warmUpSeats(eventId));

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.feign.event.EventServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
@@ -86,6 +87,12 @@ public class AdminEventController {
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventServiceClient.delete(eventId));
+    }
+
+    @DeleteMapping("/delete/bulk")
+    public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteEventBulkRequest info) {
+        eventServiceClient.deleteBulk(info);
+        return ResponseEntity.ok().build();
     }
 
     private String toJson(Object value) {

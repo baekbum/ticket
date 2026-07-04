@@ -3,6 +3,7 @@ package dev.bum.user_service.service;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
+import dev.bum.common.service.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.dto.UserResponse;
 import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.user_service.exception.PasswordIncorrectException;
@@ -167,6 +168,15 @@ public class UserService {
         sendTopicToKafka(event);
 
         return deletedUser.toResponse();
+    }
+
+    public void deleteBulk(DeleteUserBulkRequest info) {
+        if (info.getUserIds() == null || info.getUserIds().isEmpty()) {
+            throw new IllegalArgumentException("삭제할 유저 정보가 없습니다.");
+        }
+
+        log.info("[BULK DELETE] userIds : {}", info.getUserIds());
+        info.getUserIds().forEach(this::delete);
     }
 
     /**

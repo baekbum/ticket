@@ -3,6 +3,7 @@ package dev.bum.ticket_service.controller;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
+import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
@@ -57,5 +58,11 @@ public class AreaController {
     @DeleteMapping("/delete/id/{areaId}")
     public ResponseEntity<AreaResponse> delete(@PathVariable("areaId") Long areaId) {
         return ResponseEntity.ok(areaService.delete(areaId));
+    }
+
+    @DeleteMapping("/delete/bulk")
+    public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteAreaBulkRequest info) {
+        areaService.deleteBulk(info);
+        return ResponseEntity.ok().build();
     }
 }

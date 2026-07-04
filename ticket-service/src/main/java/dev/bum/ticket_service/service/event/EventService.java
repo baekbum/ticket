@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.ticket_service.service.file.FileStorageService;
 import dev.bum.ticket_service.jpa.event.Event;
@@ -117,6 +118,15 @@ public class EventService {
         log.info("[DELETE] EventId : {}", id);
 
         return repository.delete(id).toResponse();
+    }
+
+    public void deleteBulk(DeleteEventBulkRequest info) {
+        if (info.getEventIds() == null || info.getEventIds().isEmpty()) {
+            throw new IllegalArgumentException("삭제할 이벤트 정보가 없습니다.");
+        }
+
+        log.info("[BULK DELETE] EventIds : {}", info.getEventIds());
+        info.getEventIds().forEach(this::delete);
     }
 
     /**

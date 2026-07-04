@@ -99,24 +99,26 @@ document.getElementById('bulk-delete-modal').style.display = 'none';
 
 window.submitBulkDelete = async function () {
 const ids = [...selectedIds];
-let successCount = 0, failCount = 0;
-
-for (const id of ids) {
 try {
-const res = await Fetch(`${EVENT_URL}/delete/id/${id}`, { method: 'DELETE', headers });
-if (res.ok) successCount++;
-else        failCount++;
-} catch { failCount++; }
-}
+const res = await Fetch(`${EVENT_URL}/delete/bulk`, {
+method: 'DELETE',
+headers,
+body: JSON.stringify({ eventIds: ids })
+});
 
+if (res.ok) {
 closeBulkDeleteConfirmModal();
 selectedIds.clear();
 updateBulkBar();
-
-if (failCount === 0) showToast(`${successCount}건의 이벤트가 삭제되었습니다.`);
-else                 showToast(`${successCount}건 삭제 완료, ${failCount}건 실패.`, true);
+showToast(`${ids.length}건의 이벤트가 삭제되었습니다.`);
 
 loadEventList(parseInt(document.getElementById('pagination-current').value, 10) - 1);
+} else {
+showToast('이벤트 일괄 삭제 처리 중 오류가 발생했습니다.', true);
+}
+} catch {
+showToast('서버 통신 실패', true);
+}
 };
 
 /* ─────────────────── 날짜 포맷 ─────────────────── */
