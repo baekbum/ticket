@@ -53,7 +53,7 @@
       <col style="width:100px;">
       <col style="width:100px;">
       <col style="width:90px;">
-      <col style="width:190px;">
+      <col style="width:260px;">
     </colgroup>
     <thead>
     <tr>
@@ -377,6 +377,31 @@
     <div class="form-row">
       <button class="btn btn-secondary" onclick="closeCacheWarmupConfirmModal()">취소</button>
       <button class="btn btn-warning" onclick="submitCacheWarmup()"><i class="ti ti-bolt"></i>웜업 진행</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="layout-preview-modal" style="z-index:1120;">
+  <div class="f-modal-content layout-preview-content">
+    <div class="layout-preview-header">
+      <div>
+        <p class="modal-title" id="layout-preview-title">배치도 미리보기</p>
+        <p class="modal-subtitle" id="layout-preview-subtitle">등록된 구역/좌석 좌표를 기준으로 렌더링합니다.</p>
+      </div>
+      <div class="layout-preview-actions">
+        <button class="btn btn-outline btn-sm" id="layout-back-btn" onclick="showAreaLayoutFromSeat()" style="display:none;">
+          <i class="ti ti-layout-grid"></i>전체 배치도
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="closeLayoutPreviewModal()">닫기</button>
+      </div>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="layout-preview-toolbar">
+      <span id="layout-preview-mode-label">구역 배치도</span>
+      <span id="layout-preview-count">0개</span>
+    </div>
+    <div class="layout-preview-stage">
+      <svg id="layout-preview-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
   </div>
 </div>

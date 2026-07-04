@@ -3,6 +3,7 @@ const API = { VERSION: 'v1', LOCAL_PORT: '8999', DEV_PORT: '8080' };
 const BASE_URL  = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
 const TICKET_PUBLIC_BASE_URL = window.location.port === API.LOCAL_PORT ? 'http://localhost:8082' : '';
 const EVENT_URL = `${BASE_URL}/api/${API.VERSION}/event`;
+const AREA_URL  = `${BASE_URL}/api/${API.VERSION}/area`;
 const SEAT_URL  = `${BASE_URL}/api/${API.VERSION}/seat`;
 const headers   = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
@@ -16,6 +17,10 @@ runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, st
 };
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
+const areaLayoutCache = new Map();
+const seatLayoutCache = new Map();
+let currentLayoutEventId = null;
+let currentLayoutEventTitle = '';
 
 function formatDigitInput(input) {
 if (!input) return;
@@ -225,6 +230,7 @@ tr.innerHTML = `
   <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
   <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
   <button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openAreaMenu(${ev.eventId})"><i class="ti ti-armchair"></i>구역</button>
+  <button class="btn btn-sm btn-layout"  onclick="event.stopPropagation(); window.openLayoutPreview(${ev.eventId})"><i class="ti ti-map"></i>배치도</button>
 </td>
 `;
 
@@ -543,6 +549,194 @@ window.switchMenuWithContext('area', { eventId });
 return;
 }
 window.location.href = `/admin/api/v1/view/home?menu=area&eventId=${eventId}`;
+};
+
+function clearLayoutSvg() {
+const svg = document.getElementById('layout-preview-svg');
+if (svg) svg.innerHTML = '';
+return svg;
+}
+
+function svgEl(tag, attrs = {}) {
+const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+return el;
+}
+
+async function fetchAreaLayout(eventId) {
+if (areaLayoutCache.has(eventId)) return areaLayoutCache.get(eventId);
+
+const res = await Fetch(`${AREA_URL}/select`, {
+method: 'POST',
+headers,
+body: JSON.stringify({ eventId, page: 0, size: 1000, sort: ['areaId-asc'] })
+});
+
+if (!res.ok) throw new Error('Area layout load failed');
+const paged = await res.json();
+const areas = paged.content || [];
+areaLayoutCache.set(eventId, areas);
+return areas;
+}
+
+async function fetchSeatLayout(areaId) {
+if (seatLayoutCache.has(areaId)) return seatLayoutCache.get(areaId);
+
+const res = await Fetch(`${SEAT_URL}/select`, {
+method: 'POST',
+headers,
+body: JSON.stringify({ areaId, page: 0, size: 5000, sort: ['seatRow-asc', 'seatCol-asc'] })
+});
+
+if (!res.ok) throw new Error('Seat layout load failed');
+const paged = await res.json();
+const seats = paged.content || [];
+seatLayoutCache.set(areaId, seats);
+return seats;
+}
+
+function renderAreaLayout(areas) {
+const svg = clearLayoutSvg();
+if (!svg) return;
+
+document.getElementById('layout-back-btn').style.display = 'none';
+document.getElementById('layout-preview-mode-label').textContent = '구역 배치도';
+document.getElementById('layout-preview-count').textContent = `${areas.length}개 구역`;
+
+svg.appendChild(svgEl('rect', { x: 230, y: 28, width: 240, height: 42, rx: 8, class: 'layout-stage-box' }));
+const stageText = svgEl('text', { x: 350, y: 55, class: 'layout-stage-text', 'text-anchor': 'middle' });
+stageText.textContent = 'STAGE';
+svg.appendChild(stageText);
+
+if (areas.length === 0) {
+const empty = svgEl('text', { x: 350, y: 260, class: 'layout-empty-text', 'text-anchor': 'middle' });
+empty.textContent = '등록된 구역 정보가 없습니다.';
+svg.appendChild(empty);
+return;
+}
+
+areas.forEach(area => {
+const x = area.positionX ?? 80;
+const y = area.positionY ?? 100;
+const width = area.width ?? 80;
+const height = area.height ?? 48;
+const rotation = area.rotation ?? 0;
+const cx = x + width / 2;
+const cy = y + height / 2;
+
+const group = svgEl('g', {
+class: `layout-area layout-grade-${(area.grade || '').toLowerCase()}`,
+transform: `rotate(${rotation} ${cx} ${cy})`,
+'data-area-id': area.areaId
+});
+group.addEventListener('click', () => openSeatLayoutPreview(area.areaId, area.areaName));
+
+group.appendChild(svgEl('rect', { x, y, width, height, rx: 5 }));
+const label = svgEl('text', { x: cx, y: cy + 4, 'text-anchor': 'middle' });
+label.textContent = area.areaName || area.areaId;
+group.appendChild(label);
+const title = svgEl('title');
+title.textContent = `${area.areaName || area.areaId} / ${area.grade || '-'} / ${area.price != null ? Number(area.price).toLocaleString() + '원' : '-'}`;
+group.appendChild(title);
+
+svg.appendChild(group);
+});
+}
+
+function seatStatusClass(status) {
+if (status === 'RESERVED') return 'layout-seat-reserved';
+if (status === 'LOCKED') return 'layout-seat-locked';
+return 'layout-seat-available';
+}
+
+function renderSeatLayout(areaId, areaName, seats) {
+const svg = clearLayoutSvg();
+if (!svg) return;
+
+document.getElementById('layout-back-btn').style.display = 'inline-flex';
+document.getElementById('layout-preview-mode-label').textContent = `${areaName || '구역'} 좌석 배치도`;
+document.getElementById('layout-preview-count').textContent = `${seats.length}석`;
+
+if (seats.length === 0) {
+const empty = svgEl('text', { x: 350, y: 260, class: 'layout-empty-text', 'text-anchor': 'middle' });
+empty.textContent = '등록된 좌석 정보가 없습니다.';
+svg.appendChild(empty);
+return;
+}
+
+const positions = seats.map(seat => ({
+x: seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80,
+y: seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80,
+w: seat.seatWidth ?? 14,
+h: seat.seatHeight ?? 14
+}));
+const minX = Math.min(...positions.map(p => p.x));
+const minY = Math.min(...positions.map(p => p.y));
+const maxX = Math.max(...positions.map(p => p.x + p.w));
+const maxY = Math.max(...positions.map(p => p.y + p.h));
+const layoutWidth = Math.max(maxX - minX, 1);
+const layoutHeight = Math.max(maxY - minY, 1);
+const scale = Math.min(560 / layoutWidth, 360 / layoutHeight, 3);
+const offsetX = (700 - layoutWidth * scale) / 2 - minX * scale;
+const offsetY = (520 - layoutHeight * scale) / 2 - minY * scale;
+
+seats.forEach(seat => {
+const x = (seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80) * scale + offsetX;
+const y = (seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80) * scale + offsetY;
+const width = (seat.seatWidth ?? 14) * scale;
+const height = (seat.seatHeight ?? 14) * scale;
+const rotation = seat.rotation ?? 0;
+const cx = x + width / 2;
+const cy = y + height / 2;
+const rect = svgEl('rect', {
+x, y, width, height, rx: Math.max(2, 3 * scale),
+class: `layout-seat ${seatStatusClass(seat.status)}`,
+transform: `rotate(${rotation} ${cx} ${cy})`
+});
+const title = svgEl('title');
+title.textContent = `${seat.seatName || `${seat.seatRow || '-'}행 ${seat.seatCol || '-'}번`} / ${seat.status || '-'} / ${seat.price != null ? Number(seat.price).toLocaleString() + '원' : '-'}`;
+rect.appendChild(title);
+svg.appendChild(rect);
+});
+}
+
+window.openLayoutPreview = async function (eventId) {
+const ev = currentEventList.find(item => item.eventId === parseInt(eventId, 10));
+currentLayoutEventId = parseInt(eventId, 10);
+currentLayoutEventTitle = ev?.title || `Event ${eventId}`;
+document.getElementById('layout-preview-title').textContent = `${currentLayoutEventTitle} 배치도`;
+document.getElementById('layout-preview-subtitle').textContent = '구역을 클릭하면 해당 구역의 좌석 배치도를 확인할 수 있습니다.';
+document.getElementById('layout-preview-modal').style.display = 'flex';
+
+try {
+const areas = await fetchAreaLayout(currentLayoutEventId);
+renderAreaLayout(areas);
+} catch {
+showToast('구역 배치도 조회에 실패했습니다.', true);
+}
+};
+
+window.openSeatLayoutPreview = async function (areaId, areaName) {
+try {
+const seats = await fetchSeatLayout(areaId);
+renderSeatLayout(areaId, areaName, seats);
+} catch {
+showToast('좌석 배치도 조회에 실패했습니다.', true);
+}
+};
+
+window.showAreaLayoutFromSeat = async function () {
+if (!currentLayoutEventId) return;
+try {
+const areas = await fetchAreaLayout(currentLayoutEventId);
+renderAreaLayout(areas);
+} catch {
+showToast('구역 배치도 조회에 실패했습니다.', true);
+}
+};
+
+window.closeLayoutPreviewModal = function () {
+document.getElementById('layout-preview-modal').style.display = 'none';
 };
 
 function readDateSearch(prefix) {
