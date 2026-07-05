@@ -21,6 +21,11 @@ const areaLayoutCache = new Map();
 const seatLayoutCache = new Map();
 let currentLayoutEventId = null;
 let currentLayoutEventTitle = '';
+const layoutDefaultViewBox = { x: 0, y: 0, width: 700, height: 520 };
+let layoutViewBox = { ...layoutDefaultViewBox };
+let layoutZoom = 1;
+let layoutDragState = null;
+let layoutDragged = false;
 
 function formatDigitInput(input) {
 if (!input) return;
@@ -557,6 +562,112 @@ if (svg) svg.innerHTML = '';
 return svg;
 }
 
+function applyLayoutViewBox() {
+const svg = document.getElementById('layout-preview-svg');
+if (!svg) return;
+svg.setAttribute('viewBox', `${layoutViewBox.x} ${layoutViewBox.y} ${layoutViewBox.width} ${layoutViewBox.height}`);
+const label = document.getElementById('layout-zoom-label');
+if (label) label.textContent = `${Math.round(layoutZoom * 100)}%`;
+}
+
+window.resetLayoutZoom = function () {
+layoutViewBox = { ...layoutDefaultViewBox };
+layoutZoom = 1;
+applyLayoutViewBox();
+};
+
+window.zoomLayoutPreview = function (factor, centerX = null, centerY = null) {
+const nextZoom = Math.min(Math.max(layoutZoom * factor, 0.5), 5);
+if (nextZoom === layoutZoom) return;
+
+const actualFactor = nextZoom / layoutZoom;
+const cx = centerX ?? (layoutViewBox.x + layoutViewBox.width / 2);
+const cy = centerY ?? (layoutViewBox.y + layoutViewBox.height / 2);
+const nextWidth = layoutViewBox.width / actualFactor;
+const nextHeight = layoutViewBox.height / actualFactor;
+
+layoutViewBox = {
+x: cx - (cx - layoutViewBox.x) / actualFactor,
+y: cy - (cy - layoutViewBox.y) / actualFactor,
+width: nextWidth,
+height: nextHeight
+};
+layoutZoom = nextZoom;
+applyLayoutViewBox();
+};
+
+function bindLayoutWheelZoom() {
+const svg = document.getElementById('layout-preview-svg');
+if (!svg || svg.dataset.zoomBound === 'true') return;
+
+svg.addEventListener('wheel', function (event) {
+event.preventDefault();
+const rect = svg.getBoundingClientRect();
+const ratioX = (event.clientX - rect.left) / rect.width;
+const ratioY = (event.clientY - rect.top) / rect.height;
+const centerX = layoutViewBox.x + layoutViewBox.width * ratioX;
+const centerY = layoutViewBox.y + layoutViewBox.height * ratioY;
+zoomLayoutPreview(event.deltaY < 0 ? 1.12 : 0.892857, centerX, centerY);
+}, { passive: false });
+
+svg.addEventListener('pointerdown', function (event) {
+if (event.button !== 0) return;
+svg.setPointerCapture(event.pointerId);
+const areaEl = event.target.closest ? event.target.closest('.layout-area') : null;
+layoutDragged = false;
+layoutDragState = {
+pointerId: event.pointerId,
+startClientX: event.clientX,
+startClientY: event.clientY,
+startViewBoxX: layoutViewBox.x,
+startViewBoxY: layoutViewBox.y,
+areaId: areaEl ? areaEl.dataset.areaId : null,
+areaName: areaEl ? areaEl.dataset.areaName : null
+};
+svg.classList.add('is-dragging');
+});
+
+svg.addEventListener('pointermove', function (event) {
+if (!layoutDragState || layoutDragState.pointerId !== event.pointerId) return;
+event.preventDefault();
+
+const rect = svg.getBoundingClientRect();
+const dx = event.clientX - layoutDragState.startClientX;
+const dy = event.clientY - layoutDragState.startClientY;
+if (Math.abs(dx) > 3 || Math.abs(dy) > 3) layoutDragged = true;
+
+layoutViewBox = {
+...layoutViewBox,
+x: layoutDragState.startViewBoxX - dx * (layoutViewBox.width / rect.width),
+y: layoutDragState.startViewBoxY - dy * (layoutViewBox.height / rect.height)
+};
+applyLayoutViewBox();
+});
+
+function endLayoutDrag(event) {
+if (!layoutDragState || layoutDragState.pointerId !== event.pointerId) return;
+const clickedAreaId = layoutDragState.areaId;
+const clickedAreaName = layoutDragState.areaName;
+const shouldOpenArea = !layoutDragged && clickedAreaId;
+if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+layoutDragState = null;
+svg.classList.remove('is-dragging');
+if (shouldOpenArea) openSeatLayoutPreview(clickedAreaId, clickedAreaName);
+setTimeout(() => {
+layoutDragged = false;
+}, 80);
+}
+
+svg.addEventListener('pointerup', endLayoutDrag);
+svg.addEventListener('pointercancel', endLayoutDrag);
+svg.addEventListener('lostpointercapture', function () {
+layoutDragState = null;
+svg.classList.remove('is-dragging');
+});
+
+svg.dataset.zoomBound = 'true';
+}
+
 function svgEl(tag, attrs = {}) {
 const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
 Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
@@ -598,6 +709,8 @@ return seats;
 function renderAreaLayout(areas) {
 const svg = clearLayoutSvg();
 if (!svg) return;
+resetLayoutZoom();
+bindLayoutWheelZoom();
 
 document.getElementById('layout-back-btn').style.display = 'none';
 document.getElementById('layout-preview-mode-label').textContent = '구역 배치도';
@@ -627,9 +740,9 @@ const cy = y + height / 2;
 const group = svgEl('g', {
 class: `layout-area layout-grade-${(area.grade || '').toLowerCase()}`,
 transform: `rotate(${rotation} ${cx} ${cy})`,
-'data-area-id': area.areaId
+'data-area-id': area.areaId,
+'data-area-name': area.areaName || ''
 });
-group.addEventListener('click', () => openSeatLayoutPreview(area.areaId, area.areaName));
 
 group.appendChild(svgEl('rect', { x, y, width, height, rx: 5 }));
 const label = svgEl('text', { x: cx, y: cy + 4, 'text-anchor': 'middle' });
@@ -652,6 +765,8 @@ return 'layout-seat-available';
 function renderSeatLayout(areaId, areaName, seats) {
 const svg = clearLayoutSvg();
 if (!svg) return;
+resetLayoutZoom();
+bindLayoutWheelZoom();
 
 document.getElementById('layout-back-btn').style.display = 'inline-flex';
 document.getElementById('layout-preview-mode-label').textContent = `${areaName || '구역'} 좌석 배치도`;

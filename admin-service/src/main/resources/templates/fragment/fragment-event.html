@@ -398,6 +398,12 @@
     <div class="modal-divider"></div>
     <div class="layout-preview-toolbar">
       <span id="layout-preview-mode-label">구역 배치도</span>
+      <div class="layout-zoom-controls">
+        <button class="btn btn-outline btn-sm" onclick="zoomLayoutPreview(1.2)" title="확대"><i class="ti ti-zoom-in"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="zoomLayoutPreview(0.833333)" title="축소"><i class="ti ti-zoom-out"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="resetLayoutZoom()" title="줌 초기화"><i class="ti ti-restore"></i></button>
+        <span id="layout-zoom-label">100%</span>
+      </div>
       <span id="layout-preview-count">0개</span>
     </div>
     <div class="layout-preview-stage">
