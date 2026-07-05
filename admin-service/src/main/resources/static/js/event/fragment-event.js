@@ -674,6 +674,11 @@ Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
 return el;
 }
 
+function normalizeLayoutColor(value) {
+const color = String(value ?? '').trim();
+return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '';
+}
+
 async function fetchAreaLayout(eventId) {
 if (areaLayoutCache.has(eventId)) return areaLayoutCache.get(eventId);
 
@@ -736,6 +741,8 @@ const height = area.height ?? 48;
 const rotation = area.rotation ?? 0;
 const cx = x + width / 2;
 const cy = y + height / 2;
+const svgPath = area.svgPath && area.svgPath.trim();
+const areaColor = normalizeLayoutColor(area.areaColor);
 
 const group = svgEl('g', {
 class: `layout-area layout-grade-${(area.grade || '').toLowerCase()}`,
@@ -744,7 +751,11 @@ transform: `rotate(${rotation} ${cx} ${cy})`,
 'data-area-name': area.areaName || ''
 });
 
-group.appendChild(svgEl('rect', { x, y, width, height, rx: 5 }));
+if (svgPath) {
+group.appendChild(svgEl('path', { d: svgPath, ...(areaColor ? { style: `fill:${areaColor}` } : {}) }));
+} else {
+group.appendChild(svgEl('rect', { x, y, width, height, rx: 5, ...(areaColor ? { style: `fill:${areaColor}` } : {}) }));
+}
 const label = svgEl('text', { x: cx, y: cy + 4, 'text-anchor': 'middle' });
 label.textContent = area.areaName || area.areaId;
 group.appendChild(label);

@@ -41,6 +41,8 @@ CREATE TABLE areas (
     area_height DOUBLE PRECISION,
     rotation DOUBLE PRECISION,
     layout_angle DOUBLE PRECISION,
+    svg_path TEXT,
+    area_color VARCHAR(30),
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -52,7 +54,7 @@ CREATE INDEX idx_area_event_id ON areas(event_id);
 CREATE INDEX idx_area_event_name ON areas(event_id, area_name);
 
 -- ==========================================
--- 2. Seats 테이블
+-- 3. Seats 테이블
 -- ==========================================
 CREATE TABLE seats (
     seat_id BIGSERIAL PRIMARY KEY,
@@ -81,7 +83,7 @@ CREATE INDEX idx_seat_area_id ON seats(area_id);
 
 
 -- ==========================================
--- 3. Reservations 테이블
+-- 4. Reservations 테이블
 -- ==========================================
 CREATE TABLE reservations (
     reservation_id BIGSERIAL PRIMARY KEY,
@@ -98,7 +100,7 @@ CREATE INDEX idx_reservation_event_id ON reservations(event_id);
 
 
 -- ==========================================
--- 4. Tickets 테이블
+-- 5. Tickets 테이블
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,

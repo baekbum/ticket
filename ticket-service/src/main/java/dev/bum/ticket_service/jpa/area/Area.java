@@ -67,6 +67,12 @@ public class Area {
     @Column(name = "layout_angle")
     private Double layoutAngle; // 그 구역 안에 좌석을 자동 생성할 때 좌석들이 진행되는 방향
 
+    @Column(name = "svg_path", columnDefinition = "TEXT")
+    private String svgPath;
+
+    @Column(name = "area_color", length = 30)
+    private String areaColor;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private AreaStatus status;
@@ -94,6 +100,8 @@ public class Area {
         this.height = info.getHeight();
         this.rotation = info.getRotation();
         this.layoutAngle = info.getLayoutAngle();
+        this.svgPath = info.getSvgPath();
+        this.areaColor = info.getAreaColor();
         this.status = info.getStatus() != null ? info.getStatus() : AreaStatus.ACTIVE;
         this.seats = new ArrayList<>();
     }
@@ -112,6 +120,8 @@ public class Area {
                 .height(this.height)
                 .rotation(this.rotation)
                 .layoutAngle(this.layoutAngle)
+                .svgPath(this.svgPath)
+                .areaColor(this.areaColor)
                 .status(this.status)
                 .build();
     }
@@ -126,6 +136,8 @@ public class Area {
         if (info.getHeight() != null) this.height = info.getHeight();
         if (info.getRotation() != null) this.rotation = info.getRotation();
         if (info.getLayoutAngle() != null) this.layoutAngle = info.getLayoutAngle();
+        if (info.getSvgPath() != null) this.svgPath = info.getSvgPath();
+        if (info.getAreaColor() != null) this.areaColor = info.getAreaColor();
         if (info.getStatus() != null) this.status = info.getStatus();
     }
 }

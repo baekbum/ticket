@@ -24,5 +24,7 @@ public class AreaResponse {
     private Double height;
     private Double rotation;
     private Double layoutAngle;
+    private String svgPath;
+    private String areaColor;
     private AreaStatus status;
 }

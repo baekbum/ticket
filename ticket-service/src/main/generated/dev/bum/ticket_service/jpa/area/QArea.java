@@ -22,6 +22,8 @@ public class QArea extends EntityPathBase<Area> {
 
     public static final QArea area = new QArea("area");
 
+    public final StringPath areaColor = createString("areaColor");
+
     public final NumberPath<Long> areaId = createNumber("areaId", Long.class);
 
     public final StringPath areaName = createString("areaName");
@@ -47,6 +49,8 @@ public class QArea extends EntityPathBase<Area> {
     public final ListPath<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat> seats = this.<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat>createList("seats", dev.bum.ticket_service.jpa.seat.Seat.class, dev.bum.ticket_service.jpa.seat.QSeat.class, PathInits.DIRECT2);
 
     public final EnumPath<dev.bum.common.service.ticket.area.enums.AreaStatus> status = createEnum("status", dev.bum.common.service.ticket.area.enums.AreaStatus.class);
+
+    public final StringPath svgPath = createString("svgPath");
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

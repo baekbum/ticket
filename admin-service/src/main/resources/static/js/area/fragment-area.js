@@ -38,6 +38,20 @@ function setValue(id, value) {
   if (el) el.value = value ?? '';
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeAreaColor(value, fallback = '') {
+  const color = String(value ?? '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
+}
+
 function syncContextChip() {
   const chip = document.getElementById('area-context-chip');
   const label = document.getElementById('area-context-event-id');
@@ -173,7 +187,7 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
     if (master) master.checked = false;
 
     if (currentAreaList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
       return;
     }
 
@@ -181,6 +195,7 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
       const tr = document.createElement('tr');
       const statusClass = area.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive';
       const rowNumber = pageZeroIndexed * pageSize + index + 1;
+      const areaColor = normalizeAreaColor(area.areaColor);
       tr.innerHTML = `
         <td style="text-align:center;" onclick="event.stopPropagation()">
           <input type="checkbox" class="area-row-checkbox" data-id="${area.areaId}"
@@ -198,6 +213,8 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
         <td>${area.height ?? ''}</td>
         <td>${area.rotation ?? ''}</td>
         <td>${area.layoutAngle ?? ''}</td>
+        <td>${area.svgPath ? '<span class="badge badge-svg-path">PATH</span>' : ''}</td>
+        <td>${areaColor ? `<span class="area-color-swatch" style="background:${areaColor}" title="${areaColor}"></span>` : ''}</td>
         <td><span class="badge ${statusClass}">${area.status || ''}</span></td>
         <td class="actions">
           <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openAreaModalForUpdate(${area.areaId})">수정</button>
@@ -251,6 +268,8 @@ function areaBulkCardTemplate(data = {}) {
   const height = data.height ?? 100;
   const rotation = data.rotation ?? 0;
   const layoutAngle = data.layoutAngle ?? 0;
+  const svgPath = data.svgPath ?? '';
+  const areaColor = normalizeAreaColor(data.areaColor, '#3f65d7');
   const status = data.status ?? 'ACTIVE';
 
   return `
@@ -279,12 +298,14 @@ function areaBulkCardTemplate(data = {}) {
         <label class="area-field"><span>구역 높이</span><input type="number" class="ab-height" step="0.1" min="0" value="${height}"></label>
         <label class="area-field"><span>회전</span><input type="number" class="ab-rotation" step="0.1" value="${rotation}"></label>
         <label class="area-field"><span>배치 각도</span><input type="number" class="ab-layout-angle" step="0.1" value="${layoutAngle}"></label>
+        <label class="area-field"><span>구역 색상</span><input type="color" class="ab-area-color" value="${areaColor}"></label>
         <label class="area-field"><span>상태</span>
           <select class="ab-status">
             <option value="ACTIVE" ${status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
             <option value="INACTIVE" ${status === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
           </select>
         </label>
+        <label class="area-field area-field-wide"><span>SVG Path</span><textarea class="ab-svg-path" spellcheck="false" placeholder="M 120 180 Q 180 120 260 140 L 245 190 Q 180 165 135 220 Z">${escapeHtml(svgPath)}</textarea></label>
       </div>
     </div>
   `;
@@ -332,6 +353,8 @@ function readAreaBulkCard(card) {
     height: numberValue('.ab-height'),
     rotation: numberValue('.ab-rotation'),
     layoutAngle: numberValue('.ab-layout-angle'),
+    svgPath: value('.ab-svg-path') || null,
+    areaColor: value('.ab-area-color') || null,
     status: value('.ab-status') || 'ACTIVE'
   };
 }
@@ -420,6 +443,8 @@ window.openAreaModalForCreate = function () {
   setValue('area-height', '');
   setValue('area-rotation', '0');
   setValue('area-layout-angle', '0');
+  setValue('area-color', '#3f65d7');
+  setValue('area-svg-path', '');
   setValue('area-status', 'ACTIVE');
   document.getElementById('area-event-id').disabled = false;
   document.getElementById('area-modal').style.display = 'flex';
@@ -442,6 +467,8 @@ window.openAreaModalForUpdate = function (areaId) {
   setValue('area-height', area.height);
   setValue('area-rotation', area.rotation ?? 0);
   setValue('area-layout-angle', area.layoutAngle ?? 0);
+  setValue('area-color', area.areaColor || '#3f65d7');
+  setValue('area-svg-path', area.svgPath || '');
   setValue('area-status', area.status || 'ACTIVE');
   document.getElementById('area-event-id').disabled = true;
   document.getElementById('area-modal').style.display = 'flex';
@@ -472,6 +499,8 @@ window.submitAreaForm = async function () {
     height: nullableFloat('area-height'),
     rotation: nullableFloat('area-rotation'),
     layoutAngle: nullableFloat('area-layout-angle'),
+    svgPath: inputValue('area-svg-path'),
+    areaColor: inputValue('area-color'),
     status: inputValue('area-status') || 'ACTIVE'
   };
 

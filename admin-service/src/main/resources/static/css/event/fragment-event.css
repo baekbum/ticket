@@ -322,7 +322,8 @@
     cursor: pointer;
   }
 
-  .layout-area rect {
+  .layout-area rect,
+  .layout-area path {
     fill: #3f65d7;
     stroke: rgba(255,255,255,0.9);
     stroke-width: 2;
@@ -336,16 +337,17 @@
     pointer-events: none;
   }
 
-  .layout-area:hover rect {
+  .layout-area:hover rect,
+  .layout-area:hover path {
     filter: brightness(1.13);
     stroke: #18172b;
     stroke-width: 3;
   }
 
-  .layout-grade-vip rect { fill: #3f65d7; }
-  .layout-grade-r rect { fill: #d96ccf; }
-  .layout-grade-s rect { fill: #f2df49; }
-  .layout-grade-a rect { fill: #68c77a; }
+  .layout-grade-vip rect, .layout-grade-vip path { fill: #3f65d7; }
+  .layout-grade-r rect, .layout-grade-r path { fill: #d96ccf; }
+  .layout-grade-s rect, .layout-grade-s path { fill: #f2df49; }
+  .layout-grade-a rect, .layout-grade-a path { fill: #68c77a; }
 
   .layout-seat {
     stroke: rgba(24,23,43,0.24);
