@@ -34,7 +34,7 @@ public class FileStorageService {
             return null;
         }
         if (eventId == null) {
-            throw new IllegalArgumentException("Event id is required.");
+            throw new IllegalArgumentException("이벤트 ID 값은 필수입니다.");
         }
 
         String extension = extractExtension(file.getOriginalFilename());
@@ -45,14 +45,14 @@ public class FileStorageService {
         Path target = posterDir.resolve(storedFileName).normalize();
 
         if (!target.startsWith(posterDir)) {
-            throw new IllegalArgumentException("Invalid file path.");
+            throw new IllegalArgumentException("유효하지 않은 파일 경로입니다.");
         }
 
         try {
             Files.createDirectories(posterDir);
             file.transferTo(target);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to store event poster.", e);
+            throw new IllegalStateException("이벤트 포스터 저장에 실패했습니다.", e);
         }
 
         return publicUrlPrefix + "/events/posters/" + eventId + "/" + storedFileName;
@@ -73,18 +73,18 @@ public class FileStorageService {
         try {
             Files.deleteIfExists(target);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to delete event poster.", e);
+            throw new IllegalStateException("이벤트 포스터 삭제에 실패했습니다.", e);
         }
     }
 
     private void validateImage(MultipartFile file, String extension) {
         if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("Only jpg, jpeg, png, webp image files are allowed.");
+            throw new IllegalArgumentException("jpg, jpeg, png, webp의 확장자만 등록 가능합니다.");
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-            throw new IllegalArgumentException("Only image files are allowed.");
+            throw new IllegalArgumentException("이미지 파일만 등록 가능합니다.");
         }
     }
 
@@ -93,7 +93,7 @@ public class FileStorageService {
         int dotIndex = filename.lastIndexOf('.');
 
         if (dotIndex < 0 || dotIndex == filename.length() - 1) {
-            throw new IllegalArgumentException("File extension is required.");
+            throw new IllegalArgumentException("파일 확장자를 확인할 수 없습니다.");
         }
 
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);

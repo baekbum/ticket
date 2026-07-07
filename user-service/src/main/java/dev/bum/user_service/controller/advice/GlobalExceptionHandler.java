@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
-public class UserControllerAdvice {
+public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserDuplicateException.class)
     public ResponseEntity<String> UserDuplicateException(UserDuplicateException ex) {

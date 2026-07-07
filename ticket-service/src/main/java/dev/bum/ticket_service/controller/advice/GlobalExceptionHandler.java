@@ -18,51 +18,39 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Slf4j
 @RestControllerAdvice
-public class ControllerAdvice {
+public class GlobalExceptionHandler {
 
     // ==========================================
-    // Event 관련 예외 처리
+    // 데이터를 발견하지 못했을 경우의 예외 처리
     // ==========================================
-    @ExceptionHandler(EventNotExistException.class)
-    public ResponseEntity<String> handleEventNotExistException(EventNotExistException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()); // 404
-    }
-
-    @ExceptionHandler(EventDuplicateException.class)
-    public ResponseEntity<String> handleEventDuplicateException(EventDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
-    }
-
-    // ==========================================
-    // Area 관련 예외 처리
-    // ==========================================
-    @ExceptionHandler(AreaNotExistException.class)
-    public ResponseEntity<String> handleAreaNotExistException(AreaNotExistException ex) {
+    @ExceptionHandler({
+            EventNotExistException.class,
+            AreaNotExistException.class,
+            SeatNotExistException.class,
+            ReservationNotExistException.class,
+            TicketNotExistException.class
+    })
+    public ResponseEntity<String> handleNotFoundException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
-    @ExceptionHandler(AreaDuplicateException.class)
-    public ResponseEntity<String> handleAreaDuplicateException(AreaDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+    // ==========================================
+    // 중복된 데이터가 존재하는 경우의 예외 처리
+    // ==========================================
+    @ExceptionHandler({
+            EventDuplicateException.class,
+            AreaDuplicateException.class,
+            SeatDuplicateException.class,
+            ReservationDuplicateException.class,
+            TicketDuplicateException.class
+    })
+    public ResponseEntity<String> handleDuplicateException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
 
     // ==========================================
     // Seat 관련 예외 처리
     // ==========================================
-    @ExceptionHandler(SeatNotExistException.class)
-    public ResponseEntity<String> handleSeatNotExistException(SeatNotExistException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()); // 404
-    }
-
-    @ExceptionHandler(SeatDuplicateException.class)
-    public ResponseEntity<String> handleSeatDuplicateException(SeatDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
-    }
 
     /**
      * 레디스 캐시 예열이 안 되어 있을 때 발생하는 예외 처리 (404 Not Found)
@@ -91,34 +79,26 @@ public class ControllerAdvice {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.getMessage());
     }
 
-    // ==========================================
-    // Reservation 관련 예외 처리
-    // ==========================================
-    @ExceptionHandler(ReservationNotExistException.class)
-    public ResponseEntity<String> handleReservationNotExistException(ReservationNotExistException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()); // 404
-    }
-
-    @ExceptionHandler(ReservationDuplicateException.class)
-    public ResponseEntity<String> handleReservationDuplicateException(ReservationDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
-    }
 
     // ==========================================
     // Ticket 관련 예외 처리
     // ==========================================
-    @ExceptionHandler(TicketNotExistException.class)
-    public ResponseEntity<String> handleTicketNotExistException(TicketNotExistException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()); // 404
-    }
 
-    @ExceptionHandler(TicketDuplicateException.class)
-    public ResponseEntity<String> handleTicketDuplicateException(TicketDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
-    }
-
+    /**
+     * 예매할 수 있는 최대치를 초과했을 경우
+     * @param ex
+     * @return
+     */
     @ExceptionHandler(TicketLimitExceededException.class)
     public ResponseEntity<String> handleTicketLimitExceededException(TicketLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage()); // 400
+    }
+
+    // ==========================================
+    // 잘못된 요청 값 예외 처리
+    // ==========================================
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
 }
