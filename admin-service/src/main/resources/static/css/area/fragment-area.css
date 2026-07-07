@@ -54,8 +54,8 @@
 .bulk-count { color: #5a4000; font-weight: 700; }
 
 .table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); margin: 0 1.75rem; background: var(--card-bg); }
-.area-table { width: 100%; min-width: 1606px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-.area-table th, .area-table td { padding: 10px; border-right: 1px solid rgba(230,228,239,.45); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+.area-table { width: 100%; min-width: 920px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.area-table th, .area-table td { padding: 9px 8px; border-right: 1px solid rgba(230,228,239,.45); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
 .area-table th { background: #faf9fd; font-size: 12px; font-weight: 600; color: var(--text-secondary); position: sticky; top: 0; z-index: 2; }
 .area-table th:last-child, .area-table td:last-child { border-right: none; }
 .area-table tbody tr { cursor: pointer; transition: background 0.12s; }

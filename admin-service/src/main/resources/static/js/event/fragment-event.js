@@ -624,6 +624,7 @@ if (event.button !== 0) return;
 svg.setPointerCapture(event.pointerId);
 const areaEl = event.target.closest ? event.target.closest('.layout-area, .click-area, [data-area-name]') : null;
 const areaName = areaEl ? areaEl.dataset.areaName : null;
+const areaDisplayName = areaEl ? (areaEl.dataset.areaDisplayName || areaName) : null;
 const matchedArea = areaEl && !areaEl.dataset.areaId ? findLayoutAreaByName(areaName) : null;
 layoutDragged = false;
 layoutDragState = {
@@ -633,7 +634,7 @@ startClientY: event.clientY,
 startViewBoxX: layoutViewBox.x,
 startViewBoxY: layoutViewBox.y,
 areaId: areaEl ? (areaEl.dataset.areaId || matchedArea?.areaId || null) : null,
-areaName: areaEl ? (areaName || matchedArea?.areaName || null) : null
+areaName: areaEl ? (areaDisplayName || matchedArea?.areaName || null) : null
 };
 svg.classList.add('is-dragging');
 });
@@ -689,6 +690,30 @@ function findLayoutAreaByName(areaName) {
 const normalizedName = String(areaName ?? '').trim();
 if (!normalizedName) return null;
 return currentLayoutAreas.find(area => String(area.areaName ?? '').trim() === normalizedName) || null;
+}
+
+function getSvgAreaLabel(areaElement) {
+const nextElement = areaElement?.nextElementSibling;
+if (nextElement && nextElement.tagName?.toLowerCase() === 'text') {
+const label = nextElement.textContent?.trim();
+if (label) return label;
+}
+
+const parentElement = areaElement?.parentElement;
+if (parentElement && parentElement.tagName?.toLowerCase() === 'g') {
+const labelElement = parentElement.querySelector('text');
+const label = labelElement?.textContent?.trim();
+if (label) return label;
+}
+
+return areaElement?.dataset?.areaName || '';
+}
+
+function formatLayoutAreaDisplayName(area, svgLabel) {
+const grade = String(area?.grade || '').trim();
+const label = String(svgLabel || area?.areaName || '').trim();
+if (grade && label) return `${grade}등급 ${label}구역`;
+return label || area?.areaName || '';
 }
 
 async function fetchAreaLayout(eventId) {
@@ -781,12 +806,14 @@ svg.querySelectorAll('.area, [data-area-name]').forEach(el => {
 const areaName = el.dataset.areaName || '';
 const matchedArea = findLayoutAreaByName(areaName);
 if (!matchedArea) return;
+const areaDisplayName = formatLayoutAreaDisplayName(matchedArea, getSvgAreaLabel(el));
 el.classList.add('layout-area');
 el.dataset.areaId = matchedArea.areaId;
 el.dataset.areaName = matchedArea.areaName;
+el.dataset.areaDisplayName = areaDisplayName;
 if (!el.querySelector('title')) {
 const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-title.textContent = `${matchedArea.areaName || matchedArea.areaId} / ${matchedArea.grade || '-'} / ${matchedArea.price != null ? Number(matchedArea.price).toLocaleString() + '원' : '-'}`;
+title.textContent = `${areaDisplayName || matchedArea.areaName || matchedArea.areaId} / ${matchedArea.price != null ? Number(matchedArea.price).toLocaleString() + '원' : '-'}`;
 el.appendChild(title);
 }
 });

@@ -41,7 +41,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -211,39 +213,44 @@ public class AreaService {
                     ))
             );
 
-            NodeList paths = document.getElementsByTagName("path");
             List<InsertAreaRequest> areas = new ArrayList<>();
+            Set<String> parsedAreaNames = new LinkedHashSet<>();
 
-            for (int i = 0; i < paths.getLength(); i++) {
-                Element path = (Element) paths.item(i);
-                String className = path.getAttribute("class");
-                if (!containsClass(className, "area")) {
-                    continue;
-                }
-                if (containsClass(className, "console")) {
-                    continue;
-                }
-
-                String areaName = firstText(path.getAttribute("data-area-name"), normalizeId(path.getAttribute("id")));
-                if ("CONSOLE".equalsIgnoreCase(areaName)) {
-                    continue;
-                }
-                if (!StringUtils.hasText(areaName)) {
-                    continue;
-                }
-
-                areas.add(InsertAreaRequest.builder()
-                        .eventId(eventId)
-                        .areaName(areaName)
-                        .grade(parseGrade(path.getAttribute("data-grade"), className))
-                        .price(parsePrice(path.getAttribute("data-price")))
-                        .status(AreaStatus.ACTIVE)
-                        .build());
-            }
+            collectSvgAreaElements(document.getElementsByTagName("path"), eventId, areas, parsedAreaNames);
+            collectSvgAreaElements(document.getElementsByTagName("rect"), eventId, areas, parsedAreaNames);
 
             return areas;
         } catch (Exception e) {
             throw new IllegalArgumentException("SVG 파일을 분석하지 못했습니다.", e);
+        }
+    }
+
+    private void collectSvgAreaElements(NodeList elements, Long eventId, List<InsertAreaRequest> areas, Set<String> parsedAreaNames) {
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element element = (Element) elements.item(i);
+            String className = element.getAttribute("class");
+            if (!containsClass(className, "area")) {
+                continue;
+            }
+            if (containsClass(className, "console")) {
+                continue;
+            }
+
+            String areaName = firstText(element.getAttribute("data-area-name"), normalizeId(element.getAttribute("id")));
+            if ("CONSOLE".equalsIgnoreCase(areaName)) {
+                continue;
+            }
+            if (!StringUtils.hasText(areaName) || !parsedAreaNames.add(areaName)) {
+                continue;
+            }
+
+            areas.add(InsertAreaRequest.builder()
+                    .eventId(eventId)
+                    .areaName(areaName)
+                    .grade(parseGrade(element.getAttribute("data-grade"), className))
+                    .price(parsePrice(element.getAttribute("data-price")))
+                    .status(AreaStatus.ACTIVE)
+                    .build());
         }
     }
 
