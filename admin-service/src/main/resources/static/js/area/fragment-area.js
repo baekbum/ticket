@@ -3,6 +3,7 @@ const API = { VERSION: 'v1', LOCAL_PORT: '8999' };
 const BASE_URL = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
 const AREA_URL = `${BASE_URL}/api/${API.VERSION}/area`;
 const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
+const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
 let currentAreaList = [];
 let currentAreaFilters = { eventId: null, areaName: null };
@@ -20,13 +21,6 @@ function nullableNumber(id) {
   return value ? Number(value) : null;
 }
 
-function nullableFloat(id) {
-  const value = inputValue(id);
-  if (!value) return null;
-  const parsed = parseFloat(value);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
 function formatDigitInput(input) {
   if (!input) return;
   const raw = input.value.replace(/[^\d]/g, '');
@@ -36,20 +30,6 @@ function formatDigitInput(input) {
 function setValue(id, value) {
   const el = document.getElementById(id);
   if (el) el.value = value ?? '';
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function normalizeAreaColor(value, fallback = '') {
-  const color = String(value ?? '').trim();
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
 }
 
 function syncContextChip() {
@@ -187,7 +167,7 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
     if (master) master.checked = false;
 
     if (currentAreaList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem;">조회된 구역 정보가 없습니다.</td></tr>`;
       return;
     }
 
@@ -195,7 +175,6 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
       const tr = document.createElement('tr');
       const statusClass = area.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive';
       const rowNumber = pageZeroIndexed * pageSize + index + 1;
-      const areaColor = normalizeAreaColor(area.areaColor);
       tr.innerHTML = `
         <td style="text-align:center;" onclick="event.stopPropagation()">
           <input type="checkbox" class="area-row-checkbox" data-id="${area.areaId}"
@@ -207,14 +186,6 @@ window.loadAreaList = async function (pageZeroIndexed = 0) {
         <td title="${area.areaName || ''}">${area.areaName || ''}</td>
         <td>${area.grade || ''}</td>
         <td style="text-align:right;">${area.price != null ? Number(area.price).toLocaleString() : ''}</td>
-        <td>${area.positionX ?? ''}</td>
-        <td>${area.positionY ?? ''}</td>
-        <td>${area.width ?? ''}</td>
-        <td>${area.height ?? ''}</td>
-        <td>${area.rotation ?? ''}</td>
-        <td>${area.layoutAngle ?? ''}</td>
-        <td>${area.svgPath ? '<span class="badge badge-svg-path">PATH</span>' : ''}</td>
-        <td>${areaColor ? `<span class="area-color-swatch" style="background:${areaColor}" title="${areaColor}"></span>` : ''}</td>
         <td><span class="badge ${statusClass}">${area.status || ''}</span></td>
         <td class="actions">
           <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openAreaModalForUpdate(${area.areaId})">수정</button>
@@ -262,14 +233,6 @@ function areaBulkCardTemplate(data = {}) {
   const areaName = data.areaName ?? '';
   const grade = data.grade ?? 'VIP';
   const price = data.price != null ? Number(data.price).toLocaleString() : '';
-  const positionX = data.positionX ?? 80;
-  const positionY = data.positionY ?? 80;
-  const width = data.width ?? 100;
-  const height = data.height ?? 100;
-  const rotation = data.rotation ?? 0;
-  const layoutAngle = data.layoutAngle ?? 0;
-  const svgPath = data.svgPath ?? '';
-  const areaColor = normalizeAreaColor(data.areaColor, '#3f65d7');
   const status = data.status ?? 'ACTIVE';
 
   return `
@@ -282,7 +245,7 @@ function areaBulkCardTemplate(data = {}) {
       </div>
       <div class="area-card-grid">
         <label class="area-field"><span>이벤트 ID</span><input type="number" class="ab-event-id" min="1" value="${eventId}"></label>
-        <label class="area-field"><span>구역명</span><input type="text" class="ab-area-name" value="${areaName}" placeholder="예: FLOOR-가"></label>
+        <label class="area-field"><span>구역명</span><input type="text" class="ab-area-name" value="${areaName}" placeholder="예: VIP-1"></label>
         <label class="area-field"><span>등급</span>
           <select class="ab-grade">
             <option value="VIP" ${grade === 'VIP' ? 'selected' : ''}>VIP</option>
@@ -292,20 +255,12 @@ function areaBulkCardTemplate(data = {}) {
           </select>
         </label>
         <label class="area-field"><span>가격</span><input type="text" class="ab-price" inputmode="numeric" value="${price}" oninput="formatAreaBulkPrice(this)"></label>
-        <label class="area-field"><span>위치 X</span><input type="number" class="ab-position-x" step="0.1" value="${positionX}"></label>
-        <label class="area-field"><span>위치 Y</span><input type="number" class="ab-position-y" step="0.1" value="${positionY}"></label>
-        <label class="area-field"><span>구역 너비</span><input type="number" class="ab-width" step="0.1" min="0" value="${width}"></label>
-        <label class="area-field"><span>구역 높이</span><input type="number" class="ab-height" step="0.1" min="0" value="${height}"></label>
-        <label class="area-field"><span>회전</span><input type="number" class="ab-rotation" step="0.1" value="${rotation}"></label>
-        <label class="area-field"><span>배치 각도</span><input type="number" class="ab-layout-angle" step="0.1" value="${layoutAngle}"></label>
-        <label class="area-field"><span>구역 색상</span><input type="color" class="ab-area-color" value="${areaColor}"></label>
         <label class="area-field"><span>상태</span>
           <select class="ab-status">
             <option value="ACTIVE" ${status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
             <option value="INACTIVE" ${status === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
           </select>
         </label>
-        <label class="area-field area-field-wide"><span>SVG Path</span><textarea class="ab-svg-path" spellcheck="false" placeholder="M 120 180 Q 180 120 260 140 L 245 190 Q 180 165 135 220 Z">${escapeHtml(svgPath)}</textarea></label>
       </div>
     </div>
   `;
@@ -335,6 +290,58 @@ window.closeAreaBulkModal = function () {
   document.getElementById('area-bulk-modal').style.display = 'none';
 };
 
+window.openAreaSvgModal = function () {
+  setValue('area-svg-event-id', currentAreaFilters.eventId || inputValue('area-search-event-id') || '');
+  const fileInput = document.getElementById('area-svg-file');
+  if (fileInput) fileInput.value = '';
+  const fileName = document.getElementById('area-svg-file-name');
+  if (fileName) fileName.textContent = 'SVG 파일 선택';
+  document.getElementById('area-svg-modal').style.display = 'flex';
+};
+
+window.closeAreaSvgModal = function () {
+  document.getElementById('area-svg-modal').style.display = 'none';
+};
+
+window.submitAreaSvgForm = async function () {
+  const eventId = inputValue('area-svg-event-id');
+  const file = document.getElementById('area-svg-file')?.files?.[0];
+
+  if (!eventId) {
+    showToast('이벤트 ID를 입력해주세요.', true);
+    return;
+  }
+  if (!file) {
+    showToast('업로드할 SVG 파일을 선택해주세요.', true);
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('eventId', eventId);
+  formData.append('svgFile', file);
+
+  try {
+    const res = await Fetch(`${AREA_URL}/insert/svg`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: formData
+    });
+
+    if (res.ok) {
+      const inserted = await res.json();
+      showToast(`${inserted.length}개 구역을 SVG에서 등록했습니다.`);
+      closeAreaSvgModal();
+      currentAreaFilters.eventId = parseInt(eventId, 10);
+      setValue('area-search-event-id', eventId);
+      loadAreaList(0);
+    } else {
+      showToast('SVG 구역 등록에 실패했습니다.', true);
+    }
+  } catch (e) {
+    showToast('SVG 구역 등록 통신 오류가 발생했습니다.', true);
+  }
+};
+
 function readAreaBulkCard(card) {
   const value = selector => card.querySelector(selector)?.value?.trim() || '';
   const numberValue = selector => {
@@ -347,14 +354,6 @@ function readAreaBulkCard(card) {
     areaName: value('.ab-area-name'),
     grade: value('.ab-grade'),
     price: numberValue('.ab-price'),
-    positionX: numberValue('.ab-position-x'),
-    positionY: numberValue('.ab-position-y'),
-    width: numberValue('.ab-width'),
-    height: numberValue('.ab-height'),
-    rotation: numberValue('.ab-rotation'),
-    layoutAngle: numberValue('.ab-layout-angle'),
-    svgPath: value('.ab-svg-path') || null,
-    areaColor: value('.ab-area-color') || null,
     status: value('.ab-status') || 'ACTIVE'
   };
 }
@@ -437,14 +436,6 @@ window.openAreaModalForCreate = function () {
   setValue('area-name', '');
   setValue('area-grade', 'VIP');
   setValue('area-price', '');
-  setValue('area-position-x', '');
-  setValue('area-position-y', '');
-  setValue('area-width', '');
-  setValue('area-height', '');
-  setValue('area-rotation', '0');
-  setValue('area-layout-angle', '0');
-  setValue('area-color', '#3f65d7');
-  setValue('area-svg-path', '');
   setValue('area-status', 'ACTIVE');
   document.getElementById('area-event-id').disabled = false;
   document.getElementById('area-modal').style.display = 'flex';
@@ -461,14 +452,6 @@ window.openAreaModalForUpdate = function (areaId) {
   setValue('area-name', area.areaName);
   setValue('area-grade', area.grade || 'VIP');
   setValue('area-price', area.price != null ? Number(area.price).toLocaleString() : '');
-  setValue('area-position-x', area.positionX);
-  setValue('area-position-y', area.positionY);
-  setValue('area-width', area.width);
-  setValue('area-height', area.height);
-  setValue('area-rotation', area.rotation ?? 0);
-  setValue('area-layout-angle', area.layoutAngle ?? 0);
-  setValue('area-color', area.areaColor || '#3f65d7');
-  setValue('area-svg-path', area.svgPath || '');
   setValue('area-status', area.status || 'ACTIVE');
   document.getElementById('area-event-id').disabled = true;
   document.getElementById('area-modal').style.display = 'flex';
@@ -493,14 +476,6 @@ window.submitAreaForm = async function () {
     areaName,
     grade: inputValue('area-grade'),
     price,
-    positionX: nullableFloat('area-position-x'),
-    positionY: nullableFloat('area-position-y'),
-    width: nullableFloat('area-width'),
-    height: nullableFloat('area-height'),
-    rotation: nullableFloat('area-rotation'),
-    layoutAngle: nullableFloat('area-layout-angle'),
-    svgPath: inputValue('area-svg-path'),
-    areaColor: inputValue('area-color'),
     status: inputValue('area-status') || 'ACTIVE'
   };
 
@@ -514,7 +489,7 @@ window.submitAreaForm = async function () {
   try {
     const res = await Fetch(url, { method, headers, body: JSON.stringify(body) });
     if (res.ok) {
-      showToast(mode === 'CREATE' ? '구역이 등록되었습니다.' : '구역이 수정되었습니다.');
+      showToast(mode === 'CREATE' ? '구역을 등록했습니다.' : '구역을 수정했습니다.');
       closeAreaModal();
       loadAreaList(mode === 'CREATE' ? 0 : parseInt(document.getElementById('pagination-current').value, 10) - 1);
     } else {
@@ -539,7 +514,7 @@ window.submitAreaDelete = async function () {
   try {
     const res = await Fetch(`${AREA_URL}/delete/id/${areaId}`, { method: 'DELETE', headers });
     if (res.ok) {
-      showToast('구역이 삭제되었습니다.');
+      showToast('구역을 삭제했습니다.');
       closeAreaDeleteModal();
       loadAreaList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
     } else {
@@ -574,6 +549,11 @@ function initAreaFragment(context = {}) {
 
   document.getElementById('area-price')?.addEventListener('input', function () {
     formatDigitInput(this);
+  });
+
+  document.getElementById('area-svg-file')?.addEventListener('change', function () {
+    const fileName = document.getElementById('area-svg-file-name');
+    if (fileName) fileName.textContent = this.files?.[0]?.name || 'SVG 파일 선택';
   });
 
   if (context.eventId) {

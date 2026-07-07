@@ -7,7 +7,19 @@ import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -50,29 +62,6 @@ public class Area {
     @Column(nullable = false)
     private Integer price;
 
-    @Column(name = "position_x")
-    private Double positionX; // 구역 X축 좌상단 시작점
-
-    @Column(name = "position_y")
-    private Double positionY; // 구역 Y축 좌상단 시작점
-
-    @Column(name = "area_width")
-    private Double width; // 구역 X 종료 지점 ( positionX + width )
-
-    @Column(name = "area_height")
-    private Double height; // 구역 Y 종료 지점 ( positionY + height )
-
-    private Double rotation; // 구역 박스 자체를 돌리는 각도
-
-    @Column(name = "layout_angle")
-    private Double layoutAngle; // 그 구역 안에 좌석을 자동 생성할 때 좌석들이 진행되는 방향
-
-    @Column(name = "svg_path", columnDefinition = "TEXT")
-    private String svgPath;
-
-    @Column(name = "area_color", length = 30)
-    private String areaColor;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private AreaStatus status;
@@ -94,14 +83,6 @@ public class Area {
         this.areaName = info.getAreaName();
         this.grade = info.getGrade();
         this.price = info.getPrice();
-        this.positionX = info.getPositionX();
-        this.positionY = info.getPositionY();
-        this.width = info.getWidth();
-        this.height = info.getHeight();
-        this.rotation = info.getRotation();
-        this.layoutAngle = info.getLayoutAngle();
-        this.svgPath = info.getSvgPath();
-        this.areaColor = info.getAreaColor();
         this.status = info.getStatus() != null ? info.getStatus() : AreaStatus.ACTIVE;
         this.seats = new ArrayList<>();
     }
@@ -114,14 +95,6 @@ public class Area {
                 .areaName(this.areaName)
                 .grade(this.grade)
                 .price(this.price)
-                .positionX(this.positionX)
-                .positionY(this.positionY)
-                .width(this.width)
-                .height(this.height)
-                .rotation(this.rotation)
-                .layoutAngle(this.layoutAngle)
-                .svgPath(this.svgPath)
-                .areaColor(this.areaColor)
                 .status(this.status)
                 .build();
     }
@@ -130,14 +103,6 @@ public class Area {
         if (StringUtils.hasText(info.getAreaName())) this.areaName = info.getAreaName();
         if (info.getGrade() != null) this.grade = info.getGrade();
         if (info.getPrice() != null) this.price = info.getPrice();
-        if (info.getPositionX() != null) this.positionX = info.getPositionX();
-        if (info.getPositionY() != null) this.positionY = info.getPositionY();
-        if (info.getWidth() != null) this.width = info.getWidth();
-        if (info.getHeight() != null) this.height = info.getHeight();
-        if (info.getRotation() != null) this.rotation = info.getRotation();
-        if (info.getLayoutAngle() != null) this.layoutAngle = info.getLayoutAngle();
-        if (info.getSvgPath() != null) this.svgPath = info.getSvgPath();
-        if (info.getAreaColor() != null) this.areaColor = info.getAreaColor();
         if (info.getStatus() != null) this.status = info.getStatus();
     }
 }

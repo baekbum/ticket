@@ -18,13 +18,5 @@ public class AreaResponse {
     private String areaName;
     private SeatGrade grade;
     private Integer price;
-    private Double positionX;
-    private Double positionY;
-    private Double width;
-    private Double height;
-    private Double rotation;
-    private Double layoutAngle;
-    private String svgPath;
-    private String areaColor;
     private AreaStatus status;
 }

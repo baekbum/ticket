@@ -6,7 +6,7 @@
 
 <div class="frag-header">
   <h2>구역/좌석 관리</h2>
-  <p class="sub-txt">이벤트별 구역을 관리하고, 구역 단위로 좌석을 생성하거나 수정합니다.</p>
+  <p class="sub-txt">이벤트별 구역을 관리하고 구역 단위로 좌석을 생성하거나 수정합니다.</p>
 </div>
 
 <div class="toolbar">
@@ -21,7 +21,7 @@
     </div>
     <div class="bulk-action-bar" id="area-bulk-action-bar">
       <i class="ti ti-checkbox"></i>
-      <span><span class="bulk-count" id="area-selected-count">0</span>건 선택됨</span>
+      <span><span class="bulk-count" id="area-selected-count">0</span>건 선택</span>
       <button class="btn btn-danger-solid btn-sm" onclick="openAreaBulkDeleteConfirmModal()">
         <i class="ti ti-trash"></i>선택 삭제
       </button>
@@ -29,8 +29,11 @@
     </div>
   </div>
   <div class="toolbar-right">
-    <button class="btn btn-outline" onclick="openAreaJsonModal()">
+    <button class="btn btn-outline" onclick="openAreaJsonModal()" style="display:none;">
       <i class="ti ti-code"></i>JSON 등록
+    </button>
+    <button class="btn btn-success" onclick="openAreaSvgModal()">
+      <i class="ti ti-file-upload"></i>SVG 업로드
     </button>
     <button class="btn btn-success" onclick="openAreaBulkModal()">
       <i class="ti ti-layout-grid-add"></i>구역 일괄 등록
@@ -52,14 +55,6 @@
       <col style="width:90px;">
       <col style="width:110px;">
       <col style="width:90px;">
-      <col style="width:90px;">
-      <col style="width:90px;">
-      <col style="width:90px;">
-      <col style="width:90px;">
-      <col style="width:100px;">
-      <col style="width:90px;">
-      <col style="width:90px;">
-      <col style="width:90px;">
       <col style="width:220px;">
     </colgroup>
     <thead>
@@ -73,14 +68,6 @@
       <th>구역명</th>
       <th>등급</th>
       <th>가격</th>
-      <th>X</th>
-      <th>Y</th>
-      <th>너비</th>
-      <th>높이</th>
-      <th>회전</th>
-      <th>배치각</th>
-      <th>SVG</th>
-      <th>색상</th>
       <th>상태</th>
       <th class="actions">관리</th>
     </tr>
@@ -94,7 +81,7 @@
 <div class="f-modal" id="area-modal">
   <div class="f-modal-content">
     <p class="modal-title" id="area-modal-title">구역 정보</p>
-    <p class="modal-subtitle">구역 블록 정보와 기본 좌석 등급/가격을 입력합니다.</p>
+    <p class="modal-subtitle">구역의 기본 등급과 가격 정보를 입력합니다.</p>
     <div class="modal-divider"></div>
 
     <input type="hidden" id="area-modal-mode" value="CREATE">
@@ -107,7 +94,7 @@
       </div>
       <div class="form-group">
         <label>구역명</label>
-        <input type="text" id="area-name" placeholder="예: Floor A">
+        <input type="text" id="area-name" placeholder="예: VIP-1">
       </div>
     </div>
     <div class="form-row">
@@ -124,26 +111,6 @@
         <label>가격</label>
         <input type="text" id="area-price" inputmode="numeric" placeholder="예: 180,000">
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>위치 X</label><input type="number" id="area-position-x" step="0.1"></div>
-      <div class="form-group"><label>위치 Y</label><input type="number" id="area-position-y" step="0.1"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>구역 너비</label><input type="number" id="area-width" step="0.1" min="0"></div>
-      <div class="form-group"><label>구역 높이</label><input type="number" id="area-height" step="0.1" min="0"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>회전</label><input type="number" id="area-rotation" step="0.1" value="0"></div>
-      <div class="form-group"><label>배치 각도</label><input type="number" id="area-layout-angle" step="0.1" value="0"></div>
-    </div>
-    <div class="form-group">
-      <label>구역 색상</label>
-      <input type="color" id="area-color" value="#3f65d7">
-    </div>
-    <div class="form-group">
-      <label>SVG Path</label>
-      <textarea id="area-svg-path" class="area-svg-path-input" spellcheck="false" placeholder="M 120 180 Q 180 120 260 140 L 245 190 Q 180 165 135 220 Z"></textarea>
     </div>
     <div class="form-group">
       <label>상태</label>
@@ -183,6 +150,33 @@
   </div>
 </div>
 
+<div class="f-modal" id="area-svg-modal">
+  <div class="f-modal-content area-svg-content">
+    <p class="modal-title">SVG 구역 등록</p>
+    <p class="modal-subtitle">원본 SVG 파일을 저장하고, <code>path.area</code> 요소에서 구역 메타데이터를 추출합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="form-group">
+      <label>이벤트 ID</label>
+      <input type="number" id="area-svg-event-id" min="1" placeholder="이벤트 ID">
+    </div>
+    <div class="area-file-field">
+      <input type="file" id="area-svg-file" accept=".svg,image/svg+xml">
+      <label for="area-svg-file" class="area-file-label">
+        <i class="ti ti-file-upload"></i>
+        <span id="area-svg-file-name">SVG 파일 선택</span>
+      </label>
+    </div>
+
+    <div class="form-row" style="margin-top:1.2rem;">
+      <button class="btn btn-secondary" onclick="closeAreaSvgModal()">취소</button>
+      <button class="btn btn-success" onclick="submitAreaSvgForm()">
+        <i class="ti ti-check"></i>SVG 등록
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="f-modal" id="area-bulk-delete-modal">
   <div class="f-modal-content" style="max-width:360px;text-align:center;">
     <i class="ti ti-trash-x" style="font-size:38px;color:var(--red);"></i>
@@ -198,23 +192,15 @@
 <div class="f-modal" id="area-json-modal">
   <div class="f-modal-content area-json-content">
     <p class="modal-title">구역 JSON 등록</p>
-    <p class="modal-subtitle">구역 배열 JSON을 그대로 붙여넣으면 서버에서 파싱해서 등록합니다.</p>
+    <p class="modal-subtitle">구역 배열 JSON을 붙여넣으면 서버에서 파싱해서 등록합니다.</p>
     <div class="modal-divider"></div>
 
     <textarea id="area-json-text" class="area-json-textarea" spellcheck="false" placeholder='[
   {
     "eventId": 1,
-    "areaName": "FLOOR-가",
+    "areaName": "VIP-1",
     "grade": "VIP",
     "price": 180000,
-    "positionX": 220,
-    "positionY": 120,
-    "width": 55,
-    "height": 55,
-    "rotation": 0,
-    "layoutAngle": 0,
-    "svgPath": "M 120 180 Q 180 120 260 140 L 245 190 Q 180 165 135 220 Z",
-    "areaColor": "#d96ccf",
     "status": "ACTIVE"
   }
 ]'></textarea>
@@ -240,7 +226,6 @@
     </div>
   </div>
 </div>
-
 <!-- Seat management modal reused from event seat workflow -->
 <div class="f-modal" id="seat-mgmt-modal" style="z-index:1050; align-items:flex-start; padding-top:4vh;">
   <div class="f-modal-content seat-modal-content">
@@ -274,15 +259,13 @@
         </select>
         <button class="btn btn-outline btn-sm" onclick="openSeatDetailSearch()" style="font-size:12.5px; padding:7px 12px;">
           <i class="ti ti-adjustments-horizontal"></i>상세 검색
-        </button>
         <button class="btn btn-sm" id="sm-search-reset-btn" onclick="resetSeatDetailSearch()" style="display:none; font-size:12px; padding:6px 10px; background:rgba(124,77,255,0.12); color:var(--purple); border:1px solid rgba(124,77,255,0.25); box-shadow:none;">
           <i class="ti ti-x"></i>필터 초기화
-        </button>
         <div id="sm-bulk-bar" style="display:none; align-items:center; gap:6px; padding:6px 10px; background:#fff8e8; border:1px solid rgba(245,159,0,.3); border-radius:var(--radius-sm); font-size:12px; color:#7a5800;">
           <i class="ti ti-checkbox" style="color:var(--amber);"></i>
           <span><strong id="sm-bulk-count">0</strong>개 선택</span>
           <button class="btn btn-sm btn-danger-solid" onclick="openSeatBulkDeleteConfirm()"><i class="ti ti-trash"></i>삭제</button>
-          <button class="btn btn-sm btn-outline" onclick="openSeatBulkEditPanel()"><i class="ti ti-edit"></i>일괄수정</button>
+          <button class="btn btn-sm btn-outline" onclick="openSeatBulkEditPanel()"><i class="ti ti-edit"></i>일괄 수정</button>
           <button class="btn btn-sm btn-outline" onclick="clearSeatSelections()">해제</button>
         </div>
       </div>
@@ -307,14 +290,14 @@
       </table>
     </div>
     <div class="seat-modal-pagination">
-      <button class="btn-page-nav" onclick="smNavigatePage(-5)">«</button>
-      <button class="btn-page-nav" onclick="smNavigatePage(-1)">‹</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(-5)" title="5페이지 이전">«</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(-1)" title="이전">‹</button>
       <div class="page-number-viewer">
         <input type="number" id="sm-page-current" value="1" min="1" onkeydown="if(event.key==='Enter'){smJump();}" onchange="smJump()">
         <span>/</span><span id="sm-page-total">1</span>
       </div>
-      <button class="btn-page-nav" onclick="smNavigatePage(1)">›</button>
-      <button class="btn-page-nav" onclick="smNavigatePage(5)">»</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(1)" title="다음">›</button>
+      <button class="btn-page-nav" onclick="smNavigatePage(5)" title="5페이지 다음">»</button>
       <div class="page-size-selector">
         <select id="sm-page-size" onchange="loadSeatMgmtList(0)">
           <option value="10" selected>10개</option><option value="20">20개</option><option value="50">50개</option>
@@ -331,7 +314,7 @@
 <div class="f-modal" id="seat-bulk-create-modal" style="z-index:1200;">
   <div class="f-modal-content" style="max-width:860px; max-height:88vh; display:flex; flex-direction:column; padding:1.75rem 2rem 1.5rem;">
     <p class="modal-title">좌석 일괄 등록</p>
-    <p class="modal-subtitle" id="sbc-subtitle">구역별 행/열 구조를 입력하면 좌석 레코드가 자동 생성됩니다.</p>
+    <p class="modal-subtitle" id="sbc-subtitle">구역별 좌석 구조를 입력하면 좌석 레코드가 자동 생성됩니다.</p>
     <div class="modal-divider"></div>
     <div class="total-seats-preview"><span><i class="ti ti-armchair" style="margin-right:4px;"></i>등록 예정 총 좌석</span><strong id="sbc-total-count">0</strong>석</div>
     <div class="zone-cards-wrap" id="sbc-zone-wrapper"></div>
@@ -357,7 +340,7 @@
   <div class="f-modal-content" style="max-width:380px;">
     <p class="modal-title">선택 좌석 일괄 수정</p><p class="modal-subtitle" id="sbe-subtitle">선택한 좌석을 일괄 변경합니다.</p><div class="modal-divider"></div>
     <div class="form-group"><label>가격 일괄 변경</label><input type="number" id="sbe-price" min="0"></div>
-    <div class="form-group"><label>상태 일괄 변경</label><select id="sbe-status"><option value="">변경 안 함</option><option value="AVAILABLE">AVAILABLE</option><option value="LOCKED">LOCKED</option><option value="RESERVED">RESERVED</option></select></div>
+    <div class="form-group"><label>상태 일괄 변경</label><select id="sbe-status"><option value="">변경 없음</option><option value="AVAILABLE">AVAILABLE</option><option value="LOCKED">LOCKED</option><option value="RESERVED">RESERVED</option></select></div>
     <div class="form-row"><button class="btn btn-secondary" onclick="closeSeatBulkEditPanel()">취소</button><button class="btn" onclick="submitSeatBulkEdit()">적용</button></div>
   </div>
 </div>

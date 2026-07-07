@@ -27,7 +27,7 @@ CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
 
 -- ==========================================
--- 2. Areas table
+-- 2. Areas 테이블
 -- ==========================================
 CREATE TABLE areas (
     area_id BIGSERIAL PRIMARY KEY,
@@ -35,14 +35,6 @@ CREATE TABLE areas (
     area_name VARCHAR(80) NOT NULL,
     grade VARCHAR(10) NOT NULL,
     price INTEGER NOT NULL,
-    position_x DOUBLE PRECISION,
-    position_y DOUBLE PRECISION,
-    area_width DOUBLE PRECISION,
-    area_height DOUBLE PRECISION,
-    rotation DOUBLE PRECISION,
-    layout_angle DOUBLE PRECISION,
-    svg_path TEXT,
-    area_color VARCHAR(30),
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -54,7 +46,21 @@ CREATE INDEX idx_area_event_id ON areas(event_id);
 CREATE INDEX idx_area_event_name ON areas(event_id, area_name);
 
 -- ==========================================
--- 3. Seats 테이블
+-- 3. Event layouts 테이블
+-- ==========================================
+CREATE TABLE event_layouts (
+    layout_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL UNIQUE,
+    original_file_name VARCHAR(255),
+    svg_text TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_event_layout_event_id ON event_layouts(event_id);
+
+-- ==========================================
+-- 4. Seats 테이블
 -- ==========================================
 CREATE TABLE seats (
     seat_id BIGSERIAL PRIMARY KEY,
@@ -83,7 +89,7 @@ CREATE INDEX idx_seat_area_id ON seats(area_id);
 
 
 -- ==========================================
--- 4. Reservations 테이블
+-- 5. Reservations 테이블
 -- ==========================================
 CREATE TABLE reservations (
     reservation_id BIGSERIAL PRIMARY KEY,
@@ -100,7 +106,7 @@ CREATE INDEX idx_reservation_event_id ON reservations(event_id);
 
 
 -- ==========================================
--- 5. Tickets 테이블
+-- 6. Tickets 테이블
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,

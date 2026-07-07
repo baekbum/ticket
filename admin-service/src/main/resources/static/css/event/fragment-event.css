@@ -322,8 +322,14 @@
     cursor: pointer;
   }
 
+  .click-area {
+    cursor: pointer;
+    pointer-events: all;
+  }
+
   .layout-area rect,
-  .layout-area path {
+  .layout-area path,
+  .click-area {
     fill: #3f65d7;
     stroke: rgba(255,255,255,0.9);
     stroke-width: 2;
@@ -338,7 +344,8 @@
   }
 
   .layout-area:hover rect,
-  .layout-area:hover path {
+  .layout-area:hover path,
+  .click-area:hover {
     filter: brightness(1.13);
     stroke: #18172b;
     stroke-width: 3;
@@ -381,7 +388,9 @@
     fill: #26212f;
   }
 
-  body.dark-mode .layout-area:hover rect {
+  body.dark-mode .layout-area:hover rect,
+  body.dark-mode .layout-area:hover path,
+  body.dark-mode .click-area:hover {
     stroke: #f3f1ff;
   }
 

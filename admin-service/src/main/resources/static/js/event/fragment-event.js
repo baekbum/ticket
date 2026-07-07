@@ -18,9 +18,11 @@ runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, st
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
 const areaLayoutCache = new Map();
+const eventLayoutCache = new Map();
 const seatLayoutCache = new Map();
 let currentLayoutEventId = null;
 let currentLayoutEventTitle = '';
+let currentLayoutAreas = [];
 const layoutDefaultViewBox = { x: 0, y: 0, width: 700, height: 520 };
 let layoutViewBox = { ...layoutDefaultViewBox };
 let layoutZoom = 1;
@@ -58,7 +60,7 @@ const token = localStorage.getItem('accessToken');
 return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-/* ─────────────────── 다중 선택 ─────────────────── */
+/* Bulk selection */
 let selectedIds = new Set(); // Set of ev.eventId (Number)
 
 function updateBulkBar() {
@@ -120,32 +122,30 @@ if (res.ok) {
 closeBulkDeleteConfirmModal();
 selectedIds.clear();
 updateBulkBar();
-showToast(`${ids.length}건의 이벤트가 삭제되었습니다.`);
+showToast(`${ids.length}건의 이벤트를 삭제했습니다.`);
 
 loadEventList(parseInt(document.getElementById('pagination-current').value, 10) - 1);
 } else {
 showToast('이벤트 일괄 삭제 처리 중 오류가 발생했습니다.', true);
 }
 } catch {
-showToast('서버 통신 실패', true);
+showToast('서버 통신에 실패했습니다.', true);
 }
 };
 
-/* ─────────────────── 날짜 포맷 ─────────────────── */
+/* Date filter */
 function formatToDatetimeLocal(str) {
 if (!str) return '';
 try {
-if (str.includes('년')) {
 const m = str.match(/\d+/g);
 if (m && m.length >= 4) {
 return `${m[0]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}T${m[3].padStart(2,'0')}:${(m[4]||'00').padStart(2,'0')}`;
-}
 }
 return str.replace(' ', 'T').slice(0, 16);
 } catch { return ''; }
 }
 
-/* ─────────────────── 목록 로드 ─────────────────── */
+/* List load */
 window.loadEventList = async function (pageZeroIndexed = 0) {
 const pageSize  = parseInt(document.getElementById('pagination-size').value, 10);
 const sortArray = Object.keys(currentSortFilters).reduce((acc, f) => {
@@ -180,7 +180,7 @@ if (currentSearchFilters.status     !== null) cond.status     = currentSearchFil
 
 try {
 const res = await Fetch(`${EVENT_URL}/select`, { method: 'POST', headers, body: JSON.stringify(cond) });
-if (!res.ok) { showToast('공연 목록 조회 실패', true); return; }
+if (!res.ok) { showToast('공연 목록 조회에 실패했습니다.', true); return; }
 
 const pagedModel = await res.json();
 currentEventList = pagedModel.content || [];
@@ -191,8 +191,7 @@ document.getElementById('pagination-total').textContent = serverTotalPages;
 document.getElementById('pagination-current').value      = pageZeroIndexed + 1;
 document.getElementById('pagination-total-count').textContent = totalCount;
 
-// 페이지 전환 시 선택 초기화
-selectedIds.clear();
+// Reset selection on page change
 updateBulkBar();
 const master = document.getElementById('select-all-checkbox');
 if (master) master.checked = false;
@@ -203,7 +202,7 @@ tbody.innerHTML = '';
 currentEventList.forEach((ev, index) => {
 let statusHtml;
 if      (ev.status === 'ON_SALE')  statusHtml = `<span class="badge badge-sale">판매중</span>`;
-else if (ev.status === 'SOLD_OUT') statusHtml = `<span class="badge badge-soldout">매진</span>`;
+else if (ev.status === 'SOLD_OUT') statusHtml = `<span class="badge badge-soldout">留ㅼ쭊</span>`;
 else                               statusHtml = `<span class="badge badge-closed">종료</span>`;
 
 const rowOrder = (pageZeroIndexed * pageSize) + (index + 1);
@@ -232,10 +231,10 @@ tr.innerHTML = `
 <td>${ev.availableSeats != null ? Number(ev.availableSeats).toLocaleString() : ''}</td>
 <td>${statusHtml}</td>
 <td class="actions">
-  <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
-  <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
-  <button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openAreaMenu(${ev.eventId})"><i class="ti ti-armchair"></i>구역</button>
-  <button class="btn btn-sm btn-layout"  onclick="event.stopPropagation(); window.openLayoutPreview(${ev.eventId})"><i class="ti ti-map"></i>배치도</button>
+<button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
+<button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
+<button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openAreaMenu(${ev.eventId})"><i class="ti ti-armchair"></i>구역</button>
+<button class="btn btn-sm btn-layout"  onclick="event.stopPropagation(); window.openLayoutPreview(${ev.eventId})"><i class="ti ti-map"></i>배치도</button>
 </td>
 `;
 
@@ -244,10 +243,10 @@ tbody.appendChild(tr);
 });
 
 syncSortHeaderUI();
-} catch (e) { showToast('서버 통신 오류', true); }
+} catch (e) { showToast('서버 통신 오류가 발생했습니다.', true); }
 };
 
-/* ─────────────────── 정렬 ─────────────────── */
+/* Sorting */
 window.handleSortClick = function (headerEl, event) {
 const field   = headerEl.getAttribute('data-sort-field');
 const current = currentSortFilters[field];
@@ -265,13 +264,13 @@ document.querySelectorAll('.sortable').forEach(th => {
 const dir  = currentSortFilters[th.getAttribute('data-sort-field')];
 const icon = th.querySelector('.sort-icon');
 th.classList.remove('asc', 'desc');
-if      (dir === 'asc')  { th.classList.add('asc');  icon.textContent = '▲'; }
-else if (dir === 'desc') { th.classList.add('desc'); icon.textContent = '▼'; }
-else                     icon.textContent = '↕';
+if      (dir === 'asc')  { th.classList.add('asc');  icon.textContent = '^'; }
+else if (dir === 'desc') { th.classList.add('desc'); icon.textContent = 'v'; }
+else                     icon.textContent = '-';
 });
 }
 
-/* ─────────────────── 모달 공통 바인딩 ─────────────────── */
+/* Modal bind */
 function _bindEventToModal(ev) {
 _set('m-target-id',        ev.eventId);
 _set('m-event-id',         ev.eventId);
@@ -331,7 +330,7 @@ fileName.textContent = fileInput.files && fileInput.files.length > 0
 : '선택된 파일 없음';
 }
 
-/* ─────────────────── 모달: VIEW ─────────────────── */
+/* Modal: VIEW */
 window.openModalForView = function (eventId) {
 const ev = currentEventList.find(e => e.eventId === parseInt(eventId, 10));
 if (!ev) { showToast('공연 데이터를 찾을 수 없습니다.', true); return; }
@@ -355,13 +354,13 @@ if (cancelBtn) { cancelBtn.textContent = '닫기'; cancelBtn.style.width = '100%
 document.getElementById('event-modal').style.display = 'flex';
 };
 
-/* ─────────────────── 모달: UPDATE ─────────────────── */
+/* Modal: UPDATE */
 window.openModalForUpdate = function (eventId) {
 const ev = currentEventList.find(e => e.eventId === parseInt(eventId, 10));
 if (!ev) { showToast('공연 데이터를 찾을 수 없습니다.', true); return; }
 
 document.getElementById('m-modal-mode').value       = 'UPDATE';
-document.getElementById('modal-title').textContent    = '공연 스펙 정보 수정';
+document.getElementById('modal-title').textContent    = '공연 정보 수정';
 document.getElementById('modal-subtitle').textContent = '정보를 수정한 뒤 저장 버튼을 눌러주세요.';
 
 _setAllInputsState(false);
@@ -381,11 +380,11 @@ if (cancelBtn) { cancelBtn.textContent = '취소'; cancelBtn.style.width = 'auto
 document.getElementById('event-modal').style.display = 'flex';
 };
 
-/* ─────────────────── 모달: CREATE ─────────────────── */
+/* Modal: CREATE */
 window.openModalForCreate = function () {
 document.getElementById('m-modal-mode').value       = 'CREATE';
-document.getElementById('modal-title').textContent    = '신규 라이브 공연 등록';
-document.getElementById('modal-subtitle').textContent = '새로운 공연 일정을 등록합니다.';
+document.getElementById('modal-title').textContent    = '신규 공연 등록';
+document.getElementById('modal-subtitle').textContent = '새 공연 일정을 등록합니다.';
 
 _setAllInputsState(false);
 
@@ -408,7 +407,7 @@ const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
 actionRow.style.gridTemplateColumns = 'repeat(2, 1fr)';
 
-document.getElementById('btn-modal-submit').textContent       = '신규 오픈 등록하기';
+document.getElementById('btn-modal-submit').textContent       = '신규 공연 등록';
 document.getElementById('btn-modal-submit').style.display     = 'block';
 
 const cancelBtn = document.querySelector('#event-modal .btn-secondary');
@@ -419,7 +418,7 @@ document.getElementById('event-modal').style.display = 'flex';
 
 window.closeModal = function () { document.getElementById('event-modal').style.display = 'none'; };
 
-/* ─────────────────── Form 제출 ─────────────────── */
+/* Form submit */
 window.submitEventForm = async function () {
 const mode         = document.getElementById('m-modal-mode').value;
 const artistVal    = document.getElementById('m-artist-name').value.trim();
@@ -439,28 +438,28 @@ const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 const missingFields = [];
-if (!artistVal) missingFields.push('아티스트');
-if (!titleVal) missingFields.push('공연 타이틀');
+if (!artistVal) missingFields.push('?꾪떚?ㅽ듃');
+if (!titleVal) missingFields.push('공연 제목');
 if (!venueVal) missingFields.push('개최 장소');
 if (!venueAddressVal) missingFields.push('공연장 주소');
 if (!datetimeInput) missingFields.push('공연 일정');
 if (!saleStartInput) missingFields.push('판매 시작');
 if (!saleEndInput) missingFields.push('판매 종료');
 if (!cancelDeadlineInput) missingFields.push('취소 마감');
-if (mode === 'CREATE' && !posterFile) missingFields.push('포스터 이미지');
+if (mode === 'CREATE' && !posterFile) missingFields.push('?ъ뒪???대?吏');
 
 if (missingFields.length > 0) {
-showToast(`필수 항목을 입력해 주세요: ${missingFields.join(', ')}`, true); return;
+showToast(`필수 항목을 입력해주세요: ${missingFields.join(', ')}`, true); return;
 }
 
 if (!artistVal || !titleVal || !venueVal || !venueAddressVal || !datetimeInput || !saleStartInput || !saleEndInput || !cancelDeadlineInput) {
-showToast('필수 항목을 모두 입력해 주세요.', true); return;
+showToast('필수 항목을 모두 입력해주세요.', true); return;
 }
 if (!seatsVal || seatsVal <= 0) {
-showToast('배정 좌석수는 1석 이상이어야 합니다.', true); return;
+showToast('배정 좌석 수는 1 이상이어야 합니다.', true); return;
 }
 if (!runningMinutesVal || runningMinutesVal <= 0 || Number.isNaN(ageLimitVal) || ageLimitVal < 0) {
-showToast('공연 시간과 관람 연령을 확인해 주세요.', true); return;
+showToast('공연 시간과 관람 연령을 확인해주세요.', true); return;
 }
 
 const body = {
@@ -499,10 +498,10 @@ showToast(mode === 'CREATE' ? '성공적으로 등록되었습니다.' : '성공
 closeModal();
 loadEventList(mode === 'CREATE' ? 0 : parseInt(document.getElementById('pagination-current').value, 10) - 1);
 } else { showToast('처리에 실패했습니다.', true); }
-} catch { showToast('통신 장애', true); }
+} catch { showToast('통신 오류가 발생했습니다.', true); }
 };
 
-/* ─────────────────── 단건 삭제 ─────────────────── */
+/* Single delete */
 window.openConfirmModalFromRow = function (id) {
 document.getElementById('confirm-target-id').value = id;
 document.getElementById('confirm-modal').style.display = 'flex';
@@ -518,10 +517,10 @@ showToast('이벤트 정보가 삭제되었습니다.');
 closeConfirmModal(); closeModal();
 loadEventList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
 } else { showToast('삭제 처리에 실패했습니다.', true); }
-} catch { showToast('통신 장애', true); }
+} catch { showToast('통신 오류가 발생했습니다.', true); }
 };
 
-/* ─────────────────── Redis 캐시 웜업 ─────────────────── */
+/* Redis cache warmup */
 window.openCacheWarmupConfirmModal  = function () { document.getElementById('cache-warmup-modal').style.display = 'flex'; };
 window.closeCacheWarmupConfirmModal = function () { document.getElementById('cache-warmup-modal').style.display = 'none'; };
 
@@ -529,12 +528,12 @@ window.submitCacheWarmup = async function () {
 const targetId = document.getElementById('m-target-id').value;
 try {
 const res = await Fetch(`${SEAT_URL}/warm-up/${targetId}`, { method: 'POST', headers });
-if (res.ok) { showToast('Redis 캐시 웜업이 성공적으로 완료되었습니다! ⚡'); closeCacheWarmupConfirmModal(); }
+if (res.ok) { showToast('Redis 캐시 웜업이 완료되었습니다.'); closeCacheWarmupConfirmModal(); }
 else         { showToast('웜업 실패: 백엔드 처리 중 오류가 발생했습니다.', true); }
-} catch { showToast('서버 네트워크 연결 장애 발생', true); }
+} catch { showToast('서버 네트워크 연결 오류가 발생했습니다.', true); }
 };
 
-/* ─────────────────── 검색 ─────────────────── */
+/* Search */
 window.triggerNormalSearch = function () {
 currentSearchFilters = {
 eventId: null, title: document.getElementById('search-id').value.trim() || null, artistName: null,
@@ -568,6 +567,16 @@ if (!svg) return;
 svg.setAttribute('viewBox', `${layoutViewBox.x} ${layoutViewBox.y} ${layoutViewBox.width} ${layoutViewBox.height}`);
 const label = document.getElementById('layout-zoom-label');
 if (label) label.textContent = `${Math.round(layoutZoom * 100)}%`;
+}
+
+function setLayoutBaseViewBox(x, y, width, height) {
+layoutDefaultViewBox.x = x;
+layoutDefaultViewBox.y = y;
+layoutDefaultViewBox.width = width;
+layoutDefaultViewBox.height = height;
+layoutViewBox = { ...layoutDefaultViewBox };
+layoutZoom = 1;
+applyLayoutViewBox();
 }
 
 window.resetLayoutZoom = function () {
@@ -613,7 +622,9 @@ zoomLayoutPreview(event.deltaY < 0 ? 1.12 : 0.892857, centerX, centerY);
 svg.addEventListener('pointerdown', function (event) {
 if (event.button !== 0) return;
 svg.setPointerCapture(event.pointerId);
-const areaEl = event.target.closest ? event.target.closest('.layout-area') : null;
+const areaEl = event.target.closest ? event.target.closest('.layout-area, .click-area, [data-area-name]') : null;
+const areaName = areaEl ? areaEl.dataset.areaName : null;
+const matchedArea = areaEl && !areaEl.dataset.areaId ? findLayoutAreaByName(areaName) : null;
 layoutDragged = false;
 layoutDragState = {
 pointerId: event.pointerId,
@@ -621,8 +632,8 @@ startClientX: event.clientX,
 startClientY: event.clientY,
 startViewBoxX: layoutViewBox.x,
 startViewBoxY: layoutViewBox.y,
-areaId: areaEl ? areaEl.dataset.areaId : null,
-areaName: areaEl ? areaEl.dataset.areaName : null
+areaId: areaEl ? (areaEl.dataset.areaId || matchedArea?.areaId || null) : null,
+areaName: areaEl ? (areaName || matchedArea?.areaName || null) : null
 };
 svg.classList.add('is-dragging');
 });
@@ -674,9 +685,10 @@ Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
 return el;
 }
 
-function normalizeLayoutColor(value) {
-const color = String(value ?? '').trim();
-return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '';
+function findLayoutAreaByName(areaName) {
+const normalizedName = String(areaName ?? '').trim();
+if (!normalizedName) return null;
+return currentLayoutAreas.find(area => String(area.areaName ?? '').trim() === normalizedName) || null;
 }
 
 async function fetchAreaLayout(eventId) {
@@ -695,6 +707,31 @@ areaLayoutCache.set(eventId, areas);
 return areas;
 }
 
+async function fetchEventLayout(eventId) {
+if (eventLayoutCache.has(eventId)) return eventLayoutCache.get(eventId);
+
+const res = await Fetch(`${AREA_URL}/layout/event/${eventId}`, {
+method: 'GET',
+headers
+});
+
+if (res.status === 204 || res.status === 404) {
+eventLayoutCache.set(eventId, null);
+return null;
+}
+if (!res.ok) throw new Error('Event layout load failed');
+
+const text = await res.text();
+if (!text) {
+eventLayoutCache.set(eventId, null);
+return null;
+}
+
+const layout = JSON.parse(text);
+eventLayoutCache.set(eventId, layout);
+return layout;
+}
+
 async function fetchSeatLayout(areaId) {
 if (seatLayoutCache.has(areaId)) return seatLayoutCache.get(areaId);
 
@@ -711,60 +748,50 @@ seatLayoutCache.set(areaId, seats);
 return seats;
 }
 
-function renderAreaLayout(areas) {
+function parseViewBox(viewBox) {
+const values = String(viewBox || '').trim().split(/\s+/).map(Number);
+if (values.length === 4 && values.every(value => !Number.isNaN(value))) {
+return { x: values[0], y: values[1], width: values[2], height: values[3] };
+}
+return { x: 0, y: 0, width: 700, height: 520 };
+}
+
+function renderOriginalSvgLayout(layout, areas) {
 const svg = clearLayoutSvg();
-if (!svg) return;
-resetLayoutZoom();
+if (!svg) return false;
+currentLayoutAreas = areas || [];
+
+const parser = new DOMParser();
+const doc = parser.parseFromString(layout?.svgText || '', 'image/svg+xml');
+const sourceSvg = doc.documentElement;
+if (!sourceSvg || sourceSvg.tagName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) {
+return false;
+}
+
+svg.innerHTML = sourceSvg.innerHTML;
+const viewBox = parseViewBox(sourceSvg.getAttribute('viewBox'));
+setLayoutBaseViewBox(viewBox.x, viewBox.y, viewBox.width, viewBox.height);
 bindLayoutWheelZoom();
 
 document.getElementById('layout-back-btn').style.display = 'none';
-document.getElementById('layout-preview-mode-label').textContent = '구역 배치도';
+document.getElementById('layout-preview-mode-label').textContent = '원본 SVG 배치도';
 document.getElementById('layout-preview-count').textContent = `${areas.length}개 구역`;
 
-svg.appendChild(svgEl('rect', { x: 230, y: 28, width: 240, height: 42, rx: 8, class: 'layout-stage-box' }));
-const stageText = svgEl('text', { x: 350, y: 55, class: 'layout-stage-text', 'text-anchor': 'middle' });
-stageText.textContent = 'STAGE';
-svg.appendChild(stageText);
-
-if (areas.length === 0) {
-const empty = svgEl('text', { x: 350, y: 260, class: 'layout-empty-text', 'text-anchor': 'middle' });
-empty.textContent = '등록된 구역 정보가 없습니다.';
-svg.appendChild(empty);
-return;
+svg.querySelectorAll('.area, [data-area-name]').forEach(el => {
+const areaName = el.dataset.areaName || '';
+const matchedArea = findLayoutAreaByName(areaName);
+if (!matchedArea) return;
+el.classList.add('layout-area');
+el.dataset.areaId = matchedArea.areaId;
+el.dataset.areaName = matchedArea.areaName;
+if (!el.querySelector('title')) {
+const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+title.textContent = `${matchedArea.areaName || matchedArea.areaId} / ${matchedArea.grade || '-'} / ${matchedArea.price != null ? Number(matchedArea.price).toLocaleString() + '원' : '-'}`;
+el.appendChild(title);
 }
-
-areas.forEach(area => {
-const x = area.positionX ?? 80;
-const y = area.positionY ?? 100;
-const width = area.width ?? 80;
-const height = area.height ?? 48;
-const rotation = area.rotation ?? 0;
-const cx = x + width / 2;
-const cy = y + height / 2;
-const svgPath = area.svgPath && area.svgPath.trim();
-const areaColor = normalizeLayoutColor(area.areaColor);
-
-const group = svgEl('g', {
-class: `layout-area layout-grade-${(area.grade || '').toLowerCase()}`,
-transform: `rotate(${rotation} ${cx} ${cy})`,
-'data-area-id': area.areaId,
-'data-area-name': area.areaName || ''
 });
 
-if (svgPath) {
-group.appendChild(svgEl('path', { d: svgPath, ...(areaColor ? { style: `fill:${areaColor}` } : {}) }));
-} else {
-group.appendChild(svgEl('rect', { x, y, width, height, rx: 5, ...(areaColor ? { style: `fill:${areaColor}` } : {}) }));
-}
-const label = svgEl('text', { x: cx, y: cy + 4, 'text-anchor': 'middle' });
-label.textContent = area.areaName || area.areaId;
-group.appendChild(label);
-const title = svgEl('title');
-title.textContent = `${area.areaName || area.areaId} / ${area.grade || '-'} / ${area.price != null ? Number(area.price).toLocaleString() + '원' : '-'}`;
-group.appendChild(title);
-
-svg.appendChild(group);
-});
+return true;
 }
 
 function seatStatusClass(status) {
@@ -776,7 +803,7 @@ return 'layout-seat-available';
 function renderSeatLayout(areaId, areaName, seats) {
 const svg = clearLayoutSvg();
 if (!svg) return;
-resetLayoutZoom();
+setLayoutBaseViewBox(0, 0, 700, 520);
 bindLayoutWheelZoom();
 
 document.getElementById('layout-back-btn').style.display = 'inline-flex';
@@ -820,7 +847,8 @@ class: `layout-seat ${seatStatusClass(seat.status)}`,
 transform: `rotate(${rotation} ${cx} ${cy})`
 });
 const title = svgEl('title');
-title.textContent = `${seat.seatName || `${seat.seatRow || '-'}행 ${seat.seatCol || '-'}번`} / ${seat.status || '-'} / ${seat.price != null ? Number(seat.price).toLocaleString() + '원' : '-'}`;
+const seatName = seat.seatName || `${seat.seatRow || '-'}행 ${seat.seatCol || '-'}번`;
+title.textContent = `${seatName} / ${seat.status || '-'} / ${seat.price != null ? Number(seat.price).toLocaleString() + '원' : '-'}`;
 rect.appendChild(title);
 svg.appendChild(rect);
 });
@@ -836,7 +864,10 @@ document.getElementById('layout-preview-modal').style.display = 'flex';
 
 try {
 const areas = await fetchAreaLayout(currentLayoutEventId);
-renderAreaLayout(areas);
+const layout = await fetchEventLayout(currentLayoutEventId);
+if (!layout || !renderOriginalSvgLayout(layout, areas)) {
+throw new Error('Event original SVG layout not found');
+}
 } catch {
 showToast('구역 배치도 조회에 실패했습니다.', true);
 }
@@ -855,7 +886,10 @@ window.showAreaLayoutFromSeat = async function () {
 if (!currentLayoutEventId) return;
 try {
 const areas = await fetchAreaLayout(currentLayoutEventId);
-renderAreaLayout(areas);
+const layout = await fetchEventLayout(currentLayoutEventId);
+if (!layout || !renderOriginalSvgLayout(layout, areas)) {
+throw new Error('Event original SVG layout not found');
+}
 } catch {
 showToast('구역 배치도 조회에 실패했습니다.', true);
 }
@@ -937,7 +971,7 @@ loadEventList(0);
 closeSearchModal();
 };
 
-/* ─────────────────── 초기화 ─────────────────── */
+/* Init */
 window.Pagination.register({
 load: loadEventList,
 getTotalPages: function () { return serverTotalPages; }

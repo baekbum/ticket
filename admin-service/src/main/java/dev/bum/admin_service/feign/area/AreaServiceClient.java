@@ -8,9 +8,12 @@ import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
+import dev.bum.common.service.ticket.layout.dto.EventLayoutResponse;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -25,6 +28,15 @@ public interface AreaServiceClient {
 
     @PostMapping("/insert/json")
     List<AreaResponse> insertJson(@Valid @RequestBody InsertAreaJsonRequest info);
+
+    @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    List<AreaResponse> insertSvg(
+            @RequestPart("eventId") String eventId,
+            @RequestPart("svgFile") MultipartFile svgFile
+    );
+
+    @GetMapping("/layout/event/{eventId}")
+    EventLayoutResponse selectLayout(@PathVariable("eventId") Long eventId);
 
     @GetMapping("/select/id/{areaId}")
     AreaResponse selectById(@PathVariable("areaId") Long areaId);
