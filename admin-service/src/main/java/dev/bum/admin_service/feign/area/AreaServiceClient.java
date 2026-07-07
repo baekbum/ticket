@@ -32,7 +32,8 @@ public interface AreaServiceClient {
     @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     List<AreaResponse> insertSvg(
             @RequestPart("eventId") String eventId,
-            @RequestPart("svgFile") MultipartFile svgFile
+            @RequestPart("svgFile") MultipartFile svgFile,
+            @RequestParam(value = "force", defaultValue = "false") boolean force
     );
 
     @GetMapping("/layout/event/{eventId}")

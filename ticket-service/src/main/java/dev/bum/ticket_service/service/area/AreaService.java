@@ -14,12 +14,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.service.ticket.layout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
+import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.area.AreaRepository;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.layout.EventLayout;
 import dev.bum.ticket_service.jpa.layout.EventLayoutJpaRepository;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -52,8 +55,10 @@ import java.util.Set;
 public class AreaService {
 
     private final AreaRepository repository;
+    private final AreaJpaRepository areaJpaRepository;
     private final EventRepository eventRepository;
     private final EventLayoutJpaRepository layoutJpaRepository;
+    private final SeatJpaRepository seatJpaRepository;
     private final ObjectMapper objectMapper;
 
     public AreaResponse insert(InsertAreaRequest info) {
@@ -89,12 +94,18 @@ public class AreaService {
         }
     }
 
-    public List<AreaResponse> insertSvg(Long eventId, MultipartFile svgFile) {
+    public List<AreaResponse> insertSvg(Long eventId, MultipartFile svgFile, boolean force) {
         if (eventId == null) {
             throw new IllegalArgumentException("이벤트 ID를 입력해주세요.");
         }
         if (svgFile == null || svgFile.isEmpty()) {
             throw new IllegalArgumentException("SVG 파일을 업로드해주세요.");
+        }
+        if (hasAreaLayout(eventId)) {
+            if (!force) {
+                throw new AreaLayoutAlreadyExistsException("해당 구역 배치도가 이미 존재합니다. 새로 등록하시겠습니까?");
+            }
+            deleteAreaLayout(eventId);
         }
 
         String svgText = normalizeSvgFile(svgFile);
@@ -117,6 +128,17 @@ public class AreaService {
                 })
                 .filter(response -> response != null)
                 .toList();
+    }
+
+    private boolean hasAreaLayout(Long eventId) {
+        return layoutJpaRepository.existsByEvent_EventId(eventId) || areaJpaRepository.existsByEvent_EventId(eventId);
+    }
+
+    private void deleteAreaLayout(Long eventId) {
+        log.info("[AREA SVG REPLACE] delete previous layout. eventId : {}", eventId);
+        seatJpaRepository.deleteByEventEventId(eventId);
+        areaJpaRepository.deleteByEvent_EventId(eventId);
+        layoutJpaRepository.deleteByEvent_EventId(eventId);
     }
 
     @Transactional(readOnly = true)

@@ -11,6 +11,7 @@ let serverTotalPages = 1;
 let initialized = false;
 let areaBulkCardSeq = 0;
 let selectedAreaIds = new Set();
+let pendingSvgReplace = false;
 
 function inputValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
@@ -303,7 +304,17 @@ window.closeAreaSvgModal = function () {
   document.getElementById('area-svg-modal').style.display = 'none';
 };
 
-window.submitAreaSvgForm = async function () {
+window.closeAreaSvgReplaceModal = function () {
+  document.getElementById('area-svg-replace-modal').style.display = 'none';
+  pendingSvgReplace = false;
+};
+
+window.confirmAreaSvgReplace = function () {
+  document.getElementById('area-svg-replace-modal').style.display = 'none';
+  submitAreaSvgForm(true);
+};
+
+window.submitAreaSvgForm = async function (force = false) {
   const eventId = inputValue('area-svg-event-id');
   const file = document.getElementById('area-svg-file')?.files?.[0];
 
@@ -321,7 +332,7 @@ window.submitAreaSvgForm = async function () {
   formData.append('svgFile', file);
 
   try {
-    const res = await Fetch(`${AREA_URL}/insert/svg`, {
+    const res = await Fetch(`${AREA_URL}/insert/svg?force=${force}`, {
       method: 'POST',
       headers: authHeaders,
       body: formData
@@ -330,10 +341,14 @@ window.submitAreaSvgForm = async function () {
     if (res.ok) {
       const inserted = await res.json();
       showToast(`${inserted.length}개 구역을 SVG에서 등록했습니다.`);
+      pendingSvgReplace = false;
       closeAreaSvgModal();
       currentAreaFilters.eventId = parseInt(eventId, 10);
       setValue('area-search-event-id', eventId);
       loadAreaList(0);
+    } else if (res.status === 409 && !force) {
+      pendingSvgReplace = true;
+      document.getElementById('area-svg-replace-modal').style.display = 'flex';
     } else {
       showToast('SVG 구역 등록에 실패했습니다.', true);
     }
@@ -341,6 +356,7 @@ window.submitAreaSvgForm = async function () {
     showToast('SVG 구역 등록 통신 오류가 발생했습니다.', true);
   }
 };
+
 
 function readAreaBulkCard(card) {
   const value = selector => card.querySelector(selector)?.value?.trim() || '';

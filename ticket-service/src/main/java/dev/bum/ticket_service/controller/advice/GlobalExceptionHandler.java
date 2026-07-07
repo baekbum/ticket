@@ -2,6 +2,7 @@ package dev.bum.ticket_service.controller.advice;
 
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
+import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
 import dev.bum.ticket_service.exception.area.AreaNotExistException;
 import dev.bum.ticket_service.exception.reservation.ReservationDuplicateException;
@@ -46,6 +47,11 @@ public class GlobalExceptionHandler {
     })
     public ResponseEntity<String> handleDuplicateException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(AreaLayoutAlreadyExistsException.class)
+    public ResponseEntity<String> handleAreaLayoutAlreadyExistsException(AreaLayoutAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
 
     // ==========================================
