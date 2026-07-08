@@ -417,7 +417,15 @@
       <i class="ti ti-calendar-event"></i>
       <div>
         <div class="ev-title" id="sm-event-title">-</div>
-        <div class="ev-meta">이벤트 ID: <strong id="sm-event-id-label">-</strong></div>
+        <div class="ev-meta">
+          이벤트 ID: <strong id="sm-event-id-label">-</strong>
+          <span class="seat-meta-divider">|</span>
+          구역: <strong id="sm-area-label">-</strong>
+          <span class="seat-meta-divider">|</span>
+          등급: <strong id="sm-area-grade-label">-</strong>
+          <span class="seat-meta-divider">|</span>
+          가격: <strong id="sm-area-price-label">-</strong>
+        </div>
       </div>
       <button class="btn btn-warning btn-sm ev-warmup-btn" onclick="openCacheWarmupFromSeatModal()">
         <i class="ti ti-bolt"></i>Redis 웜업
@@ -427,24 +435,21 @@
     <!-- 툴바 -->
     <div class="seat-modal-toolbar">
       <div class="seat-modal-toolbar-left">
-        <select id="sm-filter-grade" style="padding:7px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12.5px; font-family:inherit; background:#fafafa; outline:none;" onchange="loadSeatMgmtList(0)">
-          <option value="">전체 등급</option>
-          <option value="VIP">VIP</option>
-          <option value="R">R</option>
-          <option value="S">S</option>
-          <option value="A">A</option>
-        </select>
-        <select id="sm-filter-status" style="padding:7px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12.5px; font-family:inherit; background:#fafafa; outline:none;" onchange="loadSeatMgmtList(0)">
+        <input type="number" id="sm-filter-row" class="seat-filter-input" min="1" placeholder="행">
+        <input type="number" id="sm-filter-col" class="seat-filter-input" min="1" placeholder="열">
+        <select id="sm-filter-status" class="seat-filter-select" onchange="loadSeatMgmtList(0)">
           <option value="">전체 상태</option>
           <option value="AVAILABLE">판매 가능</option>
           <option value="LOCKED">결제 진행</option>
           <option value="RESERVED">판매 완료</option>
         </select>
-        <button class="btn btn-outline btn-sm" onclick="openSeatDetailSearch()" style="font-size:12.5px; padding:7px 12px;">
-          <i class="ti ti-adjustments-horizontal"></i>상세 검색
+        <button class="btn btn-outline btn-sm" onclick="submitSeatInlineSearch()" style="font-size:12.5px; padding:7px 12px;">
+          <i class="ti ti-search"></i>검색
+        </button>
         <button class="btn btn-sm" id="sm-search-reset-btn" onclick="resetSeatDetailSearch()"
                 style="display:none; font-size:12px; padding:6px 10px; background:rgba(124,77,255,0.12); color:var(--purple); border:1px solid rgba(124,77,255,0.25); box-shadow:none;">
           <i class="ti ti-x"></i>필터 초기화
+        </button>
         <!-- 선택 시 표시되는 인라인 액션 -->
         <div id="sm-bulk-bar" style="display:none; align-items:center; gap:6px; padding:6px 10px; background:#fff8e8; border:1px solid rgba(245,159,0,.3); border-radius:var(--radius-sm); font-size:12px; color:#7a5800;">
           <i class="ti ti-checkbox" style="color:var(--amber);"></i>
@@ -465,15 +470,15 @@
     <div class="seat-modal-list-wrap">
       <table class="seat-inner-table">
         <colgroup>
-          <col class="table-checkbox-col">
-          <col style="width:6%;">
-          <col style="width:18%;">
-          <col style="width:6%;">
-          <col style="width:6%;">
-          <col style="width:14%;">
+          <col style="width:4%;">
           <col style="width:7%;">
-          <col style="width:12%;">
-          <col style="width:12%;">
+          <col style="width:20%;">
+          <col style="width:7%;">
+          <col style="width:7%;">
+          <col style="width:14%;">
+          <col style="width:8%;">
+          <col style="width:13%;">
+          <col style="width:20%;">
         </colgroup>
         <thead>
         <tr>
@@ -626,57 +631,6 @@
     </div>
   </div>
 </div>
-
-<!-- 좌석 상세 검색 모달 -->
-<div class="f-modal" id="seat-detail-search-modal" style="z-index:1200;">
-  <div class="f-modal-content" style="max-width:440px;">
-    <p class="modal-title">좌석 상세 검색</p>
-    <p class="modal-subtitle">조건을 조합해 공연 좌석을 필터링합니다.</p>
-    <div class="modal-divider"></div>
-
-    <div class="form-group">
-      <label>구역 명칭 (Zone)</label>
-      <input type="text" id="sm-cond-zone" placeholder="예: Floor A, 1층 1구역">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>행 번호 (Row)</label>
-        <input type="number" id="sm-cond-row" placeholder="예: 3" min="1" style="text-align:center;">
-      </div>
-      <div class="form-group">
-        <label>열 번호 (Col)</label>
-        <input type="number" id="sm-cond-col" placeholder="예: 7" min="1" style="text-align:center;">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>좌석 등급 (Grade)</label>
-        <select id="sm-cond-grade">
-          <option value="">전체 등급</option>
-          <option value="VIP">VIP</option>
-          <option value="R">R</option>
-          <option value="S">S</option>
-          <option value="A">A</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>예약 상태 (Status)</label>
-        <select id="sm-cond-status">
-          <option value="">전체 상태</option>
-          <option value="AVAILABLE">AVAILABLE (판매 가능)</option>
-          <option value="LOCKED">LOCKED (결제 진행)</option>
-          <option value="RESERVED">RESERVED (판매 완료)</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="form-row" style="margin-top:1.25rem;">
-      <button class="btn btn-secondary" onclick="closeSeatDetailSearch()">취소</button>
-      <button class="btn" onclick="submitSeatDetailSearch()"><i class="ti ti-search"></i>조건으로 검색</button>
-    </div>
-  </div>
-</div>
-
 
 <div class="f-modal" id="seat-bulk-delete-modal" style="z-index:1300;">
 <div class="f-modal-content confirm-modal-content">

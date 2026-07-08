@@ -549,7 +549,7 @@ window.openAreaSeatModal = function (areaId) {
     return;
   }
 
-  window.openSeatModal(area.eventId, area.eventTitle || `Event ${area.eventId}`, '', area.areaId, area.areaName);
+  window.openSeatModal(area.eventId, area.eventTitle || `Event ${area.eventId}`, '', area.areaId, area.areaName, area.grade, area.price);
 };
 
 function initAreaFragment(context = {}) {

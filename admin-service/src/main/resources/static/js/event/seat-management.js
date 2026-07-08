@@ -13,20 +13,30 @@
     let smEventId    = null;
     let smAreaId     = null;
     let smAreaName   = null;
+    let smAreaGrade  = null;
+    let smAreaPrice  = null;
     let smTotalPages = 1;
     let smSelectedIds = new Set();
-    let smDetailFilters = { zone: null, seatRow: null, seatCol: null, grade: null, status: null };
+    let smDetailFilters = { seatRow: null, seatCol: null, status: null };
 
     /* ── 좌석 관리 모달 열기 ── */
-    window.openSeatModal = function (eventId, title, artist, areaId = null, areaName = null) {
+    window.openSeatModal = function (eventId, title, artist, areaId = null, areaName = null, areaGrade = null, areaPrice = null) {
       smEventId = parseInt(eventId, 10);
       smAreaId = areaId ? parseInt(areaId, 10) : null;
       smAreaName = areaName || null;
+      smAreaGrade = areaGrade || null;
+      smAreaPrice = areaPrice ?? null;
       smSelectedIds.clear();
-      smDetailFilters = { zone: null, seatRow: null, seatCol: null, grade: null, status: null };
+      smDetailFilters = { seatRow: null, seatCol: null, status: null };
       document.getElementById('sm-event-title').textContent  = smAreaName ? `${smAreaName} — ${title}` : `${title} — ${artist}`;
       document.getElementById('sm-event-id-label').textContent = eventId;
-      document.getElementById('sm-filter-grade').value  = '';
+      document.getElementById('sm-area-label').textContent = smAreaName || '-';
+      document.getElementById('sm-area-grade-label').textContent = smAreaGrade || '-';
+      document.getElementById('sm-area-price-label').textContent = smAreaPrice !== null && smAreaPrice !== undefined && smAreaPrice !== ''
+        ? `${Number(smAreaPrice).toLocaleString()}원`
+        : '-';
+      document.getElementById('sm-filter-row').value = '';
+      document.getElementById('sm-filter-col').value = '';
       document.getElementById('sm-filter-status').value = '';
       document.getElementById('sm-page-current').value  = 1;
       document.getElementById('sm-select-all').checked  = false;
@@ -42,15 +52,21 @@
     /* ── 목록 로드 ── */
     window.loadSeatMgmtList = async function (pageZeroIndexed = 0) {
       const pageSize = parseInt(document.getElementById('sm-page-size').value, 10);
-      const grade    = smDetailFilters.grade  || document.getElementById('sm-filter-grade').value  || null;
-      const status   = smDetailFilters.status || document.getElementById('sm-filter-status').value || null;
+      const rowVal   = document.getElementById('sm-filter-row').value.trim();
+      const colVal   = document.getElementById('sm-filter-col').value.trim();
+      const status   = document.getElementById('sm-filter-status').value || null;
+      smDetailFilters = {
+        seatRow: rowVal ? parseInt(rowVal, 10) : null,
+        seatCol: colVal ? parseInt(colVal, 10) : null,
+        status
+      };
+      const hasFilter = Object.values(smDetailFilters).some(v => v !== null);
+      document.getElementById('sm-search-reset-btn').style.display = hasFilter ? 'inline-flex' : 'none';
 
       const body = {
         eventId: smEventId,
         areaId: smAreaId,
-        grade,
         status,
-        zone:    smDetailFilters.zone    || null,
         seatRow: smDetailFilters.seatRow || null,
         seatCol: smDetailFilters.seatCol || null,
         page: pageZeroIndexed,
@@ -458,50 +474,23 @@
       } catch { showToast('통신 오류', true); }
     };
 
-    /* ── 좌석 상세 검색 ── */
-    window.openSeatDetailSearch = function () {
-      document.getElementById('sm-cond-zone').value   = smDetailFilters.zone    || '';
-      document.getElementById('sm-cond-row').value    = smDetailFilters.seatRow || '';
-      document.getElementById('sm-cond-col').value    = smDetailFilters.seatCol || '';
-      document.getElementById('sm-cond-grade').value  = smDetailFilters.grade   || '';
-      document.getElementById('sm-cond-status').value = smDetailFilters.status  || '';
-      document.getElementById('seat-detail-search-modal').style.display = 'flex';
-    };
-    window.closeSeatDetailSearch = function () {
-      document.getElementById('seat-detail-search-modal').style.display = 'none';
-    };
-    window.submitSeatDetailSearch = function () {
-      const zone   = document.getElementById('sm-cond-zone').value.trim()  || null;
-      const rowVal = document.getElementById('sm-cond-row').value.trim();
-      const colVal = document.getElementById('sm-cond-col').value.trim();
-      const grade  = document.getElementById('sm-cond-grade').value         || null;
-      const status = document.getElementById('sm-cond-status').value        || null;
-
-      smDetailFilters = {
-        zone,
-        seatRow: rowVal ? parseInt(rowVal, 10) : null,
-        seatCol: colVal ? parseInt(colVal, 10) : null,
-        grade,
-        status
-      };
-
-      // 드롭다운 필터와 동기화
-      document.getElementById('sm-filter-grade').value  = grade  || '';
-      document.getElementById('sm-filter-status').value = status || '';
-
-      // 필터 활성 배지 표시
-      const hasFilter = Object.values(smDetailFilters).some(v => v !== null);
-      document.getElementById('sm-search-reset-btn').style.display = hasFilter ? 'inline-flex' : 'none';
-
-      closeSeatDetailSearch();
+    /* ── 좌석 검색 ── */
+    window.submitSeatInlineSearch = function () {
       loadSeatMgmtList(0);
     };
     window.resetSeatDetailSearch = function () {
-      smDetailFilters = { zone: null, seatRow: null, seatCol: null, grade: null, status: null };
-      document.getElementById('sm-filter-grade').value  = '';
+      smDetailFilters = { seatRow: null, seatCol: null, status: null };
+      document.getElementById('sm-filter-row').value = '';
+      document.getElementById('sm-filter-col').value = '';
       document.getElementById('sm-filter-status').value = '';
       document.getElementById('sm-search-reset-btn').style.display = 'none';
       loadSeatMgmtList(0);
     };
+
+    ['sm-filter-row', 'sm-filter-col'].forEach(id => {
+      document.getElementById(id)?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') loadSeatMgmtList(0);
+      });
+    });
 
   })();
