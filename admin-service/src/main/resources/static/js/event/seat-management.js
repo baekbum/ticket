@@ -342,6 +342,14 @@
       return Number.isNaN(parsed) ? null : parsed;
     }
 
+    function _escapeAttr(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
     function _sbcRecalc() {
       let total = 0;
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach(card => {
@@ -357,7 +365,7 @@
     function _sbcUpdateLabels() {
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach((card, i) => {
         const el = card.querySelector('.zone-card-title-text');
-        if (el) el.textContent = `배정 구역 #${i+1}`;
+        if (el) el.textContent = `좌석 묶음 #${i+1}`;
       });
     }
     window._sbcUpdateLabels = _sbcUpdateLabels;
@@ -373,30 +381,26 @@
       const gapY = data.gapY ?? 4;
       const rotation = data.rotation ?? 0;
       const layoutAngle = data.layoutAngle ?? 0;
+      const zone = data.zone ?? smAreaName ?? '';
+      const grade = data.grade ?? smAreaGrade ?? 'VIP';
+      const price = data.price ?? smAreaPrice ?? '';
       const cid = 'sbc-' + Date.now() + '-' + (sbcZoneCount++);
       const div = document.createElement('div');
       div.id = cid; div.className = 'zone-card';
       div.innerHTML = `
         <div class="zone-card-header">
-          <div class="zone-card-title"><i class="ti ti-layers-intersect"></i><span class="zone-card-title-text">배정 구역</span></div>
+          <div class="zone-card-title"><i class="ti ti-layers-intersect"></i><span class="zone-card-title-text">좌석 묶음</span></div>
           <button type="button" class="btn btn-sm btn-danger"
                   onclick="document.getElementById('${cid}').remove(); _sbcUpdateLabels(); _sbcRecalc();">
             <i class="ti ti-x"></i>제거
           </button>
         </div>
+        <input type="hidden" class="b-zone" value="${_escapeAttr(zone)}">
+        <input type="hidden" class="b-grade" value="${_escapeAttr(grade)}">
+        <input type="hidden" class="b-price" value="${_escapeAttr(price)}">
         <div class="zone-card-grid">
-          <div class="zone-field"><span>구역 명칭 (Zone)</span><input type="text" class="b-zone" placeholder="예: Floor A" value="${data.zone||''}" required></div>
-          <div class="zone-field"><span>등급 (Grade)</span>
-            <select class="b-grade">
-              <option value="VIP" ${data.grade==='VIP'?'selected':''}>VIP석</option>
-              <option value="R"   ${data.grade==='R'  ?'selected':''}>R석</option>
-              <option value="S"   ${data.grade==='S'  ?'selected':''}>S석</option>
-              <option value="A"   ${data.grade==='A'  ?'selected':''}>A석</option>
-            </select>
-          </div>
           <div class="zone-field"><span>행 수 (Rows)</span><input type="number" class="b-rows" placeholder="행" min="1" value="${data.rows||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>열 수 (Cols)</span><input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
-          <div class="zone-field"><span>단가 (Price)</span><input type="text" class="b-price" placeholder="원" inputmode="numeric" value="${data.price ? Number(data.price).toLocaleString() : ''}" required style="text-align:right;" oninput="_sbcFormatPrice(this)"></div>
         </div>
         <div class="zone-layout-grid">
           <div class="zone-field"><span>시작 X</span><input type="number" class="b-start-x" step="0.1" value="${startX}" style="text-align:right;"></div>
@@ -419,10 +423,16 @@
     window._sbcFormatPrice = _formatDigitInput;
 
     window.openSeatBulkCreatePanel = function () {
-      document.getElementById('sbc-subtitle').textContent = `이벤트 ID ${smEventId}에 좌석 구역을 일괄 등록합니다.`;
+      document.getElementById('sbc-subtitle').textContent = '현재 선택한 구역에 좌석 묶음을 추가합니다.';
+      document.getElementById('sbc-event-id-label').textContent = smEventId || '-';
+      document.getElementById('sbc-area-label').textContent = smAreaName || '-';
+      document.getElementById('sbc-grade-label').textContent = smAreaGrade || '-';
+      document.getElementById('sbc-price-label').textContent = smAreaPrice !== null && smAreaPrice !== undefined && smAreaPrice !== ''
+        ? `${Number(smAreaPrice).toLocaleString()}원`
+        : '-';
       const wrapper = document.getElementById('sbc-zone-wrapper');
       wrapper.innerHTML = '';
-      sbcAddZoneCard({ zone: 'Floor A', grade: 'VIP', rows: 10, cols: 10, price: 168000, startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 });
+      sbcAddZoneCard({ zone: smAreaName || '', grade: smAreaGrade || 'VIP', rows: 10, cols: 10, price: smAreaPrice ?? '', startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 });
       _sbcRecalc();
       document.getElementById('seat-bulk-create-modal').style.display = 'flex';
     };
