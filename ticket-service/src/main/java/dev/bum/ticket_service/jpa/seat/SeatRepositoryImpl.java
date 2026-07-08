@@ -291,6 +291,11 @@ public class SeatRepositoryImpl implements SeatRepository {
         jpaRepository.deleteBySeatIdIn(seatIdList);
     }
 
+    @Override
+    public void deleteByAreaId(Long areaId) {
+        jpaRepository.deleteByAreaAreaId(areaId);
+    }
+
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression seatIdEq(Long seatId) {
         return seatId != null ? seat.seatId.eq(seatId) : null;

@@ -20,4 +20,5 @@ public interface SeatRepository {
     void update(UpdateSeatRequest info);
     void delete(Long id);
     void deleteByIdList(List<Long> seatIdList);
+    void deleteByAreaId(Long areaId);
 }

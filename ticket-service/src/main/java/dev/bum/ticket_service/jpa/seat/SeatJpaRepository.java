@@ -28,4 +28,6 @@ public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
     void deleteBySeatIdIn(List<Long> seatIdList);
 
     void deleteByEventEventId(Long eventId);
+
+    void deleteByAreaAreaId(Long areaId);
 }

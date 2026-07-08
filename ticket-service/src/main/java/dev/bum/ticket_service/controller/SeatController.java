@@ -57,6 +57,12 @@ public class SeatController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/delete/area/{areaId}")
+    public ResponseEntity<Void> deleteByAreaId(@PathVariable("areaId") Long areaId) {
+        seatService.deleteByAreaId(areaId);
+        return ResponseEntity.ok().build();
+    }
+
     /**
      * 특정 공연의 좌석 데이터를 Redis에 예열(Warm-up)하는 관리자 API
      */

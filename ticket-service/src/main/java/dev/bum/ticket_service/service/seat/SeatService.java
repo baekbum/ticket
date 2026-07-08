@@ -128,6 +128,11 @@ public class SeatService {
         }
     }
 
+    public void deleteByAreaId(Long areaId) {
+        log.info("[DELETE] AreaId : {}", areaId);
+        repository.deleteByAreaId(areaId);
+    }
+
     /**
      * 검색 조건에서 sort 옵션을 처리하기 위한 메서드
      * @param sorts

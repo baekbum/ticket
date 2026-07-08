@@ -86,8 +86,10 @@
         const paged = await res.json();
         const list  = paged.content || [];
         smTotalPages = Math.max(paged.page?.totalPages || paged.totalPages || 1, 1);
+        const totalCount = paged.page?.totalElements ?? paged.totalElements ?? 0;
         document.getElementById('sm-page-total').textContent   = smTotalPages;
         document.getElementById('sm-page-current').value        = pageZeroIndexed + 1;
+        document.getElementById('sm-page-total-count').textContent = totalCount;
 
         const tbody = document.getElementById('sm-seat-tbody');
         tbody.innerHTML = '';
@@ -324,6 +326,8 @@
 
     /* ── 구역 일괄 등록 ── */
     let sbcZoneCount = 0;
+    let sbcBlocks = [];
+    let sbcSyncing = false;
 
     function _formatDigitInput(input) {
       if (!input) return;
@@ -350,7 +354,26 @@
         .replace(/>/g, '&gt;');
     }
 
+    function _sbcNumber(value, fallback = 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function _sbcSetValue(card, selector, value) {
+      const input = card?.querySelector(selector);
+      if (input) input.value = value;
+    }
+
+    function _sbcBlockById(id) {
+      return sbcBlocks.find(block => block.id === id) || null;
+    }
+
+    function _sbcCardById(id) {
+      return document.getElementById(id);
+    }
+
     function _sbcRecalc() {
+      _sbcSyncLinkedBlocks();
       let total = 0;
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach(card => {
         const r = parseInt(card.querySelector('.b-rows')?.value, 10) || 0;
@@ -392,8 +415,60 @@
         gapX: _nullableFloat(card.querySelector('.b-gap-x')?.value) ?? 4,
         gapY: _nullableFloat(card.querySelector('.b-gap-y')?.value) ?? 4,
         rotation: _nullableFloat(card.querySelector('.b-rotation')?.value) ?? 0,
-        layoutAngle: _nullableFloat(card.querySelector('.b-layout-angle')?.value) ?? 0
+        layoutAngle: _nullableFloat(card.querySelector('.b-layout-angle')?.value) ?? 0,
+        rowOffset: parseInt(card.querySelector('.b-row-offset')?.value, 10) || 0,
+        colOffset: parseInt(card.querySelector('.b-col-offset')?.value, 10) || 0,
+        xOffset: _nullableFloat(card.querySelector('.b-x-offset')?.value) ?? 0,
+        yOffset: _nullableFloat(card.querySelector('.b-y-offset')?.value) ?? 0
       };
+    }
+
+    function _sbcCalculateLinkedPosition(parentLayout, childLayout, side) {
+      if (side === 'RIGHT') {
+        return {
+          startRow: parentLayout.startRow + childLayout.rowOffset,
+          startCol: parentLayout.startCol + parentLayout.cols + childLayout.colOffset,
+          startX: parentLayout.startX + parentLayout.cols * (parentLayout.seatWidth + parentLayout.gapX) + childLayout.xOffset,
+          startY: parentLayout.startY + childLayout.yOffset
+        };
+      }
+
+      if (side === 'BOTTOM') {
+        return {
+          startRow: parentLayout.startRow + parentLayout.rows + childLayout.rowOffset,
+          startCol: parentLayout.startCol + childLayout.colOffset,
+          startX: parentLayout.startX + childLayout.xOffset,
+          startY: parentLayout.startY + parentLayout.rows * (parentLayout.seatHeight + parentLayout.gapY) + childLayout.yOffset
+        };
+      }
+
+      return null;
+    }
+
+    function _sbcSyncLinkedBlocks() {
+      if (sbcSyncing) return;
+      sbcSyncing = true;
+      try {
+        for (let i = 0; i < sbcBlocks.length; i++) {
+          sbcBlocks.forEach(block => {
+            if (!block.anchorId || block.anchorSide === 'DIRECT') return;
+            const parent = _sbcBlockById(block.anchorId);
+            const parentCard = _sbcCardById(block.anchorId);
+            const childCard = _sbcCardById(block.id);
+            if (!parent || !parentCard || !childCard) return;
+
+            const parentLayout = _sbcReadCardLayout(parentCard);
+            const childLayout = _sbcReadCardLayout(childCard);
+            const next = _sbcCalculateLinkedPosition(parentLayout, childLayout, block.anchorSide);
+            if (!next) return;
+
+            _sbcSetValue(childCard, '.b-start-row', next.startRow);
+            _sbcSetValue(childCard, '.b-start-col', next.startCol);
+          });
+        }
+      } finally {
+        sbcSyncing = false;
+      }
     }
 
     function _sbcRenderPreview() {
@@ -484,14 +559,20 @@
     function _sbcUpdateLabels() {
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach((card, i) => {
         const el = card.querySelector('.zone-card-title-text');
-        if (el) el.textContent = `좌석 묶음 #${i+1}`;
+        const label = `좌석 묶음 #${i+1}`;
+        if (el) el.textContent = label;
+        const block = _sbcBlockById(card.id);
+        if (block) block.label = label;
       });
     }
     window._sbcUpdateLabels = _sbcUpdateLabels;
 
-    window.sbcAddZoneCard = function (data = {}) {
+    window.sbcAddZoneCard = function (data = {}, mode = 'DIRECT', anchorId = null) {
       const wrapper = document.getElementById('sbc-zone-wrapper');
       const zoneIndex = wrapper.querySelectorAll('.zone-card').length;
+      const anchorBlock = anchorId ? _sbcBlockById(anchorId) : null;
+      const anchorCard = anchorBlock ? _sbcCardById(anchorBlock.id) : null;
+      const anchorLayout = anchorCard ? _sbcReadCardLayout(anchorCard) : null;
       const startX = data.startX ?? 80;
       const startY = data.startY ?? (80 + zoneIndex * 140);
       const startRow = data.startRow ?? 1;
@@ -505,29 +586,60 @@
       const zone = data.zone ?? smAreaName ?? '';
       const grade = data.grade ?? smAreaGrade ?? 'VIP';
       const price = data.price ?? smAreaPrice ?? '';
+      const rowOffset = data.rowOffset ?? 0;
+      const colOffset = data.colOffset ?? 0;
+      const xOffset = data.xOffset ?? 0;
+      const yOffset = data.yOffset ?? 0;
       const cid = 'sbc-' + Date.now() + '-' + (sbcZoneCount++);
+      const linked = mode === 'RIGHT' || mode === 'BOTTOM';
+      let linkedStart = null;
+      if (linked && anchorLayout) {
+        linkedStart = _sbcCalculateLinkedPosition(
+          anchorLayout,
+          { rowOffset, colOffset, xOffset, yOffset },
+          mode
+        );
+      }
       const div = document.createElement('div');
       div.id = cid; div.className = 'zone-card';
       div.innerHTML = `
         <div class="zone-card-header">
           <div class="zone-card-title"><i class="ti ti-layers-intersect"></i><span class="zone-card-title-text">좌석 묶음</span></div>
-          <button type="button" class="btn btn-sm btn-danger"
-                  onclick="document.getElementById('${cid}').remove(); _sbcUpdateLabels(); _sbcRecalc(); _sbcRenderPreview();">
-            <i class="ti ti-x"></i>제거
-          </button>
+          <div class="seat-block-card-actions">
+            <button type="button" class="btn btn-sm btn-outline" onclick="sbcAddSeatBlock('RIGHT', '${cid}')"><i class="ti ti-arrow-right"></i>오른쪽</button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="sbcAddSeatBlock('BOTTOM', '${cid}')"><i class="ti ti-arrow-down"></i>아래</button>
+            <button type="button" class="btn btn-sm btn-danger" onclick="sbcRemoveSeatBlock('${cid}')"><i class="ti ti-x"></i>제거</button>
+          </div>
         </div>
+        ${linked ? `
+          <div class="seat-block-link-info">
+            <span>${mode === 'RIGHT' ? '오른쪽 연결' : '아래 연결'}</span>
+            <strong>${anchorBlock ? anchorBlock.label : '기준 묶음'}</strong>
+          </div>
+          <div class="zone-link-grid">
+            <div class="zone-field"><span>행 보정</span><input type="number" class="b-row-offset" value="${rowOffset}" style="text-align:right;"></div>
+            <div class="zone-field"><span>열 보정</span><input type="number" class="b-col-offset" value="${colOffset}" style="text-align:right;"></div>
+          </div>
+          <input type="hidden" class="b-x-offset" value="${xOffset}">
+          <input type="hidden" class="b-y-offset" value="${yOffset}">
+        ` : `
+          <input type="hidden" class="b-row-offset" value="0">
+          <input type="hidden" class="b-col-offset" value="0">
+          <input type="hidden" class="b-x-offset" value="0">
+          <input type="hidden" class="b-y-offset" value="0">
+        `}
         <input type="hidden" class="b-zone" value="${_escapeAttr(zone)}">
         <input type="hidden" class="b-grade" value="${_escapeAttr(grade)}">
         <input type="hidden" class="b-price" value="${_escapeAttr(price)}">
         <div class="zone-card-grid">
-          <div class="zone-field"><span>시작 행</span><input type="number" class="b-start-row" placeholder="행" min="1" value="${startRow}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
-          <div class="zone-field"><span>시작 열</span><input type="number" class="b-start-col" placeholder="열" min="1" value="${startCol}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
+          <div class="zone-field"><span>시작 행</span><input type="number" class="b-start-row" placeholder="행" min="1" value="${linkedStart?.startRow ?? startRow}" required style="text-align:center;" ${linked ? 'readonly' : ''} oninput="_sbcRecalc()"></div>
+          <div class="zone-field"><span>시작 열</span><input type="number" class="b-start-col" placeholder="열" min="1" value="${linkedStart?.startCol ?? startCol}" required style="text-align:center;" ${linked ? 'readonly' : ''} oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>행 수 (Rows)</span><input type="number" class="b-rows" placeholder="행" min="1" value="${data.rows||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>열 수 (Cols)</span><input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
         </div>
         <div class="zone-layout-grid">
-          <div class="zone-field"><span>시작 X</span><input type="number" class="b-start-x" step="0.1" value="${startX}" style="text-align:right;"></div>
-          <div class="zone-field"><span>시작 Y</span><input type="number" class="b-start-y" step="0.1" value="${startY}" style="text-align:right;"></div>
+          <div class="zone-field"><span>시작 X</span><input type="number" class="b-start-x" step="0.1" value="${linkedStart?.startX ?? startX}" style="text-align:right;"></div>
+          <div class="zone-field"><span>시작 Y</span><input type="number" class="b-start-y" step="0.1" value="${linkedStart?.startY ?? startY}" style="text-align:right;"></div>
           <div class="zone-field"><span>좌석 너비</span><input type="number" class="b-seat-width" step="0.1" min="0" value="${seatWidth}" style="text-align:right;"></div>
           <div class="zone-field"><span>좌석 높이</span><input type="number" class="b-seat-height" step="0.1" min="0" value="${seatHeight}" style="text-align:right;"></div>
           <div class="zone-field"><span>가로 간격</span><input type="number" class="b-gap-x" step="0.1" min="0" value="${gapX}" style="text-align:right;"></div>
@@ -541,6 +653,45 @@
       `;
       div.addEventListener('input', _sbcRecalc);
       wrapper.appendChild(div);
+      sbcBlocks.push({
+        id: cid,
+        label: `좌석 묶음 #${sbcBlocks.length + 1}`,
+        anchorId: linked ? anchorBlock?.id || null : null,
+        anchorSide: linked ? mode : 'DIRECT'
+      });
+      _sbcUpdateLabels();
+      _sbcRecalc();
+    };
+    window.sbcAddSeatBlock = function (mode = 'DIRECT', requestedAnchorId = null) {
+      const anchorId = mode === 'RIGHT' || mode === 'BOTTOM' ? requestedAnchorId : null;
+      if ((mode === 'RIGHT' || mode === 'BOTTOM') && !anchorId) {
+        sbcAddZoneCard({ zone: smAreaName || '', grade: smAreaGrade || 'VIP', rows: 10, cols: 10, price: smAreaPrice ?? '', startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 }, 'DIRECT');
+        return;
+      }
+      const anchorCard = anchorId ? _sbcCardById(anchorId) : null;
+      const anchorLayout = anchorCard ? _sbcReadCardLayout(anchorCard) : null;
+      sbcAddZoneCard({
+        zone: smAreaName || '',
+        grade: smAreaGrade || 'VIP',
+        rows: anchorLayout?.rows || 10,
+        cols: anchorLayout?.cols || 10,
+        price: smAreaPrice ?? '',
+        seatWidth: anchorLayout?.seatWidth ?? 14,
+        seatHeight: anchorLayout?.seatHeight ?? 14,
+        gapX: anchorLayout?.gapX ?? 4,
+        gapY: anchorLayout?.gapY ?? 4,
+        rotation: anchorLayout?.rotation ?? 0,
+        layoutAngle: anchorLayout?.layoutAngle ?? 0
+      }, mode, anchorId);
+    };
+    window.sbcRemoveSeatBlock = function (id) {
+      const children = sbcBlocks.filter(block => block.anchorId === id);
+      if (children.length > 0) {
+        showToast('연결된 좌석 묶음이 있어 먼저 하위 묶음을 삭제해주세요.', true);
+        return;
+      }
+      document.getElementById(id)?.remove();
+      sbcBlocks = sbcBlocks.filter(block => block.id !== id);
       _sbcUpdateLabels();
       _sbcRecalc();
     };
@@ -556,13 +707,49 @@
         : '-';
       const wrapper = document.getElementById('sbc-zone-wrapper');
       wrapper.innerHTML = '';
-      sbcAddZoneCard({ zone: smAreaName || '', grade: smAreaGrade || 'VIP', rows: 10, cols: 10, price: smAreaPrice ?? '', startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 });
+      sbcBlocks = [];
+      sbcAddZoneCard({ zone: smAreaName || '', grade: smAreaGrade || 'VIP', rows: 10, cols: 10, price: smAreaPrice ?? '', startX: 80, startY: 80, seatWidth: 14, seatHeight: 14, gapX: 4, gapY: 4, rotation: 0, layoutAngle: 0 }, 'DIRECT');
       _sbcRecalc();
       document.getElementById('seat-bulk-create-modal').style.display = 'flex';
     };
     window.closeSeatBulkCreateModal = function () {
       document.getElementById('seat-bulk-create-modal').style.display = 'none';
     };
+
+    async function _sbcConfirmReplaceExistingSeats() {
+      if (!smAreaId) return true;
+
+      const checkRes = await Fetch(`${SEAT_API}/select`, {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({ eventId: smEventId, areaId: smAreaId, page: 0, size: 1, sort: ['seatId-desc'] })
+      });
+
+      if (!checkRes.ok) {
+        showToast('기존 좌석 정보를 확인하지 못했습니다.', true);
+        return false;
+      }
+
+      const paged = await checkRes.json();
+      const total = paged.page?.totalElements ?? paged.totalElements ?? 0;
+      if (total <= 0) return true;
+
+      const confirmed = window.confirm(`현재 구역에 이미 ${Number(total).toLocaleString()}개의 좌석이 있습니다.\n기존 좌석을 삭제하고 새로 등록할까요?`);
+      if (!confirmed) return false;
+
+      const deleteRes = await Fetch(`${SEAT_API}/delete/area/${smAreaId}`, {
+        method: 'DELETE',
+        headers: authHeader()
+      });
+
+      if (!deleteRes.ok) {
+        showToast('기존 좌석 삭제에 실패했습니다.', true);
+        return false;
+      }
+
+      return true;
+    }
+
     window.submitSeatBulkCreate = async function () {
       const cards = document.querySelectorAll('#sbc-zone-wrapper .zone-card');
       if (cards.length === 0) { showToast('구역을 최소 1개 추가해주세요.', true); return; }
@@ -598,6 +785,9 @@
       if (!valid) { showToast('모든 구역 항목을 빠짐없이 입력해주세요.', true); return; }
       const totalSeats = configs.reduce((s,c) => s + c.rows*c.cols, 0);
       try {
+        const canProceed = await _sbcConfirmReplaceExistingSeats();
+        if (!canProceed) return;
+
         const res = await Fetch(`${SEAT_API}/insert`, {
           method: 'POST', headers: authHeader(),
           body: JSON.stringify({ eventId: smEventId, areaId: smAreaId, insertSeatAreaConfigs: configs })

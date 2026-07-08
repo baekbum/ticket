@@ -134,13 +134,14 @@
   flex-shrink: 0;
 }
 
-.seat-modal-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.seat-modal-pagination.table-pagination {
   margin-top: 0.75rem;
+  padding: 0;
   flex-shrink: 0;
+}
+
+.seat-modal-pagination .page-size-selector {
+  justify-self: start;
 }
 
 .seat-bulk-context {
@@ -209,6 +210,16 @@
   background: var(--purple-dim);
   border-color: var(--purple);
   box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+.seat-block-add-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.seat-block-add-actions .btn-add-zone {
+  margin: 0;
 }
 
 .seat-bulk-workspace {
@@ -348,6 +359,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 10px;
 }
 .zone-card-title {
@@ -359,6 +371,38 @@
   color: var(--text-primary);
 }
 .zone-card-title i { color: var(--purple); font-size: 13px; }
+.seat-block-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.seat-block-link-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(124,77,255,0.18);
+  border-radius: var(--radius-sm);
+  background: var(--purple-dim);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+.seat-block-link-info span {
+  color: var(--purple);
+  font-weight: 700;
+}
+.seat-block-link-info strong {
+  color: var(--text-primary);
+}
+.zone-link-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .zone-card-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -390,6 +434,11 @@
   border-color: var(--purple);
   box-shadow: 0 0 0 2px var(--purple-ring);
 }
+.zone-field input[readonly] {
+  background: #f0eef8;
+  color: var(--text-secondary);
+  cursor: default;
+}
 .zone-preview-chip {
   margin-top: 6px;
   display: flex;
@@ -404,6 +453,7 @@ body.dark-mode .seat-bulk-context span,
 body.dark-mode .zone-card,
 body.dark-mode .zone-field input,
 body.dark-mode .zone-field select,
+body.dark-mode .zone-field input[readonly],
 body.dark-mode .btn-add-zone,
 body.dark-mode .seat-bulk-preview,
 body.dark-mode #sbc-preview-svg,
@@ -436,5 +486,15 @@ body.dark-mode .sbc-preview-seat {
 
   .zone-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zone-link-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .seat-block-add-actions,
+  .seat-block-card-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

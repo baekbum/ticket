@@ -29,6 +29,9 @@ public interface SeatServiceClient {
     @DeleteMapping("/delete/bulk")
     void deleteBulk(@RequestBody DeleteSeatRequest info);
 
+    @DeleteMapping("/delete/area/{areaId}")
+    void deleteByAreaId(@PathVariable("areaId") Long areaId);
+
     // 좌석(레디스) 관련 메서드
     @PostMapping("/warm-up/{eventId}")
     String warmUpSeats(@PathVariable("eventId") Long eventId);

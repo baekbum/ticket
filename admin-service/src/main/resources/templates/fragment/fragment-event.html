@@ -439,7 +439,7 @@
         <input type="number" id="sm-filter-col" class="seat-filter-input" min="1" placeholder="열">
         <select id="sm-filter-status" class="seat-filter-select" onchange="loadSeatMgmtList(0)">
           <option value="">전체 상태</option>
-          <option value="AVAILABLE">판매 가능</option>
+          <option value="AVAILABLE">예매 가능</option>
           <option value="LOCKED">결제 진행</option>
           <option value="RESERVED">판매 완료</option>
         </select>
@@ -498,23 +498,29 @@
     </div>
 
     <!-- 페이지네이션 -->
-    <div class="seat-modal-pagination">
-      <button class="btn-page-nav" onclick="smNavigatePage(-5)" title="5페이지 이전">«</button>
-      <button class="btn-page-nav" onclick="smNavigatePage(-1)" title="이전">‹</button>
-      <div class="page-number-viewer">
-        <input type="number" id="sm-page-current" value="1" min="1"
-               onkeydown="if(event.key==='Enter'){smJump();}" onchange="smJump()">
-        <span style="color:var(--text-muted);">/</span>
-        <span id="sm-page-total" style="font-weight:600; color:var(--text-primary);">1</span>
-      </div>
-      <button class="btn-page-nav" onclick="smNavigatePage(1)" title="다음">›</button>
-      <button class="btn-page-nav" onclick="smNavigatePage(5)" title="5페이지 다음">»</button>
+    <div class="seat-modal-pagination table-pagination">
       <div class="page-size-selector">
+        <span>페이지당</span>
         <select id="sm-page-size" onchange="loadSeatMgmtList(0)">
           <option value="10" selected>10개</option>
           <option value="20">20개</option>
           <option value="50">50개</option>
         </select>
+      </div>
+      <div class="pagination-controls">
+        <button class="btn-page-nav" onclick="smNavigatePage(-5)" title="5페이지 이전">«</button>
+        <button class="btn-page-nav" onclick="smNavigatePage(-1)" title="이전">‹</button>
+        <div class="page-number-viewer">
+          <input type="number" id="sm-page-current" value="1" min="1"
+                 onkeydown="if(event.key==='Enter'){smJump();}" onchange="smJump()">
+          <span style="color:var(--text-muted);">/</span>
+          <span id="sm-page-total" style="font-weight:600; color:var(--text-primary);">1</span>
+        </div>
+        <button class="btn-page-nav" onclick="smNavigatePage(1)" title="다음">›</button>
+        <button class="btn-page-nav" onclick="smNavigatePage(5)" title="5페이지 다음">»</button>
+      </div>
+      <div class="pagination-summary">
+        총 <strong id="sm-page-total-count">0</strong>건
       </div>
     </div>
 
@@ -549,9 +555,9 @@
     <div class="seat-bulk-workspace">
       <div class="seat-bulk-editor">
         <div class="zone-cards-wrap" id="sbc-zone-wrapper"></div>
-        <button type="button" class="btn-add-zone" onclick="sbcAddZoneCard()">
-          <i class="ti ti-plus"></i>좌석 묶음 추가
-        </button>
+        <div class="seat-block-add-actions">
+          <button type="button" class="btn-add-zone" onclick="sbcAddSeatBlock('DIRECT')"><i class="ti ti-plus"></i>직접 추가</button>
+        </div>
       </div>
       <div class="seat-bulk-preview">
         <div class="seat-bulk-preview-head">
