@@ -76,18 +76,22 @@ public class SeatRepositoryImpl implements SeatRepository {
             Double gapY = valueOrDefault(config.getGapY(), DEFAULT_GAP_Y);
             Double rotation = valueOrDefault(config.getRotation(), DEFAULT_ANGLE);
             Double layoutAngle = valueOrDefault(config.getLayoutAngle(), DEFAULT_ANGLE);
+            int startRow = config.getStartRow() != null ? config.getStartRow() : 1;
+            int startCol = config.getStartCol() != null ? config.getStartCol() : 1;
 
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
                     Double positionX = calculatePositionX(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
                     Double positionY = calculatePositionY(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
+                    int seatRow = startRow + r - 1;
+                    int seatCol = startCol + c - 1;
 
                     Seat seat = Seat.builder()
                             .event(event)
                             .area(area)
                             .zone(config.getZone())
-                            .seatRow(r)
-                            .seatCol(c)
+                            .seatRow(seatRow)
+                            .seatCol(seatCol)
                             .grade(config.getGrade())
                             .price(config.getPrice())
                             .status(SeatStatus.AVAILABLE)

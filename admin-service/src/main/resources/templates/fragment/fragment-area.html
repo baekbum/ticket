@@ -329,7 +329,7 @@
 </div>
 
 <div class="f-modal" id="seat-bulk-create-modal" style="z-index:1200;">
-  <div class="f-modal-content" style="max-width:860px; max-height:88vh; display:flex; flex-direction:column; padding:1.75rem 2rem 1.5rem;">
+  <div class="f-modal-content" style="max-width:860px; max-height:88vh; padding:1.75rem 2rem 1.5rem;">
     <p class="modal-title">좌석 일괄 등록</p>
     <p class="modal-subtitle" id="sbc-subtitle">구역별 좌석 구조를 입력하면 좌석 레코드가 자동 생성됩니다.</p>
     <div class="modal-divider"></div>
@@ -340,9 +340,21 @@
       <span>단가 <strong id="sbc-price-label">-</strong></span>
     </div>
     <div class="total-seats-preview"><span><i class="ti ti-armchair" style="margin-right:4px;"></i>등록 예정 총 좌석</span><strong id="sbc-total-count">0</strong>석</div>
-    <div class="zone-cards-wrap" id="sbc-zone-wrapper"></div>
-    <button type="button" class="btn-add-zone" onclick="sbcAddZoneCard()"><i class="ti ti-plus"></i>좌석 묶음 추가</button>
-    <div class="form-row"><button class="btn btn-secondary" onclick="closeSeatBulkCreateModal()">취소</button><button class="btn btn-success" onclick="submitSeatBulkCreate()"><i class="ti ti-check"></i>좌석 일괄 생성</button></div>
+    <div class="seat-bulk-workspace">
+      <div class="seat-bulk-editor">
+        <div class="zone-cards-wrap" id="sbc-zone-wrapper"></div>
+        <button type="button" class="btn-add-zone" onclick="sbcAddZoneCard()"><i class="ti ti-plus"></i>좌석 묶음 추가</button>
+      </div>
+      <div class="seat-bulk-preview">
+        <div class="seat-bulk-preview-head">
+          <span><i class="ti ti-eye"></i>미리보기</span>
+          <small>700 x 520</small>
+        </div>
+        <svg id="sbc-preview-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="sbc-preview-info" id="sbc-preview-info">좌석 범위 X: - / Y: -</div>
+      </div>
+    </div>
+    <div class="form-row seat-bulk-footer"><button class="btn btn-secondary" onclick="closeSeatBulkCreateModal()">취소</button><button class="btn btn-success" onclick="submitSeatBulkCreate()"><i class="ti ti-check"></i>좌석 일괄 생성</button></div>
   </div>
 </div>
 

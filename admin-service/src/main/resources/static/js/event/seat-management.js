@@ -359,8 +359,127 @@
         card.querySelector('.zone-seat-count').textContent = (r * c).toLocaleString();
       });
       document.getElementById('sbc-total-count').textContent = total.toLocaleString();
+      _sbcRenderPreview();
     }
     window._sbcRecalc = _sbcRecalc;
+
+    function _sbcSvgEl(tag, attrs = {}) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+      return el;
+    }
+
+    function _sbcRenderPreviewGrid(svg) {
+      for (let x = 0; x <= 700; x += 50) {
+        svg.appendChild(_sbcSvgEl('line', { x1: x, y1: 0, x2: x, y2: 520, class: 'sbc-preview-grid-line' }));
+      }
+      for (let y = 0; y <= 520; y += 50) {
+        svg.appendChild(_sbcSvgEl('line', { x1: 0, y1: y, x2: 700, y2: y, class: 'sbc-preview-grid-line' }));
+      }
+      svg.appendChild(_sbcSvgEl('rect', { x: 0, y: 0, width: 700, height: 520, class: 'sbc-preview-boundary' }));
+    }
+
+    function _sbcReadCardLayout(card) {
+      return {
+        rows: parseInt(card.querySelector('.b-rows')?.value, 10) || 0,
+        cols: parseInt(card.querySelector('.b-cols')?.value, 10) || 0,
+        startRow: parseInt(card.querySelector('.b-start-row')?.value, 10) || 1,
+        startCol: parseInt(card.querySelector('.b-start-col')?.value, 10) || 1,
+        startX: _nullableFloat(card.querySelector('.b-start-x')?.value) ?? 80,
+        startY: _nullableFloat(card.querySelector('.b-start-y')?.value) ?? 80,
+        seatWidth: _nullableFloat(card.querySelector('.b-seat-width')?.value) ?? 14,
+        seatHeight: _nullableFloat(card.querySelector('.b-seat-height')?.value) ?? 14,
+        gapX: _nullableFloat(card.querySelector('.b-gap-x')?.value) ?? 4,
+        gapY: _nullableFloat(card.querySelector('.b-gap-y')?.value) ?? 4,
+        rotation: _nullableFloat(card.querySelector('.b-rotation')?.value) ?? 0,
+        layoutAngle: _nullableFloat(card.querySelector('.b-layout-angle')?.value) ?? 0
+      };
+    }
+
+    function _sbcRenderPreview() {
+      const svg = document.getElementById('sbc-preview-svg');
+      const info = document.getElementById('sbc-preview-info');
+      if (!svg) return;
+      svg.innerHTML = '';
+      _sbcRenderPreviewGrid(svg);
+
+      const cards = document.querySelectorAll('#sbc-zone-wrapper .zone-card');
+      if (cards.length === 0) {
+        const empty = _sbcSvgEl('text', { x: 350, y: 260, class: 'sbc-preview-empty', 'text-anchor': 'middle' });
+        empty.textContent = '좌석 묶음을 추가하면 미리보기가 표시됩니다.';
+        svg.appendChild(empty);
+        if (info) {
+          info.textContent = '좌석 범위 X: - / Y: -';
+          info.classList.remove('is-warning');
+        }
+        return;
+      }
+
+      const bounds = [];
+      const logicalSeatKeys = new Set();
+      let hasDuplicateLogicalSeat = false;
+      cards.forEach((card, index) => {
+        const layout = _sbcReadCardLayout(card);
+        if (layout.rows <= 0 || layout.cols <= 0 || layout.seatWidth <= 0 || layout.seatHeight <= 0) return;
+
+        const group = _sbcSvgEl('g', { class: 'sbc-preview-seat-group', 'data-index': index + 1 });
+        const angle = layout.layoutAngle * Math.PI / 180;
+        const colDx = (layout.seatWidth + layout.gapX) * Math.cos(angle);
+        const colDy = (layout.seatWidth + layout.gapX) * Math.sin(angle);
+        const rowDx = (layout.seatHeight + layout.gapY) * Math.cos(angle + Math.PI / 2);
+        const rowDy = (layout.seatHeight + layout.gapY) * Math.sin(angle + Math.PI / 2);
+
+        for (let row = 0; row < layout.rows; row++) {
+          for (let col = 0; col < layout.cols; col++) {
+            const x = layout.startX + col * colDx + row * rowDx;
+            const y = layout.startY + col * colDy + row * rowDy;
+            const cx = x + layout.seatWidth / 2;
+            const cy = y + layout.seatHeight / 2;
+            const outOfBounds = x < 0 || y < 0 || x + layout.seatWidth > 700 || y + layout.seatHeight > 520;
+            const seatRow = layout.startRow + row;
+            const seatCol = layout.startCol + col;
+            const logicalKey = `${smEventId || ''}:${smAreaName || ''}:${seatRow}:${seatCol}`;
+            const duplicated = logicalSeatKeys.has(logicalKey);
+            if (duplicated) hasDuplicateLogicalSeat = true;
+            logicalSeatKeys.add(logicalKey);
+            const rect = _sbcSvgEl('rect', {
+              x,
+              y,
+              width: layout.seatWidth,
+              height: layout.seatHeight,
+              rx: 2,
+              class: `sbc-preview-seat${outOfBounds ? ' is-out-of-bounds' : ''}${duplicated ? ' is-duplicated' : ''}`,
+              transform: `rotate(${layout.rotation} ${cx} ${cy})`
+            });
+            const title = _sbcSvgEl('title');
+            title.textContent = `${seatRow}행 ${seatCol}열`;
+            rect.appendChild(title);
+            group.appendChild(rect);
+            bounds.push({ minX: x, minY: y, maxX: x + layout.seatWidth, maxY: y + layout.seatHeight, outOfBounds });
+          }
+        }
+        svg.appendChild(group);
+      });
+
+      if (!info) return;
+      if (bounds.length === 0) {
+        info.textContent = '좌석 범위 X: - / Y: -';
+        info.classList.remove('is-warning');
+        return;
+      }
+
+      const minX = Math.floor(Math.min(...bounds.map(b => b.minX)));
+      const minY = Math.floor(Math.min(...bounds.map(b => b.minY)));
+      const maxX = Math.ceil(Math.max(...bounds.map(b => b.maxX)));
+      const maxY = Math.ceil(Math.max(...bounds.map(b => b.maxY)));
+      const hasOutOfBounds = bounds.some(b => b.outOfBounds);
+      const warnings = [];
+      if (hasOutOfBounds) warnings.push('700x520 영역 밖 좌석이 있습니다.');
+      if (hasDuplicateLogicalSeat) warnings.push('중복된 행/열 좌석이 있습니다.');
+      info.textContent = `좌석 범위 X: ${minX}~${maxX} / Y: ${minY}~${maxY}${warnings.length ? ' - ' + warnings.join(' ') : ''}`;
+      info.classList.toggle('is-warning', hasOutOfBounds || hasDuplicateLogicalSeat);
+    }
+    window._sbcRenderPreview = _sbcRenderPreview;
 
     function _sbcUpdateLabels() {
       document.querySelectorAll('#sbc-zone-wrapper .zone-card').forEach((card, i) => {
@@ -375,6 +494,8 @@
       const zoneIndex = wrapper.querySelectorAll('.zone-card').length;
       const startX = data.startX ?? 80;
       const startY = data.startY ?? (80 + zoneIndex * 140);
+      const startRow = data.startRow ?? 1;
+      const startCol = data.startCol ?? (1 + zoneIndex * 10);
       const seatWidth = data.seatWidth ?? 14;
       const seatHeight = data.seatHeight ?? 14;
       const gapX = data.gapX ?? 4;
@@ -391,7 +512,7 @@
         <div class="zone-card-header">
           <div class="zone-card-title"><i class="ti ti-layers-intersect"></i><span class="zone-card-title-text">좌석 묶음</span></div>
           <button type="button" class="btn btn-sm btn-danger"
-                  onclick="document.getElementById('${cid}').remove(); _sbcUpdateLabels(); _sbcRecalc();">
+                  onclick="document.getElementById('${cid}').remove(); _sbcUpdateLabels(); _sbcRecalc(); _sbcRenderPreview();">
             <i class="ti ti-x"></i>제거
           </button>
         </div>
@@ -399,6 +520,8 @@
         <input type="hidden" class="b-grade" value="${_escapeAttr(grade)}">
         <input type="hidden" class="b-price" value="${_escapeAttr(price)}">
         <div class="zone-card-grid">
+          <div class="zone-field"><span>시작 행</span><input type="number" class="b-start-row" placeholder="행" min="1" value="${startRow}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
+          <div class="zone-field"><span>시작 열</span><input type="number" class="b-start-col" placeholder="열" min="1" value="${startCol}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>행 수 (Rows)</span><input type="number" class="b-rows" placeholder="행" min="1" value="${data.rows||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
           <div class="zone-field"><span>열 수 (Cols)</span><input type="number" class="b-cols" placeholder="열" min="1" value="${data.cols||''}" required style="text-align:center;" oninput="_sbcRecalc()"></div>
         </div>
@@ -416,6 +539,7 @@
           <i class="ti ti-armchair" style="color:var(--purple);"></i>이 구역: <strong class="zone-seat-count">0</strong>석
         </div>
       `;
+      div.addEventListener('input', _sbcRecalc);
       wrapper.appendChild(div);
       _sbcUpdateLabels();
       _sbcRecalc();
@@ -448,6 +572,8 @@
         const grade = card.querySelector('.b-grade').value;
         const rows  = card.querySelector('.b-rows').value;
         const cols  = card.querySelector('.b-cols').value;
+        const startRow = card.querySelector('.b-start-row').value;
+        const startCol = card.querySelector('.b-start-col').value;
         const price = card.querySelector('.b-price').value;
         const startX = _nullableFloat(card.querySelector('.b-start-x').value);
         const startY = _nullableFloat(card.querySelector('.b-start-y').value);
@@ -457,8 +583,8 @@
         const gapY = _nullableFloat(card.querySelector('.b-gap-y').value);
         const rotation = _nullableFloat(card.querySelector('.b-rotation').value);
         const layoutAngle = _nullableFloat(card.querySelector('.b-layout-angle').value);
-        if (!zone||!rows||!cols||!price) { valid = false; return; }
-        const config = { grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), price: _parseDigitValue(price) };
+        if (!zone||!rows||!cols||!startRow||!startCol||!price) { valid = false; return; }
+        const config = { grade, zone, rows: parseInt(rows,10), cols: parseInt(cols,10), startRow: parseInt(startRow,10), startCol: parseInt(startCol,10), price: _parseDigitValue(price) };
         if (startX !== null) config.startX = startX;
         if (startY !== null) config.startY = startY;
         if (seatWidth !== null) config.seatWidth = seatWidth;

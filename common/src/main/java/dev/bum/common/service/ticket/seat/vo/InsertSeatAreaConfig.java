@@ -21,6 +21,8 @@ public class InsertSeatAreaConfig {
     @NotNull
     private Integer price;
 
+    private Integer startRow;
+    private Integer startCol;
     private Double startX;
     private Double startY;
     private Double seatWidth;

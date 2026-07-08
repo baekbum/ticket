@@ -844,32 +844,16 @@ svg.appendChild(empty);
 return;
 }
 
-const positions = seats.map(seat => ({
-x: seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80,
-y: seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80,
-w: seat.seatWidth ?? 14,
-h: seat.seatHeight ?? 14
-}));
-const minX = Math.min(...positions.map(p => p.x));
-const minY = Math.min(...positions.map(p => p.y));
-const maxX = Math.max(...positions.map(p => p.x + p.w));
-const maxY = Math.max(...positions.map(p => p.y + p.h));
-const layoutWidth = Math.max(maxX - minX, 1);
-const layoutHeight = Math.max(maxY - minY, 1);
-const scale = Math.min(560 / layoutWidth, 360 / layoutHeight, 3);
-const offsetX = (700 - layoutWidth * scale) / 2 - minX * scale;
-const offsetY = (520 - layoutHeight * scale) / 2 - minY * scale;
-
 seats.forEach(seat => {
-const x = (seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80) * scale + offsetX;
-const y = (seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80) * scale + offsetY;
-const width = (seat.seatWidth ?? 14) * scale;
-const height = (seat.seatHeight ?? 14) * scale;
+const x = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
+const y = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
+const width = seat.seatWidth ?? 14;
+const height = seat.seatHeight ?? 14;
 const rotation = seat.rotation ?? 0;
 const cx = x + width / 2;
 const cy = y + height / 2;
 const rect = svgEl('rect', {
-x, y, width, height, rx: Math.max(2, 3 * scale),
+x, y, width, height, rx: 2,
 class: `layout-seat ${seatStatusClass(seat.status)}`,
 transform: `rotate(${rotation} ${cx} ${cy})`
 });
