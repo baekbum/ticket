@@ -1,12 +1,12 @@
 package dev.bum.admin_service.feign.user;
 
-import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.user.dto.DeleteUserBulkRequest;
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.dto.UserCondRequest;
-import dev.bum.common.service.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;

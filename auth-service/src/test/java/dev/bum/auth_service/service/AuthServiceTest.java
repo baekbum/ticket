@@ -6,7 +6,7 @@ import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
