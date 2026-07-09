@@ -23,8 +23,28 @@ public class InsertEventRequest {
     @NotBlank
     private String venue;
 
+    @NotBlank
+    private String venueAddress;
+
+    private String posterUrl;
+
     @NotNull
     private LocalDateTime eventDateTime;
+
+    @NotNull
+    private LocalDateTime saleStartAt;
+
+    @NotNull
+    private LocalDateTime saleEndAt;
+
+    @NotNull
+    private LocalDateTime cancelDeadlineAt;
+
+    @NotNull
+    private Integer runningMinutes;
+
+    @NotNull
+    private Integer ageLimit;
 
     @NotNull
     private Integer totalSeats;

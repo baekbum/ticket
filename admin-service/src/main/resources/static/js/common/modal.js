@@ -1,9 +1,31 @@
-window.Modal={
- open(id){const e=document.getElementById(id);if(e)e.style.display='flex';},
- close(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+window.Modal = {
+  open(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.style.display = 'flex';
+  },
+  close(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.style.display = 'none';
+  }
 };
-document.addEventListener('keydown',e=>{
- if(e.key==='Escape'){
-  document.querySelectorAll('.d-modal').forEach(m=>m.style.display='none');
- }
+
+function getVisibleModals() {
+  return [...document.querySelectorAll('.d-modal, .f-modal')]
+    .filter(modal => getComputedStyle(modal).display !== 'none');
+}
+
+function getModalZIndex(modal) {
+  const zIndex = Number.parseInt(getComputedStyle(modal).zIndex, 10);
+  return Number.isNaN(zIndex) ? 0 : zIndex;
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+
+  const visibleModals = getVisibleModals();
+  if (visibleModals.length === 0) return;
+
+  const topModal = visibleModals.sort((a, b) => getModalZIndex(b) - getModalZIndex(a))[0];
+  topModal.style.display = 'none';
+  event.preventDefault();
 });

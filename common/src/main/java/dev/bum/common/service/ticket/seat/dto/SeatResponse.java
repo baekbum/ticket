@@ -20,9 +20,16 @@ public class SeatResponse {
     private SeatGrade grade;
     private Integer price;
     private SeatStatus status;
+    private Double positionX;
+    private Double positionY;
+    private Double seatWidth;
+    private Double seatHeight;
+    private Double rotation;
+    private Double layoutAngle;
 
-    // event 관련
     private Long eventId;
+    private Long areaId;
+    private String areaName;
     private String artistName;
     private String title;
     private String venue;

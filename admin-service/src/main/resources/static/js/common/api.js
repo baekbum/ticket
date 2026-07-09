@@ -21,7 +21,11 @@
   window.Fetch = async function(url, options = {}) {
     const token = localStorage.getItem('accessToken');
     const defaultHeaders = {};
-    if (token) defaultHeaders['Authorization'] = `Bearer ${token}`;
+    const requestUrl = String(url || '');
+    const isPublicViewRequest = requestUrl.includes('/api/v1/view/home')
+      || requestUrl.includes('/api/v1/view/fragment/');
+
+    if (token && !isPublicViewRequest) defaultHeaders['Authorization'] = `Bearer ${token}`;
 
     if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
       options.body = JSON.stringify(options.body);

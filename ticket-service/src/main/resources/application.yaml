@@ -47,3 +47,8 @@ token:
 topic:
   reservation:
     name: reservation-event
+
+app:
+  upload:
+    root: uploads
+    public-url-prefix: /ticket/uploads

@@ -15,6 +15,7 @@ public class SeatCondRequest {
 
     private Long seatId;
     private Long eventId;
+    private Long areaId;
     private String zone;
     private Integer seatRow;
     private Integer seatCol;
@@ -41,6 +42,7 @@ public class SeatCondRequest {
         // 검색 조건 필드 검증 (타입에 맞춰 문자열은 작은따옴표 처리)
         if (seatId != null) sj.add("seatId=" + seatId);
         if (eventId != null) sj.add("eventId='" + eventId + "'");
+        if (areaId != null) sj.add("areaId='" + areaId + "'");
         if (zone != null) sj.add("zone='" + zone + "'");
         if (seatRow != null) sj.add("seatRow='" + seatRow + "'");
         if (seatCol != null) sj.add("seatCol='" + seatCol + "'");

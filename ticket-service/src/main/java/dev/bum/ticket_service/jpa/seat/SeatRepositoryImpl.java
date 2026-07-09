@@ -13,6 +13,9 @@ import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.exception.seat.SeatDuplicateException;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaRepository;
+import dev.bum.ticket_service.jpa.area.QArea;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
@@ -34,9 +37,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SeatRepositoryImpl implements SeatRepository {
 
+    private static final double DEFAULT_SEAT_WIDTH = 14D;
+    private static final double DEFAULT_SEAT_HEIGHT = 14D;
+    private static final double DEFAULT_GAP_X = 4D;
+    private static final double DEFAULT_GAP_Y = 4D;
+    private static final double DEFAULT_ANGLE = 0D;
+
     private final JPAQueryFactory queryFactory;
     private final SeatJpaRepository jpaRepository;
     private final EventRepository  eventRepository;
+    private final AreaRepository areaRepository;
     private final EntityManager entityManager;
     private QSeat seat;
 
@@ -46,6 +56,7 @@ public class SeatRepositoryImpl implements SeatRepository {
 
         // 공연 정보가 존재하는 지 확인.
         Event event = eventRepository.selectById(eventId);
+        Area area = info.getAreaId() != null ? areaRepository.selectById(info.getAreaId()) : null;
 
         // 해당 공연 정보가 이미 등록되어있는지 확인.
         SeatCondRequest cond = SeatCondRequest.builder()
@@ -59,17 +70,37 @@ public class SeatRepositoryImpl implements SeatRepository {
         int count = 0;
 
         for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
+            Double seatWidth = valueOrDefault(config.getSeatWidth(), DEFAULT_SEAT_WIDTH);
+            Double seatHeight = valueOrDefault(config.getSeatHeight(), DEFAULT_SEAT_HEIGHT);
+            Double gapX = valueOrDefault(config.getGapX(), DEFAULT_GAP_X);
+            Double gapY = valueOrDefault(config.getGapY(), DEFAULT_GAP_Y);
+            Double rotation = valueOrDefault(config.getRotation(), DEFAULT_ANGLE);
+            Double layoutAngle = valueOrDefault(config.getLayoutAngle(), DEFAULT_ANGLE);
+            int startRow = config.getStartRow() != null ? config.getStartRow() : 1;
+            int startCol = config.getStartCol() != null ? config.getStartCol() : 1;
+
             for (int r = 1; r <= config.getRows(); r++) {
                 for (int c = 1; c <= config.getCols(); c++) {
+                    Double positionX = calculatePositionX(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
+                    Double positionY = calculatePositionY(config.getStartX(), config.getStartY(), seatWidth, seatHeight, gapX, gapY, layoutAngle, r, c);
+                    int seatRow = startRow + r - 1;
+                    int seatCol = startCol + c - 1;
 
                     Seat seat = Seat.builder()
                             .event(event)
+                            .area(area)
                             .zone(config.getZone())
-                            .seatRow(r)
-                            .seatCol(c)
+                            .seatRow(seatRow)
+                            .seatCol(seatCol)
                             .grade(config.getGrade())
                             .price(config.getPrice())
                             .status(SeatStatus.AVAILABLE)
+                            .positionX(positionX)
+                            .positionY(positionY)
+                            .seatWidth(seatWidth)
+                            .seatHeight(seatHeight)
+                            .rotation(rotation)
+                            .layoutAngle(layoutAngle)
                             .build();
 
                     jpaRepository.save(seat); // 하나씩 save 호출 (실제 쿼리는 batch 옵션에 따라 모임)
@@ -81,6 +112,38 @@ public class SeatRepositoryImpl implements SeatRepository {
                 }
             }
         }
+    }
+
+    private Double calculatePositionX(Double startX, Double startY, Double seatWidth, Double seatHeight, Double gapX, Double gapY, Double layoutAngle, int row, int col) {
+        if (startX == null || startY == null) {
+            return null;
+        }
+
+        double rad = Math.toRadians(layoutAngle);
+        double colMove = seatWidth + gapX;
+        double rowMove = seatHeight + gapY;
+
+        return startX
+                + ((col - 1) * Math.cos(rad) * colMove)
+                - ((row - 1) * Math.sin(rad) * rowMove);
+    }
+
+    private Double calculatePositionY(Double startX, Double startY, Double seatWidth, Double seatHeight, Double gapX, Double gapY, Double layoutAngle, int row, int col) {
+        if (startX == null || startY == null) {
+            return null;
+        }
+
+        double rad = Math.toRadians(layoutAngle);
+        double colMove = seatWidth + gapX;
+        double rowMove = seatHeight + gapY;
+
+        return startY
+                + ((col - 1) * Math.sin(rad) * colMove)
+                + ((row - 1) * Math.cos(rad) * rowMove);
+    }
+
+    private Double valueOrDefault(Double value, Double defaultValue) {
+        return value != null ? value : defaultValue;
     }
 
     @Override
@@ -156,6 +219,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     public Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable) {
         seat = QSeat.seat;
         QEvent event = QEvent.event;
+        QArea area = QArea.area;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
         List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
@@ -170,9 +234,11 @@ public class SeatRepositoryImpl implements SeatRepository {
         List<Seat> content = queryFactory
                 .selectFrom(seat)
                 .join(seat.event, event).fetchJoin()
+                .leftJoin(seat.area, area).fetchJoin()
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
+                        areaIdEq(cond.getAreaId()),
                         zoneEq(cond.getZone()),
                         seatRowEq(cond.getSeatRow()),
                         seatColEq(cond.getSeatCol()),
@@ -188,9 +254,11 @@ public class SeatRepositoryImpl implements SeatRepository {
                 .select(seat.count())
                 .from(seat)
                 .join(seat.event, event)
+                .leftJoin(seat.area, area)
                 .where(
                         seatIdEq(cond.getSeatId()),
                         eventIdEq(cond.getEventId()),
+                        areaIdEq(cond.getAreaId()),
                         zoneEq(cond.getZone()),
                         seatRowEq(cond.getSeatRow()),
                         seatColEq(cond.getSeatCol()),
@@ -223,6 +291,11 @@ public class SeatRepositoryImpl implements SeatRepository {
         jpaRepository.deleteBySeatIdIn(seatIdList);
     }
 
+    @Override
+    public void deleteByAreaId(Long areaId) {
+        jpaRepository.deleteByAreaAreaId(areaId);
+    }
+
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression seatIdEq(Long seatId) {
         return seatId != null ? seat.seatId.eq(seatId) : null;
@@ -234,6 +307,14 @@ public class SeatRepositoryImpl implements SeatRepository {
         Event event = eventRepository.selectById(eventId);
 
         return seat.event.eq(event);
+    }
+
+    private BooleanExpression areaIdEq(Long areaId) {
+        if (areaId == null) return null;
+
+        Area area = areaRepository.selectById(areaId);
+
+        return seat.area.eq(area);
     }
 
     private BooleanExpression zoneEq(String zone) {

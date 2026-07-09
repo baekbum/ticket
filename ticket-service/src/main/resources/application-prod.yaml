@@ -43,3 +43,8 @@ token:
 topic:
   reservation:
     name: reservation-event
+
+app:
+  upload:
+    root: ${APP_UPLOAD_ROOT:/app/uploads}
+    public-url-prefix: ${APP_UPLOAD_PUBLIC_URL_PREFIX:/ticket/uploads}

@@ -67,26 +67,26 @@
 
     window.submitBulkDelete = async function () {
       const ids = [...selectedIds];
-      let successCount = 0;
-      let failCount    = 0;
+      try {
+        const res = await Fetch(`${USER_URL}/delete/bulk`, {
+          method: 'DELETE',
+          headers,
+          body: JSON.stringify({ userIds: ids })
+        });
 
-      for (const id of ids) {
-        try {
-          const res = await Fetch(`${USER_URL}/delete/id/${id}`, { method: 'DELETE', headers });
-          if (res.ok) successCount++;
-          else         failCount++;
-        } catch (e) { failCount++; }
+        if (res.ok) {
+          showToast(`${ids.length}명의 유저가 삭제되었습니다.`);
+          closeBulkDeleteConfirmModal();
+          selectedIds.clear();
+          updateBulkBar();
+          const curr = parseInt(document.getElementById('pagination-current').value, 10) - 1;
+          loadUserList(curr);
+        } else {
+          showToast('유저 일괄 삭제 처리 중 오류가 발생했습니다.', true);
+        }
+      } catch (e) {
+        showToast('서버 통신 실패', true);
       }
-
-      closeBulkDeleteConfirmModal();
-      selectedIds.clear();
-      updateBulkBar();
-
-      if (failCount === 0) showToast(`${successCount}명의 유저가 삭제되었습니다.`);
-      else                 showToast(`${successCount}명 삭제 완료, ${failCount}명 실패.`, true);
-
-      const curr = parseInt(document.getElementById('pagination-current').value, 10) - 1;
-      loadUserList(curr);
     };
 
     /* ─────────────────── 목록 로드 ─────────────────── */

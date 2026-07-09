@@ -2,6 +2,7 @@ package dev.bum.admin_service.controller.user;
 
 import dev.bum.admin_service.feign.user.UserServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.dto.UserResponse;
 import dev.bum.common.service.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.dto.UpdateUserRequest;
@@ -117,5 +118,11 @@ public class AdminUserController {
     @DeleteMapping("/delete/id/{userId}")
     public ResponseEntity<UserResponse> delete(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userServiceClient.delete(userId));
+    }
+
+    @DeleteMapping("/delete/bulk")
+    public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteUserBulkRequest info) {
+        userServiceClient.deleteBulk(info);
+        return ResponseEntity.ok().build();
     }
 }

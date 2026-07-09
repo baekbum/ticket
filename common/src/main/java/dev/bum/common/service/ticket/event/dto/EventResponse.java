@@ -17,8 +17,16 @@ public class EventResponse {
     private String title;
     private String description;
     private String venue;
+    private String venueAddress;
+    private String posterUrl;
     private String eventDateTime;
+    private String saleStartAt;
+    private String saleEndAt;
+    private String cancelDeadlineAt;
+    private Integer runningMinutes;
+    private Integer ageLimit;
     private Integer totalSeats;
+    private Integer availableSeats;
     private EventStatus status;
     private Integer maxTicketsPerPerson;
 }
