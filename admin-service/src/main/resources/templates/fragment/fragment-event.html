@@ -342,6 +342,49 @@
   </div>
 </div>
 
+<div class="f-modal" id="poster-preview-modal" style="z-index:1130;">
+  <div class="f-modal-content poster-preview-content">
+    <div class="poster-preview-header">
+      <div>
+        <p class="modal-title" id="poster-preview-title">포스터 이미지</p>
+        <p class="modal-subtitle" id="poster-preview-subtitle">현재 등록된 포스터를 확인하고 새 이미지로 교체할 수 있습니다.</p>
+      </div>
+      <button type="button" class="btn-icon poster-preview-close" onclick="closePosterPreviewModal()" title="닫기">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="poster-preview-body">
+      <div class="poster-preview-image-wrap">
+        <img id="poster-preview-image" src="" alt="포스터 미리보기">
+        <div class="poster-preview-empty" id="poster-preview-empty">
+          <i class="ti ti-photo-off"></i>
+          <span>등록된 포스터가 없습니다.</span>
+        </div>
+      </div>
+      <div class="poster-preview-side">
+        <input type="hidden" id="poster-preview-event-id">
+        <div class="poster-preview-meta">
+          <span>이벤트 ID <strong id="poster-preview-event-id-label">-</strong></span>
+          <span>공연명 <strong id="poster-preview-event-title-label">-</strong></span>
+        </div>
+        <div class="poster-file-control poster-preview-file-control">
+          <input type="file" id="poster-preview-file" accept="image/jpeg,image/png,image/webp">
+          <label class="poster-file-button" for="poster-preview-file">
+            <i class="ti ti-photo-plus"></i>이미지 선택
+          </label>
+          <span class="poster-file-name" id="poster-preview-file-name">선택된 파일 없음</span>
+        </div>
+        <p class="poster-preview-help">이미지를 선택하면 왼쪽 미리보기에 즉시 반영됩니다. 저장 전까지 서버에는 반영되지 않습니다.</p>
+        <div class="poster-preview-actions">
+          <button class="btn btn-secondary" onclick="closePosterPreviewModal()">취소</button>
+          <button class="btn" onclick="submitPosterPreviewUpdate()"><i class="ti ti-device-floppy"></i>저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 다중 삭제 확인 모달 -->
 <div class="f-modal" id="bulk-delete-modal">
   <div class="f-modal-content confirm-modal-content">

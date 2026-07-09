@@ -33,6 +33,7 @@ let layoutViewBox = { ...layoutDefaultViewBox };
 let layoutZoom = 1;
 let layoutDragState = null;
 let layoutDragged = false;
+let posterPreviewObjectUrl = null;
 
 function formatDigitInput(input) {
 if (!input) return;
@@ -220,7 +221,7 @@ tr.innerHTML = `
          onclick="event.stopPropagation(); toggleRowCheckbox(this, ${ev.eventId})">
 </td>
 <td style="text-align:center; color:var(--text-muted); font-size:12px;">${rowOrder}</td>
-<td>${ev.posterUrl ? `<img class="event-poster-thumb" src="${resolvePosterUrl(ev.posterUrl)}" alt="">` : ''}</td>
+<td onclick="event.stopPropagation()">${ev.posterUrl ? `<button type="button" class="event-poster-thumb-button" onclick="event.stopPropagation(); openPosterPreviewModal(${ev.eventId})" title="포스터 크게 보기"><span class="event-poster-thumb" style="background-image:url('${resolvePosterUrl(ev.posterUrl)}');"></span></button>` : ''}</td>
 <td><strong style="color:var(--text-primary);">${ev.eventId}</strong></td>
 <td>${ev.artistName}</td>
 <td style="color:var(--text-primary); font-weight:500;">${ev.title}</td>
@@ -334,6 +335,113 @@ fileName.textContent = fileInput.files && fileInput.files.length > 0
 ? fileInput.files[0].name
 : '선택된 파일 없음';
 }
+
+function eventToUpdateRequest(ev, posterUrlOverride = undefined) {
+const eventDateTime = formatToDatetimeLocal(ev.eventDateTime);
+const saleStartAt = formatToDatetimeLocal(ev.saleStartAt);
+const saleEndAt = formatToDatetimeLocal(ev.saleEndAt);
+const cancelDeadlineAt = formatToDatetimeLocal(ev.cancelDeadlineAt);
+return {
+artistName: ev.artistName,
+title: ev.title,
+venue: ev.venue,
+venueAddress: ev.venueAddress,
+posterUrl: posterUrlOverride !== undefined ? posterUrlOverride : (ev.posterUrl || null),
+eventDateTime: eventDateTime ? `${eventDateTime}:00` : ev.eventDateTime,
+saleStartAt: saleStartAt ? `${saleStartAt}:00` : ev.saleStartAt,
+saleEndAt: saleEndAt ? `${saleEndAt}:00` : ev.saleEndAt,
+cancelDeadlineAt: cancelDeadlineAt ? `${cancelDeadlineAt}:00` : ev.cancelDeadlineAt,
+runningMinutes: ev.runningMinutes,
+ageLimit: ev.ageLimit,
+totalSeats: ev.totalSeats,
+availableSeats: ev.availableSeats,
+maxTicketsPerPerson: ev.maxTicketsPerPerson,
+description: ev.description,
+status: ev.status
+};
+}
+
+function clearPosterPreviewObjectUrl() {
+if (posterPreviewObjectUrl) {
+URL.revokeObjectURL(posterPreviewObjectUrl);
+posterPreviewObjectUrl = null;
+}
+}
+
+function setPosterPreviewImage(src) {
+const img = document.getElementById('poster-preview-image');
+const empty = document.getElementById('poster-preview-empty');
+if (!img || !empty) return;
+if (src) {
+img.src = src;
+img.style.display = 'block';
+empty.style.display = 'none';
+} else {
+img.removeAttribute('src');
+img.style.display = 'none';
+empty.style.display = 'flex';
+}
+}
+
+window.openPosterPreviewModal = function (eventId) {
+const ev = currentEventList.find(e => e.eventId === parseInt(eventId, 10));
+if (!ev) { showToast('공연 데이터를 찾을 수 없습니다.', true); return; }
+
+clearPosterPreviewObjectUrl();
+document.getElementById('poster-preview-event-id').value = ev.eventId;
+document.getElementById('poster-preview-event-id-label').textContent = ev.eventId;
+document.getElementById('poster-preview-event-title-label').textContent = ev.title || '-';
+document.getElementById('poster-preview-title').textContent = `${ev.title || '공연'} 포스터`;
+const fileInput = document.getElementById('poster-preview-file');
+if (fileInput) fileInput.value = '';
+document.getElementById('poster-preview-file-name').textContent = '선택된 파일 없음';
+setPosterPreviewImage(ev.posterUrl ? resolvePosterUrl(ev.posterUrl) : '');
+document.getElementById('poster-preview-modal').style.display = 'flex';
+};
+
+window.closePosterPreviewModal = function () {
+clearPosterPreviewObjectUrl();
+document.getElementById('poster-preview-modal').style.display = 'none';
+};
+
+function handlePosterPreviewFileChange() {
+const fileInput = document.getElementById('poster-preview-file');
+const fileName = document.getElementById('poster-preview-file-name');
+const file = fileInput?.files?.[0];
+if (fileName) fileName.textContent = file ? file.name : '선택된 파일 없음';
+clearPosterPreviewObjectUrl();
+if (file) {
+posterPreviewObjectUrl = URL.createObjectURL(file);
+setPosterPreviewImage(posterPreviewObjectUrl);
+}
+}
+
+window.submitPosterPreviewUpdate = async function () {
+const eventId = parseInt(document.getElementById('poster-preview-event-id').value, 10);
+const ev = currentEventList.find(e => e.eventId === eventId);
+const file = document.getElementById('poster-preview-file')?.files?.[0];
+if (!ev) { showToast('공연 데이터를 찾을 수 없습니다.', true); return; }
+if (!file) { showToast('변경할 포스터 이미지를 선택해주세요.', true); return; }
+
+const formData = new FormData();
+formData.append('event', new Blob([JSON.stringify(eventToUpdateRequest(ev))], { type: 'application/json' }));
+formData.append('posterImage', file);
+
+try {
+const res = await Fetch(`${EVENT_URL}/update/id/${eventId}`, {
+method: 'PUT',
+headers: authOnlyHeaders(),
+body: formData
+});
+
+if (!res.ok) { showToast('포스터 이미지 저장에 실패했습니다.', true); return; }
+showToast('포스터 이미지가 저장되었습니다.');
+closePosterPreviewModal();
+loadEventList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+} catch {
+showToast('통신 오류가 발생했습니다.', true);
+}
+};
 
 /* Modal: VIEW */
 window.openModalForView = function (eventId) {
@@ -1094,6 +1202,7 @@ document.getElementById('m-available-seats')?.addEventListener('input', function
 formatDigitInput(this);
 });
 document.getElementById('m-poster-image')?.addEventListener('change', _setPosterFileName);
+document.getElementById('poster-preview-file')?.addEventListener('change', handlePosterPreviewFileChange);
 ['cond-eventDate', 'cond-saleStartDate', 'cond-saleEndDate', 'cond-cancelDeadlineDate'].forEach(prefix => {
 syncDateSearchMode(prefix);
 document.getElementById(`${prefix}-mode`)?.addEventListener('change', function () {
