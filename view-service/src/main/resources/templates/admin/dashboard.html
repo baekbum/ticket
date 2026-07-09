@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket - 관리자 대시보드</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #f1f3f5;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    .dashboard-container {
+      width: 100%;
+      max-width: 1200px;
+      background: #ffffff;
+      border: 0.5px solid #e9ecef;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .header-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e9ecef;
+      padding-bottom: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .logo { display: flex; align-items: center; gap: 8px; }
+    .logo-icon { width: 36px; height: 36px; border-radius: 10px; background: #7c4dff; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+    .logo-text { font-size: 18px; font-weight: 600; color: #212529; }
+
+    /* 유저 정보 및 로그아웃 헤더 레이아웃 */
+    .header-right-box { display: flex; align-items: center; gap: 1rem; }
+    .user-greeting { font-size: 14px; color: #495057; font-weight: 500; }
+    .user-name-link { color: #7c4dff; font-weight: 600; cursor: pointer; text-decoration: underline; margin-right: 2px; }
+    .user-name-link:hover { color: #512da8; }
+
+    .dashboard-layout { display: grid; grid-template-columns: 240px 1fr; gap: 2.5rem; }
+    .sidebar-menu { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+    .sidebar-item { padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #495057; cursor: pointer; transition: all 0.2s; }
+    .sidebar-item:hover:not(.disabled) { background: #f8f9fa; color: #7c4dff; }
+    .sidebar-item.active { background: #f3f0ff; color: #7c4dff; }
+    .sidebar-item.disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* 비동기로 로드될 본문 영역 */
+    .main-content { min-height: 500px; }
+
+    .toast { position: fixed; top: 1.5rem; left: 50%; transform: translateX(-50%); background: #3C3489; color: white; padding: 10px 20px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 9999; }
+    .toast.show { opacity: 1; }
+
+    /* 대시보드 전용 커스텀 모달 스타일 정의 */
+    .d-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); justify-content:center; align-items:center; z-index: 2000; }
+    .d-modal-content { background:white; padding:2rem; border-radius:12px; width:100%; max-width:480px; text-align: left; position: relative;}
+
+    /* 비밀번호 확인용 상위 레이어 모달 */
+    #my-password-modal { z-index: 3000; }
+    #my-password-modal .d-modal-content { max-width: 380px; }
+
+    .d-form-group { margin-bottom: 1rem; }
+    .d-form-group label { display:block; font-size:13px; font-weight:500; color:#495057; margin-bottom:6px; }
+    .d-form-group input, .d-form-group select { width: 100%; padding: 10px 12px; border: 0.5px solid #dee2e6; border-radius: 6px; font-size: 14px; }
+    .d-form-group input:focus, .d-form-group select:focus { outline: none; border-color: #7c4dff; box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12); }
+    .d-form-group input:disabled, .d-form-group select:disabled { background: #f1f3f5; color: #868e96; cursor: not-allowed; }
+    .d-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+    /* 글로벌 공용 버튼 양식 */
+    .d-btn { padding: 10px 16px; background: #7c4dff; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; width: 100%; text-align: center; }
+    .d-btn:hover { background: #6536ff; }
+    .d-btn-secondary { background: #868e96; }
+    .d-btn-secondary:hover { background: #727b84; }
+    .d-btn-success { background: #2b8a3e; }
+    .d-btn-success:hover { background: #237032; }
+
+    /* 주의/경고 전용 오렌지 버튼 스타일 (비밀번호 확인/검증 진입용) */
+    .d-btn-warning { background: #f59f00; color: white; }
+    .d-btn-warning:hover { background: #e67700; }
+</style>
+<body>
+
+<div class="dashboard-container">
+    <div class="header-actions">
+        <div class="logo">
+            <div class="logo-icon"><i class="ti ti-shield-lock"></i></div>
+            <span class="logo-text">Ticket 시스템 관리 콘솔</span>
+        </div>
+
+        <div class="header-right-box">
+            <span class="user-greeting">
+                <span id="login-user-name" class="user-name-link" onclick="openMyInfoModal()">관리자</span>님 환영합니다
+            </span>
+            <button style="padding:6px 12px; font-size:13px; background:#e24b4a; color:white; border:none; border-radius:6px; cursor:pointer;" onclick="logout()">로그아웃</button>
+        </div>
+    </div>
+
+    <div class="dashboard-layout">
+        <div class="sidebar">
+            <ul class="sidebar-menu">
+                <li class="sidebar-item active" onclick="switchMenu('user', this)"><i class="ti ti-users"></i> 유저 관리</li>
+                <li class="sidebar-item" onclick="switchMenu('event', this)"><i class="ti ti-device-tv"></i> 이벤트(공연) 관리</li>
+                <li class="sidebar-item disabled"><i class="ti ti-armchair"></i> 좌석 관리 (준비중)</li>
+                <li class="sidebar-item disabled"><i class="ti ti-ticket"></i> 티켓 관리 (준비중)</li>
+                <li class="sidebar-item disabled"><i class="ti ti-calendar-event"></i> 예매 정보 관리 (준비중)</li>
+            </ul>
+        </div>
+
+        <div class="main-content" id="content-area">
+            <p style="color: #868e96; font-size: 14px;">메뉴를 로드하는 중입니다...</p>
+        </div>
+    </div>
+</div>
+
+<div class="d-modal" id="my-info-modal">
+    <div class="d-modal-content">
+        <h3 style="margin-bottom: 1.25rem; color:#212529;">내 정보 상세 조회</h3>
+        <div class="d-form-row">
+            <div class="d-form-group">
+                <label>아이디</label>
+                <input type="text" id="m-me-id" disabled>
+            </div>
+            <div class="d-form-group">
+                <label>이름</label>
+                <input type="text" id="m-me-name" disabled>
+            </div>
+        </div>
+        <div class="d-form-row">
+            <div class="d-form-group">
+                <label>이메일</label>
+                <input type="email" id="m-me-email" disabled>
+            </div>
+            <div class="d-form-group">
+                <label>휴대폰 번호</label>
+                <input type="text" id="m-me-phone" disabled>
+            </div>
+        </div>
+        <div class="d-form-row">
+            <div class="d-form-group">
+                <label>생년월일</label>
+                <input type="date" id="m-me-birth" disabled>
+            </div>
+            <div class="d-form-group">
+                <label>주소</label>
+                <input type="text" id="m-me-addr" disabled>
+            </div>
+        </div>
+
+        <div class="d-form-group" id="my-password-manage-area" style="margin-top: 0.5rem; margin-bottom: 1.5rem;">
+            <label>비밀번호 계정 관리</label>
+            <button class="d-btn d-btn-warning" style="font-size: 14px; padding: 12px;" onclick="openPasswordVerifyModal()">
+                <i class="ti ti-lock-open"></i> 비밀번호 확인하기
+            </button>
+        </div>
+
+        <div id="my-info-action-area" style="margin-top: 1.5rem;">
+            <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<div class="d-modal" id="my-password-modal">
+    <div class="d-modal-content">
+        <h3 style="margin-bottom: 0.5rem; color:#212529;">비밀번호 재확인</h3>
+        <p style="font-size: 13px; color:#868e96; margin-bottom: 1.25rem;">안전한 계정 인증을 위해 비밀번호를 입력해 주세요.</p>
+
+        <div class="d-form-group">
+            <label>아이디</label>
+            <input type="text" id="m-verify-id" disabled>
+        </div>
+        <div class="d-form-group">
+            <label>비밀번호 입력</label>
+            <input type="password" id="m-verify-password" placeholder="현재 비밀번호를 입력하세요" onkeydown="handleVerifyKeydown(event)">
+        </div>
+
+        <div class="d-form-row" style="margin-top: 1.5rem;">
+            <button class="d-btn d-btn-secondary" onclick="closePasswordVerifyModal()">취소</button>
+            <button class="d-btn d-btn-success" onclick="submitPasswordVerification()">비밀번호 확인하기</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = { VERSION: 'v1', USER_SERVICE_PORT: '8081', AUTH_SERVICE_PORT: '8000' };
+    const base = (service) => {
+        if (window.location.port !== '3000') return '';
+        return service === 'auth' ? `http://localhost:${API.AUTH_SERVICE_PORT}` : `http://localhost:${API.USER_SERVICE_PORT}`;
+    };
+
+    const getHeaders = () => ({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+    });
+
+    // =================================================================
+    // 🌟 [신규 추가] 전역 Fetch 인터셉터 (401 발생 시 자동 토큰 재발급 루틴)
+    // =================================================================
+    async function Fetch(url, options = {}) {
+        options.headers = {
+            ...getHeaders(),
+            ...options.headers
+        };
+
+        let response = await fetch(url, options);
+
+        // 만약 401 Unauthorized 에러가 감지되면 (엑세스 토큰 만료 시)
+        if (response.status === 401) {
+            console.warn("Access Token 만료 감지, 토큰 재발급을 시도합니다.");
+            try {
+                const refreshToken = localStorage.getItem('refreshToken');
+                if (!refreshToken) throw new Error("리프레시 토큰이 스토리지에 존재하지 않습니다.");
+
+                const reissueUrl = `${base('auth')}/auth/api/${API.VERSION}/reissue`;
+                const reissueRes = await fetch(reissueUrl, {
+                    method: 'POST',
+                    headers: { 'Authorization-Refresh': `Bearer ${refreshToken}` }
+                });
+
+                if (reissueRes.ok) {
+                    const tokenDto = await reissueRes.json();
+                    localStorage.setItem('accessToken', tokenDto.accessToken);
+                    localStorage.setItem('refreshToken', tokenDto.refreshToken);
+
+                    console.info("토큰 재발급 완료. 실패했던 원래 API 요청을 다시 시도합니다.");
+
+                    // 새로운 토큰으로 헤더를 전면 교체한 뒤 원래 요청을 재수행
+                    options.headers['Authorization'] = `Bearer ${tokenDto.accessToken}`;
+                    response = await fetch(url, options);
+                } else {
+                    throw new Error("Refresh Token 검증에 실패했습니다.");
+                }
+            } catch (error) {
+                showToast('세션 정보가 완전히 만료되어 로그아웃됩니다.', true);
+                setTimeout(() => logout(), 1500);
+                return response;
+            }
+        }
+        return response;
+    }
+
+    let loggedInUserRawData = null;
+    let isPasswordVerified = false;
+
+    async function switchMenu(menuName, element) {
+      if (element && element.classList.contains('disabled')) return;
+
+      if(element) {
+        document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+        element.classList.add('active');
+      }
+
+      const contentArea = document.getElementById('content-area');
+
+      try {
+        // 프래그먼트 HTML 원본을 긁어오는 경로는 인증 인가가 필요없으므로 원본 fetch 사용
+        const res = await fetch(`/admin/fragment/${menuName}`);
+        if (res.ok) {
+          const htmlFragment = await res.text();
+          contentArea.innerHTML = htmlFragment;
+
+          const scripts = contentArea.querySelectorAll("script");
+          scripts.forEach(oldScript => {
+            const newScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+          });
+
+        } else {
+          contentArea.innerHTML = `<h2>준비 중인 화면</h2><p class="sub-txt">현재 준비 중인 메뉴입니다.</p>`;
+        }
+      } catch (e) {
+        contentArea.innerHTML = `<p style="color:red;">화면을 불러오는 중 오류가 발생했습니다.</p>`;
+      }
+    }
+
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
+    async function loadMyProfileHeader() {
+        try {
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/select/me`, {
+                method: 'GET'
+            });
+
+            if (res.ok) {
+                loggedInUserRawData = await res.json();
+                document.getElementById('login-user-name').textContent = loggedInUserRawData.name || loggedInUserRawData.userId;
+            } else {
+                showToast('로그인 세션 정보 호출 실패', true);
+            }
+        } catch (e) {
+            showToast('프로필 로드 서버 오류', true);
+        }
+    }
+
+    window.openMyInfoModal = function() {
+        if (!loggedInUserRawData) {
+            showToast('사용자 정보 데이터가 비어있습니다.', true);
+            return;
+        }
+
+        document.getElementById('m-me-id').value = loggedInUserRawData.userId || '';
+        document.getElementById('m-me-name').value = loggedInUserRawData.name || '';
+        document.getElementById('m-me-email').value = loggedInUserRawData.email || '';
+        document.getElementById('m-me-phone').value = loggedInUserRawData.phoneNumber || '';
+        document.getElementById('m-me-birth').value = loggedInUserRawData.birthDate || '';
+        document.getElementById('m-me-addr').value = loggedInUserRawData.address || '';
+
+        isPasswordVerified = false;
+        toggleMyFieldsDisableState(true);
+
+        document.getElementById('my-password-manage-area').innerHTML = `
+            <label>비밀번호 계정 관리</label>
+            <button class="d-btn d-btn-warning" style="font-size: 14px; padding: 12px;" onclick="openPasswordVerifyModal()">
+                <i class="ti ti-lock-open"></i> 비밀번호 확인하기
+            </button>
+        `;
+
+        const actionArea = document.getElementById('my-info-action-area');
+        actionArea.className = "";
+        actionArea.innerHTML = `
+            <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+        `;
+
+        document.getElementById('my-info-modal').style.display = 'flex';
+    };
+
+    window.closeMyInfoModal = function() {
+        document.getElementById('my-info-modal').style.display = 'none';
+    };
+
+    function toggleMyFieldsDisableState(shouldDisable) {
+        document.getElementById('m-me-id').disabled = true;
+        document.getElementById('m-me-name').disabled = shouldDisable;
+        document.getElementById('m-me-email').disabled = shouldDisable;
+        document.getElementById('m-me-phone').disabled = shouldDisable;
+        document.getElementById('m-me-birth').disabled = shouldDisable;
+        document.getElementById('m-me-addr').disabled = shouldDisable;
+    }
+
+    window.handleInitialModifyClick = function() {
+        if(!isPasswordVerified) {
+            showToast('비밀번호 확인 절차가 필요합니다.', true);
+            return;
+        }
+
+        toggleMyFieldsDisableState(false);
+
+        const actionArea = document.getElementById('my-info-action-area');
+        actionArea.className = "d-form-row";
+        actionArea.innerHTML = `
+            <button class="d-btn d-btn-secondary" onclick="openMyInfoModal()">취소</button>
+            <button class="d-btn" style="background: #7c4dff;" onclick="updateMyProfileDetails()">변경사항 저장</button>
+        `;
+    };
+
+    window.openPasswordVerifyModal = function() {
+        const currentUserId = document.getElementById('m-me-id').value;
+        if (!currentUserId) {
+            showToast('유저 아이디를 식별할 수 없습니다.', true);
+            return;
+        }
+        document.getElementById('m-verify-id').value = currentUserId;
+        document.getElementById('m-verify-password').value = '';
+        document.getElementById('my-password-modal').style.display = 'flex';
+        document.getElementById('m-verify-password').focus();
+    };
+
+    window.closePasswordVerifyModal = function() {
+        document.getElementById('my-password-modal').style.display = 'none';
+    };
+
+    window.handleVerifyKeydown = function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitPasswordVerification();
+        }
+    };
+
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
+    window.submitPasswordVerification = async function() {
+        const userId = document.getElementById('m-verify-id').value;
+        const password = document.getElementById('m-verify-password').value;
+
+        if(!password) {
+            showToast('비밀번호를 입력해 주세요.', true);
+            return;
+        }
+
+        const loginInfoPayload = {
+            userId: userId,
+            password: password
+        };
+
+        try {
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/validate/info`, {
+                method: 'POST',
+                body: JSON.stringify(loginInfoPayload)
+            });
+
+            if (res.ok) {
+                showToast('비밀번호 인증에 성공했습니다.');
+                closePasswordVerifyModal();
+
+                isPasswordVerified = true;
+
+                document.getElementById('my-password-manage-area').innerHTML = `
+                    <label>비밀번호 계정 관리</label>
+                    <div style="background: #e8f5e9; color: #2b8a3e; padding: 12px; border-radius: 6px; font-size: 14px; font-weight: 600; text-align: center; border: 1px solid #c8e6c9;">
+                        <i class="ti ti-circle-check"></i> 계정 소유자 인증 완료
+                    </div>
+                `;
+
+                const actionArea = document.getElementById('my-info-action-area');
+                actionArea.className = "";
+                actionArea.innerHTML = `
+                    <button class="d-btn" id="btn-trigger-modify" style="margin-bottom: 0.75rem;" onclick="handleInitialModifyClick()">정보 수정하기</button>
+                    <button class="d-btn d-btn-secondary" onclick="closeMyInfoModal()">닫기</button>
+                `;
+
+            } else {
+                showToast('비밀번호가 일치하지 않습니다. 다시 시도해 주세요.', true);
+            }
+        } catch (e) {
+            showToast('서버 인증 통신 장애 발생', true);
+        }
+    };
+
+    // 🌟 fetch -> Fetch 인터셉터 적용 완료
+    window.updateMyProfileDetails = async function() {
+        const body = {
+            userId: document.getElementById('m-me-id').value,
+            name: document.getElementById('m-me-name').value.trim(),
+            email: document.getElementById('m-me-email').value.trim(),
+            phoneNumber: document.getElementById('m-me-phone').value.trim(),
+            birthDate: document.getElementById('m-me-birth').value || null,
+            address: document.getElementById('m-me-addr').value.trim()
+        };
+
+        if(!body.name) {
+            showToast('이름은 공백으로 둘 수 없습니다.', true);
+            return;
+        }
+
+        try {
+            const res = await Fetch(`${base('user')}/user/api/${API.VERSION}/update/me`, {
+                method: 'PUT',
+                body: JSON.stringify(body)
+            });
+
+            if(res.ok) {
+                showToast('내 정보가 성공적으로 업데이트되었습니다.');
+                await loadMyProfileHeader();
+                closeMyInfoModal();
+            } else {
+                showToast('정보 업데이트 수정 처리에 실패했습니다.', true);
+            }
+        } catch(e) {
+            showToast('통신 오류가 발생했습니다.', true);
+        }
+    };
+
+    function showToast(msg, isErr) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = isErr ? '#A32D2D' : '#3C3489';
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function logout() {
+      localStorage.clear();
+      document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+      window.location.href = '/login';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadMyProfileHeader();
+      switchMenu('user', null);
+    });
+</script>
+</body>
+</html>

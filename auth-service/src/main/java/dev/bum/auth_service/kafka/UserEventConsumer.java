@@ -21,12 +21,14 @@ public class UserEventConsumer {
 
     @KafkaListener(topics = "${topic.name}", groupId = "auth-group")
     public void consume(UserDtoForEvent event) {
-        log.info(">>>> Kafka로부터 메시지 도착: {}", event);
+        log.info(">>>> Kafka로부터 메시지 도착");
 
         try {
             // 이제 이 데이터를 가지고 권한 DB에 Insert 하거나 권한을 부여하는 로직을 실행합니다.
             if (event.getEventType() == TopicEventType.CREATE) {
                 authService.insertUserTopic(event);
+            } else if (event.getEventType() == TopicEventType.UPDATE) {
+                authService.updateUserTopic(event);
             } else {
                 authService.deleteUserTopic(event);
             }

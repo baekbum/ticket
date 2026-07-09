@@ -1,14 +1,15 @@
 package dev.bum.ticket_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.ticket_service.dto.EventDto;
-import dev.bum.ticket_service.security.JwtAuthenticationFilter;
+import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.service.ticket.event.dto.EventResponse;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.event.EventService;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +55,7 @@ class EventControllerTest {
     @Test
     @DisplayName("토큰 값 오류")
     void token_invalid() throws Exception {
-        EventCond cond = EventCond.builder()
+        EventCondRequest cond = EventCondRequest.builder()
                 .page(0)
                 .size(10)
                 .build();
@@ -71,7 +72,7 @@ class EventControllerTest {
     void with_auth_user() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
 
-        InsertEventInfo eventInfo = InsertEventInfo.builder()
+        InsertEventRequest eventInfo = InsertEventRequest.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
@@ -93,7 +94,7 @@ class EventControllerTest {
     void event_insert() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
 
-        InsertEventInfo eventInfo = InsertEventInfo.builder()
+        InsertEventRequest eventInfo = InsertEventRequest.builder()
                 .artistName("아이유")
                 .title("아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
@@ -103,7 +104,7 @@ class EventControllerTest {
                 .maxTicketsPerPerson(4)
                 .build();
 
-        EventDto response = EventDto.builder()
+        EventResponse response = EventResponse.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
@@ -128,7 +129,7 @@ class EventControllerTest {
     void event_select_by_id() throws Exception {
         LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 18, 0);
 
-        EventDto response = EventDto.builder()
+        EventResponse response = EventResponse.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
@@ -159,14 +160,14 @@ class EventControllerTest {
     @Test
     @DisplayName("조건으로 이벤트 검색하기")
     void event_select_by_cond() throws Exception {
-        EventCond cond = EventCond.builder()
+        EventCondRequest cond = EventCondRequest.builder()
                 .artistName("아이유")
                 .build();
 
         LocalDateTime eventDateTime_1 = LocalDateTime.of(2024, 9, 16, 17,0);
         LocalDateTime eventDateTime_2 = LocalDateTime.of(2026, 9, 16, 18,0);
 
-        EventDto response_1 = EventDto.builder()
+        EventResponse response_1 = EventResponse.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
@@ -177,7 +178,7 @@ class EventControllerTest {
                 .maxTicketsPerPerson(4)
                 .build();
 
-        EventDto response_2 = EventDto.builder()
+        EventResponse response_2 = EventResponse.builder()
                 .eventId(2L)
                 .artistName("아이유")
                 .title("아이유 콘서트")
@@ -188,10 +189,15 @@ class EventControllerTest {
                 .maxTicketsPerPerson(1)
                 .build();
 
-        List<EventDto> dtoList = List.of(response_1, response_2);
+        List<EventResponse> dtoList = List.of(response_1, response_2);
 
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-        PageImpl<EventDto> response = new PageImpl<>(dtoList, pageable, dtoList.size());
+        CustomPageResponse<EventResponse> response = CustomPageResponse.of(
+                dtoList,
+                cond.getSize(),
+                cond.getPage(),
+                dtoList.size(),
+                1
+        );
 
         given(eventService.selectByCond(any())).willReturn(response);
 
@@ -215,7 +221,7 @@ class EventControllerTest {
 
         LocalDateTime eventDateTime = LocalDateTime.of(2024, 5, 16, 17, 0);
 
-        UpdateEventInfo info = UpdateEventInfo.builder()
+        UpdateEventRequest info = UpdateEventRequest.builder()
                 .title("수정된 아이유 콘서트")
                 .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
                 .venue("올림픽 체조 경기장")
@@ -224,7 +230,7 @@ class EventControllerTest {
                 .maxTicketsPerPerson(4)
                 .build();
 
-        EventDto response = EventDto.builder()
+        EventResponse response = EventResponse.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("수정된 아이유 콘서트")
@@ -259,7 +265,7 @@ class EventControllerTest {
 
         LocalDateTime eventDateTime = LocalDateTime.of(2024, 5, 16, 17, 0);
 
-        EventDto response = EventDto.builder()
+        EventResponse response = EventResponse.builder()
                 .eventId(1L)
                 .artistName("아이유")
                 .title("삭제된 아이유 콘서트")

@@ -1,24 +1,26 @@
 package dev.bum.ticket_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.ticket_service.dto.SeatDto;
-import dev.bum.ticket_service.enums.EventStatus;
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.SeatStatus;
+import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatResponse;
+import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.security.JwtAuthenticationFilter;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.seat.SeatService;
-import dev.bum.ticket_service.vo.seat.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -55,7 +57,7 @@ class SeatControllerTest {
     @Test
     @DisplayName("토큰 값 오류")
     void token_invalid() throws Exception {
-        SeatCond cond = SeatCond.builder()
+        SeatCondRequest cond = SeatCondRequest.builder()
                 .page(0)
                 .size(10)
                 .build();
@@ -88,7 +90,7 @@ class SeatControllerTest {
 
         List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat, r_seat);
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(1L)
                 .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
@@ -121,7 +123,7 @@ class SeatControllerTest {
 
         List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat, r_seat);
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(1L)
                 .insertSeatAreaConfigs(insertSeatAreaConfigList)
                 .build();
@@ -149,7 +151,7 @@ class SeatControllerTest {
 
         LocalDateTime time = LocalDateTime.now();
 
-        SeatDto response = SeatDto.builder()
+        SeatResponse response = SeatResponse.builder()
                 .seatId(1L)
                 .zone("Floor A구역")
                 .seatRow(1)
@@ -204,7 +206,7 @@ class SeatControllerTest {
 
         LocalDateTime time = LocalDateTime.now();
 
-        SeatDto response_1 = SeatDto.builder()
+        SeatResponse response_1 = SeatResponse.builder()
                 .seatId(1L)
                 .zone("Floor A구역")
                 .seatRow(1)
@@ -220,7 +222,7 @@ class SeatControllerTest {
                 .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
-        SeatDto response_2 = SeatDto.builder()
+        SeatResponse response_2 = SeatResponse.builder()
                 .seatId(2L)
                 .zone("Floor A구역")
                 .seatRow(1)
@@ -236,7 +238,7 @@ class SeatControllerTest {
                 .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
-        SeatDto response_3 = SeatDto.builder()
+        SeatResponse response_3 = SeatResponse.builder()
                 .seatId(3L)
                 .zone("28구역")
                 .seatRow(1)
@@ -252,14 +254,19 @@ class SeatControllerTest {
                 .eventDateTime(event.getEventDateTime().format(this.eventFormatter))
                 .build();
 
-        SeatCond cond = SeatCond.builder()
+        SeatCondRequest cond = SeatCondRequest.builder()
                 .grade(SeatGrade.A)
                 .build();
 
-        List<SeatDto> dtoList = List.of(response_3);
+        List<SeatResponse> dtoList = List.of(response_3);
 
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-        PageImpl<SeatDto> response = new PageImpl<>(dtoList, pageable, dtoList.size());
+        CustomPageResponse<SeatResponse> response = CustomPageResponse.of(
+                dtoList,
+                cond.getSize(),
+                cond.getPage(),
+                dtoList.size(),
+                1
+        );
 
         given(seatService.selectByCond(cond)).willReturn(response);
 
@@ -298,7 +305,7 @@ class SeatControllerTest {
 
         List<UpdateSeatAreaConfig> updateSeatAreaConfigList = List.of(config_1, config_2);
 
-        UpdateSeatInfo info = UpdateSeatInfo.builder()
+        UpdateSeatRequest info = UpdateSeatRequest.builder()
                 .updateSeatAreaConfigs(updateSeatAreaConfigList)
                 .build();
 

@@ -1,6 +1,6 @@
 package dev.bum.common.jwt;
 
-import dev.bum.common.dto.TokenDto;
+import dev.bum.common.jwt.dto.TokenResponse;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +9,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -41,7 +40,7 @@ public class JwtTokenProvider {
     }
 
     // 1. 토큰 생성
-    public TokenDto createToken(String userId, String role) {
+    public TokenResponse createToken(String userId, String role) {
         Claims claims = Jwts.claims().setSubject(userId);
         claims.put("auth", role); // 권한 정보 추가
 
@@ -59,7 +58,11 @@ public class JwtTokenProvider {
         // 2. Refresh Token 생성
         Date refreshValidity = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
 
+        Claims refreshClaims = Jwts.claims().setSubject(userId);
+
         String refreshToken = Jwts.builder()
+                .setClaims(refreshClaims)
+                .setIssuedAt(now)
                 .setExpiration(refreshValidity)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
@@ -67,7 +70,7 @@ public class JwtTokenProvider {
         log.info("accessToken : {}", accessToken);
         log.info("refreshToken : {}", refreshToken);
 
-        return new TokenDto(accessToken, refreshToken);
+        return new TokenResponse(accessToken, refreshToken);
     }
 
     // 2. 토큰에서 인증 정보 조회 (SecurityContext에 저장하기 위함)
@@ -83,7 +86,7 @@ public class JwtTokenProvider {
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
-        User principal = new User(claims.getSubject(), "", authorities);
+        String principal = claims.getSubject();
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);
     }
 
@@ -92,15 +95,40 @@ public class JwtTokenProvider {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             return true;
-        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
-            log.info("잘못된 JWT 서명입니다.");
         } catch (ExpiredJwtException e) {
             log.info("만료된 JWT 토큰입니다.");
+            throw e;
+        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
+            log.info("잘못된 JWT 서명입니다.");
+            throw e;
         } catch (UnsupportedJwtException e) {
             log.info("지원되지 않는 JWT 토큰입니다.");
+            throw e;
         } catch (IllegalArgumentException e) {
             log.info("JWT 토큰이 잘못되었습니다.");
+            throw e;
         }
-        return false;
+    }
+
+    // [추가] 토큰에서 userId(Subject) 추출
+    public String getUserId(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
+
+    // [추가] 토큰에서 Role(auth) 추출
+    public String getRole(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        // "ROLE_USER" 같은 형태로 저장된 문자열 그대로 반환
+        return claims.get("auth") != null ? claims.get("auth").toString() : "";
     }
 }

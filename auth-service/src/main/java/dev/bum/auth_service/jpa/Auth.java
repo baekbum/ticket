@@ -1,17 +1,18 @@
 package dev.bum.auth_service.jpa;
 
-import dev.bum.auth_service.enums.UserRole;
+import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.StringUtils;
 
 @Getter
 @Entity
 @Table(name = "auth")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class Auth {
 
     @Id
@@ -41,5 +42,15 @@ public class Auth {
         this.userId = event.getUserId();
         this.password = event.getPassword();
         this.role = UserRole.valueOf(event.getRole());
+    }
+
+    public void updateInfo(UserDtoForEvent event) {
+        if (StringUtils.hasText(event.getPassword())) {
+            this.password = event.getPassword();
+        }
+
+        if (StringUtils.hasText(event.getRole())) {
+            this.role = UserRole.valueOf(event.getRole());
+        }
     }
 }

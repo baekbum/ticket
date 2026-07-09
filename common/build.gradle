@@ -28,8 +28,9 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
 	// 2. 스프링 부트 기본 의존성
-	api 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	// 3. Lombok 설정 (common 모듈에서도 어노테이션 사용을 위해)
 	compileOnly 'org.projectlombok:lombok'

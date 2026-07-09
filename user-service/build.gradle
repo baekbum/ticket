@@ -55,6 +55,7 @@ dependencies {
 def querydslDir = "src/main/generated"
 
 tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs.add("-parameters")
 	options.getGeneratedSourceOutputDirectory().set(file(querydslDir))
 }
 

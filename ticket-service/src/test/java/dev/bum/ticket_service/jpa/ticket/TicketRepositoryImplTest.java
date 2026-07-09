@@ -1,10 +1,10 @@
 package dev.bum.ticket_service.jpa.ticket;
 
+import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
-import dev.bum.ticket_service.enums.EventStatus;
-import dev.bum.ticket_service.enums.ReservationStatus;
-import dev.bum.ticket_service.enums.SeatGrade;
-import dev.bum.ticket_service.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
@@ -14,8 +14,8 @@ import dev.bum.ticket_service.jpa.reservation.ReservationRepositoryImpl;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepositoryImpl;
-import dev.bum.ticket_service.vo.seat.InsertSeatAreaConfig;
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -93,7 +93,7 @@ class TicketRepositoryImplTest {
                 .price(168000)
                 .build();
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(this.event.getEventId())
                 .insertSeatAreaConfigs(List.of(vip_seat))
                 .build();

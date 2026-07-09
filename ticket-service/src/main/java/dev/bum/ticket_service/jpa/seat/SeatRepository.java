@@ -1,22 +1,24 @@
 package dev.bum.ticket_service.jpa.seat;
 
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
-import dev.bum.ticket_service.vo.seat.SeatCond;
-import dev.bum.ticket_service.vo.seat.SeatInfo;
-import dev.bum.ticket_service.vo.seat.UpdateSeatInfo;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
 public interface SeatRepository {
-    void insert(InsertSeatInfo info);
-    void isExist(SeatCond cond);
+    void insert(InsertSeatRequest info);
+    void isExist(SeatCondRequest cond);
     long countByEventId(Long eventId);
     Seat selectById(Long id);
     List<Seat> selectByEventId(Long eventId);
     List<Seat> selectBySeatList(List<SeatInfo> seatInfos);
-    Page<Seat> selectByCond(SeatCond cond, Pageable pageable);
-    void update(UpdateSeatInfo info);
+    Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable);
+    void update(UpdateSeatRequest info);
     void delete(Long id);
+    void deleteByIdList(List<Long> seatIdList);
+    void deleteByAreaId(Long areaId);
 }

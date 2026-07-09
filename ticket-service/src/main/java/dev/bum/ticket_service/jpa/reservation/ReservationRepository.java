@@ -1,15 +1,15 @@
 package dev.bum.ticket_service.jpa.reservation;
 
-import dev.bum.ticket_service.vo.reservation.CancelReservationInfo;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.reservation.ReservationCond;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface ReservationRepository {
-    Reservation insert(InsertReservationInfo info);
+    Reservation insert(InsertReservationRequest info);
     Reservation selectById(long id);
-    Page<Reservation> selectByCond(ReservationCond cond, Pageable pageable);
-    void cancel(long id, CancelReservationInfo info);
+    Page<Reservation> selectByCond(ReservationCondRequest cond, Pageable pageable);
+    void cancel(long id, CancelReservationRequest info);
     void isReservable(String userId, long eventId, int selectedSeatCnt);
 }

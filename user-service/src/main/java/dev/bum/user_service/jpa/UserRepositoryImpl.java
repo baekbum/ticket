@@ -5,17 +5,17 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -30,7 +30,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     private final JPAQueryFactory queryFactory;
     private final UserJpaRepository jpaRepository;
-    private final BCryptPasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
     private QUser user;
 
     /**
@@ -39,10 +39,8 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public User insert(InsertUserInfo info) {
-        if (jpaRepository.findByUserId(info.getUserId()).isPresent()) {
-            throw new UserDuplicateException("해당 사용자 ID는 이미 존재합니다.");
-        }
+    public User insert(InsertUserRequest info) {
+        isExist(info.getUserId());
 
         // 비밀번호 암호화 작업
         info.setPassword(passwordEncoder.encode(info.getPassword()));
@@ -52,6 +50,18 @@ public class UserRepositoryImpl implements UserRepository {
 
         return user;
     }
+
+    /**
+     * 아이디가 이미 존재하는지 체크
+     * @param userId
+     */
+    @Override
+    public void isExist(String userId) {
+        if (jpaRepository.findByUserId(userId).isPresent()) {
+            throw new UserDuplicateException("해당 사용자 ID는 이미 존재합니다.");
+        }
+    }
+
 
     /**
      * 전체 유저 검색
@@ -81,7 +91,7 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public Page<User> selectByCond(UserCond cond, Pageable pageable) {
+    public Page<User> selectByCond(UserCondRequest cond, Pageable pageable) {
         user = QUser.user;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -98,12 +108,10 @@ public class UserRepositoryImpl implements UserRepository {
                 .select(user)
                 .from(user)
                 .where(
-                        userIdEq(cond.getUserId()),
-                        userIdIn(cond.getUserIdList()),
-                        nameEq(cond.getEmail()),
-                        nameIn(cond.getNameList()),
-                        phoneNumberEq(cond.getPhoneNumber()),
-                        emailEq(cond.getEmail()),
+                        userIdContains(cond.getUserId()),
+                        nameContains(cond.getName()),
+                        phoneNumberContains(cond.getPhoneNumber()),
+                        emailContains(cond.getEmail()),
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
                         isBlacklistedEq(cond.getIsBlacklisted())
@@ -117,12 +125,10 @@ public class UserRepositoryImpl implements UserRepository {
                 .select(user.count())
                 .from(user)
                 .where(
-                        userIdEq(cond.getUserId()),
-                        userIdIn(cond.getUserIdList()),
-                        nameEq(cond.getEmail()),
-                        nameIn(cond.getNameList()),
-                        phoneNumberEq(cond.getPhoneNumber()),
-                        emailEq(cond.getEmail()),
+                        userIdContains(cond.getUserId()),
+                        nameContains(cond.getName()),
+                        phoneNumberContains(cond.getPhoneNumber()),
+                        emailContains(cond.getEmail()),
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
                         isBlacklistedEq(cond.getIsBlacklisted())
@@ -141,7 +147,7 @@ public class UserRepositoryImpl implements UserRepository {
      * @return
      */
     @Override
-    public User update(String userId, UpdateUserInfo info) {
+    public User update(String userId, UpdateUserRequest info) {
         User user = selectById(userId);
 
         if (StringUtils.hasText(info.getPassword())) {
@@ -169,30 +175,20 @@ public class UserRepositoryImpl implements UserRepository {
 
 
     // QueryDsl 동적 쿼리 관련 메서드
-    private BooleanExpression userIdEq(String userId) {
-        return StringUtils.hasText(userId) ? user.userId.eq(userId) : null;
+    private BooleanExpression userIdContains(String userId) {
+        return StringUtils.hasText(userId) ? user.userId.containsIgnoreCase(userId) : null;
     }
 
-    private BooleanExpression userIdIn(List<String> userIdList) {
-        return userIdList != null || !userIdList.isEmpty()
-                ? user.userId.in(userIdList) : null;
+    private BooleanExpression nameContains(String name) {
+        return StringUtils.hasText(name) ? user.name.contains(name) : null;
     }
 
-    private BooleanExpression nameEq(String name) {
-        return StringUtils.hasText(name) ? user.name.eq(name) : null;
+    private BooleanExpression phoneNumberContains(String phoneNumber) {
+        return StringUtils.hasText(phoneNumber) ? user.phoneNumber.contains(phoneNumber) : null;
     }
 
-    private BooleanExpression nameIn(List<String> nameList) {
-        return nameList != null || !nameList.isEmpty()
-                ? user.name.in(nameList) : null;
-    }
-
-    private BooleanExpression phoneNumberEq(String phoneNumber) {
-        return StringUtils.hasText(phoneNumber) ? user.phoneNumber.eq(phoneNumber) : null;
-    }
-
-    private BooleanExpression emailEq(String email) {
-        return StringUtils.hasText(email) ? user.email.eq(email) : null;
+    private BooleanExpression emailContains(String email) {
+        return StringUtils.hasText(email) ? user.email.contains(email) : null;
     }
 
     private BooleanExpression birthDateEq(LocalDate birthDate) {
@@ -200,7 +196,7 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     private BooleanExpression addressLike(String address) {
-        return StringUtils.hasText(address) ? user.address.like("%" + address + "%") : null;
+        return StringUtils.hasText(address) ? user.address.contains(address) : null;
     }
 
     private BooleanExpression isBlacklistedEq(Boolean isBlacklisted) {

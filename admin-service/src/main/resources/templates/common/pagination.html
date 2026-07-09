@@ -1,0 +1,29 @@
+<div class="table-pagination" th:fragment="pagination">
+  <div class="page-size-selector">
+    <span>페이지당:</span>
+    <select id="pagination-size" onchange="handleSizeChange()">
+      <option value="5">5개</option>
+      <option value="10">10개</option>
+      <option value="20" selected>20개</option>
+      <option value="50">50개</option>
+      <option value="100">100개</option>
+    </select>
+  </div>
+
+  <div class="pagination-controls">
+    <button class="btn-page-nav" onclick="navigatePage(-5)" title="5페이지 앞">«</button>
+    <button class="btn-page-nav" onclick="navigatePage(-1)" title="이전">‹</button>
+    <div class="page-number-viewer">
+      <input type="number" id="pagination-current" value="1" min="1"
+             onkeydown="handlePageKeydown(event)" onchange="handlePageInputChange()">
+      <span style="color:var(--text-muted);">/</span>
+      <span id="pagination-total" style="font-weight:600; color:var(--text-primary);">1</span>
+    </div>
+    <button class="btn-page-nav" onclick="navigatePage(1)"  title="다음">›</button>
+    <button class="btn-page-nav" onclick="navigatePage(5)"  title="5페이지 뒤">»</button>
+  </div>
+
+  <div class="pagination-summary">
+    총 <strong id="pagination-total-count">0</strong>건
+  </div>
+</div>

@@ -1,15 +1,11 @@
 package dev.bum.ticket_service.controller;
 
-import dev.bum.ticket_service.dto.ReservationDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.reservation.dto.*;
 import dev.bum.ticket_service.service.reservation.ReservationService;
-import dev.bum.ticket_service.vo.reservation.CancelReservationInfo;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.reservation.IsReservableInfo;
-import dev.bum.ticket_service.vo.reservation.ReservationCond;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,23 +18,23 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @PostMapping("/insert")
-    public ResponseEntity<Void> insert(@Valid @RequestBody InsertReservationInfo info) {
+    public ResponseEntity<Void> insert(@Valid @RequestBody InsertReservationRequest info) {
         reservationService.insert(info);
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/select/id/{reservationId}")
-    public ResponseEntity<ReservationDto> selectById(@PathVariable("reservationId") long id) {
+    public ResponseEntity<ReservationResponse> selectById(@PathVariable("reservationId") long id) {
         return ResponseEntity.ok(reservationService.selectById(id));
     }
 
     @PostMapping("/select")
-    public ResponseEntity<PagedModel<ReservationDto>> selectByCond(@RequestBody ReservationCond cond) {
-        return ResponseEntity.ok(new PagedModel<>(reservationService.selectByCond(cond)));
+    public ResponseEntity<CustomPageResponse<ReservationResponse>> selectByCond(@RequestBody ReservationCondRequest cond) {
+        return ResponseEntity.ok(reservationService.selectByCond(cond));
     }
 
     @PutMapping("/cancel/id/{id}")
-    public ResponseEntity<Void> cancel(@PathVariable("id") long id, @RequestBody CancelReservationInfo info) {
+    public ResponseEntity<Void> cancel(@PathVariable("id") long id, @RequestBody CancelReservationRequest info) {
         reservationService.cancel(id, info);
         return ResponseEntity.ok().build();
     }
@@ -50,7 +46,7 @@ public class ReservationController {
      * @return
      */
     @PostMapping("/reservable")
-    public ResponseEntity<Void> isReservable(@Valid @RequestBody IsReservableInfo info) {
+    public ResponseEntity<Void> isReservable(@Valid @RequestBody IsReservableRequest info) {
         reservationService.isReservable(info);
         return ResponseEntity.ok().build();
     }

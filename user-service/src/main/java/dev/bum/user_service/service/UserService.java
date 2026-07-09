@@ -1,13 +1,18 @@
 package dev.bum.user_service.service;
 
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
-import dev.bum.user_service.dto.UserDto;
+import dev.bum.common.service.user.dto.DeleteUserBulkRequest;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.dto.ValidatePasswordRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,17 +34,28 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository repository;
+    private final PasswordEncoder passwordEncoder;
     private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
 
     @Value("${topic.name}")
     private String userTopic;
 
     /**
+     * ID 중복 체크 로직
+     * @param userId
+     */
+    @Transactional(readOnly = true)
+    public void isDuplicated(String userId) {
+        repository.isExist(userId);
+    }
+
+    /**
      * 유저 등록
      * @param info
      * @return
      */
-    public UserDto insert(InsertUserInfo info) {
+    public UserResponse insert(InsertUserRequest info) {
+        log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
 
         UserDtoForEvent event = UserDtoForEvent.builder()
@@ -51,20 +68,7 @@ public class UserService {
 
         sendTopicToKafka(event);
 
-        return new UserDto(savedUser);
-    }
-
-    /**
-     * 유저 전체 조회
-     * @param cond
-     * @return
-     */
-    @Transactional(readOnly = true)
-    public Page<UserDto> selectAll(UserCond cond) {
-        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<User> users = repository.selectAll(pageRequest);
-
-        return users.map(UserDto::new);
+        return savedUser.toResponse();
     }
 
     /**
@@ -73,8 +77,9 @@ public class UserService {
      * @return
      */
     @Transactional(readOnly = true)
-    public UserDto selectById(String userId) {
-        return new UserDto(repository.selectById(userId));
+    public UserResponse selectById(String userId) {
+        log.info("[SELECT] userId : {}", userId);
+        return repository.selectById(userId).toResponse();
     }
 
     /**
@@ -83,11 +88,19 @@ public class UserService {
      * @return
      */
     @Transactional(readOnly = true)
-    public Page<UserDto> selectByCond(UserCond cond) {
-        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<User> users = repository.selectByCond(cond, pageRequest);
+    public CustomPageResponse<UserResponse> selectByCond(UserCondRequest cond) {
+        log.info("[SELECT : {}]", cond.toString());
 
-        return users.map(UserDto::new);
+        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+        Page<UserResponse> userPage = repository.selectByCond(cond, pageRequest).map(User::toResponse);
+
+        return CustomPageResponse.of(
+                userPage.getContent(),
+                userPage.getSize(),
+                userPage.getNumber(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages()
+        );
     }
 
     /**
@@ -96,8 +109,44 @@ public class UserService {
      * @param info
      * @return
      */
-    public UserDto update(String userId, UpdateUserInfo info) {
-        return new UserDto(repository.update(userId, info));
+    public UserResponse update(String userId, UpdateUserRequest info) {
+        log.info("[UPDATE] updateUserInfo : {}", info.toString());
+
+        UserRole originalRole = repository.selectById(userId).getRole();
+        UserResponse updatedUser = repository.update(userId, info).toResponse();
+
+        // ROLE이 변경됐을 때 AUTH DB에 적용
+        if (!originalRole.name().equals(info.getRole())) {
+            UserDtoForEvent event = UserDtoForEvent.builder()
+                    .eventType(TopicEventType.UPDATE)
+                    .id(updatedUser.getId())
+                    .userId(updatedUser.getUserId())
+                    .build();
+
+            sendTopicToKafka(event);
+        }
+
+        return updatedUser;
+    }
+
+    @Transactional(readOnly = true)
+    public void validateInfo(ValidatePasswordRequest info) {
+        log.info("[VALIDATE] : {}", info);
+        User user = repository.selectById(info.getUserId());
+
+        if (!passwordEncoder.matches(info.getPassword(), user.getPassword())) {
+            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
+        }
+    }
+
+    public void initPassword(String userId) {
+        log.info("[INIT PASSWORD] userId : {}", userId);
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .password("123456789!")
+                .build();
+
+        repository.update(userId, info);
+        log.info("[비밀빈호 초기화 완료] userId : {}", userId);
     }
 
     /**
@@ -105,7 +154,9 @@ public class UserService {
      * @param userId
      * @return
      */
-    public UserDto delete(String userId) {
+    public UserResponse delete(String userId) {
+        log.info("[DELETE] userId : {}", userId);
+
         User deletedUser = repository.delete(userId);
 
         UserDtoForEvent event = UserDtoForEvent.builder()
@@ -116,7 +167,16 @@ public class UserService {
 
         sendTopicToKafka(event);
 
-        return new UserDto(deletedUser);
+        return deletedUser.toResponse();
+    }
+
+    public void deleteBulk(DeleteUserBulkRequest info) {
+        if (info.getUserIds() == null || info.getUserIds().isEmpty()) {
+            throw new IllegalArgumentException("삭제할 유저 정보가 없습니다.");
+        }
+
+        log.info("[BULK DELETE] userIds : {}", info.getUserIds());
+        info.getUserIds().forEach(this::delete);
     }
 
     /**

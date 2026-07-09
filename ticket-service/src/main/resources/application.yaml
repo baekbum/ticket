@@ -1,7 +1,11 @@
 server:
   port: 8082
+  servlet:
+    context-path: /ticket
 
 spring:
+  profiles:
+    default: local
   application:
     name: ticket-service
   datasource:
@@ -43,3 +47,8 @@ token:
 topic:
   reservation:
     name: reservation-event
+
+app:
+  upload:
+    root: uploads
+    public-url-prefix: /ticket/uploads

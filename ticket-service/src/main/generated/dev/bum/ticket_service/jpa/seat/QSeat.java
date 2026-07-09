@@ -22,21 +22,35 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public static final QSeat seat = new QSeat("seat");
 
+    public final dev.bum.ticket_service.jpa.area.QArea area;
+
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
     public final dev.bum.ticket_service.jpa.event.QEvent event;
 
-    public final EnumPath<dev.bum.ticket_service.enums.SeatGrade> grade = createEnum("grade", dev.bum.ticket_service.enums.SeatGrade.class);
+    public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatGrade> grade = createEnum("grade", dev.bum.common.service.ticket.seat.enums.SeatGrade.class);
+
+    public final NumberPath<Double> layoutAngle = createNumber("layoutAngle", Double.class);
+
+    public final NumberPath<Double> positionX = createNumber("positionX", Double.class);
+
+    public final NumberPath<Double> positionY = createNumber("positionY", Double.class);
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
+    public final NumberPath<Double> rotation = createNumber("rotation", Double.class);
+
     public final NumberPath<Integer> seatCol = createNumber("seatCol", Integer.class);
+
+    public final NumberPath<Double> seatHeight = createNumber("seatHeight", Double.class);
 
     public final NumberPath<Long> seatId = createNumber("seatId", Long.class);
 
     public final NumberPath<Integer> seatRow = createNumber("seatRow", Integer.class);
 
-    public final EnumPath<dev.bum.ticket_service.enums.SeatStatus> status = createEnum("status", dev.bum.ticket_service.enums.SeatStatus.class);
+    public final NumberPath<Double> seatWidth = createNumber("seatWidth", Double.class);
+
+    public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatStatus> status = createEnum("status", dev.bum.common.service.ticket.seat.enums.SeatStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 
@@ -60,6 +74,7 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public QSeat(Class<? extends Seat> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
+        this.area = inits.isInitialized("area") ? new dev.bum.ticket_service.jpa.area.QArea(forProperty("area"), inits.get("area")) : null;
         this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.QEvent(forProperty("event")) : null;
     }
 

@@ -30,7 +30,7 @@ public class QReservation extends EntityPathBase<Reservation> {
 
     public final DateTimePath<java.time.LocalDateTime> reservedAt = createDateTime("reservedAt", java.time.LocalDateTime.class);
 
-    public final EnumPath<dev.bum.ticket_service.enums.ReservationStatus> status = createEnum("status", dev.bum.ticket_service.enums.ReservationStatus.class);
+    public final EnumPath<dev.bum.common.service.ticket.reservation.enums.ReservationStatus> status = createEnum("status", dev.bum.common.service.ticket.reservation.enums.ReservationStatus.class);
 
     public final ListPath<dev.bum.ticket_service.jpa.ticket.Ticket, dev.bum.ticket_service.jpa.ticket.QTicket> tickets = this.<dev.bum.ticket_service.jpa.ticket.Ticket, dev.bum.ticket_service.jpa.ticket.QTicket>createList("tickets", dev.bum.ticket_service.jpa.ticket.Ticket.class, dev.bum.ticket_service.jpa.ticket.QTicket.class, PathInits.DIRECT2);
 

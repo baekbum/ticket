@@ -3,14 +3,15 @@ package dev.bum.ticket_service.jpa.event;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.ticket_service.enums.EventStatus;
+import dev.bum.common.service.ticket.event.enums.EventStatus;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,8 +36,8 @@ public class EventRepositoryImpl implements EventRepository {
     private QEvent event;
 
     @Override
-    public Event insert(InsertEventInfo info) {
-        EventCond cond = EventCond.builder()
+    public Event insert(InsertEventRequest info) {
+        EventCondRequest cond = EventCondRequest.builder()
                 .artistName(info.getArtistName())
                 .title(info.getTitle())
                 .venue(info.getVenue())
@@ -51,7 +52,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public void isExist(EventCond cond) {
+    public void isExist(EventCondRequest cond) {
         event = QEvent.event;
 
         List<Event> content = queryFactory
@@ -78,7 +79,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public Page<Event> selectByCond(EventCond cond, Pageable pageable) {
+    public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
         event = QEvent.event;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -95,12 +96,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .select(event)
                 .from(event)
                 .where(
-                        eventIdEq(cond.getEventId()),
-                        artistNameLike(cond.getArtistName()),
-                        titleLike(cond.getTitle()),
-                        venueLike(cond.getVenue()),
-                        eventDateLike(cond.getEventDate()),
-                        statusEq(cond.getStatus())
+                        searchConditions(cond)
                 )
                 .offset(pageable.getOffset()) // 오프셋 적용
                 .limit(pageable.getPageSize()) // 페이지 크기 적용
@@ -111,12 +107,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .select(event.count())
                 .from(event)
                 .where(
-                        eventIdEq(cond.getEventId()),
-                        artistNameLike(cond.getArtistName()),
-                        titleLike(cond.getTitle()),
-                        venueLike(cond.getVenue()),
-                        eventDateLike(cond.getEventDate()),
-                        statusEq(cond.getStatus())
+                        searchConditions(cond)
                 )
                 .fetchOne();
 
@@ -126,7 +117,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public Event update(Long id, UpdateEventInfo info) {
+    public Event update(Long id, UpdateEventRequest info) {
         Event event = selectById(id);
         event.update(info);
 
@@ -158,7 +149,63 @@ public class EventRepositoryImpl implements EventRepository {
         return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
     }
 
+    private BooleanExpression venueAddressLike(String venueAddress) {
+        return StringUtils.hasText(venueAddress) ? event.venueAddress.like("%" + venueAddress + "%") : null;
+    }
+
+    private BooleanExpression posterUrlLike(String posterUrl) {
+        return StringUtils.hasText(posterUrl) ? event.posterUrl.like("%" + posterUrl + "%") : null;
+    }
+
     private BooleanExpression eventDateLike(LocalDate eventDate) {
+        return dateLike(eventDate, event.eventDateTime);
+    }
+
+    private BooleanExpression eventDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.eventDateTime);
+    }
+
+    private BooleanExpression saleStartDateLike(LocalDate saleStartDate) {
+        return dateLike(saleStartDate, event.saleStartAt);
+    }
+
+    private BooleanExpression saleStartDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleStartAt);
+    }
+
+    private BooleanExpression saleEndDateLike(LocalDate saleEndDate) {
+        return dateLike(saleEndDate, event.saleEndAt);
+    }
+
+    private BooleanExpression saleEndDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleEndAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateLike(LocalDate cancelDeadlineDate) {
+        return dateLike(cancelDeadlineDate, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression runningMinutesEq(Integer runningMinutes) {
+        return runningMinutes != null ? event.runningMinutes.eq(runningMinutes) : null;
+    }
+
+    private BooleanExpression ageLimitEq(Integer ageLimit) {
+        return ageLimit != null ? event.ageLimit.eq(ageLimit) : null;
+    }
+
+    private BooleanExpression totalSeatsEq(Integer totalSeats) {
+        return totalSeats != null ? event.totalSeats.eq(totalSeats) : null;
+    }
+
+    private BooleanExpression availableSeatsEq(Integer availableSeats) {
+        return availableSeats != null ? event.availableSeats.eq(availableSeats) : null;
+    }
+
+    private BooleanExpression dateLike(LocalDate eventDate, DateTimePath<LocalDateTime> target) {
         if (eventDate == null) {
             return null;
         }
@@ -170,10 +217,50 @@ public class EventRepositoryImpl implements EventRepository {
         LocalDateTime endOfDay = eventDate.atTime(LocalTime.MAX);
 
         // 3. DB의 eventDate가 이 범위 사이에 있는지 확인
-        return event.eventDateTime.between(startOfDay, endOfDay);
+        return target.between(startOfDay, endOfDay);
+    }
+
+    private BooleanExpression dateBetween(LocalDate from, LocalDate to, DateTimePath<LocalDateTime> target) {
+        if (from == null && to == null) {
+            return null;
+        }
+
+        if (from != null && to != null) {
+            return target.between(from.atStartOfDay(), to.atTime(LocalTime.MAX));
+        }
+
+        if (from != null) {
+            return target.goe(from.atStartOfDay());
+        }
+
+        return target.loe(to.atTime(LocalTime.MAX));
     }
 
     private BooleanExpression statusEq(EventStatus status) {
         return status != null ? event.status.eq(status) : null;
+    }
+
+    private BooleanExpression[] searchConditions(EventCondRequest cond) {
+        return new BooleanExpression[]{
+                eventIdEq(cond.getEventId()),
+                artistNameLike(cond.getArtistName()),
+                titleLike(cond.getTitle()),
+                venueLike(cond.getVenue()),
+                venueAddressLike(cond.getVenueAddress()),
+                posterUrlLike(cond.getPosterUrl()),
+                eventDateLike(cond.getEventDate()),
+                eventDateBetween(cond.getEventDateFrom(), cond.getEventDateTo()),
+                saleStartDateLike(cond.getSaleStartDate()),
+                saleStartDateBetween(cond.getSaleStartDateFrom(), cond.getSaleStartDateTo()),
+                saleEndDateLike(cond.getSaleEndDate()),
+                saleEndDateBetween(cond.getSaleEndDateFrom(), cond.getSaleEndDateTo()),
+                cancelDeadlineDateLike(cond.getCancelDeadlineDate()),
+                cancelDeadlineDateBetween(cond.getCancelDeadlineDateFrom(), cond.getCancelDeadlineDateTo()),
+                runningMinutesEq(cond.getRunningMinutes()),
+                ageLimitEq(cond.getAgeLimit()),
+                totalSeatsEq(cond.getTotalSeats()),
+                availableSeatsEq(cond.getAvailableSeats()),
+                statusEq(cond.getStatus())
+        };
     }
 }

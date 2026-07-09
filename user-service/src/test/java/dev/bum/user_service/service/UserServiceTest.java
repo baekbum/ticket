@@ -1,13 +1,14 @@
 package dev.bum.user_service.service;
 
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
-import dev.bum.user_service.dto.UserDto;
-import dev.bum.user_service.enums.UserRole;
+import dev.bum.common.service.user.dto.UserResponse;
+import dev.bum.common.service.user.enums.UserRole;
 import dev.bum.user_service.jpa.User;
 import dev.bum.user_service.jpa.UserRepository;
-import dev.bum.user_service.vo.InsertUserInfo;
-import dev.bum.user_service.vo.UpdateUserInfo;
-import dev.bum.user_service.vo.UserCond;
+import dev.bum.common.service.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.dto.UserCondRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +47,7 @@ class UserServiceTest {
     @Test
     @DisplayName("유저 등록")
     void user_insert() throws Exception {
-        InsertUserInfo userInfo = InsertUserInfo.builder()
+        InsertUserRequest userInfo = InsertUserRequest.builder()
                 .userId("IU")
                 .password("IU05160918")
                 .name("아이유")
@@ -76,7 +77,7 @@ class UserServiceTest {
         // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
         given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
-        UserDto response = userService.insert(userInfo);
+        UserResponse response = userService.insert(userInfo);
 
         assertThat(response.getUserId()).isEqualTo("IU");
         assertThat(response.getRole()).isEqualTo(UserRole.ROLE_USER);
@@ -127,7 +128,7 @@ class UserServiceTest {
                 .isBlacklisted(true)
                 .build();
 
-        UserCond cond = UserCond.builder().build();
+        UserCondRequest cond = UserCondRequest.builder().build();
 
         List<User> userList = List.of(user01, user02, blocked01, admin);
 
@@ -136,9 +137,9 @@ class UserServiceTest {
 
         given(userRepository.selectAll(any())).willReturn(result);
 
-        Page<UserDto> response = userService.selectAll(cond);
+        CustomPageResponse<UserResponse> response = userService.selectByCond(cond);
 
-        assertThat(response.getTotalElements()).isEqualTo(4);
+        assertThat(response.getPage().getTotalElements()).isEqualTo(4);
 
         verify(userRepository).selectAll(argThat(pageRequest ->
                 pageRequest.getPageNumber() == 0 && pageRequest.getPageSize() == 10
@@ -164,7 +165,7 @@ class UserServiceTest {
 
         given(userRepository.selectById(any())).willReturn(result);
 
-        UserDto response = userService.selectById(userId);
+        UserResponse response = userService.selectById(userId);
 
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getRole()).isEqualTo(response.getRole());
@@ -213,22 +214,21 @@ class UserServiceTest {
                 .isBlacklisted(true)
                 .build();
 
-        UserCond cond = UserCond.builder()
-                .userIdList(List.of("user01", "admin"))
+        UserCondRequest cond = UserCondRequest.builder()
+                .userId("user01")
                 .build();
 
-        List<User> userList = List.of(user01, admin);
+        List<User> userList = List.of(user01);
 
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
         Page<User> result = new PageImpl<>(userList, pageable, userList.size());
 
         given(userRepository.selectByCond(any(), any())).willReturn(result);
 
-        Page<UserDto> response = userService.selectByCond(cond);
+        CustomPageResponse<UserResponse> response = userService.selectByCond(cond);
 
-        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getPage().getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().get(0).getUserId()).isEqualTo("user01");
-        assertThat(response.getContent().get(1).getUserId()).isEqualTo("admin");
 
         verify(userRepository).selectByCond(cond, pageable);
     }
@@ -238,7 +238,7 @@ class UserServiceTest {
     void user_update() throws Exception {
         String userId = "user";
 
-        UpdateUserInfo info = UpdateUserInfo.builder()
+        UpdateUserRequest info = UpdateUserRequest.builder()
                 .isBlacklisted(true)
                 .build();
 
@@ -250,7 +250,7 @@ class UserServiceTest {
 
         given(userRepository.update(any(), any())).willReturn(result);
 
-        UserDto response = userService.update(userId, info);
+        UserResponse response = userService.update(userId, info);
 
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
@@ -277,7 +277,7 @@ class UserServiceTest {
         // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
         given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
-        UserDto response = userService.delete(userId);
+        UserResponse response = userService.delete(userId);
 
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getName()).isEqualTo(response.getName());

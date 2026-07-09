@@ -2,21 +2,24 @@ package dev.bum.ticket_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.ticket_service.dto.ReservationDto;
-import dev.bum.ticket_service.dto.TicketDto;
-import dev.bum.ticket_service.enums.*;
+import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.security.JwtAuthenticationFilter;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.ReservationService;
-import dev.bum.ticket_service.vo.reservation.CancelReservationInfo;
-import dev.bum.ticket_service.vo.reservation.InsertReservationInfo;
-import dev.bum.ticket_service.vo.seat.InsertSeatAreaConfig;
-import dev.bum.ticket_service.vo.seat.InsertSeatInfo;
-import dev.bum.ticket_service.vo.seat.SeatCond;
-import dev.bum.ticket_service.vo.seat.SeatInfo;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +43,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Import({JwtAuthenticationFilter.class, SecurityConfig.class})
+@Import({SecurityConfig.class})
 @WebMvcTest(ReservationController.class)
 class ReservationControllerTest {
     @Autowired
@@ -85,7 +88,7 @@ class ReservationControllerTest {
     @Test
     @DisplayName("토큰 값 오류")
     void token_invalid() throws Exception {
-        SeatCond cond = SeatCond.builder()
+        SeatCondRequest cond = SeatCondRequest.builder()
                 .page(0)
                 .size(10)
                 .build();
@@ -108,7 +111,7 @@ class ReservationControllerTest {
                 this.seatList.get(2)
         );
 
-        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
+        InsertReservationRequest info = getInsertReservationInfo(seats, userId);
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -128,7 +131,7 @@ class ReservationControllerTest {
                 this.seatList.get(3)
         );
 
-        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
+        InsertReservationRequest info = getInsertReservationInfo(seats, userId);
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -151,11 +154,11 @@ class ReservationControllerTest {
                 this.seatList.get(4)
         );
 
-        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
+        InsertReservationRequest info = getInsertReservationInfo(seats, userId);
 
         doThrow(new TicketLimitExceededException(
                 String.format("1인당 최대 예매 가능 수량은 %d매입니다.", maxLimit)
-        )).when(reservationService).insert(any(InsertReservationInfo.class));
+        )).when(reservationService).insert(any(InsertReservationRequest.class));
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -177,11 +180,11 @@ class ReservationControllerTest {
                 this.seatList.get(4)
         );
 
-        InsertReservationInfo info = getInsertReservationInfo(seats, userId);
+        InsertReservationRequest info = getInsertReservationInfo(seats, userId);
 
         doThrow(new TicketLimitExceededException(
                 String.format("이미 기존 예매 내역이 존재하여, 추가로 %d매를 초과하여 예매할 수 없습니다.", maxLimit)
-        )).when(reservationService).insert(any(InsertReservationInfo.class));
+        )).when(reservationService).insert(any(InsertReservationRequest.class));
 
         mockMvc.perform(post("/api/" + apiVersion + "/" + domain + "/insert")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -195,13 +198,13 @@ class ReservationControllerTest {
     void reservation_select_by_id() throws Exception {
         String userId = "IU";
 
-        TicketDto dto_1 = createTicketDto(1L, this.seatList.get(0));
-        TicketDto dto_2 = createTicketDto(2L, this.seatList.get(1));
+        TicketResponse dto_1 = createTicketDto(1L, this.seatList.get(0));
+        TicketResponse dto_2 = createTicketDto(2L, this.seatList.get(1));
 
-        List<TicketDto> dtos = List.of(dto_1, dto_2);
+        List<TicketResponse> dtos = List.of(dto_1, dto_2);
         long reservationId = 2L;
 
-        ReservationDto response = createReservationDto(reservationId, dtos, userId, this.event);
+        ReservationResponse response = createReservationResponse(reservationId, dtos, userId, this.event);
 
         given(reservationService.selectById(reservationId)).willReturn(response);
 
@@ -231,14 +234,14 @@ class ReservationControllerTest {
         List<Seat> anotherSeats = createSeat(anotherEvent, SeatGrade.A, "30구역", 2, 5, 88000);
 
         // 티켓 정보 생성
-        TicketDto dto_1 = createTicketDto(3L, anotherSeats.get(0));
-        TicketDto dto_2 = createTicketDto(4L, anotherSeats.get(1));
-        TicketDto dto_3 = createTicketDto(5L, anotherSeats.get(2));
+        TicketResponse dto_1 = createTicketDto(3L, anotherSeats.get(0));
+        TicketResponse dto_2 = createTicketDto(4L, anotherSeats.get(1));
+        TicketResponse dto_3 = createTicketDto(5L, anotherSeats.get(2));
 
-        List<TicketDto> dtos = List.of(dto_1, dto_2, dto_3);
+        List<TicketResponse> dtos = List.of(dto_1, dto_2, dto_3);
         long reservationId = 2L;
 
-        ReservationDto response = createReservationDto(reservationId, dtos, userId, anotherEvent);
+        ReservationResponse response = createReservationResponse(reservationId, dtos, userId, anotherEvent);
 
         given(reservationService.selectById(reservationId)).willReturn(response);
 
@@ -262,7 +265,7 @@ class ReservationControllerTest {
         String userId = "IU";
         long reservationId = 1L;
 
-        CancelReservationInfo info = CancelReservationInfo.builder()
+        CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId(userId)
                 .selectedTicketIdList(new ArrayList<>())
                 .eventId(this.event.getEventId())
@@ -279,7 +282,7 @@ class ReservationControllerTest {
         List<Seat> seats = createSeat(this.event, SeatGrade.VIP, "Floor-A", 2, 5, 168000);
 
         // 예매 내역 생성 with 티켓 + 좌석 (3,4,5 번 좌석)
-        List<TicketDto> ticketDtos = new ArrayList<>();
+        List<TicketResponse> ticketResponses = new ArrayList<>();
         List<Long> selectedSeatId = List.of(3L, 4L, 5L);
 
         List<Seat> selectedSeats = seats.stream()
@@ -290,14 +293,14 @@ class ReservationControllerTest {
 
         for (Seat seat : selectedSeats) {
             seat.lock(); // 좌석 상태 변경
-            ticketDtos.add(createTicketDto(initTicketCnt++, seat));
+            ticketResponses.add(createTicketDto(initTicketCnt++, seat));
         }
 
-        ReservationDto response = createReservationDto(reservationId, ticketDtos, userId, this.event);
+        ReservationResponse response = createReservationResponse(reservationId, ticketResponses, userId, this.event);
 
         // 2. 티켓 취소 + 내부적으로 좌석 취소까지 병행 (상태 변경)
-        for (TicketDto ticketDto : ticketDtos) {
-            ticketDto.setStatus(TicketStatus.CANCELLED.name());
+        for (TicketResponse ticketResponse : ticketResponses) {
+            ticketResponse.setStatus(TicketStatus.CANCELLED.name());
         }
 
         for (Seat seat : selectedSeats) {
@@ -325,7 +328,7 @@ class ReservationControllerTest {
         String userId = "IU";
         long reservationId = 1L;
 
-        CancelReservationInfo info = CancelReservationInfo.builder()
+        CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId(userId)
                 .selectedTicketIdList(new ArrayList<>())
                 .eventId(this.event.getEventId())
@@ -342,7 +345,7 @@ class ReservationControllerTest {
         List<Seat> seats = createSeat(this.event, SeatGrade.VIP, "Floor-A", 2, 5, 168000);
 
         // 예매 내역 생성 with 티켓 + 좌석 (3,4,5 번 좌석)
-        List<TicketDto> ticketDtos = new ArrayList<>();
+        List<TicketResponse> ticketResponses = new ArrayList<>();
         List<Long> selectedSeatId = List.of(3L, 4L, 5L);
 
         List<Seat> selectedSeats = seats.stream()
@@ -353,21 +356,21 @@ class ReservationControllerTest {
 
         for (Seat seat : selectedSeats) {
             seat.lock(); // 좌석 상태 변경
-            ticketDtos.add(createTicketDto(initTicketCnt++, seat));
+            ticketResponses.add(createTicketDto(initTicketCnt++, seat));
         }
 
-        ReservationDto response = createReservationDto(reservationId, ticketDtos, userId, this.event);
+        ReservationResponse response = createReservationResponse(reservationId, ticketResponses, userId, this.event);
 
         // 2. 티켓 취소 + 내부적으로 좌석 취소까지 병행 (상태 변경)
 
         // 취소하고 싶은 티켓 상태 변경
-        List<Long> ticketIdForCancel = List.of(ticketDtos.get(0).getTicketId(), ticketDtos.get(2).getTicketId());
-        ticketDtos.stream()
+        List<Long> ticketIdForCancel = List.of(ticketResponses.get(0).getTicketId(), ticketResponses.get(2).getTicketId());
+        ticketResponses.stream()
                 .filter(ticketDto -> ticketIdForCancel.contains(ticketDto.getTicketId()))
                 .forEach(ticketDto -> ticketDto.setStatus(TicketStatus.CANCELLED.name()));
 
         // 티켓에 1:1로 묶여있는 좌석 상태 변경
-        List<Long> seatIdForCancel = List.of(ticketDtos.get(0).getTicketId(), ticketDtos.get(2).getTicketId());
+        List<Long> seatIdForCancel = List.of(ticketResponses.get(0).getTicketId(), ticketResponses.get(2).getTicketId());
         selectedSeats.stream()
                 .filter(seat -> seatIdForCancel.contains(seat.getSeatId()))
                 .forEach(Seat::available);
@@ -412,7 +415,7 @@ class ReservationControllerTest {
                 .price(price)
                 .build();
 
-        InsertSeatInfo info = InsertSeatInfo.builder()
+        InsertSeatRequest info = InsertSeatRequest.builder()
                 .eventId(event.getEventId())
                 .insertSeatAreaConfigs(List.of(seatConfig))
                 .build();
@@ -443,8 +446,8 @@ class ReservationControllerTest {
         return newSeatList;
     }
 
-    private TicketDto createTicketDto(long ticketId, Seat seat) {
-        return TicketDto.builder()
+    private TicketResponse createTicketDto(long ticketId, Seat seat) {
+        return TicketResponse.builder()
                 .ticketId(ticketId)
                 .seatId(seat.getSeatId())
                 .zone(seat.getZone())
@@ -457,14 +460,14 @@ class ReservationControllerTest {
                 .build();
     }
 
-    private ReservationDto createReservationDto(long reservationId, List<TicketDto> ticketDtos, String userId, Event event) {
+    private ReservationResponse createReservationResponse(long reservationId, List<TicketResponse> ticketResponses, String userId, Event event) {
         DateTimeFormatter reservedFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일");
         String reservedDate = LocalDateTime.now().format(reservedFormatter);
 
         DateTimeFormatter eventFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시");
         String eventDateTime = LocalDateTime.now().format(eventFormatter);
 
-        return ReservationDto.builder()
+        return ReservationResponse.builder()
                 .reservationId(reservationId)
                 .userId(userId)
                 .eventId(event.getEventId())
@@ -472,13 +475,13 @@ class ReservationControllerTest {
                 .reservedDate(reservedDate)
                 .eventDateTime(eventDateTime)
                 .venue(event.getVenue())
-                .ticketCount(ticketDtos.size())
+                .ticketCount(ticketResponses.size())
                 .status(ReservationStatus.CONFIRMED.name())
-                .tickets(ticketDtos)
+                .tickets(ticketResponses)
                 .build();
     }
 
-    private InsertReservationInfo getInsertReservationInfo(List<Seat> seats, String userId) {
+    private InsertReservationRequest getInsertReservationInfo(List<Seat> seats, String userId) {
         List<SeatInfo> seatInfos = seats.stream()
                 .map(seat -> new SeatInfo(
                         seat.getSeatId(),
@@ -488,7 +491,7 @@ class ReservationControllerTest {
                 ))
                 .toList();
 
-        return InsertReservationInfo.builder()
+        return InsertReservationRequest.builder()
                 .userId(userId)
                 .eventId(this.event.getEventId())
                 .seats(seatInfos)

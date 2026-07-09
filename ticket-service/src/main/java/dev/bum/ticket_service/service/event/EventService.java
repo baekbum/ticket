@@ -1,11 +1,14 @@
 package dev.bum.ticket_service.service.event;
 
-import dev.bum.ticket_service.dto.EventDto;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.dto.DeleteEventBulkRequest;
+import dev.bum.common.service.ticket.event.dto.EventResponse;
+import dev.bum.ticket_service.service.file.FileStorageService;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
-import dev.bum.ticket_service.vo.event.EventCond;
-import dev.bum.ticket_service.vo.event.InsertEventInfo;
-import dev.bum.ticket_service.vo.event.UpdateEventInfo;
+import dev.bum.common.service.ticket.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,14 +28,21 @@ import java.util.List;
 public class EventService {
 
     private final EventRepository repository;
+    private final FileStorageService fileStorageService;
 
     /**
      * 공연 정보 등록
      * @param info
      * @return
      */
-    public EventDto insert(InsertEventInfo info) {
-        return new EventDto(repository.insert(info));
+    public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
+        log.info("[INSERT WITH POSTER] Info : {}", info.toString());
+
+        Event event = repository.insert(info);
+        String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
+        event.updatePosterUrl(posterUrl);
+
+        return event.toResponse();
     }
 
     /**
@@ -40,8 +51,10 @@ public class EventService {
      * @return
      */
     @Transactional(readOnly = true)
-    public EventDto selectById(Long id) {
-        return new EventDto(repository.selectById(id));
+    public EventResponse selectById(Long id) {
+        log.info("[SELECT] EventId : {}", id);
+
+        return repository.selectById(id).toResponse();
     }
 
     /**
@@ -50,12 +63,19 @@ public class EventService {
      * @return
      */
     @Transactional(readOnly = true)
-    public Page<EventDto> selectByCond(EventCond cond) {
+    public CustomPageResponse<EventResponse> selectByCond(EventCondRequest cond) {
+        log.info("[SELECT] Info : {}", cond.toString());
+
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<Event> events = repository.selectByCond(cond, pageRequest);
+        Page<EventResponse> eventPage = repository.selectByCond(cond, pageRequest).map(Event::toResponse);
 
-        return events.map(EventDto::new);
-
+        return CustomPageResponse.of(
+                eventPage.getContent(),
+                eventPage.getSize(),
+                eventPage.getNumber(),
+                eventPage.getTotalElements(),
+                eventPage.getTotalPages()
+        );
     }
 
     /**
@@ -64,8 +84,29 @@ public class EventService {
      * @param info
      * @return
      */
-    public EventDto update(Long id, UpdateEventInfo info) {
-        return new EventDto(repository.update(id, info));
+    public EventResponse update(Long id, UpdateEventRequest info) {
+        log.info("[UPDATE] Id : {}, Info : {}", id, info);
+        return repository.update(id, info).toResponse();
+    }
+
+    public EventResponse update(Long id, UpdateEventRequest info, MultipartFile posterImage) {
+        log.info("[UPDATE WITH POSTER] Id : {}, Info : {}", id, info);
+
+        Event event = repository.selectById(id);
+        String previousPosterUrl = event.getPosterUrl();
+        String newPosterUrl = fileStorageService.saveEventPoster(id, posterImage);
+
+        if (newPosterUrl != null) {
+            info.setPosterUrl(newPosterUrl);
+        }
+
+        event.update(info);
+
+        if (newPosterUrl != null) {
+            fileStorageService.deleteByPublicUrl(previousPosterUrl);
+        }
+
+        return event.toResponse();
     }
 
     /**
@@ -73,8 +114,19 @@ public class EventService {
      * @param id
      * @return
      */
-    public EventDto delete(Long id) {
-        return new EventDto(repository.delete(id));
+    public EventResponse delete(Long id) {
+        log.info("[DELETE] EventId : {}", id);
+
+        return repository.delete(id).toResponse();
+    }
+
+    public void deleteBulk(DeleteEventBulkRequest info) {
+        if (info.getEventIds() == null || info.getEventIds().isEmpty()) {
+            throw new IllegalArgumentException("삭제할 이벤트 정보가 없습니다.");
+        }
+
+        log.info("[BULK DELETE] EventIds : {}", info.getEventIds());
+        info.getEventIds().forEach(this::delete);
     }
 
     /**

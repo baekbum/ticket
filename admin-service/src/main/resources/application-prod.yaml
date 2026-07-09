@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: admin-service
+
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
+
+services:
+  auth-service:
+    url: "http://auth-service"
+  user-service:
+    url: "http://user-service"
+  ticket-service:
+    url: "http://ticket-service"
