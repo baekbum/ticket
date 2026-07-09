@@ -23,6 +23,9 @@ const seatLayoutCache = new Map();
 let currentLayoutEventId = null;
 let currentLayoutEventTitle = '';
 let currentLayoutAreas = [];
+let currentLayoutMode = 'AREA';
+let currentLayoutAreaId = null;
+let currentLayoutAreaName = '';
 const layoutDefaultViewBox = { x: 0, y: 0, width: 700, height: 520 };
 let layoutViewBox = { ...layoutDefaultViewBox };
 let layoutZoom = 1;
@@ -785,6 +788,9 @@ function renderOriginalSvgLayout(layout, areas) {
 const svg = clearLayoutSvg();
 if (!svg) return false;
 currentLayoutAreas = areas || [];
+currentLayoutMode = 'AREA';
+currentLayoutAreaId = null;
+currentLayoutAreaName = '';
 
 const parser = new DOMParser();
 const doc = parser.parseFromString(layout?.svgText || '', 'image/svg+xml');
@@ -832,6 +838,9 @@ const svg = clearLayoutSvg();
 if (!svg) return;
 setLayoutBaseViewBox(0, 0, 700, 520);
 bindLayoutWheelZoom();
+currentLayoutMode = 'SEAT';
+currentLayoutAreaId = areaId;
+currentLayoutAreaName = areaName || '';
 
 document.getElementById('layout-back-btn').style.display = 'inline-flex';
 document.getElementById('layout-preview-mode-label').textContent = `${areaName || '구역'} 좌석 배치도`;
@@ -890,6 +899,31 @@ const seats = await fetchSeatLayout(areaId);
 renderSeatLayout(areaId, areaName, seats);
 } catch {
 showToast('좌석 배치도 조회에 실패했습니다.', true);
+}
+};
+
+window.refreshLayoutPreview = async function () {
+if (!currentLayoutEventId) return;
+
+try {
+if (currentLayoutMode === 'SEAT' && currentLayoutAreaId) {
+seatLayoutCache.delete(currentLayoutAreaId);
+const seats = await fetchSeatLayout(currentLayoutAreaId);
+renderSeatLayout(currentLayoutAreaId, currentLayoutAreaName, seats);
+showToast('좌석 배치도를 최신 정보로 업데이트했습니다.');
+return;
+}
+
+areaLayoutCache.delete(currentLayoutEventId);
+eventLayoutCache.delete(currentLayoutEventId);
+const areas = await fetchAreaLayout(currentLayoutEventId);
+const layout = await fetchEventLayout(currentLayoutEventId);
+if (!layout || !renderOriginalSvgLayout(layout, areas)) {
+throw new Error('Event original SVG layout not found');
+}
+showToast('구역 배치도를 최신 정보로 업데이트했습니다.');
+} catch {
+showToast('배치도 새로고침에 실패했습니다.', true);
 }
 };
 
