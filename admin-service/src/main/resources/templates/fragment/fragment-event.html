@@ -401,8 +401,30 @@
       </div>
       <span id="layout-preview-count">0개</span>
     </div>
-    <div class="layout-preview-stage">
-      <svg id="layout-preview-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="layout-preview-body" id="layout-preview-body">
+      <div class="layout-preview-stage">
+        <svg id="layout-preview-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <aside class="layout-seat-detail-panel" id="layout-seat-detail-panel" aria-live="polite">
+        <div class="layout-seat-detail-header">
+          <div>
+            <span class="layout-seat-detail-kicker">선택 좌석</span>
+            <strong id="layout-seat-detail-title">-</strong>
+          </div>
+          <button type="button" class="btn-icon" onclick="closeLayoutSeatDetail()" title="닫기">
+            <i class="ti ti-x"></i>
+          </button>
+        </div>
+        <dl class="layout-seat-detail-list">
+          <div><dt>상태</dt><dd id="layout-seat-detail-status">-</dd></div>
+          <div><dt>구역</dt><dd id="layout-seat-detail-zone">-</dd></div>
+          <div><dt>등급</dt><dd id="layout-seat-detail-grade">-</dd></div>
+          <div><dt>행/열</dt><dd id="layout-seat-detail-row-col">-</dd></div>
+          <div><dt>가격</dt><dd id="layout-seat-detail-price">-</dd></div>
+          <div><dt>좌표</dt><dd id="layout-seat-detail-position">-</dd></div>
+          <div><dt>크기</dt><dd id="layout-seat-detail-size">-</dd></div>
+        </dl>
+      </aside>
     </div>
   </div>
 </div>

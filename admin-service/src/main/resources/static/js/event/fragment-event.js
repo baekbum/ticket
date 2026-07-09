@@ -20,12 +20,14 @@ let currentSortFilters  = {};
 const areaLayoutCache = new Map();
 const eventLayoutCache = new Map();
 const seatLayoutCache = new Map();
+const layoutSeatMap = new Map();
 let currentLayoutEventId = null;
 let currentLayoutEventTitle = '';
 let currentLayoutAreas = [];
 let currentLayoutMode = 'AREA';
 let currentLayoutAreaId = null;
 let currentLayoutAreaName = '';
+let currentLayoutSelectedSeatId = null;
 const layoutDefaultViewBox = { x: 0, y: 0, width: 700, height: 520 };
 let layoutViewBox = { ...layoutDefaultViewBox };
 let layoutZoom = 1;
@@ -564,6 +566,52 @@ if (svg) svg.innerHTML = '';
 return svg;
 }
 
+function formatSeatStatus(status) {
+if (status === 'AVAILABLE') return '판매 가능';
+if (status === 'LOCKED') return '결제 진행';
+if (status === 'RESERVED') return '판매 완료';
+return status || '-';
+}
+
+function closeLayoutSeatDetail() {
+const body = document.getElementById('layout-preview-body');
+const panel = document.getElementById('layout-seat-detail-panel');
+body?.classList.remove('has-seat-detail');
+panel?.classList.remove('is-open');
+document.querySelectorAll('.layout-seat.is-selected').forEach(el => el.classList.remove('is-selected'));
+currentLayoutSelectedSeatId = null;
+}
+window.closeLayoutSeatDetail = closeLayoutSeatDetail;
+
+function showLayoutSeatDetail(seat) {
+if (!seat) return;
+const body = document.getElementById('layout-preview-body');
+const panel = document.getElementById('layout-seat-detail-panel');
+body?.classList.add('has-seat-detail');
+panel?.classList.add('is-open');
+
+const seatName = seat.seatName || `${seat.seatRow || '-'}행 ${seat.seatCol || '-'}번`;
+const price = seat.price != null ? `${Number(seat.price).toLocaleString()}원` : '-';
+const x = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
+const y = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
+const width = seat.seatWidth ?? 14;
+const height = seat.seatHeight ?? 14;
+
+document.getElementById('layout-seat-detail-title').textContent = seatName;
+document.getElementById('layout-seat-detail-status').textContent = formatSeatStatus(seat.status);
+document.getElementById('layout-seat-detail-zone').textContent = seat.zone || currentLayoutAreaName || '-';
+document.getElementById('layout-seat-detail-grade').textContent = seat.grade || '-';
+document.getElementById('layout-seat-detail-row-col').textContent = `${seat.seatRow || '-'}행 / ${seat.seatCol || '-'}열`;
+document.getElementById('layout-seat-detail-price').textContent = price;
+document.getElementById('layout-seat-detail-position').textContent = `X ${Number(x).toFixed(1)}, Y ${Number(y).toFixed(1)}`;
+document.getElementById('layout-seat-detail-size').textContent = `${Number(width).toFixed(1)} x ${Number(height).toFixed(1)}`;
+
+document.querySelectorAll('.layout-seat.is-selected').forEach(el => el.classList.remove('is-selected'));
+const selected = document.querySelector(`.layout-seat[data-seat-id="${seat.seatId}"]`);
+selected?.classList.add('is-selected');
+currentLayoutSelectedSeatId = seat.seatId || null;
+}
+
 function applyLayoutViewBox() {
 const svg = document.getElementById('layout-preview-svg');
 if (!svg) return;
@@ -626,6 +674,7 @@ svg.addEventListener('pointerdown', function (event) {
 if (event.button !== 0) return;
 svg.setPointerCapture(event.pointerId);
 const areaEl = event.target.closest ? event.target.closest('.layout-area, .click-area, [data-area-name]') : null;
+const seatEl = event.target.closest ? event.target.closest('.layout-seat') : null;
 const areaName = areaEl ? areaEl.dataset.areaName : null;
 const areaDisplayName = areaEl ? (areaEl.dataset.areaDisplayName || areaName) : null;
 const matchedArea = areaEl && !areaEl.dataset.areaId ? findLayoutAreaByName(areaName) : null;
@@ -637,7 +686,8 @@ startClientY: event.clientY,
 startViewBoxX: layoutViewBox.x,
 startViewBoxY: layoutViewBox.y,
 areaId: areaEl ? (areaEl.dataset.areaId || matchedArea?.areaId || null) : null,
-areaName: areaEl ? (areaDisplayName || matchedArea?.areaName || null) : null
+areaName: areaEl ? (areaDisplayName || matchedArea?.areaName || null) : null,
+seatId: seatEl ? seatEl.dataset.seatId : null
 };
 svg.classList.add('is-dragging');
 });
@@ -663,11 +713,15 @@ function endLayoutDrag(event) {
 if (!layoutDragState || layoutDragState.pointerId !== event.pointerId) return;
 const clickedAreaId = layoutDragState.areaId;
 const clickedAreaName = layoutDragState.areaName;
+const clickedSeatId = layoutDragState.seatId;
+const clickedSeat = clickedSeatId ? layoutSeatMap.get(String(clickedSeatId)) : null;
 const shouldOpenArea = !layoutDragged && clickedAreaId;
+const shouldOpenSeat = !layoutDragged && clickedSeat;
 if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
 layoutDragState = null;
 svg.classList.remove('is-dragging');
-if (shouldOpenArea) openSeatLayoutPreview(clickedAreaId, clickedAreaName);
+if (shouldOpenSeat) showLayoutSeatDetail(clickedSeat);
+else if (shouldOpenArea) openSeatLayoutPreview(clickedAreaId, clickedAreaName);
 setTimeout(() => {
 layoutDragged = false;
 }, 80);
@@ -787,10 +841,12 @@ return { x: 0, y: 0, width: 700, height: 520 };
 function renderOriginalSvgLayout(layout, areas) {
 const svg = clearLayoutSvg();
 if (!svg) return false;
+layoutSeatMap.clear();
 currentLayoutAreas = areas || [];
 currentLayoutMode = 'AREA';
 currentLayoutAreaId = null;
 currentLayoutAreaName = '';
+closeLayoutSeatDetail();
 
 const parser = new DOMParser();
 const doc = parser.parseFromString(layout?.svgText || '', 'image/svg+xml');
@@ -836,11 +892,13 @@ return 'layout-seat-available';
 function renderSeatLayout(areaId, areaName, seats) {
 const svg = clearLayoutSvg();
 if (!svg) return;
+layoutSeatMap.clear();
 setLayoutBaseViewBox(0, 0, 700, 520);
 bindLayoutWheelZoom();
 currentLayoutMode = 'SEAT';
 currentLayoutAreaId = areaId;
 currentLayoutAreaName = areaName || '';
+closeLayoutSeatDetail();
 
 document.getElementById('layout-back-btn').style.display = 'inline-flex';
 document.getElementById('layout-preview-mode-label').textContent = `${areaName || '구역'} 좌석 배치도`;
@@ -854,6 +912,8 @@ return;
 }
 
 seats.forEach(seat => {
+const seatKey = String(seat.seatId ?? `${seat.seatRow || '-'}-${seat.seatCol || '-'}`);
+layoutSeatMap.set(seatKey, seat);
 const x = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
 const y = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
 const width = seat.seatWidth ?? 14;
@@ -864,12 +924,17 @@ const cy = y + height / 2;
 const rect = svgEl('rect', {
 x, y, width, height, rx: 2,
 class: `layout-seat ${seatStatusClass(seat.status)}`,
-transform: `rotate(${rotation} ${cx} ${cy})`
+transform: `rotate(${rotation} ${cx} ${cy})`,
+'data-seat-id': seatKey
 });
 const title = svgEl('title');
 const seatName = seat.seatName || `${seat.seatRow || '-'}행 ${seat.seatCol || '-'}번`;
 title.textContent = `${seatName} / ${seat.status || '-'} / ${seat.price != null ? Number(seat.price).toLocaleString() + '원' : '-'}`;
 rect.appendChild(title);
+rect.addEventListener('click', function (event) {
+event.stopPropagation();
+showLayoutSeatDetail(seat);
+});
 svg.appendChild(rect);
 });
 }
@@ -941,6 +1006,7 @@ showToast('구역 배치도 조회에 실패했습니다.', true);
 };
 
 window.closeLayoutPreviewModal = function () {
+closeLayoutSeatDetail();
 document.getElementById('layout-preview-modal').style.display = 'none';
 };
 
