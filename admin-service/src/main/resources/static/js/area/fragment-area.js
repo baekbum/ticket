@@ -46,6 +46,14 @@ function syncContextChip() {
   }
 }
 
+window.getCurrentAreaEventId = function () {
+  const filterEventId = currentAreaFilters.eventId;
+  if (filterEventId) return filterEventId;
+
+  const inputEventId = inputValue('area-search-event-id');
+  return inputEventId ? parseInt(inputEventId, 10) : null;
+};
+
 function updateAreaBulkBar() {
   const bar = document.getElementById('area-bulk-action-bar');
   const count = document.getElementById('area-selected-count');

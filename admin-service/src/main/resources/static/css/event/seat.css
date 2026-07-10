@@ -25,6 +25,22 @@
 .seat-meta-divider { margin: 0 6px; color: var(--text-muted); }
 .seat-modal-event-banner .ev-warmup-btn { margin-left: auto; flex-shrink: 0; }
 
+.btn-cache-test {
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  background: #eef4ff;
+  color: #2c69d4;
+  border: 1px solid rgba(44, 105, 212, 0.18);
+  box-shadow: none;
+  vertical-align: middle;
+}
+.btn-cache-test:hover {
+  background: #e1ebff;
+  color: #1f58b6;
+  box-shadow: none;
+}
+
 .seat-modal-toolbar {
   display: flex;
   justify-content: space-between;

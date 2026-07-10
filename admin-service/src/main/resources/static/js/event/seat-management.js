@@ -3,9 +3,20 @@
   ══════════════════════════════════════════════════════════ */
   (function () {
     const API_VER  = 'v1';
-    const SEAT_BASE = window.location.port === '8999'
-      ? `http://localhost:8999/admin`
-      : '';
+    function adminBase() {
+      if (window.location.port === '8999' || window.location.port === '8080') {
+        return 'http://localhost:8999/admin';
+      }
+
+      const adminIndex = window.location.pathname.indexOf('/admin');
+      if (adminIndex >= 0) {
+        return `${window.location.origin}/admin`;
+      }
+
+      return '';
+    }
+
+    const SEAT_BASE = adminBase();
     const SEAT_API  = `${SEAT_BASE}/api/${API_VER}/seat`;
     const authHeader = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` });
 
@@ -117,6 +128,7 @@
             <td style="text-align:center;"><span class="${gradeCls}">${seat.grade}</span></td>
             <td style="text-align:center;">${statusBadge}</td>
             <td style="text-align:center;">
+              <button class="btn btn-sm btn-cache-test" title="현재 사용자로 Redis 테스트 선점" onclick="event.stopPropagation(); lockSeatCacheForCurrentUser(${seat.seatId})"><i class="ti ti-user-bolt"></i></button>
               <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openSeatEditModal(${seat.seatId}, '${seat.zone}', '${seat.grade}', ${seat.seatRow}, ${seat.seatCol}, ${seat.price}, '${seat.status}')">수정</button>
               <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); openSeatSingleDeleteConfirm(${seat.seatId})">삭제</button>
             </td>
@@ -178,32 +190,145 @@
       loadSeatMgmtList(t - 1);
     };
 
-    /* ── Redis 웜업 (좌석 모달에서) ── */
-    window.openCacheWarmupFromSeatModal = function () {
+    /* ── Redis 좌석 캐시 ── */
+    let cacheTarget = null;
+
+    function _cacheEventIdFromAreaPage() {
+      if (typeof window.getCurrentAreaEventId === 'function') {
+        return window.getCurrentAreaEventId();
+      }
+      return smEventId || null;
+    }
+
+    function _setWarmupModal(scope, id, label) {
+      cacheTarget = { action: 'WARM_UP', scope, id };
+      const titleEl = document.getElementById('cache-warmup-title');
+      const subtitleEl = document.getElementById('cache-warmup-subtitle');
+      if (titleEl) titleEl.textContent = `${label} 좌석 캐시 적재`;
+      if (subtitleEl) subtitleEl.textContent = `${label} 좌석 데이터를 Redis에 적재합니다.`;
+      const defaultMode = document.querySelector('input[name="cache-warmup-mode"][value="MISSING_ONLY"]');
+      if (defaultMode) defaultMode.checked = true;
       document.getElementById('cache-warmup-modal').style.display = 'flex';
-      // 웜업 대상 ID를 seat 모달의 eventId 기준으로 재설정
-      window._seatMgmtWarmupTarget = smEventId;
+    }
+
+    function _setDeleteModal(scope, id, label) {
+      cacheTarget = { action: 'DELETE', scope, id };
+      const titleEl = document.getElementById('cache-delete-title');
+      const subtitleEl = document.getElementById('cache-delete-subtitle');
+      const modalEl = document.getElementById('cache-delete-modal');
+      if (titleEl) titleEl.textContent = `${label} 좌석 캐시 삭제`;
+      if (subtitleEl) subtitleEl.textContent = `${label} 좌석 캐시와 임시 락 정보를 Redis에서 삭제합니다.`;
+      if (modalEl) modalEl.style.display = 'flex';
+    }
+
+    window.openEventSeatCacheWarmupModal = function () {
+      const eventId = _cacheEventIdFromAreaPage();
+      if (!eventId) { showToast('이벤트 ID로 먼저 조회해주세요.', true); return; }
+      _setWarmupModal('EVENT', eventId, `이벤트 ${eventId}번 전체`);
     };
-    // 기존 submitCacheWarmup 오버라이드: seat modal 컨텍스트에서 호출 시 smEventId 사용
-    window.submitCacheWarmup = async function () {
-      const targetId = window._seatMgmtWarmupTarget || document.getElementById('m-target-id')?.value;
-      const API_VER2 = 'v1';
-      const base2 = window.location.port === '8999' ? `http://localhost:8999/admin` : '';
-      try {
-        const res = await Fetch(`${base2}/api/${API_VER2}/seat/warm-up/${targetId}`, {
-          method: 'POST', headers: authHeader()
-        });
-        if (res.ok) {
-          showToast('Redis 캐시 웜업이 완료되었습니다! ⚡');
-          document.getElementById('cache-warmup-modal').style.display = 'none';
-        } else { showToast('웜업 실패: 처리 중 오류가 발생했습니다.', true); }
-      } catch { showToast('서버 통신 장애', true); }
+
+    window.openEventSeatCacheDeleteModal = function () {
+      const eventId = _cacheEventIdFromAreaPage();
+      if (!eventId) { showToast('이벤트 ID로 먼저 조회해주세요.', true); return; }
+      _setDeleteModal('EVENT', eventId, `이벤트 ${eventId}번 전체`);
     };
-    window.closeCacheWarmupConfirmModal = function () {
-      document.getElementById('cache-warmup-modal').style.display = 'none';
-      window._seatMgmtWarmupTarget = null;
+
+    window.openAreaSeatCacheWarmupModal = function () {
+      if (!smAreaId) { showToast('구역 정보가 없습니다.', true); return; }
+      _setWarmupModal('AREA', smAreaId, `구역 ${smAreaName || smAreaId}`);
+    };
+
+    window.openAreaSeatCacheDeleteModal = function () {
+      if (!smAreaId) { showToast('구역 정보가 없습니다.', true); return; }
+      _setDeleteModal('AREA', smAreaId, `구역 ${smAreaName || smAreaId}`);
+    };
+
+    window.openCacheWarmupFromSeatModal = function () {
+      if (smAreaId) {
+        window.openAreaSeatCacheWarmupModal();
+        return;
+      }
+      if (!smEventId) { showToast('이벤트 정보가 없습니다.', true); return; }
+      _setWarmupModal('EVENT', smEventId, `이벤트 ${smEventId}번 전체`);
     };
     window.openCacheWarmupConfirmModal = window.openCacheWarmupFromSeatModal;
+
+    window.submitCacheWarmup = async function () {
+      if (!cacheTarget || cacheTarget.action !== 'WARM_UP') return;
+
+      const mode = document.querySelector('input[name="cache-warmup-mode"]:checked')?.value || 'MISSING_ONLY';
+      const targetPath = cacheTarget.scope === 'EVENT'
+        ? `event/${cacheTarget.id}`
+        : `area/${cacheTarget.id}`;
+
+      try {
+        const res = await Fetch(`${SEAT_API}/cache/warm-up/${targetPath}?mode=${encodeURIComponent(mode)}`, {
+          method: 'POST',
+          headers: authHeader()
+        });
+        if (res.ok) {
+          const message = await res.text();
+          showToast(message || '좌석 캐시 적재가 완료되었습니다.');
+          closeCacheWarmupConfirmModal();
+        } else {
+          showToast('좌석 캐시 적재에 실패했습니다.', true);
+        }
+      } catch {
+        showToast('서버 통신 장애', true);
+      }
+    };
+
+    window.submitCacheDelete = async function () {
+      if (!cacheTarget || cacheTarget.action !== 'DELETE') return;
+
+      const targetPath = cacheTarget.scope === 'EVENT'
+        ? `event/${cacheTarget.id}`
+        : `area/${cacheTarget.id}`;
+
+      try {
+        const res = await Fetch(`${SEAT_API}/cache/${targetPath}`, {
+          method: 'DELETE',
+          headers: authHeader()
+        });
+        if (res.ok) {
+          const message = await res.text();
+          showToast(message || '좌석 캐시가 삭제되었습니다.');
+          closeCacheDeleteConfirmModal();
+        } else {
+          showToast('좌석 캐시 삭제에 실패했습니다.', true);
+        }
+      } catch {
+        showToast('서버 통신 장애', true);
+      }
+    };
+
+    window.closeCacheWarmupConfirmModal = function () {
+      document.getElementById('cache-warmup-modal').style.display = 'none';
+      cacheTarget = null;
+    };
+
+    window.closeCacheDeleteConfirmModal = function () {
+      const modalEl = document.getElementById('cache-delete-modal');
+      if (modalEl) modalEl.style.display = 'none';
+      cacheTarget = null;
+    };
+
+    window.lockSeatCacheForCurrentUser = async function (seatId) {
+      try {
+        const res = await Fetch(`${SEAT_API}/cache/seat/${seatId}/test-lock`, {
+          method: 'POST',
+          headers: authHeader()
+        });
+        if (res.ok) {
+          const message = await res.text();
+          showToast(message || '현재 사용자로 좌석 Redis 테스트 선점이 완료되었습니다.');
+        } else {
+          showToast('좌석 Redis 테스트 선점에 실패했습니다.', true);
+        }
+      } catch {
+        showToast('서버 통신 장애', true);
+      }
+    };
 
     /* ── 단건 수정 모달 ── */
     window.openSeatEditModal = function (seatId, zone, grade, row, col, price, status) {

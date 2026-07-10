@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
@@ -158,46 +159,105 @@ public class SeatService {
         return sort;
     }
 
-    /**
-     * DB의 좌석 데이터를 긁어와 Redis 캐시에 적재
-     * @param eventId
-     */
-    @Transactional(readOnly = true)
-    public void warmUpSeatsToCache(Long eventId) {
-        log.info("[REDIS-WARM-UP] EventId : {}", eventId);
+    public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
+        log.info("[REDIS-WARM-UP] EventId : {}, Mode : {}", eventId, mode);
         List<Seat> seats = repository.selectByEventId(eventId);
+        int updated = warmUpSeatCache(seats, mode);
+        return String.format("이벤트 %d번 좌석 캐시 적재 완료 - 대상 %d석, 반영 %d석", eventId, seats.size(), updated);
+    }
 
-        Map<String, String> seatCacheMap = new HashMap<>();
+    public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
+        log.info("[REDIS-WARM-UP] AreaId : {}, Mode : {}", areaId, mode);
+        List<Seat> seats = repository.selectByAreaId(areaId);
+        int updated = warmUpSeatCache(seats, mode);
+        return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 %d석, 반영 %d석", areaId, seats.size(), updated);
+    }
+
+    public String deleteEventSeatsFromCache(Long eventId) {
+        log.info("[REDIS-DELETE] EventId : {}", eventId);
+        List<Seat> seats = repository.selectByEventId(eventId);
+        long deleted = deleteSeatCache(seats);
+        return String.format("이벤트 %d번 좌석 캐시 삭제 완료 - 대상 %d석, 삭제 key %d개", eventId, seats.size(), deleted);
+    }
+
+    public String deleteAreaSeatsFromCache(Long areaId) {
+        log.info("[REDIS-DELETE] AreaId : {}", areaId);
+        List<Seat> seats = repository.selectByAreaId(areaId);
+        long deleted = deleteSeatCache(seats);
+        return String.format("구역 %d번 좌석 캐시 삭제 완료 - 대상 %d석, 삭제 key %d개", areaId, seats.size(), deleted);
+    }
+
+    public String lockSeatCacheForUser(Long seatId, String userId) {
+        log.info("[REDIS-TEST-LOCK] SeatId : {}, UserId : {}", seatId, userId);
+        Seat seat = repository.selectById(seatId);
+        String redisKey = buildSeatRedisKey(seat);
+        String lockKey = redisKey + ":lock";
+        String value = "LOCKED:" + userId;
+
+        seatRedisTemplate.opsForValue().set(lockKey, value, Duration.ofMinutes(10));
+        seatRedisTemplate.opsForValue().set(redisKey, value, Duration.ofDays(30));
+
+        return String.format("좌석 %d번을 %s 사용자로 Redis 테스트 선점 처리했습니다.", seatId, userId);
+    }
+
+    private int warmUpSeatCache(List<Seat> seats, SeatCacheWarmUpMode mode) {
+        if (seats.isEmpty()) {
+            return 0;
+        }
+
+        if (mode == SeatCacheWarmUpMode.OVERWRITE) {
+            Map<String, String> seatCacheMap = new HashMap<>();
+            for (Seat seat : seats) {
+                seatCacheMap.put(buildSeatRedisKey(seat), "AVAILABLE");
+            }
+            seatRedisTemplate.opsForValue().multiSet(seatCacheMap);
+            expireSeatKeys(new ArrayList<>(seatCacheMap.keySet()));
+            return seatCacheMap.size();
+        }
+
+        int inserted = 0;
         for (Seat seat : seats) {
-            String sanitizedZone = seat.getZone().replace(" ", "_");
-            String redisKey = String.format("event:%d:seat:%s:%d:%d",
-                    eventId, sanitizedZone, seat.getSeatRow(), seat.getSeatCol());
-            seatCacheMap.put(redisKey, "AVAILABLE");
+            Boolean success = seatRedisTemplate.opsForValue()
+                    .setIfAbsent(buildSeatRedisKey(seat), "AVAILABLE", Duration.ofDays(7));
+            if (Boolean.TRUE.equals(success)) {
+                inserted++;
+            }
+        }
+        return inserted;
+    }
+
+    private long deleteSeatCache(List<Seat> seats) {
+        if (seats.isEmpty()) {
+            return 0;
         }
 
-        // 🌟 multiSet 대신 multiSetIfAbsent 사용!
-        // 맵 안의 키들이 Redis에 없을 때만 전체가 '원자적'으로 한 번에 들어갑니다.
-        Boolean success = seatRedisTemplate.opsForValue().multiSetIfAbsent(seatCacheMap);
+        List<String> keys = new ArrayList<>(seats.size() * 2);
+        for (Seat seat : seats) {
+            String redisKey = buildSeatRedisKey(seat);
+            keys.add(redisKey);
+            keys.add(redisKey + ":lock");
+        }
 
-        if (Boolean.TRUE.equals(success)) {
-            // 성공 시에만 TTL 만료시간 설정 가동
-            // 🌟 RedisCallback 대신 SessionCallback을 사용하여 제네릭 캡처 에러 원천 차단!
-            seatRedisTemplate.executePipelined(new SessionCallback<Void>() {
-                @Override
-                public <K, V> Void execute(RedisOperations<K, V> operations) throws DataAccessException {
-                    // 주입된 operations 객체는 타입 추론이 깔끔하게 맞아떨어집니다.
-                    for (String key : seatCacheMap.keySet()) {
-                        // 고레벨의 expire 메서드를 직접 호출하므로 복잡한 바이트 변환이 필요 없습니다.
-                        operations.expire((K) key, Duration.ofDays(7));
-                    }
-                    return null;
+        Long deleted = seatRedisTemplate.delete(keys);
+        return deleted != null ? deleted : 0;
+    }
+
+    private void expireSeatKeys(List<String> keys) {
+        seatRedisTemplate.executePipelined(new SessionCallback<Void>() {
+            @Override
+            public <K, V> Void execute(RedisOperations<K, V> operations) throws DataAccessException {
+                for (String key : keys) {
+                    operations.expire((K) key, Duration.ofDays(7));
                 }
-            });
+                return null;
+            }
+        });
+    }
 
-            log.info("[REDIS에 좌석 정보 최초 업데이트 성공]");
-        } else {
-            log.warn("[REDIS 웜업 무시] 이미 예매가 진행 중이거나 기존 좌석 캐시 데이터가 존재하므로 데이터를 보호합니다.");
-        }
+    private String buildSeatRedisKey(Seat seat) {
+        String sanitizedZone = seat.getZone().replace(" ", "_");
+        Long eventId = seat.getEvent().getEventId();
+        return String.format("event:%d:seat:%s:%d:%d", eventId, sanitizedZone, seat.getSeatRow(), seat.getSeatCol());
     }
 
     /**

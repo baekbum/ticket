@@ -2,11 +2,13 @@ package dev.bum.ticket_service.controller;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.ticket_service.service.seat.SeatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -63,13 +65,38 @@ public class SeatController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 특정 공연의 좌석 데이터를 Redis에 예열(Warm-up)하는 관리자 API
-     */
-    @PostMapping("/warm-up/{eventId}")
-    public ResponseEntity<String> warmUpSeats(@PathVariable("eventId") Long eventId) {
-        seatService.warmUpSeatsToCache(eventId);
-        return ResponseEntity.ok("공연 ID " + eventId + "번의 좌석 데이터 예열이 완료되었습니다.");
+    @PostMapping("/cache/warm-up/event/{eventId}")
+    public ResponseEntity<String> warmUpEventSeats(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
+    ) {
+        return ResponseEntity.ok(seatService.warmUpEventSeatsToCache(eventId, mode));
+    }
+
+    @PostMapping("/cache/warm-up/area/{areaId}")
+    public ResponseEntity<String> warmUpAreaSeats(
+            @PathVariable("areaId") Long areaId,
+            @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
+    ) {
+        return ResponseEntity.ok(seatService.warmUpAreaSeatsToCache(areaId, mode));
+    }
+
+    @DeleteMapping("/cache/event/{eventId}")
+    public ResponseEntity<String> deleteEventSeatCache(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatService.deleteEventSeatsFromCache(eventId));
+    }
+
+    @DeleteMapping("/cache/area/{areaId}")
+    public ResponseEntity<String> deleteAreaSeatCache(@PathVariable("areaId") Long areaId) {
+        return ResponseEntity.ok(seatService.deleteAreaSeatsFromCache(areaId));
+    }
+
+    @PostMapping("/cache/seat/{seatId}/test-lock")
+    public ResponseEntity<String> lockSeatCacheForCurrentUser(
+            @PathVariable("seatId") Long seatId,
+            @AuthenticationPrincipal String currentUserId
+    ) {
+        return ResponseEntity.ok(seatService.lockSeatCacheForUser(seatId, currentUserId));
     }
 
     /**

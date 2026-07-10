@@ -3,6 +3,7 @@ package dev.bum.admin_service.controller.seat;
 import dev.bum.admin_service.feign.seat.SeatServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,9 +64,35 @@ public class AdminSeatController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/warm-up/{eventId}")
-    public ResponseEntity<String> warmUpSeats(@PathVariable("eventId") Long eventId) {
-        return ResponseEntity.ok(seatServiceClient.warmUpSeats(eventId));
+    @PostMapping("/cache/warm-up/event/{eventId}")
+    public ResponseEntity<String> warmUpEventSeats(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
+    ) {
+        return ResponseEntity.ok(seatServiceClient.warmUpEventSeats(eventId, mode));
+    }
+
+    @PostMapping("/cache/warm-up/area/{areaId}")
+    public ResponseEntity<String> warmUpAreaSeats(
+            @PathVariable("areaId") Long areaId,
+            @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
+    ) {
+        return ResponseEntity.ok(seatServiceClient.warmUpAreaSeats(areaId, mode));
+    }
+
+    @DeleteMapping("/cache/event/{eventId}")
+    public ResponseEntity<String> deleteEventSeatCache(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatServiceClient.deleteEventSeatCache(eventId));
+    }
+
+    @DeleteMapping("/cache/area/{areaId}")
+    public ResponseEntity<String> deleteAreaSeatCache(@PathVariable("areaId") Long areaId) {
+        return ResponseEntity.ok(seatServiceClient.deleteAreaSeatCache(areaId));
+    }
+
+    @PostMapping("/cache/seat/{seatId}/test-lock")
+    public ResponseEntity<String> lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId) {
+        return ResponseEntity.ok(seatServiceClient.lockSeatCacheForCurrentUser(seatId));
     }
 
     @PostMapping("/occupy")
