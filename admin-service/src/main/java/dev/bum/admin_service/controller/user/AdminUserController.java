@@ -4,6 +4,9 @@ import dev.bum.admin_service.feign.user.UserServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.address.dto.UserAddressCondRequest;
+import dev.bum.common.service.user.address.dto.UserAddressResponse;
+import dev.bum.common.service.user.address.dto.UpdateUserAddressRequest;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
@@ -124,5 +127,26 @@ public class AdminUserController {
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteUserBulkRequest info) {
         userServiceClient.deleteBulk(info);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/address/select/user/{userId}")
+    public ResponseEntity<CustomPageResponse<UserAddressResponse>> selectAddressByUserId(
+            @PathVariable("userId") String userId,
+            @RequestBody UserAddressCondRequest cond
+    ) {
+        return ResponseEntity.ok(userServiceClient.selectAddressByUserId(userId, cond));
+    }
+
+    @PutMapping("/address/update/id/{addressId}")
+    public ResponseEntity<UserAddressResponse> updateAddress(
+            @PathVariable("addressId") Long addressId,
+            @Valid @RequestBody UpdateUserAddressRequest info
+    ) {
+        return ResponseEntity.ok(userServiceClient.updateAddress(addressId, info));
+    }
+
+    @DeleteMapping("/address/delete/id/{addressId}")
+    public ResponseEntity<UserAddressResponse> deleteAddress(@PathVariable("addressId") Long addressId) {
+        return ResponseEntity.ok(userServiceClient.deleteAddress(addressId));
     }
 }

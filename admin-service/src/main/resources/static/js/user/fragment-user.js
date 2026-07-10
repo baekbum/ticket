@@ -5,6 +5,8 @@
     const headers  = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
     let currentUserList     = [];
+    let currentAddressUser  = null;
+    let currentAddressList  = [];
     let currentSearchFilters = { userId: null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null };
     let serverTotalPages    = 1;
     let currentSortFilters  = {};
@@ -123,6 +125,7 @@
         tbody.innerHTML = '';
 
         currentUserList.forEach((u, index) => {
+          const userIdAttr = escapeHtml(u.userId ?? '');
           const roleHtml   = u.role === 'ROLE_ADMIN'
             ? `<span class="badge badge-admin">ADMIN</span>`
             : `<span class="badge badge-user">USER</span>`;
@@ -145,9 +148,10 @@
             <td style="color:var(--text-secondary);">${u.email}</td>
             <td>${roleHtml}</td>
             <td>${statusHtml}</td>
-            <td class="actions">
-              <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${u.id}')">수정</button>
-              <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${u.id}')">삭제</button>
+            <td class="actions" onclick="event.stopPropagation()">
+              <button type="button" class="btn btn-sm btn-address" data-user-id="${userIdAttr}" onclick="event.stopPropagation(); window.openUserAddressModal(this.dataset.userId)"><i class="ti ti-map-pin"></i>주소</button>
+              <button type="button" class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${u.id}')">수정</button>
+              <button type="button" class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${u.id}')">삭제</button>
             </td>
           `;
 
@@ -313,6 +317,199 @@
     }
 
     window.closeModal = function () { document.getElementById('user-modal').style.display = 'none'; };
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getAddressPayload(address, overrides = {}) {
+      return {
+        alias: overrides.alias ?? address.alias ?? null,
+        recipientName: overrides.recipientName ?? address.recipientName ?? null,
+        recipientPhone: overrides.recipientPhone ?? address.recipientPhone ?? null,
+        zipCode: overrides.zipCode ?? address.zipCode ?? null,
+        address: overrides.address ?? address.address ?? null,
+        detailAddress: overrides.detailAddress ?? address.detailAddress ?? null,
+        defaultAddress: overrides.defaultAddress ?? address.defaultAddress ?? false,
+        status: overrides.status ?? address.status ?? 'ACTIVE'
+      };
+    }
+
+    window.openUserAddressModal = async function (userId) {
+      currentAddressUser = currentUserList.find(u => u.userId === userId) || { userId };
+
+      document.getElementById('address-user-id-label').textContent = currentAddressUser.userId || '-';
+      document.getElementById('address-user-name-label').textContent = currentAddressUser.name || '-';
+      document.getElementById('address-user-email-label').textContent = currentAddressUser.email || '-';
+      document.getElementById('address-card-list').innerHTML = '<div class="address-empty">배송지 정보를 불러오는 중입니다.</div>';
+      document.getElementById('user-address-modal').style.display = 'flex';
+
+      await loadUserAddressCards(userId);
+    };
+
+    window.closeUserAddressModal = function () {
+      document.getElementById('user-address-modal').style.display = 'none';
+      currentAddressUser = null;
+      currentAddressList = [];
+    };
+
+    async function loadUserAddressCards(userId) {
+      const cond = { page: 0, size: 20, sort: ['addressId-asc'] };
+
+      try {
+        const res = await Fetch(`${USER_URL}/address/select/user/${encodeURIComponent(userId)}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(cond)
+        });
+
+        if (!res.ok) {
+          document.getElementById('address-card-list').innerHTML = '<div class="address-empty error">배송지 조회에 실패했습니다.</div>';
+          return;
+        }
+
+        const pagedModel = await res.json();
+        currentAddressList = pagedModel.content || [];
+        renderUserAddressCards();
+      } catch (e) {
+        document.getElementById('address-card-list').innerHTML = '<div class="address-empty error">서버 통신에 실패했습니다.</div>';
+      }
+    }
+
+    function renderUserAddressCards() {
+      const listEl = document.getElementById('address-card-list');
+      if (!currentAddressList.length) {
+        listEl.innerHTML = '<div class="address-empty">등록된 배송지가 없습니다.</div>';
+        return;
+      }
+
+      listEl.innerHTML = currentAddressList.map(address => {
+        const isDefault = address.defaultAddress === true;
+        const isDeleted = address.status === 'DELETED';
+        const fullAddress = `${address.address || ''} ${address.detailAddress || ''}`.trim();
+        const defaultButton = !isDefault && !isDeleted
+          ? `<button class="btn btn-sm btn-outline" onclick="window.setDefaultUserAddress(${address.addressId})">기본 설정</button>`
+          : '';
+        const disableButton = !isDeleted
+          ? `<button class="btn btn-sm btn-danger" onclick="window.disableUserAddress(${address.addressId})">사용 중지</button>`
+          : '';
+
+        return `
+          <article class="address-card ${isDeleted ? 'is-deleted' : ''}">
+            <div class="address-card-header">
+              <div>
+                <strong class="address-card-title">${escapeHtml(address.alias || '배송지')}</strong>
+                <span class="address-card-subtitle">#${escapeHtml(address.addressId)}</span>
+              </div>
+              <div class="address-badges">
+                ${isDefault ? '<span class="address-default-badge">기본</span>' : ''}
+                <span class="address-status-badge ${isDeleted ? 'deleted' : 'active'}">${escapeHtml(address.status || '-')}</span>
+              </div>
+            </div>
+            <div class="address-card-body">
+              <div class="address-row"><span>수령인</span><strong>${escapeHtml(address.recipientName || '-')}</strong></div>
+              <div class="address-row"><span>연락처</span><strong>${escapeHtml(address.recipientPhone || '-')}</strong></div>
+              <div class="address-row"><span>우편번호</span><strong>${escapeHtml(address.zipCode || '-')}</strong></div>
+              <div class="address-row address-full"><span>주소</span><strong>${escapeHtml(fullAddress || '-')}</strong></div>
+            </div>
+            <div class="address-card-actions">
+              <button class="btn btn-sm btn-outline" onclick="window.openUserAddressEditModal(${address.addressId})">수정</button>
+              ${defaultButton}
+              ${disableButton}
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    window.openUserAddressEditModal = function (addressId) {
+      const address = currentAddressList.find(item => item.addressId === Number(addressId));
+      if (!address) { showToast('배송지 정보를 찾을 수 없습니다.', true); return; }
+
+      _set('addr-edit-id', address.addressId);
+      _set('addr-edit-alias', address.alias);
+      _set('addr-edit-recipient-name', address.recipientName);
+      _set('addr-edit-recipient-phone', address.recipientPhone);
+      _set('addr-edit-zip-code', address.zipCode);
+      _set('addr-edit-address', address.address);
+      _set('addr-edit-detail-address', address.detailAddress);
+      _set('addr-edit-status', address.status || 'ACTIVE');
+      document.getElementById('addr-edit-default-address').checked = address.defaultAddress === true;
+      document.getElementById('user-address-edit-modal').style.display = 'flex';
+    };
+
+    window.closeUserAddressEditModal = function () {
+      document.getElementById('user-address-edit-modal').style.display = 'none';
+    };
+
+    window.submitUserAddressEdit = async function () {
+      const addressId = Number(document.getElementById('addr-edit-id').value);
+      const address = currentAddressList.find(item => item.addressId === addressId);
+      if (!address) { showToast('배송지 정보를 찾을 수 없습니다.', true); return; }
+
+      const body = getAddressPayload(address, {
+        alias: document.getElementById('addr-edit-alias').value.trim() || null,
+        recipientName: document.getElementById('addr-edit-recipient-name').value.trim() || null,
+        recipientPhone: document.getElementById('addr-edit-recipient-phone').value.trim() || null,
+        zipCode: document.getElementById('addr-edit-zip-code').value.trim() || null,
+        address: document.getElementById('addr-edit-address').value.trim() || null,
+        detailAddress: document.getElementById('addr-edit-detail-address').value.trim() || null,
+        defaultAddress: document.getElementById('addr-edit-default-address').checked,
+        status: document.getElementById('addr-edit-status').value || 'ACTIVE'
+      });
+
+      try {
+        const res = await Fetch(`${USER_URL}/address/update/id/${addressId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) { showToast('배송지 수정에 실패했습니다.', true); return; }
+        showToast('배송지가 수정되었습니다.');
+        closeUserAddressEditModal();
+        await loadUserAddressCards(currentAddressUser.userId);
+      } catch (e) {
+        showToast('서버 통신에 실패했습니다.', true);
+      }
+    };
+
+    window.setDefaultUserAddress = async function (addressId) {
+      const address = currentAddressList.find(item => item.addressId === Number(addressId));
+      if (!address) { showToast('배송지 정보를 찾을 수 없습니다.', true); return; }
+
+      try {
+        const res = await Fetch(`${USER_URL}/address/update/id/${addressId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(getAddressPayload(address, { defaultAddress: true, status: 'ACTIVE' }))
+        });
+
+        if (!res.ok) { showToast('기본 배송지 설정에 실패했습니다.', true); return; }
+        showToast('기본 배송지가 변경되었습니다.');
+        await loadUserAddressCards(currentAddressUser.userId);
+      } catch (e) {
+        showToast('서버 통신에 실패했습니다.', true);
+      }
+    };
+
+    window.disableUserAddress = async function (addressId) {
+      if (!confirm('해당 배송지를 사용 중지하시겠습니까?')) return;
+
+      try {
+        const res = await Fetch(`${USER_URL}/address/delete/id/${addressId}`, { method: 'DELETE', headers });
+        if (!res.ok) { showToast('배송지 사용 중지에 실패했습니다.', true); return; }
+        showToast('배송지가 사용 중지되었습니다.');
+        await loadUserAddressCards(currentAddressUser.userId);
+      } catch (e) {
+        showToast('서버 통신에 실패했습니다.', true);
+      }
+    };
 
     /* ─────────────────── Form 제출 ─────────────────── */
     window.submitUserForm = async function () {

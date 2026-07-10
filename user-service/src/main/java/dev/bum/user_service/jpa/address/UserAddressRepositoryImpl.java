@@ -127,6 +127,7 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
     public void unsetDefaultAddresses(String userId) {
         jpaRepository.findByUserUserIdAndDefaultAddressTrueAndStatus(userId, AddressStatus.ACTIVE)
                 .forEach(address -> address.markDefault(false));
+        jpaRepository.flush();
     }
 
     private BooleanExpression addressIdEq(Long addressId) {
