@@ -99,6 +99,11 @@ public class SeatController {
         return ResponseEntity.ok(seatService.lockSeatCacheForUser(seatId, currentUserId));
     }
 
+    @PostMapping("/cache/seat/{seatId}/test-unlock")
+    public ResponseEntity<String> unlockSeatCache(@PathVariable("seatId") Long seatId) {
+        return ResponseEntity.ok(seatService.unlockSeatCache(seatId));
+    }
+
     /**
      * 유저의 좌석 선점(임시 락) 요청 API
      */

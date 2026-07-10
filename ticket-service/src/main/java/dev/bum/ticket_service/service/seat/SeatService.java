@@ -193,11 +193,45 @@ public class SeatService {
         String redisKey = buildSeatRedisKey(seat);
         String lockKey = redisKey + ":lock";
         String value = "LOCKED:" + userId;
+        String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
 
-        seatRedisTemplate.opsForValue().set(lockKey, value, Duration.ofMinutes(10));
+        if (currentStatus == null) {
+            throw new SeatCacheNotFoundException();
+        }
+
+        if (!"AVAILABLE".equals(currentStatus)) {
+            throw new SeatAlreadyOccupiedException("이미 선점되었거나 예매 완료된 좌석입니다.");
+        }
+
+        Boolean lockAcquired = seatRedisTemplate.opsForValue().setIfAbsent(lockKey, value, Duration.ofMinutes(10));
+        if (lockAcquired == null || !lockAcquired) {
+            throw new SeatAlreadyOccupiedException("이미 다른 사용자가 선점 중인 좌석입니다.");
+        }
+
         seatRedisTemplate.opsForValue().set(redisKey, value, Duration.ofDays(30));
 
         return String.format("좌석 %d번을 %s 사용자로 Redis 테스트 선점 처리했습니다.", seatId, userId);
+    }
+
+    public String unlockSeatCache(Long seatId) {
+        log.info("[REDIS-TEST-UNLOCK] SeatId : {}", seatId);
+        Seat seat = repository.selectById(seatId);
+        String redisKey = buildSeatRedisKey(seat);
+        String lockKey = redisKey + ":lock";
+        String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
+
+        if (currentStatus == null) {
+            throw new SeatCacheNotFoundException();
+        }
+
+        if (!currentStatus.startsWith("LOCKED:")) {
+            throw new SeatAlreadyOccupiedException("선점 상태가 아닌 좌석입니다.");
+        }
+
+        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", Duration.ofDays(7));
+        seatRedisTemplate.delete(lockKey);
+
+        return String.format("좌석 %d번의 Redis 테스트 선점을 취소했습니다.", seatId);
     }
 
     private int warmUpSeatCache(List<Seat> seats, SeatCacheWarmUpMode mode) {

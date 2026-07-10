@@ -50,6 +50,9 @@ public interface SeatServiceClient {
     @PostMapping("/cache/seat/{seatId}/test-lock")
     String lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId);
 
+    @PostMapping("/cache/seat/{seatId}/test-unlock")
+    String unlockSeatCache(@PathVariable("seatId") Long seatId);
+
     @PostMapping("/occupy")
     void occupySeat(@RequestBody SeatOccupyRequest request);
 }

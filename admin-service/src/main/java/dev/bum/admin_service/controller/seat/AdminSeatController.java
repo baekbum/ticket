@@ -4,6 +4,7 @@ import dev.bum.admin_service.feign.seat.SeatServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -92,7 +93,20 @@ public class AdminSeatController {
 
     @PostMapping("/cache/seat/{seatId}/test-lock")
     public ResponseEntity<String> lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId) {
-        return ResponseEntity.ok(seatServiceClient.lockSeatCacheForCurrentUser(seatId));
+        try {
+            return ResponseEntity.ok(seatServiceClient.lockSeatCacheForCurrentUser(seatId));
+        } catch (FeignException.Conflict e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/cache/seat/{seatId}/test-unlock")
+    public ResponseEntity<String> unlockSeatCache(@PathVariable("seatId") Long seatId) {
+        try {
+            return ResponseEntity.ok(seatServiceClient.unlockSeatCache(seatId));
+        } catch (FeignException.Conflict e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        }
     }
 
     @PostMapping("/occupy")

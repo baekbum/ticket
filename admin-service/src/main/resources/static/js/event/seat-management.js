@@ -106,7 +106,7 @@
         tbody.innerHTML = '';
 
         if (list.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:2rem; font-size:12.5px;">등록된 좌석이 없습니다. 구역 일괄 등록으로 좌석을 생성하세요.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:2rem; font-size:12.5px;">등록된 좌석이 없습니다. 구역 일괄 등록으로 좌석을 생성하세요.</td></tr>`;
           return;
         }
 
@@ -128,7 +128,10 @@
             <td style="text-align:center;"><span class="${gradeCls}">${seat.grade}</span></td>
             <td style="text-align:center;">${statusBadge}</td>
             <td style="text-align:center;">
-              <button class="btn btn-sm btn-cache-test" title="현재 사용자로 Redis 테스트 선점" onclick="event.stopPropagation(); lockSeatCacheForCurrentUser(${seat.seatId})"><i class="ti ti-user-bolt"></i></button>
+              <button class="btn btn-sm btn-cache-test" title="현재 사용자로 Redis 테스트 선점" onclick="event.stopPropagation(); lockSeatCacheForCurrentUser(${seat.seatId})"><i class="ti ti-database-import"></i></button>
+              <button class="btn btn-sm btn-cache-test danger" title="Redis 테스트 선점 취소" onclick="event.stopPropagation(); unlockSeatCacheForTest(${seat.seatId})"><i class="ti ti-database-minus"></i></button>
+            </td>
+            <td style="text-align:center;">
               <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openSeatEditModal(${seat.seatId}, '${seat.zone}', '${seat.grade}', ${seat.seatRow}, ${seat.seatCol}, ${seat.price}, '${seat.status}')">수정</button>
               <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); openSeatSingleDeleteConfirm(${seat.seatId})">삭제</button>
             </td>
@@ -324,6 +327,23 @@
           showToast(message || '현재 사용자로 좌석 Redis 테스트 선점이 완료되었습니다.');
         } else {
           showToast('좌석 Redis 테스트 선점에 실패했습니다.', true);
+        }
+      } catch {
+        showToast('서버 통신 장애', true);
+      }
+    };
+
+    window.unlockSeatCacheForTest = async function (seatId) {
+      try {
+        const res = await Fetch(`${SEAT_API}/cache/seat/${seatId}/test-unlock`, {
+          method: 'POST',
+          headers: authHeader()
+        });
+        if (res.ok) {
+          const message = await res.text();
+          showToast(message || '좌석 Redis 테스트 선점이 취소되었습니다.');
+        } else {
+          showToast('좌석 Redis 테스트 선점 취소에 실패했습니다.', true);
         }
       } catch {
         showToast('서버 통신 장애', true);
