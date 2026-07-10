@@ -69,7 +69,6 @@ public class SecurityConfig {
         // =================================================================
         if ("local".equals(activeProfile)) {
             // 로컬 개발 환경: 인그레스 없이 직접 포트로 접근하므로 토큰을 직접 복호화하는 기존 필터 작동
-            // (JwtAuthenticationFilter 패키지 경로가 다르면 import를 맞춰주세요)
             http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
         } else {
             // 운영/쿠버네티스 환경: Nginx와 auth-service가 검증 후 밀어 넣어준 헤더를 기반으로 신뢰 작동

@@ -1,4 +1,4 @@
-package dev.bum.user_service.jpa;
+package dev.bum.user_service.jpa.user;
 
 import static com.querydsl.core.types.PathMetadataFactory.*;
 
@@ -15,7 +15,7 @@ import com.querydsl.core.types.Path;
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
 public class QUser extends EntityPathBase<User> {
 
-    private static final long serialVersionUID = -1152999906L;
+    private static final long serialVersionUID = -1130627621L;
 
     public static final QUser user = new QUser("user");
 
@@ -37,7 +37,7 @@ public class QUser extends EntityPathBase<User> {
 
     public final StringPath phoneNumber = createString("phoneNumber");
 
-    public final EnumPath<dev.bum.common.service.user.enums.UserRole> role = createEnum("role", dev.bum.common.service.user.enums.UserRole.class);
+    public final EnumPath<dev.bum.common.service.user.user.enums.UserRole> role = createEnum("role", dev.bum.common.service.user.user.enums.UserRole.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

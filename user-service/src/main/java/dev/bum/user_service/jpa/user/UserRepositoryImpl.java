@@ -1,13 +1,13 @@
-package dev.bum.user_service.jpa;
+package dev.bum.user_service.jpa.user;
 
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
 import lombok.RequiredArgsConstructor;

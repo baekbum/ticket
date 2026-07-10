@@ -1,4 +1,4 @@
-package dev.bum.common.service.user.dto;
+package dev.bum.common.service.user.user.dto;
 
 import lombok.*;
 

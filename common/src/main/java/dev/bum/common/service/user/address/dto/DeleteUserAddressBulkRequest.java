@@ -1,4 +1,4 @@
-package dev.bum.common.service.user.dto;
+package dev.bum.common.service.user.address.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
@@ -12,7 +12,7 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeleteUserBulkRequest {
+public class DeleteUserAddressBulkRequest {
     @NotEmpty
-    private List<String> userIds;
+    private List<Long> addressIds;
 }

@@ -121,6 +121,29 @@
 
   .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; font-weight: 600; }
 
+  .btn-address {
+    background: #eef4ff;
+    color: #2c69d4;
+    border: 1px solid rgba(44, 105, 212, 0.18);
+    box-shadow: none;
+  }
+  .btn-address:hover {
+    background: #e1ebff;
+    color: #1f58b6;
+    box-shadow: none;
+  }
+
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.16s, color 0.16s, border-color 0.16s;
+  }
+
   /* ── Multi-delete action bar ── */
   .bulk-action-bar {
     display: none;
@@ -177,12 +200,12 @@
 
   /* 컬럼 너비 */
   .user-table th:nth-child(2), .user-table td:nth-child(2) { width: 6%;  text-align: center; } /* 순서 */
-  .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 16%; } /* 유저 ID */
-  .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 15%; } /* 이름 */
-  .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 24%; } /* 이메일 */
-  .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 10%; } /* 권한 */
-  .user-table th:nth-child(7), .user-table td:nth-child(7) { width: 9%;  } /* 상태 */
-  .user-table th:nth-child(8), .user-table td:nth-child(8) { width: 12%; text-align: center; } /* 관리 */
+  .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 14%; } /* 유저 ID */
+  .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 13%; } /* 이름 */
+  .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 22%; } /* 이메일 */
+  .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 9%; } /* 권한 */
+  .user-table th:nth-child(7), .user-table td:nth-child(7) { width: 8%;  } /* 상태 */
+  .user-table th:nth-child(8), .user-table td:nth-child(8) { width: 20%; text-align: center; } /* 관리 */
 
   .user-table th {
     background: #faf9fd;
@@ -197,6 +220,10 @@
   }
 
   .user-table th.actions, .user-table td.actions { text-align: center; }
+  .user-table td.actions {
+    overflow: visible;
+    white-space: nowrap;
+  }
 
   .user-table tbody tr { cursor: pointer; transition: background 0.12s; }
   .user-table tbody tr:hover { background: var(--purple-dim); }
@@ -400,4 +427,205 @@
     font-size: 38px;
     margin-bottom: 10px;
     display: block;
+  }
+
+  .user-address-modal-content {
+    max-width: 860px;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+
+  .address-edit-modal-content {
+    max-width: 620px;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+
+  .address-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .address-modal-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .address-modal-close:hover {
+    background: var(--bg);
+    color: var(--text-primary);
+    border-color: #d4d1e4;
+  }
+
+  .address-user-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .address-user-summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #faf9fd;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .address-user-summary strong {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  .address-card-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .address-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    padding: 14px;
+    box-shadow: 0 4px 16px rgba(40, 32, 82, 0.06);
+  }
+  .address-card.is-deleted {
+    opacity: 0.68;
+    background: var(--bg);
+  }
+
+  .address-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .address-card-title {
+    display: block;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.25;
+  }
+  .address-card-subtitle {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .address-badges {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .address-default-badge,
+  .address-status-badge {
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .address-default-badge {
+    background: var(--purple-dim);
+    color: var(--purple);
+  }
+  .address-status-badge.active {
+    background: #edfbf1;
+    color: #2a7a3f;
+  }
+  .address-status-badge.deleted {
+    background: #fff1f0;
+    color: var(--red);
+  }
+
+  .address-card-body {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+  .address-row {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 8px;
+    align-items: start;
+    font-size: 12.5px;
+  }
+  .address-row span {
+    color: var(--text-muted);
+  }
+  .address-row strong {
+    color: var(--text-primary);
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .address-full {
+    grid-template-columns: 64px 1fr;
+  }
+
+  .address-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .address-empty {
+    grid-column: 1 / -1;
+    padding: 28px 16px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    text-align: center;
+    background: #faf9fd;
+    font-size: 13px;
+  }
+  .address-empty.error {
+    color: var(--red);
+    background: #fff8f8;
+    border-color: var(--red-border);
+  }
+
+  .address-default-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .address-default-check input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--purple);
+  }
+
+  body.dark-mode .address-user-summary span,
+  body.dark-mode .address-empty,
+  body.dark-mode .address-card {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  body.dark-mode .address-row strong,
+  body.dark-mode .address-card-title,
+  body.dark-mode .address-user-summary strong {
+    color: #f6f3ff;
+  }
+
+  @media (max-width: 760px) {
+    .address-card-list {
+      grid-template-columns: 1fr;
+    }
+    .form-row {
+      grid-template-columns: 1fr;
+    }
   }
