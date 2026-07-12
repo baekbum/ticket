@@ -188,6 +188,15 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    public List<Seat> selectByAreaId(Long areaId) {
+        List<Seat> seats = jpaRepository.findByAreaAreaId(areaId);
+
+        if (seats.isEmpty()) throw new SeatNotExistException("해당 구역의 좌석 정보는 존재하지 않습니다.");
+
+        return seats;
+    }
+
+    @Override
     public List<Seat> selectBySeatList(List<SeatInfo> seatInfos) {
         List<Long> idList = seatInfos.stream()
                 .map(SeatInfo::getId)
