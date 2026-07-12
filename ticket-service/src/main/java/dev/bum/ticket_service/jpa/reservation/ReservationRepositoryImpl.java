@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -67,9 +68,9 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
 
-        // 5. 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 티켓 생성
+        // 5. 검증이 끝난 좌석들의 상태를 RESERVED로 변경하고 티켓 생성
         for (Seat seat : seats) {
-            seat.lock();
+            seat.reserved();
 
             Ticket ticket = Ticket.builder()
                     .userId(info.getUserId())
@@ -163,7 +164,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @param id
      */
     @Override
-    public void cancel(long id, CancelReservationRequest info) {
+    public List<Seat> cancel(long id, CancelReservationRequest info) {
         // 1. 예매, 티켓 정보 조회.
         Reservation foundReservation = selectById(id);
         List<Long> selectedTicketIdList = info.getSelectedTicketIdList();
@@ -197,6 +198,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         } else {
             foundReservation.cancel();        // 모든 티켓이 취소되었다면 전체 취소
         }
+
+        return tickets.stream()
+                .map(Ticket::getSeat)
+                .collect(Collectors.toList());
     }
 
     /**

@@ -4,8 +4,9 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.*;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
-import dev.bum.ticket_service.service.seat.SeatService;
+import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -25,37 +27,61 @@ import java.util.List;
 public class ReservationService {
 
     private final ReservationRepository repository;
-    private final SeatService seatService;
+    private final SeatCacheService seatCacheService;
     private final ReservationProducer reservationProducer;
 
+    /**
+     * 예매 요청을 Kafka로 전달하기 전 Redis 좌석 선점 정보를 검증하는 메서드
+     * @param info
+     */
     public void insert(InsertReservationRequest info) {
-        // 1. Redis에 좌석 정보가 일치하는지 검증 및 좌석 정보 업데이트
-        seatService.validateOccupiedSeat(info);
+        // 1. Redis의 좌석 선점 정보가 요청 사용자와 일치하는지 검증
+        seatCacheService.validateOccupiedSeat(info);
         log.info("[좌석 선점 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());
 
-        // 2. 이후 카프카를 통해 업데이트로 변경 예정
+        // 2. Kafka를 통해 최종 예매 등록을 비동기로 처리
         reservationProducer.send(info);
     }
 
-    // 카프카 컨슈머 전용 최종 예매 등록 메서드 (Consumer로부터 진입)
+    /**
+     * Kafka Consumer 전용 최종 예매 등록 메서드
+     * @param info
+     */
     public void createReservationFromQueue(InsertReservationRequest info) {
-        repository.insert(info);
+        // 1. DB에 예매 정보와 티켓 정보를 저장하고 좌석 상태를 RESERVED로 변경
+        Reservation reservation = repository.insert(info);
+
+        // 2. DB 커밋 이후 Redis 좌석 상태를 공연 종료 시점까지 RESERVED로 동기화
+        List<Seat> seats = reservation.getTickets().stream()
+                .map(ticket -> ticket.getSeat())
+                .collect(Collectors.toList());
+        seatCacheService.syncReservedSeatsAfterCommit(seats);
+
         log.info("[DB INSERT 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());
 
-        // 데이터베이스에 예매 내역 저장 후. redis에 해당 공연에 몇 매를 예매했는 지 저장.
-        String type = "PLUS";
-        seatService.updateUserPurchaseLimit(
+        // 3. Redis에 해당 사용자가 공연별로 예매한 매수 반영
+        seatCacheService.updateUserPurchaseLimit(
                 info.getEventId(),
                 info.getUserId(),
                 info.getSeats().size(),
-                type
+                "PLUS"
         );
     }
 
+    /**
+     * ID로 예매 내역을 조회하는 메서드
+     * @param id
+     * @return
+     */
     public ReservationResponse selectById(long id) {
         return repository.selectById(id).toResponse();
     }
 
+    /**
+     * 조건으로 예매 내역을 조회하는 메서드
+     * @param cond
+     * @return
+     */
     public CustomPageResponse<ReservationResponse> selectByCond(ReservationCondRequest cond) {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
@@ -70,19 +96,31 @@ public class ReservationService {
         );
     }
 
+    /**
+     * 예매 취소 처리 메서드
+     * @param id
+     * @param info
+     */
     public void cancel(long id, CancelReservationRequest info) {
-        repository.cancel(id, info);
+        // 1. 예매 취소 처리 후 취소된 티켓의 좌석 목록 조회
+        List<Seat> cancelledSeats = repository.cancel(id, info);
 
-        // 레디스에 취소한 표만큼 매수를 줄임.
-        String type = "SUB";
-        seatService.updateUserPurchaseLimit(
+        // 2. DB 커밋 이후 Redis 좌석 상태를 AVAILABLE로 동기화
+        seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
+
+        // 3. Redis에 저장된 사용자별 예매 매수 차감
+        seatCacheService.updateUserPurchaseLimit(
                 info.getEventId(),
                 info.getUserId(),
-                info.getSelectedTicketIdList().size(),
-                type
+                cancelledSeats.size(),
+                "SUB"
         );
     }
 
+    /**
+     * 사용자가 추가 예매 가능한지 검증하는 메서드
+     * @param info
+     */
     public void isReservable(IsReservableRequest info) {
         repository.isReservable(info.getUserId(), info.getEventId(), info.getSelectedSeatCnt());
     }
