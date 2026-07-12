@@ -189,8 +189,8 @@ public class SeatService {
      * Redis를 이용한 다중 좌석 선점 메서드
      * @param request
      */
-    public void occupySeat(SeatOccupyRequest request) {
-        seatCacheService.occupySeat(request);
+    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
+        return seatCacheService.occupySeat(request);
     }
 
     /**

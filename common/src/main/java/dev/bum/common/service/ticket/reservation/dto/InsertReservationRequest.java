@@ -14,6 +14,9 @@ import java.util.List;
 public class InsertReservationRequest {
 
     @NotBlank
+    private String orderId;
+
+    @NotBlank
     private String userId;
 
     @NotNull

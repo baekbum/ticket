@@ -15,6 +15,7 @@ import java.util.List;
 public class ReservationResponse {
 
     private long reservationId;
+    private String orderId;
     private String userId;
     private long eventId;
     private String eventTitle;

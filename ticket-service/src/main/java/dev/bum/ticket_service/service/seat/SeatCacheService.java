@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
@@ -22,10 +23,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,6 +38,7 @@ public class SeatCacheService {
 
     private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
     private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
+    private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final SeatRepository repository;
     private final StringRedisTemplate seatRedisTemplate;
@@ -100,7 +104,7 @@ public class SeatCacheService {
         Seat seat = repository.selectById(seatId);
         String redisKey = buildSeatRedisKey(seat);
         String lockKey = redisKey + ":lock";
-        String value = "LOCKED:" + userId;
+        String value = buildSeatLockValue(userId, generateOrderId());
         String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
 
         if (currentStatus == null && seat.getStatus() != SeatStatus.AVAILABLE) {
@@ -151,12 +155,14 @@ public class SeatCacheService {
      * Redis를 이용한 다중 좌석 선점 메서드
      * @param request
      */
-    public void occupySeat(SeatOccupyRequest request) {
+    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
         validateUserPurchaseLimit(request);
 
         long eventId = request.getEventId();
         String userId = request.getUserId();
         List<SeatInfo> seats = request.getSeats();
+        String orderId = generateOrderId();
+        LocalDateTime expiresAt = LocalDateTime.now().plus(SEAT_LOCK_TTL);
 
         List<String> acquiredLockKeys = new ArrayList<>();
         List<String> updatedRedisKeys = new ArrayList<>();
@@ -179,18 +185,27 @@ public class SeatCacheService {
             for (SeatInfo seat : seats) {
                 String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
                 String lockKey = redisKey + ":lock";
+                String lockValue = buildSeatLockValue(userId, orderId);
 
                 Boolean isLockAcquired = seatRedisTemplate.opsForValue()
-                        .setIfAbsent(lockKey, "LOCKED:" + userId, SEAT_LOCK_TTL);
+                        .setIfAbsent(lockKey, lockValue, SEAT_LOCK_TTL);
 
                 if (isLockAcquired == null || !isLockAcquired) {
                     throw new SeatAlreadyOccupiedException("선택하신 좌석 중 이미 선택된 좌석이 포함되어 있습니다.");
                 }
 
                 acquiredLockKeys.add(lockKey);
-                seatRedisTemplate.opsForValue().set(redisKey, "LOCKED:" + userId, SEAT_LOCK_TTL);
+                seatRedisTemplate.opsForValue().set(redisKey, lockValue, SEAT_LOCK_TTL);
                 updatedRedisKeys.add(redisKey);
             }
+
+            return SeatOccupyResponse.builder()
+                    .orderId(orderId)
+                    .eventId(request.getEventId())
+                    .userId(userId)
+                    .seats(seats)
+                    .expiresAt(expiresAt)
+                    .build();
         } catch (SeatCacheNotFoundException | SeatAlreadyOccupiedException e) {
             rollbackSeats(acquiredLockKeys, updatedRedisKeys);
             throw e;
@@ -208,10 +223,11 @@ public class SeatCacheService {
     public void validateOccupiedSeat(InsertReservationRequest info) {
         long eventId = info.getEventId();
         String userId = info.getUserId();
+        String orderId = info.getOrderId();
         List<SeatInfo> seats = info.getSeats();
 
         for (SeatInfo seat : seats) {
-            String correctValue = "LOCKED:" + userId;
+            String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
             String redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
 
@@ -445,6 +461,26 @@ public class SeatCacheService {
     private String buildSeatRedisKey(Long eventId, String zone, int row, int col) {
         String sanitizedZone = zone.replace(" ", "_");
         return String.format("event:%d:seat:%s:%d:%d", eventId, sanitizedZone, row, col);
+    }
+
+    /**
+     * 예매 흐름을 식별하기 위한 주문 ID를 생성하는 메서드
+     * @return
+     */
+    private String generateOrderId() {
+        String timestamp = LocalDateTime.now().format(ORDER_ID_FORMATTER);
+        String randomValue = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        return "ORD-" + timestamp + "-" + randomValue;
+    }
+
+    /**
+     * 좌석 선점 정보를 Redis에 저장하기 위한 값 생성 메서드
+     * @param userId
+     * @param orderId
+     * @return
+     */
+    private String buildSeatLockValue(String userId, String orderId) {
+        return "LOCKED:" + userId + ":" + orderId;
     }
 
     /**
