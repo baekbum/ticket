@@ -64,7 +64,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 4. 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)
-        List<Seat> seats = seatRepository.selectBySeatList(info.getSeats());
+        List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
 
         // 5. 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 티켓 생성

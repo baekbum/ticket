@@ -36,6 +36,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SeatService {
 
+    private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
+    private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
+
     private final SeatRepository repository;
     private final StringRedisTemplate seatRedisTemplate;
 
@@ -195,20 +198,16 @@ public class SeatService {
         String value = "LOCKED:" + userId;
         String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
 
-        if (currentStatus == null) {
-            throw new SeatCacheNotFoundException();
-        }
-
-        if (!"AVAILABLE".equals(currentStatus)) {
+        if (currentStatus != null && !"AVAILABLE".equals(currentStatus)) {
             throw new SeatAlreadyOccupiedException("이미 선점되었거나 예매 완료된 좌석입니다.");
         }
 
-        Boolean lockAcquired = seatRedisTemplate.opsForValue().setIfAbsent(lockKey, value, Duration.ofMinutes(10));
+        Boolean lockAcquired = seatRedisTemplate.opsForValue().setIfAbsent(lockKey, value, SEAT_LOCK_TTL);
         if (lockAcquired == null || !lockAcquired) {
             throw new SeatAlreadyOccupiedException("이미 다른 사용자가 선점 중인 좌석입니다.");
         }
 
-        seatRedisTemplate.opsForValue().set(redisKey, value, Duration.ofDays(30));
+        seatRedisTemplate.opsForValue().set(redisKey, value, SEAT_LOCK_TTL);
 
         return String.format("좌석 %d번을 %s 사용자로 Redis 테스트 선점 처리했습니다.", seatId, userId);
     }
@@ -228,7 +227,7 @@ public class SeatService {
             throw new SeatAlreadyOccupiedException("선점 상태가 아닌 좌석입니다.");
         }
 
-        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", Duration.ofDays(7));
+        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
         seatRedisTemplate.delete(lockKey);
 
         return String.format("좌석 %d번의 Redis 테스트 선점을 취소했습니다.", seatId);
@@ -252,7 +251,7 @@ public class SeatService {
         int inserted = 0;
         for (Seat seat : seats) {
             Boolean success = seatRedisTemplate.opsForValue()
-                    .setIfAbsent(buildSeatRedisKey(seat), "AVAILABLE", Duration.ofDays(7));
+                    .setIfAbsent(buildSeatRedisKey(seat), "AVAILABLE", SEAT_CACHE_TTL);
             if (Boolean.TRUE.equals(success)) {
                 inserted++;
             }
@@ -281,7 +280,7 @@ public class SeatService {
             @Override
             public <K, V> Void execute(RedisOperations<K, V> operations) throws DataAccessException {
                 for (String key : keys) {
-                    operations.expire((K) key, Duration.ofDays(7));
+                    operations.expire((K) key, SEAT_CACHE_TTL);
                 }
                 return null;
             }
@@ -359,7 +358,7 @@ public class SeatService {
                 String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
 
                 if (currentStatus == null) {
-                    throw new SeatCacheNotFoundException();
+                    currentStatus = "AVAILABLE";
                 }
 
                 if (!currentStatus.equals("AVAILABLE")) {
@@ -374,7 +373,7 @@ public class SeatService {
 
                 // 락 획득 시도 (SETNX)
                 Boolean isLockAcquired = seatRedisTemplate.opsForValue()
-                        .setIfAbsent(lockKey, "LOCKED:" + userId, Duration.ofMinutes(10));
+                        .setIfAbsent(lockKey, "LOCKED:" + userId, SEAT_LOCK_TTL);
 
                 // 0.0001초 차이로 다른 사람에게 밀렸거나 null인 경우
                 if (isLockAcquired == null || !isLockAcquired) {
@@ -385,7 +384,7 @@ public class SeatService {
                 acquiredLockKeys.add(lockKey);
 
                 // 메인 좌석 상태를 LOCKED로 변경
-                seatRedisTemplate.opsForValue().set(redisKey, "LOCKED:" + userId, Duration.ofDays(30));
+                seatRedisTemplate.opsForValue().set(redisKey, "LOCKED:" + userId, SEAT_LOCK_TTL);
 
                 // 롤백 추적 리스트에 메인 키 기록
                 updatedRedisKeys.add(redisKey);
@@ -433,7 +432,7 @@ public class SeatService {
     private void rollbackSeats(List<String> lockKeys, List<String> redisKeys) {
         // 1. 상태 전광판 다시 AVAILABLE로 원복
         for (String redisKey : redisKeys) {
-            seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", Duration.ofDays(7));
+            seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
         }
         // 2. 임시 락 키(:lock) 한방에 삭제
         if (!lockKeys.isEmpty()) {
@@ -452,7 +451,7 @@ public class SeatService {
         String redisKey = String.format("event:%d:seat:%s:%d:%d", eventId, zone, row, col);
         String lockKey = redisKey + ":lock";
 
-        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", Duration.ofDays(7));
+        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
         seatRedisTemplate.delete(lockKey);
 
         log.info("[좌석 취소 반영 완료] - Key: {}", redisKey);

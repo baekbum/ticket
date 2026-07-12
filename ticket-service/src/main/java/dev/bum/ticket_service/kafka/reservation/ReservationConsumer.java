@@ -1,7 +1,7 @@
 package dev.bum.ticket_service.kafka.reservation;
 
-import dev.bum.ticket_service.service.reservation.ReservationService;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.ticket_service.service.reservation.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,13 +20,17 @@ public class ReservationConsumer {
 
     @KafkaListener(topics = "${topic.reservation.name}", groupId = "reservation-group")
     public void consumeInsert(InsertReservationRequest info) {
-        log.info(">>>> Kafka로부터 메시지 도착: [eventId: {}, userId: {}, seatSize: {}]", info.getEventId(), info.getUserId(), info.getSeats().size());
+        log.info("Reservation message received: [eventId: {}, userId: {}, seatSize: {}]",
+                info.getEventId(), info.getUserId(), info.getSeats().size());
 
         try {
             service.createReservationFromQueue(info);
-            log.info(">>>> 권한 서비스 DB 동기화 완료");
-        } catch (Exception e) {
-            log.error(">>>> 데이터 처리 중 에러 발생: {}", e.getMessage());
+            log.info("Reservation DB sync completed: [eventId: {}, userId: {}]",
+                    info.getEventId(), info.getUserId());
+        } catch (RuntimeException e) {
+            log.error("Reservation message processing failed: [eventId: {}, userId: {}]",
+                    info.getEventId(), info.getUserId(), e);
+            throw e;
         }
     }
 }

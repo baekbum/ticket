@@ -16,7 +16,7 @@ public interface SeatRepository {
     Seat selectById(Long id);
     List<Seat> selectByEventId(Long eventId);
     List<Seat> selectByAreaId(Long areaId);
-    List<Seat> selectBySeatList(List<SeatInfo> seatInfos);
+    List<Seat> selectBySeatList(Long eventId, List<SeatInfo> seatInfos);
     Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable);
     void update(UpdateSeatRequest info);
     void delete(Long id);
