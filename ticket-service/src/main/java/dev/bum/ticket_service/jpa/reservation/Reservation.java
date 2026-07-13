@@ -16,7 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "reservations")
+@Table(
+        name = "reservations",
+        uniqueConstraints = @UniqueConstraint(name = "uk_reservations_order_id", columnNames = "order_id")
+)
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,6 +33,9 @@ public class Reservation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "reservation_id")
     private Long reservationId;
+
+    @Column(name = "order_id", nullable = false, unique = true, length = 50)
+    private String orderId;
 
     @Column(nullable = false)
     private String userId;
@@ -60,6 +66,7 @@ public class Reservation {
     public ReservationResponse toResponse() {
         return ReservationResponse.builder()
                 .reservationId(this.reservationId)
+                .orderId(this.orderId)
                 .userId(this.userId)
                 .eventId(this.event != null ? this.event.getEventId() : 0L)
                 .eventTitle(this.event != null ? this.event.getTitle() : null)
@@ -78,6 +85,7 @@ public class Reservation {
     }
 
     public Reservation(InsertReservationRequest info, Event event) {
+        this.orderId = info.getOrderId();
         this.userId = info.getUserId();
         this.event = event;
         this.status = ReservationStatus.CONFIRMED;

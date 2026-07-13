@@ -2,6 +2,7 @@ package dev.bum.admin_service.feign.seat;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,9 +33,25 @@ public interface SeatServiceClient {
     @DeleteMapping("/delete/area/{areaId}")
     void deleteByAreaId(@PathVariable("areaId") Long areaId);
 
-    // 좌석(레디스) 관련 메서드
-    @PostMapping("/warm-up/{eventId}")
-    String warmUpSeats(@PathVariable("eventId") Long eventId);
+    @PostMapping("/cache/warm-up/event/{eventId}")
+    String warmUpEventSeats(@PathVariable("eventId") Long eventId,
+                            @RequestParam("mode") SeatCacheWarmUpMode mode);
+
+    @PostMapping("/cache/warm-up/area/{areaId}")
+    String warmUpAreaSeats(@PathVariable("areaId") Long areaId,
+                           @RequestParam("mode") SeatCacheWarmUpMode mode);
+
+    @DeleteMapping("/cache/event/{eventId}")
+    String deleteEventSeatCache(@PathVariable("eventId") Long eventId);
+
+    @DeleteMapping("/cache/area/{areaId}")
+    String deleteAreaSeatCache(@PathVariable("areaId") Long areaId);
+
+    @PostMapping("/cache/seat/{seatId}/test-lock")
+    String lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId);
+
+    @PostMapping("/cache/seat/{seatId}/test-unlock")
+    String unlockSeatCache(@PathVariable("seatId") Long seatId);
 
     @PostMapping("/occupy")
     void occupySeat(@RequestBody SeatOccupyRequest request);

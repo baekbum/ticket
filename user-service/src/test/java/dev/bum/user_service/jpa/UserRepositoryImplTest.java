@@ -1,12 +1,15 @@
 package dev.bum.user_service.jpa;
 
-import dev.bum.common.service.user.enums.UserRole;
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.user_service.config.QuerydslConfig;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
+import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserJpaRepository;
+import dev.bum.user_service.jpa.user.UserRepositoryImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

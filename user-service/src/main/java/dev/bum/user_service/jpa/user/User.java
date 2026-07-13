@@ -1,9 +1,9 @@
-package dev.bum.user_service.jpa;
+package dev.bum.user_service.jpa.user;
 
-import dev.bum.common.service.user.dto.UserResponse;
-import dev.bum.common.service.user.enums.UserRole;
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -119,7 +119,7 @@ public class User {
         return UserResponse.builder()
                 .id(this.id)
                 .userId(this.userId)
-                .role(this.role != null ? dev.bum.common.service.user.enums.UserRole.valueOf(this.role.name()) : null)
+                .role(this.role != null ? UserRole.valueOf(this.role.name()) : null)
                 .name(this.name)
                 .phoneNumber(this.phoneNumber)
                 .email(this.email)

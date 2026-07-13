@@ -188,14 +188,23 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public List<Seat> selectBySeatList(List<SeatInfo> seatInfos) {
+    public List<Seat> selectByAreaId(Long areaId) {
+        List<Seat> seats = jpaRepository.findByAreaAreaId(areaId);
+
+        if (seats.isEmpty()) throw new SeatNotExistException("해당 구역의 좌석 정보는 존재하지 않습니다.");
+
+        return seats;
+    }
+
+    @Override
+    public List<Seat> selectBySeatList(Long eventId, List<SeatInfo> seatInfos) {
         List<Long> idList = seatInfos.stream()
                 .map(SeatInfo::getId)
                 .toList();
 
         try {
             // 1. AVAILABLE 상태이면서 현재 아무도 락을 쥐고 있지 않은 좌석만 조회
-            List<Seat> seats = jpaRepository.findAllBySeatIdInAndStatus(idList, SeatStatus.AVAILABLE);
+            List<Seat> seats = jpaRepository.findAllByEventIdAndSeatIdInAndStatus(eventId, idList, SeatStatus.AVAILABLE);
 
             // 2. 아예 조회된 게 없다면 (잘못된 ID 번호거나, 전부 이미 예매 완료된 상태)
             if (seats.isEmpty()) {

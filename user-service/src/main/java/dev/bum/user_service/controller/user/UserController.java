@@ -1,13 +1,13 @@
-package dev.bum.user_service.controller;
+package dev.bum.user_service.controller.user;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.user.dto.DeleteUserBulkRequest;
-import dev.bum.common.service.user.dto.UserResponse;
-import dev.bum.user_service.service.UserService;
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.dto.UserCondRequest;
-import dev.bum.common.service.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
+import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.user_service.service.user.UserService;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

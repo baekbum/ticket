@@ -26,6 +26,8 @@ public class QReservation extends EntityPathBase<Reservation> {
 
     public final dev.bum.ticket_service.jpa.event.QEvent event;
 
+    public final StringPath orderId = createString("orderId");
+
     public final NumberPath<Long> reservationId = createNumber("reservationId", Long.class);
 
     public final DateTimePath<java.time.LocalDateTime> reservedAt = createDateTime("reservedAt", java.time.LocalDateTime.class);

@@ -1,4 +1,4 @@
-package dev.bum.common.service.user.enums;
+package dev.bum.common.service.user.user.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

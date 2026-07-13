@@ -1,8 +1,8 @@
-package dev.bum.user_service.jpa;
+package dev.bum.user_service.jpa.user;
 
-import dev.bum.common.service.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

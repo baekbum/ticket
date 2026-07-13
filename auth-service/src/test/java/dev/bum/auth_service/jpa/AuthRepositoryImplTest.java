@@ -1,7 +1,7 @@
 package dev.bum.auth_service.jpa;
 
 import dev.bum.auth_service.exception.UserNotExistException;
-import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

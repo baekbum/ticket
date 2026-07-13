@@ -17,10 +17,13 @@ public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
 
     List<Seat> findByEventEventId(long eventId);
 
+    List<Seat> findByAreaAreaId(long areaId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")})
-    @Query("select s from Seat s where s.seatId in :seatIdList and s.status = :status")
-    List<Seat> findAllBySeatIdInAndStatus(
+    @Query("select s from Seat s where s.event.eventId = :eventId and s.seatId in :seatIdList and s.status = :status")
+    List<Seat> findAllByEventIdAndSeatIdInAndStatus(
+            @Param("eventId") Long eventId,
             @Param("seatIdList") List<Long> seatIdList,
             @Param("status") SeatStatus status
     );

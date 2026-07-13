@@ -37,6 +37,38 @@
 .btn-danger-solid { background: var(--red); color: #fff; }
 .btn-warning { background: var(--amber); color: #fff; }
 .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
+.btn-icon-only {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+}
+.btn-cache {
+  background: #eef4ff;
+  color: #2c69d4;
+  border: 1px solid rgba(44, 105, 212, 0.18);
+  box-shadow: none;
+}
+.btn-cache:hover {
+  background: #e1ebff;
+  color: #1f58b6;
+}
+.btn-cache-danger {
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid var(--red-border);
+  box-shadow: none;
+}
+.btn-cache-danger:hover {
+  background: rgba(214, 59, 59, 0.15);
+}
+.toolbar-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 2px;
+}
 
 .bulk-action-bar {
   display: none;
@@ -199,6 +231,66 @@
 
 .area-context-chip { display: none; align-items: center; gap: 6px; padding: 8px 12px; background: var(--purple-dim); border: 1px solid rgba(124,77,255,0.18); border-radius: var(--radius-sm); color: var(--purple); font-size: 12px; font-weight: 700; }
 .area-context-chip.visible { display: inline-flex; }
+
+.seat-cache-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.cache-modal-content {
+  max-width: 420px;
+  text-align: center;
+}
+
+.cache-modal-icon {
+  font-size: 38px;
+  color: #2c69d4;
+  margin-bottom: 8px;
+}
+.cache-modal-icon.danger {
+  color: var(--red);
+}
+
+.cache-mode-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.cache-mode-card {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  cursor: pointer;
+}
+
+.cache-mode-card input {
+  margin-top: 2px;
+  accent-color: var(--purple);
+}
+
+.cache-mode-card strong {
+  display: block;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.cache-mode-card small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
 
 .area-bulk-content {
   max-width: 980px;
@@ -401,6 +493,7 @@ body.dark-mode .area-table tbody tr.selected-row {
 body.dark-mode .area-card,
 body.dark-mode .page-number-viewer,
 body.dark-mode .page-size-selector select,
+body.dark-mode .cache-mode-card,
 body.dark-mode .area-field input,
 body.dark-mode .area-field select,
 body.dark-mode .area-field textarea,

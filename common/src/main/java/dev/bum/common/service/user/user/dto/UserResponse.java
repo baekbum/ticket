@@ -1,6 +1,6 @@
-package dev.bum.common.service.user.dto;
+package dev.bum.common.service.user.user.dto;
 
-import dev.bum.common.service.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
