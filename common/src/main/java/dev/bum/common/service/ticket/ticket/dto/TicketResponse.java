@@ -11,13 +11,13 @@ import lombok.NoArgsConstructor;
 @Builder
 public class TicketResponse {
 
-    private long ticketId; // 티켓 번호
+    private long ticketId;
     private long seatId;
-    private String zone; // 구역
-    private Integer seatRow; // 열
-    private Integer seatCol; // 번호
-    private String seatName; // 좌석 이름
-    private String grade; // 좌석 등급
-    private int price; // 좌석 가격
-    private String status; // 상태
+    private String zone;
+    private Integer seatRow;
+    private Integer seatCol;
+    private String seatName;
+    private String grade;
+    private int price;
+    private String status;
 }

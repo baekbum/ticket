@@ -24,6 +24,8 @@ public class QTicket extends EntityPathBase<Ticket> {
 
     public final dev.bum.ticket_service.jpa.event.QEvent event;
 
+    public final NumberPath<Integer> price = createNumber("price", Integer.class);
+
     public final dev.bum.ticket_service.jpa.reservation.QReservation reservation;
 
     public final dev.bum.ticket_service.jpa.seat.QSeat seat;

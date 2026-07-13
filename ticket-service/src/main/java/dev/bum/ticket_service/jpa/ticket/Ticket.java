@@ -5,14 +5,25 @@ import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "tickets")
 @Getter
 @NoArgsConstructor
-@Builder
 public class Ticket {
 
     @Id
@@ -39,6 +50,9 @@ public class Ticket {
     @Column(nullable = false, length = 30)
     private TicketStatus status;
 
+    @Column(nullable = false)
+    private Integer price;
+
     public TicketResponse toResponse() {
         return TicketResponse.builder()
                 .ticketId(this.ticketId)
@@ -49,7 +63,7 @@ public class Ticket {
                 .seatName(this.seat != null ?
                         String.format("%s %d열 %d번", this.seat.getZone(), this.seat.getSeatRow(), this.seat.getSeatCol()) : null)
                 .grade(this.seat != null && this.seat.getGrade() != null ? this.seat.getGrade().name() : null)
-                .price(this.seat != null ? this.seat.getPrice() : null)
+                .price(this.price)
                 .status(this.status != null ? this.status.name() : null)
                 .build();
     }
@@ -61,6 +75,7 @@ public class Ticket {
         this.event = event;
         this.seat = seat;
         this.status = status != null ? status : TicketStatus.READY_TO_PAY;
+        this.price = resolvePrice(seat);
 
         if (reservation != null) {
             changeReservation(reservation);
@@ -72,6 +87,7 @@ public class Ticket {
         this.event = event;
         this.seat = seat;
         this.status = TicketStatus.READY_TO_PAY;
+        this.price = resolvePrice(seat);
 
         if (reservation != null) {
             changeReservation(reservation);
@@ -83,6 +99,10 @@ public class Ticket {
         if (reservation.getTickets() != null) {
             reservation.getTickets().add(this);
         }
+    }
+
+    private Integer resolvePrice(Seat seat) {
+        return seat != null && seat.getPrice() != null ? seat.getPrice() : 0;
     }
 
     public void awaitingDeposit() {
