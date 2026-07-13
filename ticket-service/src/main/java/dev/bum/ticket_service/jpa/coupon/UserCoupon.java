@@ -76,4 +76,21 @@ public class UserCoupon {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public void use(LocalDateTime usedAt) {
+        this.status = UserCouponStatus.USED;
+        this.usedAt = usedAt != null ? usedAt : LocalDateTime.now();
+    }
+
+    public void restore(LocalDateTime now) {
+        LocalDateTime currentTime = now != null ? now : LocalDateTime.now();
+
+        if (this.expiresAt != null && this.expiresAt.isBefore(currentTime)) {
+            this.status = UserCouponStatus.EXPIRED;
+        } else {
+            this.status = UserCouponStatus.ISSUED;
+        }
+
+        this.usedAt = null;
+    }
 }
