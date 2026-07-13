@@ -64,12 +64,11 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     @Override
-    public boolean isReservable(String userId, Event event, int selectedSeatCnt) {
+    public boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
         // 취소(CANCELLED)된 티켓을 제외하고, 유저가 수량을 점유하고 있는 모든 티켓 상태 정의
         List<TicketStatus> activeStatuses = List.of(
-                TicketStatus.READY_TO_PAY,
-                TicketStatus.AWAITING_DEPOSIT,
-                TicketStatus.PAYMENT_COMPLETED
+                TicketStatus.PENDING_PAYMENT,
+                TicketStatus.PAID
         );
 
         // 현재 유저가 '선점 중 + 입금 대기 중 + 결제 완료한' 티켓의 총합을 구함

@@ -1,12 +1,27 @@
 package dev.bum.ticket_service.jpa.reservation;
 
+import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -76,11 +91,6 @@ public class Reservation {
                 .venue(this.event != null ? this.event.getVenue() : null)
                 .ticketCount(this.tickets != null ? this.tickets.size() : 0)
                 .status(this.status != null ? this.status.name() : null)
-
-                // 하위 티켓 스트림을 돌려 TicketResponse 목록 생성 및 매핑 처리
-                .tickets(this.tickets != null ? this.tickets.stream()
-                        .map(Ticket::toResponse)
-                        .toList() : new ArrayList<>())
                 .build();
     }
 
@@ -88,13 +98,13 @@ public class Reservation {
         this.orderId = info.getOrderId();
         this.userId = info.getUserId();
         this.event = event;
-        this.status = ReservationStatus.CONFIRMED;
+        this.status = ReservationStatus.PENDING_PAYMENT;
         this.tickets = new ArrayList<>();
         this.reservedAt = LocalDateTime.now();
     }
 
-    public void confirmed() {
-        this.status = ReservationStatus.CONFIRMED;
+    public void paid() {
+        this.status = ReservationStatus.PAID;
     }
 
     public void cancel() {
@@ -103,5 +113,9 @@ public class Reservation {
 
     public void partial_cancel() {
         this.status = ReservationStatus.PARTIALLY_CANCELLED;
+    }
+
+    public void expire() {
+        this.status = ReservationStatus.EXPIRED;
     }
 }

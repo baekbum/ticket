@@ -217,7 +217,7 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.eventTitle").value(this.event.getTitle()))
                 .andExpect(jsonPath("$.venue").value(this.event.getVenue()))
                 .andExpect(jsonPath("$.ticketCount").value(dtos.size()))
-                .andExpect(jsonPath("$.status").value(ReservationStatus.CONFIRMED.name()));
+                .andExpect(jsonPath("$.status").value(ReservationStatus.PENDING_PAYMENT.name()));
     }
 
     @WithMockUser(username = "user", roles = {"USER"})
@@ -254,7 +254,7 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.eventTitle").value(anotherEvent.getTitle()))
                 .andExpect(jsonPath("$.venue").value(anotherEvent.getVenue()))
                 .andExpect(jsonPath("$.ticketCount").value(dtos.size()))
-                .andExpect(jsonPath("$.status").value(ReservationStatus.CONFIRMED.name()));
+                .andExpect(jsonPath("$.status").value(ReservationStatus.PENDING_PAYMENT.name()));
     }
 
     @WithMockUser(username = "user", roles = {"USER"})
@@ -476,7 +476,7 @@ class ReservationControllerTest {
                 .eventDateTime(eventDateTime)
                 .venue(event.getVenue())
                 .ticketCount(ticketResponses.size())
-                .status(ReservationStatus.CONFIRMED.name())
+                .status(ReservationStatus.PENDING_PAYMENT.name())
                 .tickets(ticketResponses)
                 .build();
     }

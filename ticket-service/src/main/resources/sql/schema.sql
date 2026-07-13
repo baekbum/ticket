@@ -145,7 +145,8 @@ CREATE TABLE tickets (
     reservation_id BIGINT NOT NULL,
     event_id BIGINT NOT NULL,
     seat_id BIGINT NOT NULL,
-    status VARCHAR(30) NOT NULL
+    status VARCHAR(30) NOT NULL,
+    price INTEGER NOT NULL
 );
 
 CREATE INDEX idx_ticket_reservation_id ON tickets(reservation_id);
