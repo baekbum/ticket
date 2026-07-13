@@ -93,12 +93,15 @@ CREATE INDEX idx_seat_area_id ON seats(area_id);
 -- ==========================================
 CREATE TABLE reservations (
     reservation_id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(50) NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     event_id BIGINT NOT NULL,
     status VARCHAR(30) NOT NULL,
     reserved_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_reservations_order_id UNIQUE (order_id)
 );
 
 CREATE INDEX idx_reservation_user_id ON reservations(user_id);

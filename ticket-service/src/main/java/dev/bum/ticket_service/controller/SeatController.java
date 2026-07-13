@@ -108,9 +108,7 @@ public class SeatController {
      * 유저의 좌석 선점(임시 락) 요청 API
      */
     @PostMapping("/occupy")
-    public ResponseEntity<Void> occupySeat(@RequestBody SeatOccupyRequest request) {
-        seatService.occupySeat(request);
-
-        return ResponseEntity.ok().build();
+    public ResponseEntity<SeatOccupyResponse> occupySeat(@RequestBody SeatOccupyRequest request) {
+        return ResponseEntity.ok(seatService.occupySeat(request));
     }
 }
