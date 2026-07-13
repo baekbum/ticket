@@ -14,5 +14,5 @@ public interface ReservationRepository {
     Reservation selectById(long id);
     Page<Reservation> selectByCond(ReservationCondRequest cond, Pageable pageable);
     List<Seat> cancel(long id, CancelReservationRequest info);
-    void isReservable(String userId, long eventId, int selectedSeatCnt);
+    void validateReservableFromDatabase(String userId, long eventId, int selectedSeatCnt);
 }

@@ -1,12 +1,9 @@
 package dev.bum.common.service.ticket.reservation.dto;
 
-import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -24,6 +21,4 @@ public class ReservationResponse {
     private String venue;
     private int ticketCount;
     private String status;
-
-    private List<TicketResponse> tickets;
 }

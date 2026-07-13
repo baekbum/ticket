@@ -74,7 +74,7 @@ public class Ticket {
         this.userId = userId;
         this.event = event;
         this.seat = seat;
-        this.status = status != null ? status : TicketStatus.READY_TO_PAY;
+        this.status = status != null ? status : TicketStatus.PENDING_PAYMENT;
         this.price = resolvePrice(seat);
 
         if (reservation != null) {
@@ -86,7 +86,7 @@ public class Ticket {
         this.userId = userId;
         this.event = event;
         this.seat = seat;
-        this.status = TicketStatus.READY_TO_PAY;
+        this.status = TicketStatus.PENDING_PAYMENT;
         this.price = resolvePrice(seat);
 
         if (reservation != null) {
@@ -105,15 +105,15 @@ public class Ticket {
         return seat != null && seat.getPrice() != null ? seat.getPrice() : 0;
     }
 
-    public void awaitingDeposit() {
-        this.status = TicketStatus.AWAITING_DEPOSIT;
-    }
-
-    public void completePayment() {
-        this.status = TicketStatus.PAYMENT_COMPLETED;
+    public void paid() {
+        this.status = TicketStatus.PAID;
     }
 
     public void cancel() {
         this.status = TicketStatus.CANCELLED;
+    }
+
+    public void expire() {
+        this.status = TicketStatus.EXPIRED;
     }
 }

@@ -122,7 +122,7 @@ public class ReservationService {
      * @param info
      */
     public void isReservable(IsReservableRequest info) {
-        repository.isReservable(info.getUserId(), info.getEventId(), info.getSelectedSeatCnt());
+        repository.validateReservableFromDatabase(info.getUserId(), info.getEventId(), info.getSelectedSeatCnt());
     }
 
     /**

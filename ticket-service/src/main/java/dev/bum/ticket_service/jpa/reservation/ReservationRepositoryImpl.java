@@ -55,7 +55,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     @Override
     public Reservation insert(InsertReservationRequest info) {
         // 1. 추가적으로 티켓팅이 가능한지 확인
-        isReservable(info.getUserId(), info.getEventId(), info.getSeats().size());
+        validateReservableFromDatabase(info.getUserId(), info.getEventId(), info.getSeats().size());
 
         // 2. 공연 정보 조회
         Event event = eventRepository.selectById(info.getEventId());
@@ -77,7 +77,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                     .reservation(reservation)
                     .event(event)
                     .seat(seat)
-                    .status(TicketStatus.READY_TO_PAY)
+                    .status(TicketStatus.PENDING_PAYMENT)
                     .build();
 
             tickets.add(ticket);
@@ -184,9 +184,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 3. 해당 예매에 속한 전체 티켓 중 유효한 티켓이 하나라도 남아있는지 확인
         List<TicketStatus> activeStatuses = List.of(
-                TicketStatus.READY_TO_PAY,
-                TicketStatus.AWAITING_DEPOSIT,
-                TicketStatus.PAYMENT_COMPLETED
+                TicketStatus.PENDING_PAYMENT,
+                TicketStatus.PAID
         );
 
         boolean hasActiveTicket = foundReservation.getTickets().stream()
@@ -211,7 +210,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @return
      */
     @Override
-    public void isReservable(String userId, long eventId, int selectedSeatCnt) {
+    public void validateReservableFromDatabase(String userId, long eventId, int selectedSeatCnt) {
         Event event = eventRepository.selectById(eventId);
 
         // 선택한 좌석이 1인 제한 매수보다 큰 경우.
@@ -223,7 +222,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         }
 
         // 매수 제한은 4매인데, 이미 2좌석을 선택했고 3좌석 이상을 추가적으로 티켓팅 하는 경우
-        if (!ticketRepository.isReservable(userId, event, selectedSeatCnt)) {
+        if (!ticketRepository.isWithinPurchaseLimit(userId, event, selectedSeatCnt)) {
             throw new TicketLimitExceededException(
                     String.format("이미 기존 예매 내역이 존재하여, 추가로 %d매를 초과하여 예매할 수 없습니다.", event.getMaxTicketsPerPerson())
             );
