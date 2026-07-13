@@ -109,7 +109,35 @@ CREATE INDEX idx_reservation_event_id ON reservations(event_id);
 
 
 -- ==========================================
--- 6. Tickets 테이블
+-- 6. Payments
+-- ==========================================
+CREATE TABLE payments (
+    payment_id BIGSERIAL PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    amount INTEGER NOT NULL,
+    idempotency_key VARCHAR(100),
+    bank_name VARCHAR(50),
+    account_number VARCHAR(50),
+    depositor_name VARCHAR(50),
+    requested_at TIMESTAMP NOT NULL,
+    paid_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
+    CONSTRAINT uk_payments_payment_no UNIQUE (payment_no)
+);
+
+CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
+CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
+
+
+-- ==========================================
+-- 7. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,
