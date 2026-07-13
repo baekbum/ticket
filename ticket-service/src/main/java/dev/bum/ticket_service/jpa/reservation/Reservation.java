@@ -88,13 +88,13 @@ public class Reservation {
         this.orderId = info.getOrderId();
         this.userId = info.getUserId();
         this.event = event;
-        this.status = ReservationStatus.CONFIRMED;
+        this.status = ReservationStatus.PENDING_PAYMENT;
         this.tickets = new ArrayList<>();
         this.reservedAt = LocalDateTime.now();
     }
 
-    public void confirmed() {
-        this.status = ReservationStatus.CONFIRMED;
+    public void paid() {
+        this.status = ReservationStatus.PAID;
     }
 
     public void cancel() {
@@ -103,5 +103,9 @@ public class Reservation {
 
     public void partial_cancel() {
         this.status = ReservationStatus.PARTIALLY_CANCELLED;
+    }
+
+    public void expire() {
+        this.status = ReservationStatus.EXPIRED;
     }
 }

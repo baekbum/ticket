@@ -113,7 +113,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -152,7 +152,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -196,7 +196,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(extraReservation);
@@ -243,7 +243,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -285,7 +285,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -337,7 +337,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event)
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -395,7 +395,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event) // 최대 1인 4매까지 가능한 공연
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -438,7 +438,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event) // 최대 1인 4매까지 가능한 공연
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);
@@ -482,7 +482,7 @@ class TicketRepositoryImplTest {
                 .userId(userId)
                 .event(this.event) // 최대 1인 4매까지 가능한 공연
                 .reservedAt(LocalDateTime.now())
-                .status(ReservationStatus.CONFIRMED)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .build();
 
         reservationJpaRepository.save(reservation);

@@ -341,7 +341,7 @@ class ReservationRepositoryImplTest {
         // 1. 예매 내역 생성
         Reservation saved = reservationRepository.insert(info);
 
-        assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        assertThat(saved.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(saved.getTickets().get(0).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         assertThat(saved.getTickets().get(1).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         assertThat(saved.getTickets().get(2).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
@@ -379,7 +379,7 @@ class ReservationRepositoryImplTest {
         // 1. 예매 내역 생성
         Reservation saved = reservationRepository.insert(info);
 
-        assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        assertThat(saved.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(saved.getTickets().get(0).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         assertThat(saved.getTickets().get(1).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
         assertThat(saved.getTickets().get(2).getStatus()).isEqualTo(TicketStatus.READY_TO_PAY);
