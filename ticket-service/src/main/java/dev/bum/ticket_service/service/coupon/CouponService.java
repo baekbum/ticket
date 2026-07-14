@@ -47,6 +47,9 @@ public class CouponService {
     private final JPAQueryFactory queryFactory;
 
     public CouponResponse insert(InsertCouponRequest request) {
+        log.info("[COUPON][INSERT] request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
+                request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
+
         validateCouponPolicy(request.getDiscountType(), request.getDiscountValue(), request.getMaxDiscountAmount());
         validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
@@ -54,11 +57,22 @@ public class CouponService {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
         }
 
-        return couponJpaRepository.save(new Coupon(request)).toResponse();
+        Coupon savedCoupon = couponJpaRepository.save(new Coupon(request));
+        log.info("[COUPON][INSERT][SUCCESS] couponId={}, code={}, status={}",
+                savedCoupon.getCouponId(), savedCoupon.getCode(), savedCoupon.getStatus());
+
+        return savedCoupon.toResponse();
     }
 
     public CouponResponse update(Long couponId, UpdateCouponRequest request) {
+        log.info("[COUPON][UPDATE] couponId={}, request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
+                couponId, request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
+
         Coupon coupon = selectCoupon(couponId);
+        log.info("[COUPON][UPDATE][BEFORE] couponId={}, name={}, code={}, discountType={}, discountValue={}, maxDiscountAmount={}, minOrderAmount={}, validFrom={}, validUntil={}, validDaysAfterIssue={}, status={}",
+                coupon.getCouponId(), coupon.getName(), coupon.getCode(), coupon.getDiscountType(), coupon.getDiscountValue(),
+                coupon.getMaxDiscountAmount(), coupon.getMinOrderAmount(), coupon.getValidFrom(), coupon.getValidUntil(),
+                coupon.getValidDaysAfterIssue(), coupon.getStatus());
 
         if (StringUtils.hasText(request.getCode()) && couponJpaRepository.existsByCodeAndCouponIdNot(request.getCode(), couponId)) {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
@@ -72,7 +86,13 @@ public class CouponService {
         validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
         coupon.update(request);
-        return coupon.toResponse();
+        Coupon updatedCoupon = couponJpaRepository.saveAndFlush(coupon);
+        log.info("[COUPON][UPDATE][SUCCESS] couponId={}, name={}, code={}, discountType={}, discountValue={}, maxDiscountAmount={}, minOrderAmount={}, validFrom={}, validUntil={}, validDaysAfterIssue={}, status={}",
+                updatedCoupon.getCouponId(), updatedCoupon.getName(), updatedCoupon.getCode(), updatedCoupon.getDiscountType(), updatedCoupon.getDiscountValue(),
+                updatedCoupon.getMaxDiscountAmount(), updatedCoupon.getMinOrderAmount(), updatedCoupon.getValidFrom(), updatedCoupon.getValidUntil(),
+                updatedCoupon.getValidDaysAfterIssue(), updatedCoupon.getStatus());
+
+        return updatedCoupon.toResponse();
     }
 
     @Transactional(readOnly = true)

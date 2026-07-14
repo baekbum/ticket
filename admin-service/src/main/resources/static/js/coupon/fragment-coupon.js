@@ -12,7 +12,7 @@
   }
 
   function nullableNumber(id) {
-    const value = inputValue(id);
+    const value = inputValue(id).replace(/,/g, '');
     if (!value) return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
@@ -88,6 +88,20 @@
 
   function formatMoney(value) {
     return value == null ? '-' : `${Number(value).toLocaleString()}원`;
+  }
+
+  function formatNumberInputValue(value) {
+    if (value == null || value === '') return '';
+    const numeric = String(value).replace(/[^\d]/g, '');
+    return numeric ? Number(numeric).toLocaleString() : '';
+  }
+
+  function bindMoneyInputFormatters() {
+    document.querySelectorAll('#coupon-modal .money-input').forEach(input => {
+      input.addEventListener('input', function () {
+        this.value = formatNumberInputValue(this.value);
+      });
+    });
   }
 
   function formatValidDaysAfterIssue(value) {
@@ -249,9 +263,9 @@
     setValue('m-coupon-name', coupon.name);
     setValue('m-coupon-code', coupon.code);
     setValue('m-coupon-discount-type', coupon.discountType || 'FIXED_AMOUNT');
-    setValue('m-coupon-discount-value', coupon.discountValue);
-    setValue('m-coupon-max-discount', coupon.maxDiscountAmount);
-    setValue('m-coupon-min-order', coupon.minOrderAmount);
+    setValue('m-coupon-discount-value', formatNumberInputValue(coupon.discountValue));
+    setValue('m-coupon-max-discount', formatNumberInputValue(coupon.maxDiscountAmount));
+    setValue('m-coupon-min-order', formatNumberInputValue(coupon.minOrderAmount));
     setValue('m-coupon-valid-from', toDateTimeLocal(coupon.validFrom));
     setValue('m-coupon-valid-until', toDateTimeLocal(coupon.validUntil));
     setValue('m-coupon-validity-mode', coupon.validDaysAfterIssue ? 'AFTER_ISSUE' : 'FIXED');
@@ -273,6 +287,7 @@
   window.openCouponModalForCreate = function () {
     clearCouponModal();
     setCouponModalReadonly(false);
+    syncCouponValidityMode();
     setValue('coupon-modal-mode', 'CREATE');
     document.getElementById('coupon-modal-title').textContent = '쿠폰 등록';
     document.getElementById('coupon-modal-subtitle').textContent = '새 쿠폰 정책을 등록합니다.';
@@ -302,6 +317,7 @@
     }
     bindCouponToModal(coupon);
     setCouponModalReadonly(false);
+    syncCouponValidityMode();
     setValue('coupon-modal-mode', 'UPDATE');
     document.getElementById('coupon-modal-title').textContent = '쿠폰 수정';
     document.getElementById('coupon-modal-subtitle').textContent = '쿠폰 정책 정보를 수정합니다.';
@@ -321,11 +337,21 @@
 
   window.syncCouponValidityMode = function () {
     const mode = inputValue('m-coupon-validity-mode') || 'FIXED';
+    const validUntilGroup = document.getElementById('m-coupon-valid-until-group');
+    const validDaysGroup = document.getElementById('m-coupon-valid-days-after-issue-group');
     const validUntil = document.getElementById('m-coupon-valid-until');
     const validDays = document.getElementById('m-coupon-valid-days-after-issue');
 
-    if (validUntil) validUntil.disabled = mode === 'AFTER_ISSUE';
-    if (validDays) validDays.disabled = mode === 'FIXED';
+    if (validUntilGroup) validUntilGroup.style.display = mode === 'AFTER_ISSUE' ? 'none' : 'block';
+    if (validDaysGroup) validDaysGroup.style.display = mode === 'AFTER_ISSUE' ? 'block' : 'none';
+    if (validUntil) {
+      validUntil.disabled = mode === 'AFTER_ISSUE';
+      if (mode === 'AFTER_ISSUE') validUntil.value = '';
+    }
+    if (validDays) {
+      validDays.disabled = mode === 'FIXED';
+      if (mode === 'FIXED') validDays.value = '';
+    }
   };
 
   function readCouponPayload() {
@@ -390,5 +416,6 @@
     getTotalPages: () => serverTotalPages
   });
 
+  bindMoneyInputFormatters();
   loadCouponList(0);
 })();
