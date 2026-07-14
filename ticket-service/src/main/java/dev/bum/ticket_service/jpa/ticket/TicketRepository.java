@@ -1,8 +1,7 @@
 package dev.bum.ticket_service.jpa.ticket;
 
-import dev.bum.ticket_service.jpa.event.Event;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.jpa.seat.Seat;
 
 import java.util.List;
 

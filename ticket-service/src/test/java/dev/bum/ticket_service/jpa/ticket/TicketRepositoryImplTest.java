@@ -1,13 +1,13 @@
 package dev.bum.ticket_service.jpa.ticket;
 
-import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
-import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.jpa.event.EventJpaRepository;
-import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
+import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.ReservationRepositoryImpl;

@@ -1,15 +1,15 @@
 package dev.bum.ticket_service.controller;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.ticket.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.dto.CouponAvailabilityResponse;
-import dev.bum.common.service.ticket.coupon.dto.CouponCondRequest;
-import dev.bum.common.service.ticket.coupon.dto.CouponResponse;
-import dev.bum.common.service.ticket.coupon.dto.InsertCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.IssueCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.UpdateCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.UserCouponResponse;
-import dev.bum.ticket_service.service.coupon.CouponService;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
+import dev.bum.ticket_service.service.coupon.coupon.CouponService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

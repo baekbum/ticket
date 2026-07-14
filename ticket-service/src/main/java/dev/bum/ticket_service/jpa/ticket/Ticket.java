@@ -2,7 +2,7 @@ package dev.bum.ticket_service.jpa.ticket;
 
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
-import dev.bum.ticket_service.jpa.event.Event;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import jakarta.persistence.Column;

@@ -30,7 +30,7 @@ public class QUserCoupon extends EntityPathBase<UserCoupon> {
 
     public final DateTimePath<java.time.LocalDateTime> issuedAt = createDateTime("issuedAt", java.time.LocalDateTime.class);
 
-    public final EnumPath<dev.bum.common.service.ticket.coupon.enums.UserCouponStatus> status = createEnum("status", dev.bum.common.service.ticket.coupon.enums.UserCouponStatus.class);
+    public final EnumPath<dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus> status = createEnum("status", dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

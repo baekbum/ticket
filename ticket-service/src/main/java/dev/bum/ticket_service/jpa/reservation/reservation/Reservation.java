@@ -3,7 +3,7 @@ package dev.bum.ticket_service.jpa.reservation.reservation;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
-import dev.bum.ticket_service.jpa.event.Event;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

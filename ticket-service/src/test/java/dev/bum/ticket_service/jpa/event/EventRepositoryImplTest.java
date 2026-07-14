@@ -1,12 +1,15 @@
 package dev.bum.ticket_service.jpa.event;
 
-import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
-import dev.bum.common.service.ticket.event.dto.EventCondRequest;
-import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
-import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
+import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

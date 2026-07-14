@@ -22,7 +22,7 @@ public class QReservationDiscount extends EntityPathBase<ReservationDiscount> {
 
     public static final QReservationDiscount reservationDiscount = new QReservationDiscount("reservationDiscount");
 
-    public final EnumPath<dev.bum.common.service.ticket.coupon.enums.CouponDiscountType> couponDiscountType = createEnum("couponDiscountType", dev.bum.common.service.ticket.coupon.enums.CouponDiscountType.class);
+    public final EnumPath<dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType> couponDiscountType = createEnum("couponDiscountType", dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType.class);
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
@@ -30,7 +30,7 @@ public class QReservationDiscount extends EntityPathBase<ReservationDiscount> {
 
     public final StringPath discountName = createString("discountName");
 
-    public final EnumPath<dev.bum.common.service.ticket.coupon.enums.DiscountType> discountType = createEnum("discountType", dev.bum.common.service.ticket.coupon.enums.DiscountType.class);
+    public final EnumPath<dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType> discountType = createEnum("discountType", dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType.class);
 
     public final NumberPath<Integer> discountValue = createNumber("discountValue", Integer.class);
 

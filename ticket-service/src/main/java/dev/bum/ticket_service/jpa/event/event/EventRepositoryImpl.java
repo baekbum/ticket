@@ -1,0 +1,267 @@
+package dev.bum.ticket_service.jpa.event.event;
+
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.DateTimePath;
+import com.querydsl.core.types.dsl.PathBuilder;
+import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.ticket_service.exception.event.EventDuplicateException;
+import dev.bum.ticket_service.exception.event.EventNotExistException;
+import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.ticket_service.jpa.event.event.QEvent;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Repository
+@RequiredArgsConstructor
+public class EventRepositoryImpl implements EventRepository {
+
+    private final JPAQueryFactory queryFactory;
+    private final EventJpaRepository jpaRepository;
+    private QEvent event;
+
+    @Override
+    public Event insert(InsertEventRequest info) {
+        EventCondRequest cond = EventCondRequest.builder()
+                .artistName(info.getArtistName())
+                .title(info.getTitle())
+                .venue(info.getVenue())
+                .eventDate(info.getEventDateTime().toLocalDate())
+                .status(EventStatus.ON_SALE)
+                .build();
+
+        // 공연 정보 중복 확인.
+        isExist(cond);
+
+        return jpaRepository.save(new Event(info));
+    }
+
+    @Override
+    public void isExist(EventCondRequest cond) {
+        event = QEvent.event;
+
+        List<Event> content = queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        artistNameLike(cond.getArtistName()),
+                        titleLike(cond.getTitle()),
+                        venueLike(cond.getVenue()),
+                        eventDateLike(cond.getEventDate()),
+                        statusEq(cond.getStatus())
+                )
+                .fetch();
+
+        if (!content.isEmpty()) {
+            throw new EventDuplicateException("동일한 공연 정보가 이미 존재합니다.");
+        }
+    }
+
+    @Override
+    public Event selectById(Long id) {
+        return jpaRepository.findById(id)
+                .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
+    }
+
+    @Override
+    public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
+        event = QEvent.event;
+
+        // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
+        List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
+
+        pageable.getSort().forEach(order -> {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+            String property = order.getProperty();
+            PathBuilder<Event> entityPath = new PathBuilder<>(Event.class, "event");
+            orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(property)));
+        });
+
+        List<Event> content = queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        searchConditions(cond)
+                )
+                .offset(pageable.getOffset()) // 오프셋 적용
+                .limit(pageable.getPageSize()) // 페이지 크기 적용
+                .orderBy(orderSpecifiers.toArray(new OrderSpecifier[0])) // 정렬 정보 적용
+                .fetch();
+
+        Long total = queryFactory
+                .select(event.count())
+                .from(event)
+                .where(
+                        searchConditions(cond)
+                )
+                .fetchOne();
+
+        long totalCount = (total != null) ? total : 0L;
+
+        return new PageImpl<>(content, pageable, totalCount);
+    }
+
+    @Override
+    public Event update(Long id, UpdateEventRequest info) {
+        Event event = selectById(id);
+        event.update(info);
+
+        return event;
+    }
+
+    @Override
+    public Event delete(Long id) {
+        Event event = selectById(id);
+        jpaRepository.delete(event);
+
+        return event;
+    }
+
+    // QueryDsl 동적 쿼리 관련 메서드
+    private BooleanExpression eventIdEq(Long eventId) {
+        return eventId != null ? event.eventId.eq(eventId) : null;
+    }
+
+    private BooleanExpression artistNameLike(String artistName) {
+        return StringUtils.hasText(artistName) ? event.artistName.like("%" + artistName + "%") : null;
+    }
+
+    private BooleanExpression titleLike(String title) {
+        return StringUtils.hasText(title) ? event.title.like("%" + title + "%") : null;
+    }
+
+    private BooleanExpression venueLike(String venue) {
+        return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
+    }
+
+    private BooleanExpression venueAddressLike(String venueAddress) {
+        return StringUtils.hasText(venueAddress) ? event.venueAddress.like("%" + venueAddress + "%") : null;
+    }
+
+    private BooleanExpression posterUrlLike(String posterUrl) {
+        return StringUtils.hasText(posterUrl) ? event.posterUrl.like("%" + posterUrl + "%") : null;
+    }
+
+    private BooleanExpression eventDateLike(LocalDate eventDate) {
+        return dateLike(eventDate, event.eventDateTime);
+    }
+
+    private BooleanExpression eventDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.eventDateTime);
+    }
+
+    private BooleanExpression saleStartDateLike(LocalDate saleStartDate) {
+        return dateLike(saleStartDate, event.saleStartAt);
+    }
+
+    private BooleanExpression saleStartDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleStartAt);
+    }
+
+    private BooleanExpression saleEndDateLike(LocalDate saleEndDate) {
+        return dateLike(saleEndDate, event.saleEndAt);
+    }
+
+    private BooleanExpression saleEndDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.saleEndAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateLike(LocalDate cancelDeadlineDate) {
+        return dateLike(cancelDeadlineDate, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression cancelDeadlineDateBetween(LocalDate from, LocalDate to) {
+        return dateBetween(from, to, event.cancelDeadlineAt);
+    }
+
+    private BooleanExpression runningMinutesEq(Integer runningMinutes) {
+        return runningMinutes != null ? event.runningMinutes.eq(runningMinutes) : null;
+    }
+
+    private BooleanExpression ageLimitEq(Integer ageLimit) {
+        return ageLimit != null ? event.ageLimit.eq(ageLimit) : null;
+    }
+
+    private BooleanExpression totalSeatsEq(Integer totalSeats) {
+        return totalSeats != null ? event.totalSeats.eq(totalSeats) : null;
+    }
+
+    private BooleanExpression availableSeatsEq(Integer availableSeats) {
+        return availableSeats != null ? event.availableSeats.eq(availableSeats) : null;
+    }
+
+    private BooleanExpression dateLike(LocalDate eventDate, DateTimePath<LocalDateTime> target) {
+        if (eventDate == null) {
+            return null;
+        }
+
+        // 1. 사용자가 입력한 날짜의 시작 시간 (2026-04-29 00:00:00)
+        LocalDateTime startOfDay = eventDate.atStartOfDay();
+
+        // 2. 사용자가 입력한 날짜의 끝 시간 (2026-04-29 23:59:59.999999)
+        LocalDateTime endOfDay = eventDate.atTime(LocalTime.MAX);
+
+        // 3. DB의 eventDate가 이 범위 사이에 있는지 확인
+        return target.between(startOfDay, endOfDay);
+    }
+
+    private BooleanExpression dateBetween(LocalDate from, LocalDate to, DateTimePath<LocalDateTime> target) {
+        if (from == null && to == null) {
+            return null;
+        }
+
+        if (from != null && to != null) {
+            return target.between(from.atStartOfDay(), to.atTime(LocalTime.MAX));
+        }
+
+        if (from != null) {
+            return target.goe(from.atStartOfDay());
+        }
+
+        return target.loe(to.atTime(LocalTime.MAX));
+    }
+
+    private BooleanExpression statusEq(EventStatus status) {
+        return status != null ? event.status.eq(status) : null;
+    }
+
+    private BooleanExpression[] searchConditions(EventCondRequest cond) {
+        return new BooleanExpression[]{
+                eventIdEq(cond.getEventId()),
+                artistNameLike(cond.getArtistName()),
+                titleLike(cond.getTitle()),
+                venueLike(cond.getVenue()),
+                venueAddressLike(cond.getVenueAddress()),
+                posterUrlLike(cond.getPosterUrl()),
+                eventDateLike(cond.getEventDate()),
+                eventDateBetween(cond.getEventDateFrom(), cond.getEventDateTo()),
+                saleStartDateLike(cond.getSaleStartDate()),
+                saleStartDateBetween(cond.getSaleStartDateFrom(), cond.getSaleStartDateTo()),
+                saleEndDateLike(cond.getSaleEndDate()),
+                saleEndDateBetween(cond.getSaleEndDateFrom(), cond.getSaleEndDateTo()),
+                cancelDeadlineDateLike(cond.getCancelDeadlineDate()),
+                cancelDeadlineDateBetween(cond.getCancelDeadlineDateFrom(), cond.getCancelDeadlineDateTo()),
+                runningMinutesEq(cond.getRunningMinutes()),
+                ageLimitEq(cond.getAgeLimit()),
+                totalSeatsEq(cond.getTotalSeats()),
+                availableSeatsEq(cond.getAvailableSeats()),
+                statusEq(cond.getStatus())
+        };
+    }
+}

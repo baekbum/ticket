@@ -1,11 +1,10 @@
 package dev.bum.admin_service.feign.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.ticket.event.dto.DeleteEventBulkRequest;
-import dev.bum.common.service.ticket.event.dto.EventCondRequest;
-import dev.bum.common.service.ticket.event.dto.EventResponse;
-import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
-import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
+import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;

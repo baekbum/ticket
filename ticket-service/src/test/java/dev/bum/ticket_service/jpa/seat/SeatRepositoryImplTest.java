@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.jpa.seat;
 
-import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
@@ -10,9 +10,9 @@ import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
-import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.jpa.event.EventJpaRepository;
-import dev.bum.ticket_service.jpa.event.EventRepositoryImpl;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
+import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

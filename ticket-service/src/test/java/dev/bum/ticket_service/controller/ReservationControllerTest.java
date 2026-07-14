@@ -2,7 +2,7 @@ package dev.bum.ticket_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
@@ -10,7 +10,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
-import dev.bum.ticket_service.jpa.event.Event;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.ReservationService;

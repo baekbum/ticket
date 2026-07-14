@@ -1,10 +1,10 @@
 package dev.bum.ticket_service.jpa.coupon.coupon;
 
-import dev.bum.common.service.ticket.coupon.dto.CouponResponse;
-import dev.bum.common.service.ticket.coupon.dto.InsertCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.UpdateCouponRequest;
-import dev.bum.common.service.ticket.coupon.enums.CouponDiscountType;
-import dev.bum.common.service.ticket.coupon.enums.CouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
