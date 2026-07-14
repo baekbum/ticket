@@ -23,6 +23,7 @@ import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+import dev.bum.ticket_service.jpa.ticket.QTicket;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
@@ -128,6 +129,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     public Page<Reservation> selectByCond(ReservationCondRequest cond, Pageable pageable) {
         reservation = QReservation.reservation;
         QEvent event = QEvent.event;
+        QTicket ticket = QTicket.ticket;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
         List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
@@ -139,15 +141,18 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(property)));
         });
 
-        Event targetEvent = eventRepository.selectById(cond.getEventId());
+        Event targetEvent = cond.getEventId() > 0 ? eventRepository.selectById(cond.getEventId()) : null;
 
-        // 1. 컨텐츠 조회 (Ticket, Seat 조인 제거)
+        // 1. 컨텐츠 조회
         List<Reservation> content = queryFactory
                 .selectFrom(reservation)
+                .distinct()
                 .join(reservation.event, event).fetchJoin() // 공연 정보는 상세 내역에 필요하므로 FetchJoin
+                .leftJoin(reservation.tickets, ticket)
                 .where(
                         userIdEq(cond.getUserId()),
                         eventEq(targetEvent), // Reservation에 있는 event_id로 바로 필터링
+                        seatIdEq(ticket, cond.getSeatId()),
                         dateBetween(cond.getStartDate(), cond.getEndDate()),
                         statusEq(cond.getStatus())
                 )
@@ -158,11 +163,13 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 2. 카운트 쿼리
         Long total = queryFactory
-                .select(reservation.count())
+                .select(reservation.countDistinct())
                 .from(reservation)
+                .leftJoin(reservation.tickets, ticket)
                 .where(
                         userIdEq(cond.getUserId()),
                         eventEq(targetEvent),
+                        seatIdEq(ticket, cond.getSeatId()),
                         dateBetween(cond.getStartDate(), cond.getEndDate()),
                         statusEq(cond.getStatus())
                 )
@@ -363,6 +370,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         if (event == null) return null;
 
         return reservation.event.eq(event);
+    }
+
+    private BooleanExpression seatIdEq(QTicket ticket, long seatId) {
+        return seatId > 0 ? ticket.seat.seatId.eq(seatId) : null;
     }
 
     private BooleanExpression dateBetween(LocalDate startDate, LocalDate endDate) {

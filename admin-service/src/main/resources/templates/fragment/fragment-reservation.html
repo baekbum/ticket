@@ -1,0 +1,172 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/reservation/fragment-reservation.css}">
+
+<div class="frag-header">
+  <h2>예매 관리</h2>
+  <p class="sub-txt">예매 내역을 조회하고 상태, 공연, 유저 정보를 확인합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="text" class="search-input" id="reservation-search-user-id" placeholder="유저 ID 검색">
+    <button class="btn" onclick="triggerReservationSearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="openReservationSearchModal()">
+      <i class="ti ti-adjustments-horizontal"></i>상세 검색
+    </button>
+    <button class="btn btn-outline" onclick="resetReservationSearch()">
+      <i class="ti ti-refresh"></i>검색 조건 초기화
+    </button>
+  </div>
+  <div class="toolbar-right"></div>
+</div>
+
+<div class="table-wrap">
+  <table class="reservation-table">
+    <colgroup>
+      <col style="width:64px;">
+      <col style="width:110px;">
+      <col style="width:170px;">
+      <col style="width:130px;">
+      <col style="width:100px;">
+      <col style="width:230px;">
+      <col style="width:160px;">
+      <col style="width:170px;">
+      <col style="width:90px;">
+      <col style="width:130px;">
+      <col style="width:130px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th class="sortable" data-sort-field="reservationId" onclick="handleReservationSortClick(this, event)">예매 ID <i class="sort-icon">↕</i></th>
+      <th>주문 번호</th>
+      <th class="sortable" data-sort-field="userId" onclick="handleReservationSortClick(this, event)">유저 ID <i class="sort-icon">↕</i></th>
+      <th>공연 ID</th>
+      <th>공연 제목</th>
+      <th>공연장</th>
+      <th class="sortable" data-sort-field="reservedAt" onclick="handleReservationSortClick(this, event)">예매일 <i class="sort-icon">↕</i></th>
+      <th>매수</th>
+      <th>상태</th>
+      <th class="actions">관리</th>
+    </tr>
+    </thead>
+    <tbody id="reservation-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="reservation-search-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">예매 상세 검색</p>
+    <p class="modal-subtitle">DTO 검색 조건을 조합해 예매 내역을 조회합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>유저 ID</label>
+        <input type="text" id="cond-reservation-user-id" placeholder="유저 ID">
+      </div>
+      <div class="form-group">
+        <label>예매 상태</label>
+        <select id="cond-reservation-status">
+          <option value="">전체 상태</option>
+          <option value="PENDING_PAYMENT">PENDING_PAYMENT (결제 대기)</option>
+          <option value="PAID">PAID (결제 완료)</option>
+          <option value="PARTIALLY_CANCELLED">PARTIALLY_CANCELLED (부분 취소)</option>
+          <option value="CANCELLED">CANCELLED (전체 취소)</option>
+          <option value="EXPIRED">EXPIRED (만료)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>공연 ID</label>
+        <input type="number" id="cond-reservation-event-id" placeholder="eventId" min="1">
+      </div>
+      <div class="form-group">
+        <label>좌석 ID</label>
+        <input type="number" id="cond-reservation-seat-id" placeholder="seatId" min="1">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>검색 시작일</label>
+        <input type="date" id="cond-reservation-start-date">
+      </div>
+      <div class="form-group">
+        <label>검색 종료일</label>
+        <input type="date" id="cond-reservation-end-date">
+      </div>
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeReservationSearchModal()">취소</button>
+      <button class="btn" onclick="submitReservationDetailedSearch()">
+        <i class="ti ti-search"></i>이 조건으로 검색
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="reservation-detail-modal">
+  <div class="f-modal-content reservation-detail-content">
+    <p class="modal-title">예매 상세 조회</p>
+    <p class="modal-subtitle">선택한 예매의 기본 정보를 확인합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="reservation-detail-grid">
+      <div class="detail-item">
+        <span>예매 ID</span>
+        <strong id="detail-reservation-id">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>주문 번호</span>
+        <strong id="detail-order-id">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>유저 ID</span>
+        <strong id="detail-user-id">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>상태</span>
+        <strong id="detail-status">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>공연 ID</span>
+        <strong id="detail-event-id">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>공연 제목</span>
+        <strong id="detail-event-title">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>공연장</span>
+        <strong id="detail-venue">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>공연 일시</span>
+        <strong id="detail-event-date-time">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>예매일</span>
+        <strong id="detail-reserved-date">-</strong>
+      </div>
+      <div class="detail-item">
+        <span>티켓 매수</span>
+        <strong id="detail-ticket-count">-</strong>
+      </div>
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeReservationDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/reservation/fragment-reservation.js}"></script>

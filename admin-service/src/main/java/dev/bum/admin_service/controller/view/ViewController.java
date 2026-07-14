@@ -47,6 +47,8 @@ public class ViewController {
             return "fragment/fragment-area";
         } else if ("seat".equals(menuName)) {
             return "fragment/fragment-seat";
+        } else if ("reservation".equals(menuName)) {
+            return "fragment/fragment-reservation";
         }
 
         return "error/404";
