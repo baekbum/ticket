@@ -22,5 +22,6 @@ public class CouponResponse {
     private Integer minOrderAmount;
     private String validFrom;
     private String validUntil;
+    private Integer validDaysAfterIssue;
     private CouponStatus status;
 }

@@ -23,5 +23,6 @@ public class UpdateCouponRequest {
     private Integer minOrderAmount;
     private LocalDateTime validFrom;
     private LocalDateTime validUntil;
+    private Integer validDaysAfterIssue;
     private CouponStatus status;
 }

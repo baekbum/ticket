@@ -48,6 +48,7 @@ public class CouponService {
 
     public CouponResponse insert(InsertCouponRequest request) {
         validateCouponPolicy(request.getDiscountType(), request.getDiscountValue(), request.getMaxDiscountAmount());
+        validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
         if (couponJpaRepository.existsByCode(request.getCode())) {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
@@ -68,6 +69,7 @@ public class CouponService {
                 request.getDiscountValue() != null ? request.getDiscountValue() : coupon.getDiscountValue(),
                 request.getMaxDiscountAmount() != null ? request.getMaxDiscountAmount() : coupon.getMaxDiscountAmount()
         );
+        validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
         coupon.update(request);
         return coupon.toResponse();
@@ -104,7 +106,10 @@ public class CouponService {
                     throw new IllegalArgumentException("이미 발급된 쿠폰입니다.");
                 });
 
-        return userCouponJpaRepository.save(new UserCoupon(request.getUserId(), coupon, request.getExpiresAt())).toResponse();
+        LocalDateTime issuedAt = LocalDateTime.now();
+        LocalDateTime expiresAt = resolveUserCouponExpiresAt(request, coupon, issuedAt);
+
+        return userCouponJpaRepository.save(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
     }
 
     @Transactional(readOnly = true)
@@ -230,6 +235,18 @@ public class CouponService {
         return Math.min(discountAmount, orderAmount);
     }
 
+    private LocalDateTime resolveUserCouponExpiresAt(IssueCouponRequest request, Coupon coupon, LocalDateTime issuedAt) {
+        if (request.getExpiresAt() != null) {
+            return request.getExpiresAt();
+        }
+
+        if (coupon.getValidDaysAfterIssue() != null && coupon.getValidDaysAfterIssue() > 0) {
+            return issuedAt.plusDays(coupon.getValidDaysAfterIssue());
+        }
+
+        return coupon.getValidUntil();
+    }
+
     private void validateCouponPolicy(CouponDiscountType discountType, Integer discountValue, Integer maxDiscountAmount) {
         if (discountType == null || discountValue == null || discountValue <= 0) {
             throw new IllegalArgumentException("쿠폰 할인 값을 확인해주세요.");
@@ -241,6 +258,12 @@ public class CouponService {
 
         if (maxDiscountAmount != null && maxDiscountAmount < 0) {
             throw new IllegalArgumentException("최대 할인 금액은 0 이상이어야 합니다.");
+        }
+    }
+
+    private void validateValidDaysAfterIssue(Integer validDaysAfterIssue) {
+        if (validDaysAfterIssue != null && validDaysAfterIssue < 0) {
+            throw new IllegalArgumentException("발급 후 유효 일수는 0 이상이어야 합니다.");
         }
     }
 

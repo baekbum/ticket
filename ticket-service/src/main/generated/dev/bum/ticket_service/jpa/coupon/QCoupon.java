@@ -39,6 +39,8 @@ public class QCoupon extends EntityPathBase<Coupon> {
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 
+    public final NumberPath<Integer> validDaysAfterIssue = createNumber("validDaysAfterIssue", Integer.class);
+
     public final DateTimePath<java.time.LocalDateTime> validFrom = createDateTime("validFrom", java.time.LocalDateTime.class);
 
     public final DateTimePath<java.time.LocalDateTime> validUntil = createDateTime("validUntil", java.time.LocalDateTime.class);

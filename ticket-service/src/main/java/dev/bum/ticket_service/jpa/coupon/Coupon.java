@@ -79,6 +79,10 @@ public class Coupon {
     @Column(name = "valid_until")
     private LocalDateTime validUntil;
 
+    // 발급 시각 기준 사용자 쿠폰 만료까지의 일수. null이면 validUntil을 사용한다.
+    @Column(name = "valid_days_after_issue")
+    private Integer validDaysAfterIssue;
+
     // 쿠폰 정책의 활성/비활성/만료 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -103,6 +107,8 @@ public class Coupon {
         this.minOrderAmount = info.getMinOrderAmount();
         this.validFrom = info.getValidFrom();
         this.validUntil = info.getValidUntil();
+        this.validDaysAfterIssue = normalizeValidDaysAfterIssue(info.getValidDaysAfterIssue());
+        if (this.validDaysAfterIssue != null) this.validUntil = null;
         this.status = info.getStatus() != null ? info.getStatus() : CouponStatus.ACTIVE;
     }
 
@@ -115,6 +121,10 @@ public class Coupon {
         if (info.getMinOrderAmount() != null) this.minOrderAmount = info.getMinOrderAmount();
         if (info.getValidFrom() != null) this.validFrom = info.getValidFrom();
         if (info.getValidUntil() != null) this.validUntil = info.getValidUntil();
+        if (info.getValidDaysAfterIssue() != null) {
+            this.validDaysAfterIssue = normalizeValidDaysAfterIssue(info.getValidDaysAfterIssue());
+            if (this.validDaysAfterIssue != null) this.validUntil = null;
+        }
         if (info.getStatus() != null) this.status = info.getStatus();
     }
 
@@ -129,8 +139,13 @@ public class Coupon {
                 .minOrderAmount(this.minOrderAmount)
                 .validFrom(formatDateTime(this.validFrom))
                 .validUntil(formatDateTime(this.validUntil))
+                .validDaysAfterIssue(this.validDaysAfterIssue)
                 .status(this.status)
                 .build();
+    }
+
+    private Integer normalizeValidDaysAfterIssue(Integer validDaysAfterIssue) {
+        return validDaysAfterIssue != null && validDaysAfterIssue > 0 ? validDaysAfterIssue : null;
     }
 
     private String formatDateTime(LocalDateTime dateTime) {

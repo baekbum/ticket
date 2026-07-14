@@ -82,11 +82,15 @@ public class UserCoupon {
     private LocalDateTime updatedAt;
 
     public UserCoupon(String userId, Coupon coupon, LocalDateTime expiresAt) {
+        this(userId, coupon, LocalDateTime.now(), expiresAt != null ? expiresAt : coupon.getValidUntil());
+    }
+
+    public UserCoupon(String userId, Coupon coupon, LocalDateTime issuedAt, LocalDateTime expiresAt) {
         this.userId = userId;
         this.coupon = coupon;
         this.status = UserCouponStatus.ISSUED;
-        this.issuedAt = LocalDateTime.now();
-        this.expiresAt = expiresAt != null ? expiresAt : coupon.getValidUntil();
+        this.issuedAt = issuedAt != null ? issuedAt : LocalDateTime.now();
+        this.expiresAt = expiresAt;
     }
 
     public UserCouponResponse toResponse() {

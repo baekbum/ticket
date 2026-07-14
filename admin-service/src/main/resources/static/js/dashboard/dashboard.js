@@ -1,5 +1,5 @@
   let fragmentContext = {};
-  const disabledMenus = new Set(['coupon', 'userCoupon']);
+  const disabledMenus = new Set(['userCoupon']);
 
   document.addEventListener('DOMContentLoaded', async () => {
 
