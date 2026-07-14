@@ -72,6 +72,7 @@
 .f-modal-content { background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-md); width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border: 1px solid var(--border); box-shadow: 0 8px 40px rgba(60,40,120,0.14); box-sizing: border-box; }
 .reservation-detail-content { max-width: 820px; }
 .reservation-ticket-content { max-width: 760px; }
+.ticket-seat-location-content { max-width: 860px; }
 .modal-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; }
 .modal-subtitle { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 1rem; }
 .modal-subtitle strong { color: var(--text-primary); font-weight: 700; }
@@ -89,6 +90,8 @@
 .reservation-detail-content .modal-actions .btn { width: 100%; }
 .reservation-ticket-content .modal-actions { grid-template-columns: 1fr; }
 .reservation-ticket-content .modal-actions .btn { width: 100%; }
+.ticket-seat-location-content .modal-actions { grid-template-columns: 1fr; }
+.ticket-seat-location-content .modal-actions .btn { width: 100%; }
 
 .reservation-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .detail-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: #fafafa; min-width: 0; }
@@ -135,7 +138,7 @@
 }
 .ticket-card-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 .ticket-card-grid div {
@@ -161,6 +164,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ticket-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
 .ticket-empty-state {
   display: flex;
   align-items: center;
@@ -176,12 +184,95 @@
 }
 .ticket-empty-state i { font-size: 18px; color: var(--text-muted); }
 
+.ticket-seat-location-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ticket-seat-location-count {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--purple-dim);
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 800;
+}
+.ticket-seat-location-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ticket-seat-location-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-seat {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(24,23,43,0.16);
+}
+.legend-seat.is-target { background: var(--purple); }
+.legend-seat.is-available { background: #2fbf71; }
+.legend-seat.is-reserved { background: #d63b3b; }
+.legend-seat.is-locked { background: #f59f00; }
+.ticket-seat-location-stage {
+  width: 100%;
+  aspect-ratio: 700 / 520;
+  min-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(rgba(124,77,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,77,255,0.04) 1px, transparent 1px),
+    #fff;
+  background-size: 20px 20px;
+  overflow: hidden;
+}
+#ticket-seat-location-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ticket-seat-location-seat {
+  stroke: rgba(24,23,43,0.20);
+  stroke-width: 1;
+}
+.ticket-seat-location-seat.is-available { fill: #2fbf71; }
+.ticket-seat-location-seat.is-reserved { fill: #d63b3b; }
+.ticket-seat-location-seat.is-locked { fill: #f59f00; }
+.ticket-seat-location-seat.is-target {
+  fill: var(--purple);
+  stroke: #2f176f;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 7px rgba(124,77,255,0.55));
+}
+.ticket-seat-location-empty {
+  fill: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 body.dark-mode .reservation-table th,
 body.dark-mode .detail-item,
 body.dark-mode .ticket-card,
 body.dark-mode .ticket-empty-state { background: #151722; }
 body.dark-mode .ticket-card-seat,
 body.dark-mode .ticket-card-grid div { background: #202231; border-color: var(--border); }
+body.dark-mode .ticket-seat-location-stage {
+  background:
+    linear-gradient(rgba(124,77,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,77,255,0.08) 1px, transparent 1px),
+    #10111a;
+}
 body.dark-mode .search-input,
 body.dark-mode .form-group input,
 body.dark-mode .form-group select,

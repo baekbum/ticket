@@ -1,6 +1,7 @@
 (function () {
   const RESERVATION_URL = `${base()}/admin/api/${API.VERSION}/reservation`;
   const TICKET_URL = `${base()}/admin/api/${API.VERSION}/ticket`;
+  const SEAT_URL = `${base()}/admin/api/${API.VERSION}/seat`;
   const headers = { 'Content-Type': 'application/json' };
 
   let currentReservationList = [];
@@ -339,11 +340,23 @@
         <div class="ticket-card-grid">
           <div><span>좌석 ID</span><strong>${escapeHtml(ticket.seatId || '-')}</strong></div>
           <div><span>구역</span><strong>${escapeHtml(ticket.zone || '-')}</strong></div>
+          <div><span>행/번호</span><strong>${formatSeatRowCol(ticket)}</strong></div>
           <div><span>등급</span><strong>${escapeHtml(ticket.grade || '-')}</strong></div>
           <div><span>가격</span><strong>${Number(ticket.price || 0).toLocaleString()}원</strong></div>
         </div>
+        <div class="ticket-card-actions">
+          <button class="btn btn-sm btn-outline" onclick="openTicketSeatLocation(${ticket.seatId})">
+            <i class="ti ti-map-pin"></i>좌석 위치
+          </button>
+        </div>
       </article>
     `).join('');
+  }
+
+  function formatSeatRowCol(ticket) {
+    const row = ticket.seatRow ?? '-';
+    const col = ticket.seatCol ?? '-';
+    return `${escapeHtml(row)}열 ${escapeHtml(col)}번`;
   }
 
   function ticketStatusBadge(status) {
@@ -360,6 +373,110 @@
       EXPIRED: 'badge-expired'
     };
     return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(labels[status] || status || '-')}</span>`;
+  }
+
+  window.openTicketSeatLocation = async function (seatId) {
+    if (!seatId) {
+      showToast('좌석 ID가 없어 위치를 확인할 수 없습니다.', true);
+      return;
+    }
+
+    document.getElementById('ticket-seat-location-title').textContent = '좌석 위치 확인';
+    document.getElementById('ticket-seat-location-subtitle').textContent = `좌석 ID ${seatId}의 구역 내 위치입니다.`;
+    document.getElementById('ticket-seat-location-count').textContent = '-';
+    document.getElementById('ticket-seat-location-svg').innerHTML = '';
+    document.getElementById('ticket-seat-location-modal').style.display = 'flex';
+
+    try {
+      const targetSeatRes = await Fetch(`${SEAT_URL}/select/id/${seatId}`, { method: 'GET' });
+      if (!targetSeatRes.ok) {
+        renderTicketSeatLocationEmpty('좌석 상세 정보를 조회하지 못했습니다.');
+        return;
+      }
+
+      const targetSeat = await targetSeatRes.json();
+      if (!targetSeat.areaId) {
+        renderTicketSeatLocationEmpty('좌석의 구역 정보가 없어 위치를 표시할 수 없습니다.');
+        return;
+      }
+
+      const seatsRes = await Fetch(`${SEAT_URL}/select`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ areaId: targetSeat.areaId, page: 0, size: 5000, sort: ['seatRow-asc', 'seatCol-asc'] })
+      });
+
+      if (!seatsRes.ok) {
+        renderTicketSeatLocationEmpty('구역 좌석 정보를 조회하지 못했습니다.');
+        return;
+      }
+
+      const paged = await seatsRes.json();
+      const seats = paged.content || [];
+      renderTicketSeatLocation(targetSeat, seats);
+    } catch (e) {
+      console.error('Ticket seat location load failed', e);
+      renderTicketSeatLocationEmpty('좌석 위치 조회 중 오류가 발생했습니다.');
+    }
+  };
+
+  window.closeTicketSeatLocationModal = function () {
+    document.getElementById('ticket-seat-location-modal').style.display = 'none';
+  };
+
+  function svgEl(tag, attrs = {}) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+    return el;
+  }
+
+  function renderTicketSeatLocationEmpty(message) {
+    const svg = document.getElementById('ticket-seat-location-svg');
+    svg.innerHTML = '';
+    const text = svgEl('text', { x: 350, y: 260, class: 'ticket-seat-location-empty', 'text-anchor': 'middle' });
+    text.textContent = message;
+    svg.appendChild(text);
+    document.getElementById('ticket-seat-location-count').textContent = '0석';
+  }
+
+  function renderTicketSeatLocation(targetSeat, seats) {
+    const svg = document.getElementById('ticket-seat-location-svg');
+    svg.innerHTML = '';
+    document.getElementById('ticket-seat-location-title').textContent = targetSeat.areaName || targetSeat.zone || '좌석 위치 확인';
+    document.getElementById('ticket-seat-location-subtitle').textContent =
+      `${targetSeat.title || '공연'} · ${targetSeat.seatName || `${targetSeat.seatRow || '-'}열 ${targetSeat.seatCol || '-'}번`}`;
+    document.getElementById('ticket-seat-location-count').textContent = `${seats.length}석`;
+
+    if (seats.length === 0) {
+      renderTicketSeatLocationEmpty('해당 구역에 등록된 좌석 정보가 없습니다.');
+      return;
+    }
+
+    seats.forEach(seat => {
+      const x = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
+      const y = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
+      const width = seat.seatWidth ?? 14;
+      const height = seat.seatHeight ?? 14;
+      const rotation = seat.rotation ?? 0;
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      const isTarget = Number(seat.seatId) === Number(targetSeat.seatId);
+      const rect = svgEl('rect', {
+        x, y, width, height, rx: 2,
+        class: `ticket-seat-location-seat ${seatStatusClass(seat.status)}${isTarget ? ' is-target' : ''}`,
+        transform: `rotate(${rotation} ${cx} ${cy})`
+      });
+      const title = svgEl('title');
+      title.textContent = `${seat.seatName || `${seat.seatRow || '-'}열 ${seat.seatCol || '-'}번`} / ${seat.status || '-'} / ${seat.price != null ? Number(seat.price).toLocaleString() + '원' : '-'}`;
+      rect.appendChild(title);
+      svg.appendChild(rect);
+    });
+  }
+
+  function seatStatusClass(status) {
+    if (status === 'RESERVED') return 'is-reserved';
+    if (status === 'LOCKED') return 'is-locked';
+    return 'is-available';
   }
 
   window.Pagination.register({
