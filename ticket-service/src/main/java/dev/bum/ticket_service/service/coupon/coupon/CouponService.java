@@ -1,10 +1,5 @@
 package dev.bum.ticket_service.service.coupon.coupon;
 
-import com.querydsl.core.types.Order;
-import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.PathBuilder;
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
@@ -18,23 +13,19 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
-import dev.bum.ticket_service.jpa.coupon.coupon.CouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
-import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
-import dev.bum.ticket_service.jpa.coupon.coupon.QCoupon;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,9 +35,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CouponService {
 
-    private final CouponJpaRepository couponJpaRepository;
-    private final UserCouponJpaRepository userCouponJpaRepository;
-    private final JPAQueryFactory queryFactory;
+    private final CouponRepository couponRepository;
+    private final UserCouponRepository userCouponRepository;
 
     public CouponResponse insert(InsertCouponRequest request) {
         log.info("[COUPON][INSERT] request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
@@ -55,11 +45,11 @@ public class CouponService {
         validateCouponPolicy(request.getDiscountType(), request.getDiscountValue(), request.getMaxDiscountAmount());
         validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
-        if (couponJpaRepository.existsByCode(request.getCode())) {
+        if (couponRepository.existsByCode(request.getCode())) {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
         }
 
-        Coupon savedCoupon = couponJpaRepository.save(new Coupon(request));
+        Coupon savedCoupon = couponRepository.insert(new Coupon(request));
         log.info("[COUPON][INSERT][SUCCESS] couponId={}, code={}, status={}",
                 savedCoupon.getCouponId(), savedCoupon.getCode(), savedCoupon.getStatus());
 
@@ -76,7 +66,7 @@ public class CouponService {
                 coupon.getMaxDiscountAmount(), coupon.getMinOrderAmount(), coupon.getValidFrom(), coupon.getValidUntil(),
                 coupon.getValidDaysAfterIssue(), coupon.getStatus());
 
-        if (StringUtils.hasText(request.getCode()) && couponJpaRepository.existsByCodeAndCouponIdNot(request.getCode(), couponId)) {
+        if (StringUtils.hasText(request.getCode()) && couponRepository.existsByCodeExceptId(request.getCode(), couponId)) {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
         }
 
@@ -88,7 +78,7 @@ public class CouponService {
         validateValidDaysAfterIssue(request.getValidDaysAfterIssue());
 
         coupon.update(request);
-        Coupon updatedCoupon = couponJpaRepository.saveAndFlush(coupon);
+        Coupon updatedCoupon = couponRepository.update(coupon);
         log.info("[COUPON][UPDATE][SUCCESS] couponId={}, name={}, code={}, discountType={}, discountValue={}, maxDiscountAmount={}, minOrderAmount={}, validFrom={}, validUntil={}, validDaysAfterIssue={}, status={}",
                 updatedCoupon.getCouponId(), updatedCoupon.getName(), updatedCoupon.getCode(), updatedCoupon.getDiscountType(), updatedCoupon.getDiscountValue(),
                 updatedCoupon.getMaxDiscountAmount(), updatedCoupon.getMinOrderAmount(), updatedCoupon.getValidFrom(), updatedCoupon.getValidUntil(),
@@ -105,7 +95,7 @@ public class CouponService {
     @Transactional(readOnly = true)
     public CustomPageResponse<CouponResponse> selectByCond(CouponCondRequest cond) {
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<CouponResponse> page = selectCouponPage(cond, pageRequest).map(Coupon::toResponse);
+        Page<CouponResponse> page = couponRepository.selectByCond(cond, pageRequest).map(Coupon::toResponse);
 
         return CustomPageResponse.of(
                 page.getContent(),
@@ -123,28 +113,24 @@ public class CouponService {
             throw new IllegalArgumentException("활성화된 쿠폰만 발급할 수 있습니다.");
         }
 
-        userCouponJpaRepository.findByUserIdAndCoupon(request.getUserId(), coupon)
-                .ifPresent(userCoupon -> {
-                    throw new IllegalArgumentException("이미 발급된 쿠폰입니다.");
-                });
+        userCouponRepository.validateNotIssued(request.getUserId(), coupon);
 
         LocalDateTime issuedAt = LocalDateTime.now();
         LocalDateTime expiresAt = resolveUserCouponExpiresAt(request, coupon, issuedAt);
 
-        return userCouponJpaRepository.save(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
+        return userCouponRepository.insert(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
     }
 
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId) {
-        return userCouponJpaRepository.findByUserId(userId).stream()
+        return userCouponRepository.selectByUserId(userId).stream()
                 .map(UserCoupon::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CouponAvailabilityResponse checkAvailable(CouponAvailabilityRequest request) {
-        UserCoupon userCoupon = userCouponJpaRepository.findById(request.getUserCouponId())
-                .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
+        UserCoupon userCoupon = userCouponRepository.selectById(request.getUserCouponId());
         Coupon coupon = userCoupon.getCoupon();
         LocalDateTime now = LocalDateTime.now();
 
@@ -165,51 +151,7 @@ public class CouponService {
     }
 
     private Coupon selectCoupon(Long couponId) {
-        return couponJpaRepository.findById(couponId)
-                .orElseThrow(() -> new IllegalArgumentException("쿠폰이 존재하지 않습니다."));
-    }
-
-    private Page<Coupon> selectCouponPage(CouponCondRequest cond, PageRequest pageRequest) {
-        QCoupon coupon = QCoupon.coupon;
-
-        List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
-        pageRequest.getSort().forEach(order -> {
-            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
-            PathBuilder<Coupon> entityPath = new PathBuilder<>(Coupon.class, "coupon");
-            orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(order.getProperty())));
-        });
-
-        List<Coupon> content = queryFactory
-                .selectFrom(coupon)
-                .where(
-                        nameLike(cond.getName()),
-                        codeLike(cond.getCode()),
-                        discountTypeEq(cond.getDiscountType()),
-                        validFromDateEq(cond.getValidFrom()),
-                        validUntilDateEq(cond.getValidUntil()),
-                        validDaysAfterIssueEq(cond.getValidDaysAfterIssue()),
-                        statusEq(cond.getStatus())
-                )
-                .offset(pageRequest.getOffset())
-                .limit(pageRequest.getPageSize())
-                .orderBy(orderSpecifiers.toArray(new OrderSpecifier[0]))
-                .fetch();
-
-        Long total = queryFactory
-                .select(coupon.count())
-                .from(coupon)
-                .where(
-                        nameLike(cond.getName()),
-                        codeLike(cond.getCode()),
-                        discountTypeEq(cond.getDiscountType()),
-                        validFromDateEq(cond.getValidFrom()),
-                        validUntilDateEq(cond.getValidUntil()),
-                        validDaysAfterIssueEq(cond.getValidDaysAfterIssue()),
-                        statusEq(cond.getStatus())
-                )
-                .fetchOne();
-
-        return new PageImpl<>(content, pageRequest, total != null ? total : 0L);
+        return couponRepository.selectById(couponId);
     }
 
     private String getUnavailableReason(CouponAvailabilityRequest request, UserCoupon userCoupon, Coupon coupon, LocalDateTime now) {
@@ -313,35 +255,4 @@ public class CouponService {
         return sort;
     }
 
-    private BooleanExpression nameLike(String name) {
-        return StringUtils.hasText(name) ? QCoupon.coupon.name.like("%" + name + "%") : null;
-    }
-
-    private BooleanExpression codeLike(String code) {
-        return StringUtils.hasText(code) ? QCoupon.coupon.code.like("%" + code + "%") : null;
-    }
-
-    private BooleanExpression discountTypeEq(CouponDiscountType discountType) {
-        return discountType != null ? QCoupon.coupon.discountType.eq(discountType) : null;
-    }
-
-    private BooleanExpression validFromDateEq(LocalDate validFrom) {
-        return validFrom != null
-                ? QCoupon.coupon.validFrom.between(validFrom.atStartOfDay(), validFrom.atTime(LocalTime.MAX))
-                : null;
-    }
-
-    private BooleanExpression validUntilDateEq(LocalDate validUntil) {
-        return validUntil != null
-                ? QCoupon.coupon.validUntil.between(validUntil.atStartOfDay(), validUntil.atTime(LocalTime.MAX))
-                : null;
-    }
-
-    private BooleanExpression validDaysAfterIssueEq(Integer validDaysAfterIssue) {
-        return validDaysAfterIssue != null ? QCoupon.coupon.validDaysAfterIssue.eq(validDaysAfterIssue) : null;
-    }
-
-    private BooleanExpression statusEq(CouponStatus status) {
-        return status != null ? QCoupon.coupon.status.eq(status) : null;
-    }
 }
