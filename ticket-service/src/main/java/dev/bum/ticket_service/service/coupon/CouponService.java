@@ -17,11 +17,11 @@ import dev.bum.common.service.ticket.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.enums.UserCouponStatus;
-import dev.bum.ticket_service.jpa.coupon.Coupon;
-import dev.bum.ticket_service.jpa.coupon.CouponJpaRepository;
-import dev.bum.ticket_service.jpa.coupon.QCoupon;
-import dev.bum.ticket_service.jpa.coupon.UserCoupon;
-import dev.bum.ticket_service.jpa.coupon.UserCouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
+import dev.bum.ticket_service.jpa.coupon.coupon.CouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.coupon.QCoupon;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +32,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -182,6 +184,10 @@ public class CouponService {
                 .where(
                         nameLike(cond.getName()),
                         codeLike(cond.getCode()),
+                        discountTypeEq(cond.getDiscountType()),
+                        validFromDateEq(cond.getValidFrom()),
+                        validUntilDateEq(cond.getValidUntil()),
+                        validDaysAfterIssueEq(cond.getValidDaysAfterIssue()),
                         statusEq(cond.getStatus())
                 )
                 .offset(pageRequest.getOffset())
@@ -195,6 +201,10 @@ public class CouponService {
                 .where(
                         nameLike(cond.getName()),
                         codeLike(cond.getCode()),
+                        discountTypeEq(cond.getDiscountType()),
+                        validFromDateEq(cond.getValidFrom()),
+                        validUntilDateEq(cond.getValidUntil()),
+                        validDaysAfterIssueEq(cond.getValidDaysAfterIssue()),
                         statusEq(cond.getStatus())
                 )
                 .fetchOne();
@@ -309,6 +319,26 @@ public class CouponService {
 
     private BooleanExpression codeLike(String code) {
         return StringUtils.hasText(code) ? QCoupon.coupon.code.like("%" + code + "%") : null;
+    }
+
+    private BooleanExpression discountTypeEq(CouponDiscountType discountType) {
+        return discountType != null ? QCoupon.coupon.discountType.eq(discountType) : null;
+    }
+
+    private BooleanExpression validFromDateEq(LocalDate validFrom) {
+        return validFrom != null
+                ? QCoupon.coupon.validFrom.between(validFrom.atStartOfDay(), validFrom.atTime(LocalTime.MAX))
+                : null;
+    }
+
+    private BooleanExpression validUntilDateEq(LocalDate validUntil) {
+        return validUntil != null
+                ? QCoupon.coupon.validUntil.between(validUntil.atStartOfDay(), validUntil.atTime(LocalTime.MAX))
+                : null;
+    }
+
+    private BooleanExpression validDaysAfterIssueEq(Integer validDaysAfterIssue) {
+        return validDaysAfterIssue != null ? QCoupon.coupon.validDaysAfterIssue.eq(validDaysAfterIssue) : null;
     }
 
     private BooleanExpression statusEq(CouponStatus status) {

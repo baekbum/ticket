@@ -1,5 +1,6 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.userCoupon;
 
+import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

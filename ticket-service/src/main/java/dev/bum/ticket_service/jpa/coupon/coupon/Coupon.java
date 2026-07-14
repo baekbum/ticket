@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.coupon;
 
 import dev.bum.common.service.ticket.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.dto.InsertCouponRequest;

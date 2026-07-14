@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.reservation;
+package dev.bum.ticket_service.jpa.reservation.reservation;
 
 import static com.querydsl.core.types.PathMetadataFactory.*;
 
@@ -16,7 +16,7 @@ import com.querydsl.core.types.dsl.PathInits;
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
 public class QReservation extends EntityPathBase<Reservation> {
 
-    private static final long serialVersionUID = 1083451128L;
+    private static final long serialVersionUID = 852966870L;
 
     private static final PathInits INITS = PathInits.DIRECT2;
 

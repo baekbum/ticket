@@ -1,6 +1,6 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.reservation.reservationDiscount;
 
-import dev.bum.ticket_service.jpa.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

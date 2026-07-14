@@ -3,7 +3,15 @@
   const headers = { 'Content-Type': 'application/json' };
 
   let currentCouponList = [];
-  let currentSearchFilters = { name: null, code: null, status: null };
+  let currentSearchFilters = {
+    name: null,
+    code: null,
+    discountType: null,
+    status: null,
+    validFrom: null,
+    validUntil: null,
+    validDaysAfterIssue: null
+  };
   let currentSortFilters = { couponId: 'desc' };
   let serverTotalPages = 1;
 
@@ -57,7 +65,11 @@
     };
     if (currentSearchFilters.name) cond.name = currentSearchFilters.name;
     if (currentSearchFilters.code) cond.code = currentSearchFilters.code;
+    if (currentSearchFilters.discountType) cond.discountType = currentSearchFilters.discountType;
     if (currentSearchFilters.status) cond.status = currentSearchFilters.status;
+    if (currentSearchFilters.validFrom) cond.validFrom = currentSearchFilters.validFrom;
+    if (currentSearchFilters.validUntil) cond.validUntil = currentSearchFilters.validUntil;
+    if (currentSearchFilters.validDaysAfterIssue) cond.validDaysAfterIssue = currentSearchFilters.validDaysAfterIssue;
     return cond;
   }
 
@@ -182,18 +194,34 @@
   };
 
   window.resetCouponSearch = function () {
-    currentSearchFilters = { name: null, code: null, status: null };
+    currentSearchFilters = {
+      name: null,
+      code: null,
+      discountType: null,
+      status: null,
+      validFrom: null,
+      validUntil: null,
+      validDaysAfterIssue: null
+    };
     setValue('coupon-search-name', '');
     setValue('cond-coupon-name', '');
     setValue('cond-coupon-code', '');
+    setValue('cond-coupon-discount-type', '');
     setValue('cond-coupon-status', '');
+    setValue('cond-coupon-valid-from', '');
+    setValue('cond-coupon-valid-until', '');
+    setValue('cond-coupon-valid-days-after-issue', '');
     loadCouponList(0);
   };
 
   window.openCouponSearchModal = function () {
     setValue('cond-coupon-name', currentSearchFilters.name);
     setValue('cond-coupon-code', currentSearchFilters.code);
+    setValue('cond-coupon-discount-type', currentSearchFilters.discountType);
     setValue('cond-coupon-status', currentSearchFilters.status);
+    setValue('cond-coupon-valid-from', currentSearchFilters.validFrom);
+    setValue('cond-coupon-valid-until', currentSearchFilters.validUntil);
+    setValue('cond-coupon-valid-days-after-issue', currentSearchFilters.validDaysAfterIssue);
     document.getElementById('coupon-search-modal').style.display = 'flex';
   };
 
@@ -202,10 +230,28 @@
   };
 
   window.submitCouponDetailedSearch = function () {
+    const validFrom = inputValue('cond-coupon-valid-from') || null;
+    const validUntil = inputValue('cond-coupon-valid-until') || null;
+    const validDaysAfterIssue = nullableNumber('cond-coupon-valid-days-after-issue');
+
+    if (validFrom && validUntil && validFrom > validUntil) {
+      showToast('유효 시작일은 종료일보다 늦을 수 없습니다.', true);
+      return;
+    }
+
+    if (validDaysAfterIssue != null && (!Number.isInteger(validDaysAfterIssue) || validDaysAfterIssue <= 0)) {
+      showToast('발급 후 만료 일수는 1 이상의 정수로 입력해주세요.', true);
+      return;
+    }
+
     currentSearchFilters = {
       name: inputValue('cond-coupon-name') || null,
       code: inputValue('cond-coupon-code') || null,
-      status: inputValue('cond-coupon-status') || null
+      discountType: inputValue('cond-coupon-discount-type') || null,
+      status: inputValue('cond-coupon-status') || null,
+      validFrom,
+      validUntil,
+      validDaysAfterIssue
     };
     setValue('coupon-search-name', currentSearchFilters.name);
     closeCouponSearchModal();

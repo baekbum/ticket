@@ -3,7 +3,7 @@ package dev.bum.ticket_service.jpa.payment;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

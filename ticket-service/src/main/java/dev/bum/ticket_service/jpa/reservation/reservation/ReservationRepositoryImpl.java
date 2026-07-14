@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.reservation;
+package dev.bum.ticket_service.jpa.reservation.reservation;
 
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
@@ -13,14 +13,14 @@ import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
-import dev.bum.ticket_service.jpa.coupon.Coupon;
-import dev.bum.ticket_service.jpa.coupon.ReservationDiscount;
-import dev.bum.ticket_service.jpa.coupon.ReservationDiscountJpaRepository;
-import dev.bum.ticket_service.jpa.coupon.UserCoupon;
-import dev.bum.ticket_service.jpa.coupon.UserCouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.QTicket;

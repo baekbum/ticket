@@ -26,7 +26,7 @@ public class QTicket extends EntityPathBase<Ticket> {
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
-    public final dev.bum.ticket_service.jpa.reservation.QReservation reservation;
+    public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;
 
     public final dev.bum.ticket_service.jpa.seat.QSeat seat;
 
@@ -55,7 +55,7 @@ public class QTicket extends EntityPathBase<Ticket> {
     public QTicket(Class<? extends Ticket> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.QEvent(forProperty("event")) : null;
-        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
+        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
         this.seat = inits.isInitialized("seat") ? new dev.bum.ticket_service.jpa.seat.QSeat(forProperty("seat"), inits.get("seat")) : null;
     }
 

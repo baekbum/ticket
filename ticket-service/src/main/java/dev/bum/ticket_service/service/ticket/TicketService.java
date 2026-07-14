@@ -1,8 +1,8 @@
 package dev.bum.ticket_service.service.ticket;
 
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
-import dev.bum.ticket_service.jpa.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import lombok.RequiredArgsConstructor;

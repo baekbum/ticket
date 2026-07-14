@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.coupon;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

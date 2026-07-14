@@ -2,8 +2,8 @@ package dev.bum.ticket_service.service.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.*;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
-import dev.bum.ticket_service.jpa.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
 import dev.bum.ticket_service.service.seat.SeatCacheService;

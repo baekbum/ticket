@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.reservation.reservationDiscount;
 
 import static com.querydsl.core.types.PathMetadataFactory.*;
 
@@ -16,7 +16,7 @@ import com.querydsl.core.types.dsl.PathInits;
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
 public class QReservationDiscount extends EntityPathBase<ReservationDiscount> {
 
-    private static final long serialVersionUID = -324381161L;
+    private static final long serialVersionUID = -2071287784L;
 
     private static final PathInits INITS = PathInits.DIRECT2;
 
@@ -34,11 +34,11 @@ public class QReservationDiscount extends EntityPathBase<ReservationDiscount> {
 
     public final NumberPath<Integer> discountValue = createNumber("discountValue", Integer.class);
 
-    public final dev.bum.ticket_service.jpa.reservation.QReservation reservation;
+    public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;
 
     public final NumberPath<Long> reservationDiscountId = createNumber("reservationDiscountId", Long.class);
 
-    public final QUserCoupon userCoupon;
+    public final dev.bum.ticket_service.jpa.coupon.userCoupon.QUserCoupon userCoupon;
 
     public QReservationDiscount(String variable) {
         this(ReservationDiscount.class, forVariable(variable), INITS);
@@ -58,8 +58,8 @@ public class QReservationDiscount extends EntityPathBase<ReservationDiscount> {
 
     public QReservationDiscount(Class<? extends ReservationDiscount> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
-        this.userCoupon = inits.isInitialized("userCoupon") ? new QUserCoupon(forProperty("userCoupon"), inits.get("userCoupon")) : null;
+        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
+        this.userCoupon = inits.isInitialized("userCoupon") ? new dev.bum.ticket_service.jpa.coupon.userCoupon.QUserCoupon(forProperty("userCoupon"), inits.get("userCoupon")) : null;
     }
 
 }

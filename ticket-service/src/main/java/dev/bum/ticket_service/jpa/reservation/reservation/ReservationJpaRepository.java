@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.reservation;
+package dev.bum.ticket_service.jpa.reservation.reservation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

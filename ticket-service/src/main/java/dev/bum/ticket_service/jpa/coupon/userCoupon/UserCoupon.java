@@ -1,7 +1,8 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.userCoupon;
 
 import dev.bum.common.service.ticket.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.enums.UserCouponStatus;
+import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

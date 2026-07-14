@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.userCoupon;
 
 import static com.querydsl.core.types.PathMetadataFactory.*;
 
@@ -16,13 +16,13 @@ import com.querydsl.core.types.dsl.PathInits;
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
 public class QUserCoupon extends EntityPathBase<UserCoupon> {
 
-    private static final long serialVersionUID = -191129689L;
+    private static final long serialVersionUID = -2008088392L;
 
     private static final PathInits INITS = PathInits.DIRECT2;
 
     public static final QUserCoupon userCoupon = new QUserCoupon("userCoupon");
 
-    public final QCoupon coupon;
+    public final dev.bum.ticket_service.jpa.coupon.coupon.QCoupon coupon;
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
@@ -58,7 +58,7 @@ public class QUserCoupon extends EntityPathBase<UserCoupon> {
 
     public QUserCoupon(Class<? extends UserCoupon> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.coupon = inits.isInitialized("coupon") ? new QCoupon(forProperty("coupon")) : null;
+        this.coupon = inits.isInitialized("coupon") ? new dev.bum.ticket_service.jpa.coupon.coupon.QCoupon(forProperty("coupon")) : null;
     }
 
 }

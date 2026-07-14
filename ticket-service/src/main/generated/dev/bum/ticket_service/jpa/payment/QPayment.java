@@ -46,7 +46,7 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final DateTimePath<java.time.LocalDateTime> requestedAt = createDateTime("requestedAt", java.time.LocalDateTime.class);
 
-    public final dev.bum.ticket_service.jpa.reservation.QReservation reservation;
+    public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;
 
     public final EnumPath<dev.bum.common.service.ticket.payment.enums.PaymentStatus> status = createEnum("status", dev.bum.common.service.ticket.payment.enums.PaymentStatus.class);
 
@@ -70,7 +70,7 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public QPayment(Class<? extends Payment> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
+        this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
     }
 
 }

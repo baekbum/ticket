@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.reservation;
+package dev.bum.ticket_service.jpa.reservation.reservation;
 
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;

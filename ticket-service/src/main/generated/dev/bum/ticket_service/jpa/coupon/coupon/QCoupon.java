@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.jpa.coupon;
+package dev.bum.ticket_service.jpa.coupon.coupon;
 
 import static com.querydsl.core.types.PathMetadataFactory.*;
 
@@ -15,7 +15,7 @@ import com.querydsl.core.types.Path;
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
 public class QCoupon extends EntityPathBase<Coupon> {
 
-    private static final long serialVersionUID = -2047451396L;
+    private static final long serialVersionUID = -1277999208L;
 
     public static final QCoupon coupon = new QCoupon("coupon");
 
