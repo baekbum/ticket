@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.coupon;
 
+import dev.bum.common.service.ticket.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.enums.UserCouponStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,6 +22,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 특정 사용자가 실제로 보유한 쿠폰.
@@ -35,6 +37,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserCoupon {
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -77,6 +81,26 @@ public class UserCoupon {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    public UserCoupon(String userId, Coupon coupon, LocalDateTime expiresAt) {
+        this.userId = userId;
+        this.coupon = coupon;
+        this.status = UserCouponStatus.ISSUED;
+        this.issuedAt = LocalDateTime.now();
+        this.expiresAt = expiresAt != null ? expiresAt : coupon.getValidUntil();
+    }
+
+    public UserCouponResponse toResponse() {
+        return UserCouponResponse.builder()
+                .userCouponId(this.userCouponId)
+                .userId(this.userId)
+                .coupon(this.coupon != null ? this.coupon.toResponse() : null)
+                .status(this.status)
+                .issuedAt(formatDateTime(this.issuedAt))
+                .usedAt(formatDateTime(this.usedAt))
+                .expiresAt(formatDateTime(this.expiresAt))
+                .build();
+    }
+
     public void use(LocalDateTime usedAt) {
         this.status = UserCouponStatus.USED;
         this.usedAt = usedAt != null ? usedAt : LocalDateTime.now();
@@ -92,5 +116,9 @@ public class UserCoupon {
         }
 
         this.usedAt = null;
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 }

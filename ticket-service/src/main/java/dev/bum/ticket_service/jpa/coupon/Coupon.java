@@ -1,5 +1,8 @@
 package dev.bum.ticket_service.jpa.coupon;
 
+import dev.bum.common.service.ticket.coupon.dto.CouponResponse;
+import dev.bum.common.service.ticket.coupon.dto.InsertCouponRequest;
+import dev.bum.common.service.ticket.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.enums.CouponStatus;
 import jakarta.persistence.Column;
@@ -17,8 +20,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 관리자가 만든 쿠폰 정책 원본.
@@ -33,6 +38,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Coupon {
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -86,4 +93,47 @@ public class Coupon {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public Coupon(InsertCouponRequest info) {
+        this.name = info.getName();
+        this.code = info.getCode();
+        this.discountType = info.getDiscountType();
+        this.discountValue = info.getDiscountValue();
+        this.maxDiscountAmount = info.getMaxDiscountAmount();
+        this.minOrderAmount = info.getMinOrderAmount();
+        this.validFrom = info.getValidFrom();
+        this.validUntil = info.getValidUntil();
+        this.status = info.getStatus() != null ? info.getStatus() : CouponStatus.ACTIVE;
+    }
+
+    public void update(UpdateCouponRequest info) {
+        if (StringUtils.hasText(info.getName())) this.name = info.getName();
+        if (StringUtils.hasText(info.getCode())) this.code = info.getCode();
+        if (info.getDiscountType() != null) this.discountType = info.getDiscountType();
+        if (info.getDiscountValue() != null) this.discountValue = info.getDiscountValue();
+        if (info.getMaxDiscountAmount() != null) this.maxDiscountAmount = info.getMaxDiscountAmount();
+        if (info.getMinOrderAmount() != null) this.minOrderAmount = info.getMinOrderAmount();
+        if (info.getValidFrom() != null) this.validFrom = info.getValidFrom();
+        if (info.getValidUntil() != null) this.validUntil = info.getValidUntil();
+        if (info.getStatus() != null) this.status = info.getStatus();
+    }
+
+    public CouponResponse toResponse() {
+        return CouponResponse.builder()
+                .couponId(this.couponId)
+                .name(this.name)
+                .code(this.code)
+                .discountType(this.discountType)
+                .discountValue(this.discountValue)
+                .maxDiscountAmount(this.maxDiscountAmount)
+                .minOrderAmount(this.minOrderAmount)
+                .validFrom(formatDateTime(this.validFrom))
+                .validUntil(formatDateTime(this.validUntil))
+                .status(this.status)
+                .build();
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
+    }
 }
