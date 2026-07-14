@@ -442,9 +442,12 @@
   function renderTicketSeatLocation(targetSeat, seats) {
     const svg = document.getElementById('ticket-seat-location-svg');
     svg.innerHTML = '';
-    document.getElementById('ticket-seat-location-title').textContent = targetSeat.areaName || targetSeat.zone || '좌석 위치 확인';
+    const areaLabel = formatAreaLabel(targetSeat.areaName || targetSeat.zone);
+    const rowColLabel = `${targetSeat.seatRow || '-'}열 ${targetSeat.seatCol || '-'}번`;
+
+    document.getElementById('ticket-seat-location-title').textContent = areaLabel || '좌석 위치 확인';
     document.getElementById('ticket-seat-location-subtitle').textContent =
-      `${targetSeat.title || '공연'} · ${targetSeat.seatName || `${targetSeat.seatRow || '-'}열 ${targetSeat.seatCol || '-'}번`}`;
+      `${targetSeat.title || '공연'} · ${areaLabel ? `${areaLabel} ` : ''}${rowColLabel}`;
     document.getElementById('ticket-seat-location-count').textContent = `${seats.length}석`;
 
     if (seats.length === 0) {
@@ -477,6 +480,12 @@
     if (status === 'RESERVED') return 'is-reserved';
     if (status === 'LOCKED') return 'is-locked';
     return 'is-available';
+  }
+
+  function formatAreaLabel(areaName) {
+    const value = String(areaName || '').trim();
+    if (!value) return '';
+    return value.endsWith('구역') ? value : `${value}구역`;
   }
 
   window.Pagination.register({
