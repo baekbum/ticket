@@ -1,7 +1,7 @@
 server:
-  port: 8080
+  port: 8999
   servlet:
-    context-path: /
+    context-path: /admin
 
 spring:
   application:
@@ -14,8 +14,8 @@ token:
 
 services:
   auth-service:
-    url: "http://auth-service"
+    url: "http://auth-service:8080"
   user-service:
-    url: "http://user-service"
+    url: "http://user-service:8080"
   ticket-service:
-    url: "http://ticket-service"
+    url: "http://ticket-service:8080"
