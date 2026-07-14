@@ -24,4 +24,6 @@ public class InsertReservationRequest {
 
     @NotNull
     private Long eventId;
+
+    private Long userCouponId;
 }

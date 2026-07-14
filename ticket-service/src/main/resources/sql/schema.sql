@@ -109,7 +109,70 @@ CREATE INDEX idx_reservation_event_id ON reservations(event_id);
 
 
 -- ==========================================
--- 6. Payments
+-- 6. Coupons
+-- ==========================================
+CREATE TABLE coupons (
+    coupon_id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    discount_type VARCHAR(30) NOT NULL,
+    discount_value INTEGER NOT NULL,
+    max_discount_amount INTEGER,
+    min_order_amount INTEGER,
+    valid_from TIMESTAMP,
+    valid_until TIMESTAMP,
+    status VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_coupons_code UNIQUE (code)
+);
+
+CREATE INDEX idx_coupon_status_valid_until ON coupons(status, valid_until);
+
+
+-- ==========================================
+-- 7. User coupons
+-- ==========================================
+CREATE TABLE user_coupons (
+    user_coupon_id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    coupon_id BIGINT NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    issued_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_user_coupons_user_coupon UNIQUE (user_id, coupon_id)
+);
+
+CREATE INDEX idx_user_coupon_user_status ON user_coupons(user_id, status);
+CREATE INDEX idx_user_coupon_coupon_id ON user_coupons(coupon_id);
+
+
+-- ==========================================
+-- 8. Reservation discounts
+-- ==========================================
+CREATE TABLE reservation_discounts (
+    reservation_discount_id BIGSERIAL PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    user_coupon_id BIGINT,
+    discount_type VARCHAR(30) NOT NULL,
+    discount_name VARCHAR(100) NOT NULL,
+    coupon_discount_type VARCHAR(30),
+    discount_value INTEGER,
+    discount_amount INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_reservation_discount_reservation_id ON reservation_discounts(reservation_id);
+CREATE INDEX idx_reservation_discount_user_coupon_id ON reservation_discounts(user_coupon_id);
+
+
+-- ==========================================
+-- 9. Payments
 -- ==========================================
 CREATE TABLE payments (
     payment_id BIGSERIAL PRIMARY KEY,
@@ -137,7 +200,7 @@ CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
 
 
 -- ==========================================
--- 7. Tickets
+-- 10. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,

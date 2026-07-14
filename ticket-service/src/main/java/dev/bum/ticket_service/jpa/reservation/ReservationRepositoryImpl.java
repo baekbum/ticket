@@ -5,10 +5,19 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.coupon.enums.CouponDiscountType;
+import dev.bum.common.service.ticket.coupon.enums.CouponStatus;
+import dev.bum.common.service.ticket.coupon.enums.DiscountType;
+import dev.bum.common.service.ticket.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
+import dev.bum.ticket_service.jpa.coupon.Coupon;
+import dev.bum.ticket_service.jpa.coupon.ReservationDiscount;
+import dev.bum.ticket_service.jpa.coupon.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.UserCoupon;
+import dev.bum.ticket_service.jpa.coupon.UserCouponJpaRepository;
 import dev.bum.ticket_service.jpa.event.Event;
 import dev.bum.ticket_service.jpa.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.QEvent;
@@ -45,6 +54,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     private final EventRepository eventRepository;
     private final SeatRepository seatRepository;
     private final TicketRepository ticketRepository;
+    private final UserCouponJpaRepository userCouponJpaRepository;
+    private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final EntityManager em;
     private QReservation reservation;
 
@@ -67,6 +78,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)
         List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
+        int totalTicketAmount = calculateTotalTicketAmount(seats);
+        DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, reservation, totalTicketAmount);
 
         // 5. 검증이 끝난 좌석들의 상태를 RESERVED로 변경하고 티켓 생성
         for (Seat seat : seats) {
@@ -89,6 +102,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         // 7. 티켓과 예매 내역 저장
         Reservation savedReservation = jpaRepository.save(reservation);
         ticketRepository.insert(tickets);
+        saveReservationDiscount(savedReservation, discountSnapshot);
 
         return savedReservation;
     }
@@ -196,11 +210,121 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             foundReservation.partial_cancel(); // 여전히 유효한 티켓이 있다면 부분 취소
         } else {
             foundReservation.cancel();        // 모든 티켓이 취소되었다면 전체 취소
+            restoreUsedCoupons(foundReservation);
         }
 
         return tickets.stream()
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
+    }
+
+    private int calculateTotalTicketAmount(List<Seat> seats) {
+        return seats.stream()
+                .mapToInt(seat -> seat.getPrice() != null ? seat.getPrice() : 0)
+                .sum();
+    }
+
+    private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, Reservation reservation, int totalTicketAmount) {
+        if (info.getUserCouponId() == null) {
+            return null;
+        }
+
+        UserCoupon userCoupon = userCouponJpaRepository.findById(info.getUserCouponId())
+                .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
+        Coupon coupon = userCoupon.getCoupon();
+        LocalDateTime now = LocalDateTime.now();
+
+        validateUserCoupon(info, userCoupon, coupon, totalTicketAmount, now);
+
+        int discountAmount = calculateDiscountAmount(coupon, totalTicketAmount);
+        if (discountAmount <= 0) {
+            throw new IllegalArgumentException("쿠폰 할인 금액이 유효하지 않습니다.");
+        }
+
+        userCoupon.use(now);
+
+        return new DiscountSnapshot(
+                userCoupon,
+                coupon.getName(),
+                coupon.getDiscountType(),
+                coupon.getDiscountValue(),
+                discountAmount
+        );
+    }
+
+    private void validateUserCoupon(InsertReservationRequest info, UserCoupon userCoupon, Coupon coupon, int totalTicketAmount, LocalDateTime now) {
+        if (!info.getUserId().equals(userCoupon.getUserId())) {
+            throw new IllegalArgumentException("해당 사용자의 쿠폰이 아닙니다.");
+        }
+
+        if (userCoupon.getStatus() != UserCouponStatus.ISSUED) {
+            throw new IllegalArgumentException("이미 사용했거나 사용할 수 없는 쿠폰입니다.");
+        }
+
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            throw new IllegalArgumentException("활성화된 쿠폰이 아닙니다.");
+        }
+
+        if (coupon.getValidFrom() != null && coupon.getValidFrom().isAfter(now)) {
+            throw new IllegalArgumentException("아직 사용할 수 없는 쿠폰입니다.");
+        }
+
+        if (coupon.getValidUntil() != null && coupon.getValidUntil().isBefore(now)) {
+            throw new IllegalArgumentException("만료된 쿠폰입니다.");
+        }
+
+        if (userCoupon.getExpiresAt() != null && userCoupon.getExpiresAt().isBefore(now)) {
+            throw new IllegalArgumentException("만료된 쿠폰입니다.");
+        }
+
+        if (coupon.getMinOrderAmount() != null && totalTicketAmount < coupon.getMinOrderAmount()) {
+            throw new IllegalArgumentException("쿠폰 최소 주문 금액을 충족하지 못했습니다.");
+        }
+    }
+
+    private int calculateDiscountAmount(Coupon coupon, int totalTicketAmount) {
+        int discountAmount;
+
+        if (coupon.getDiscountType() == CouponDiscountType.FIXED_AMOUNT) {
+            discountAmount = coupon.getDiscountValue();
+        } else if (coupon.getDiscountType() == CouponDiscountType.PERCENT) {
+            discountAmount = totalTicketAmount * coupon.getDiscountValue() / 100;
+            if (coupon.getMaxDiscountAmount() != null) {
+                discountAmount = Math.min(discountAmount, coupon.getMaxDiscountAmount());
+            }
+        } else {
+            throw new IllegalArgumentException("지원하지 않는 쿠폰 할인 방식입니다.");
+        }
+
+        return Math.min(discountAmount, totalTicketAmount);
+    }
+
+    private void saveReservationDiscount(Reservation reservation, DiscountSnapshot discountSnapshot) {
+        if (discountSnapshot == null || discountSnapshot.getDiscountAmount() <= 0) {
+            return;
+        }
+
+        reservationDiscountJpaRepository.save(ReservationDiscount.builder()
+                .reservation(reservation)
+                .userCoupon(discountSnapshot.getUserCoupon())
+                .discountType(DiscountType.COUPON)
+                .discountName(discountSnapshot.getDiscountName())
+                .couponDiscountType(discountSnapshot.getCouponDiscountType())
+                .discountValue(discountSnapshot.getDiscountValue())
+                .discountAmount(discountSnapshot.getDiscountAmount())
+                .build());
+    }
+
+    private void restoreUsedCoupons(Reservation reservation) {
+        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
+        LocalDateTime now = LocalDateTime.now();
+
+        for (ReservationDiscount discount : discounts) {
+            UserCoupon userCoupon = discount.getUserCoupon();
+            if (userCoupon != null && userCoupon.getStatus() == UserCouponStatus.USED) {
+                userCoupon.restore(now);
+            }
+        }
     }
 
     /**
@@ -254,5 +378,41 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
     private BooleanExpression statusEq(ReservationStatus status) {
         return status != null ? reservation.status.eq(status) : null;
+    }
+
+    private static class DiscountSnapshot {
+        private final UserCoupon userCoupon;
+        private final String discountName;
+        private final CouponDiscountType couponDiscountType;
+        private final Integer discountValue;
+        private final Integer discountAmount;
+
+        private DiscountSnapshot(UserCoupon userCoupon, String discountName, CouponDiscountType couponDiscountType, Integer discountValue, Integer discountAmount) {
+            this.userCoupon = userCoupon;
+            this.discountName = discountName;
+            this.couponDiscountType = couponDiscountType;
+            this.discountValue = discountValue;
+            this.discountAmount = discountAmount;
+        }
+
+        private UserCoupon getUserCoupon() {
+            return userCoupon;
+        }
+
+        private String getDiscountName() {
+            return discountName;
+        }
+
+        private CouponDiscountType getCouponDiscountType() {
+            return couponDiscountType;
+        }
+
+        private Integer getDiscountValue() {
+            return discountValue;
+        }
+
+        private Integer getDiscountAmount() {
+            return discountAmount;
+        }
     }
 }
