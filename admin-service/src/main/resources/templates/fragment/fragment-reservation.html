@@ -168,5 +168,23 @@
   </div>
 </div>
 
+<div class="f-modal" id="reservation-ticket-modal">
+  <div class="f-modal-content reservation-ticket-content">
+    <p class="modal-title">예매 티켓 조회</p>
+    <p class="modal-subtitle">
+      예매 ID <strong id="ticket-modal-reservation-id">-</strong>
+      <span class="ticket-modal-divider">·</span>
+      주문 번호 <strong id="ticket-modal-order-id">-</strong>
+    </p>
+    <div class="modal-divider"></div>
+
+    <div class="ticket-card-list" id="ticket-card-list"></div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeReservationTicketModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <script th:src="@{/js/common/pagination.js}"></script>
 <script th:src="@{/js/reservation/fragment-reservation.js}"></script>

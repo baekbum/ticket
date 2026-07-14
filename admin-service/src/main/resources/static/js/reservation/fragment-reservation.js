@@ -1,5 +1,6 @@
 (function () {
   const RESERVATION_URL = `${base()}/admin/api/${API.VERSION}/reservation`;
+  const TICKET_URL = `${base()}/admin/api/${API.VERSION}/ticket`;
   const headers = { 'Content-Type': 'application/json' };
 
   let currentReservationList = [];
@@ -134,6 +135,7 @@
           <td>${statusBadge(reservation.status)}</td>
           <td class="actions" onclick="event.stopPropagation()">
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openReservationDetailModal(${reservation.reservationId})">상세</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openReservationTicketModal(${reservation.reservationId})"><i class="ti ti-ticket"></i>티켓</button>
           </td>
         `;
         tr.onclick = () => openReservationDetailModal(reservation.reservationId);
@@ -277,6 +279,88 @@
   window.closeReservationDetailModal = function () {
     document.getElementById('reservation-detail-modal').style.display = 'none';
   };
+
+  window.openReservationTicketModal = async function (reservationId) {
+    const reservation = currentReservationList.find(item => Number(item.reservationId) === Number(reservationId));
+    document.getElementById('ticket-modal-reservation-id').textContent = reservationId ?? '-';
+    document.getElementById('ticket-modal-order-id').textContent = reservation?.orderId || '-';
+    document.getElementById('ticket-card-list').innerHTML = `
+      <div class="ticket-empty-state">
+        <i class="ti ti-loader-2"></i>
+        <span>티켓 정보를 불러오는 중입니다.</span>
+      </div>
+    `;
+    document.getElementById('reservation-ticket-modal').style.display = 'flex';
+
+    try {
+      const res = await Fetch(`${TICKET_URL}/reservation/${reservationId}`, { method: 'GET' });
+      if (!res.ok) {
+        showTicketEmptyState('티켓 목록 조회에 실패했습니다.');
+        return;
+      }
+
+      const tickets = await res.json();
+      renderTicketCards(Array.isArray(tickets) ? tickets : []);
+    } catch (e) {
+      console.error('Ticket list load failed', e);
+      showTicketEmptyState('티켓 목록 통신 오류가 발생했습니다.');
+    }
+  };
+
+  window.closeReservationTicketModal = function () {
+    document.getElementById('reservation-ticket-modal').style.display = 'none';
+  };
+
+  function showTicketEmptyState(message) {
+    document.getElementById('ticket-card-list').innerHTML = `
+      <div class="ticket-empty-state">
+        <i class="ti ti-ticket-off"></i>
+        <span>${escapeHtml(message)}</span>
+      </div>
+    `;
+  }
+
+  function renderTicketCards(tickets) {
+    if (tickets.length === 0) {
+      showTicketEmptyState('연결된 티켓이 없습니다.');
+      return;
+    }
+
+    document.getElementById('ticket-card-list').innerHTML = tickets.map(ticket => `
+      <article class="ticket-card">
+        <div class="ticket-card-head">
+          <div>
+            <span class="ticket-card-kicker">Ticket ID</span>
+            <strong>#${escapeHtml(ticket.ticketId)}</strong>
+          </div>
+          ${ticketStatusBadge(ticket.status)}
+        </div>
+        <div class="ticket-card-seat">${escapeHtml(ticket.seatName || '-')}</div>
+        <div class="ticket-card-grid">
+          <div><span>좌석 ID</span><strong>${escapeHtml(ticket.seatId || '-')}</strong></div>
+          <div><span>구역</span><strong>${escapeHtml(ticket.zone || '-')}</strong></div>
+          <div><span>등급</span><strong>${escapeHtml(ticket.grade || '-')}</strong></div>
+          <div><span>가격</span><strong>${Number(ticket.price || 0).toLocaleString()}원</strong></div>
+        </div>
+      </article>
+    `).join('');
+  }
+
+  function ticketStatusBadge(status) {
+    const labels = {
+      PENDING_PAYMENT: '결제 대기',
+      PAID: '결제 완료',
+      CANCELLED: '취소',
+      EXPIRED: '만료'
+    };
+    const classMap = {
+      PENDING_PAYMENT: 'badge-pending',
+      PAID: 'badge-paid',
+      CANCELLED: 'badge-cancelled',
+      EXPIRED: 'badge-expired'
+    };
+    return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(labels[status] || status || '-')}</span>`;
+  }
 
   window.Pagination.register({
     load: window.loadReservationList,
