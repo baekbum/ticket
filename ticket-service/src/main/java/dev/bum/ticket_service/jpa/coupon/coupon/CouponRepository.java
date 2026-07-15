@@ -4,6 +4,9 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public interface CouponRepository {
 
     Coupon insert(Coupon coupon);
@@ -13,6 +16,8 @@ public interface CouponRepository {
     Coupon selectById(Long couponId);
 
     Page<Coupon> selectByCond(CouponCondRequest cond, Pageable pageable);
+
+    List<Coupon> selectDownloadableCoupons(LocalDateTime now);
 
     boolean existsByCode(String code);
 

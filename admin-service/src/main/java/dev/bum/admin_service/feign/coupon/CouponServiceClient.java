@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
-@FeignClient(name = "coupon-service", url = "${services.ticket-service.url}", path = "/api/v1/coupon")
+@FeignClient(name = "coupon-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/coupon")
 public interface CouponServiceClient {
 
     @PostMapping("/insert")

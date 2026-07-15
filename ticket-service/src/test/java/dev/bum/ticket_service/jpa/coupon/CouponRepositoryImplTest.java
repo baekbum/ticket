@@ -120,6 +120,30 @@ class CouponRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("다운로드 가능한 쿠폰 조회")
+    void coupon_select_downloadable() {
+        couponJpaRepository.save(Coupon.builder()
+                .name("Expired Coupon")
+                .code("EXPIRED10")
+                .discountType(CouponDiscountType.FIXED_AMOUNT)
+                .discountValue(10000)
+                .minOrderAmount(10000)
+                .validFrom(LocalDateTime.of(2026, 1, 1, 0, 0))
+                .validUntil(LocalDateTime.of(2026, 1, 31, 23, 59))
+                .status(CouponStatus.ACTIVE)
+                .build());
+        entityManager.flush();
+        entityManager.clear();
+
+        var response = couponRepository.selectDownloadableCoupons(LocalDateTime.of(2026, 7, 16, 0, 0));
+
+        assertThat(response)
+                .extracting(Coupon::getCode)
+                .contains("SUMMER10")
+                .doesNotContain("WINTER20", "EXPIRED10");
+    }
+
+    @Test
     @DisplayName("쿠폰 코드 존재 여부 확인")
     void coupon_exists_by_code() {
         boolean response = couponRepository.existsByCode("SUMMER10");

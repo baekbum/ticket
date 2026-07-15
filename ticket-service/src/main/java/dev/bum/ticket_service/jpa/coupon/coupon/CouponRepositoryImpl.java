@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +86,21 @@ public class CouponRepositoryImpl implements CouponRepository {
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public List<Coupon> selectDownloadableCoupons(LocalDateTime now) {
+        QCoupon coupon = QCoupon.coupon;
+
+        return queryFactory
+                .selectFrom(coupon)
+                .where(
+                        coupon.status.eq(CouponStatus.ACTIVE),
+                        coupon.validFrom.isNull().or(coupon.validFrom.loe(now)),
+                        coupon.validUntil.isNull().or(coupon.validUntil.goe(now))
+                )
+                .orderBy(coupon.couponId.desc())
+                .fetch();
     }
 
     @Override

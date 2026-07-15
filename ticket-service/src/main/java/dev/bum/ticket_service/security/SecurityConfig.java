@@ -61,6 +61,8 @@ public class SecurityConfig {
 
                         // 3. Reservation 권한 설정 (일반적으로 생성/취소는 유저 본인도 가능해야 함)
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
+                        .requestMatchers("/api/*/coupon/**").hasAnyRole("USER", "ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

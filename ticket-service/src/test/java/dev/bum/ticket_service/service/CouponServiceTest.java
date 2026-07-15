@@ -170,6 +170,24 @@ class CouponServiceTest {
     }
 
     @Test
+    @DisplayName("로그인 사용자 기준으로 쿠폰 다운로드")
+    void coupon_download() {
+        Coupon coupon = coupon(1L, "Summer Coupon", "SUMMER10", 10000, CouponStatus.ACTIVE);
+        UserCoupon userCoupon = userCoupon(1L, "user01", coupon, UserCouponStatus.ISSUED);
+
+        given(couponRepository.selectById(1L)).willReturn(coupon);
+        given(userCouponRepository.insert(any())).willReturn(userCoupon);
+
+        UserCouponResponse response = userCouponService.issue("user01", 1L);
+
+        assertThat(response.getUserCouponId()).isEqualTo(1L);
+        assertThat(response.getUserId()).isEqualTo("user01");
+        then(couponRepository).should().selectById(1L);
+        then(userCouponRepository).should().validateNotIssued("user01", coupon);
+        then(userCouponRepository).should().insert(any(UserCoupon.class));
+    }
+
+    @Test
     @DisplayName("사용자 ID로 보유 쿠폰 조회")
     void coupon_select_by_user_id() {
         Coupon coupon = coupon(1L, "Summer Coupon", "SUMMER10", 10000, CouponStatus.ACTIVE);
@@ -182,6 +200,24 @@ class CouponServiceTest {
         assertThat(response).hasSize(1);
         assertThat(response.get(0).getUserId()).isEqualTo("user01");
         then(userCouponRepository).should().selectByUserId("user01");
+    }
+
+    @Test
+    @DisplayName("다운로드 가능한 쿠폰 조회 시 이미 받은 쿠폰 제외")
+    void coupon_select_downloadable() {
+        Coupon issuedCoupon = coupon(1L, "Summer Coupon", "SUMMER10", 10000, CouponStatus.ACTIVE);
+        Coupon downloadableCoupon = coupon(2L, "Winter Coupon", "WINTER10", 10000, CouponStatus.ACTIVE);
+        UserCoupon userCoupon = userCoupon(1L, "user01", issuedCoupon, UserCouponStatus.ISSUED);
+
+        given(userCouponRepository.selectByUserId("user01")).willReturn(List.of(userCoupon));
+        given(couponRepository.selectDownloadableCoupons(any())).willReturn(List.of(issuedCoupon, downloadableCoupon));
+
+        List<CouponResponse> response = userCouponService.selectDownloadableCoupons("user01");
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).getCouponId()).isEqualTo(2L);
+        then(userCouponRepository).should().selectByUserId("user01");
+        then(couponRepository).should().selectDownloadableCoupons(any());
     }
 
     @Test
@@ -201,6 +237,26 @@ class CouponServiceTest {
 
         assertThat(response.isAvailable()).isTrue();
         assertThat(response.getDiscountAmount()).isEqualTo(10000);
+        then(userCouponRepository).should().selectById(1L);
+    }
+
+    @Test
+    @DisplayName("로그인 사용자 기준으로 쿠폰 사용 가능 여부 확인")
+    void coupon_check_available_with_current_user() {
+        Coupon coupon = coupon(1L, "Summer Coupon", "SUMMER10", 10000, CouponStatus.ACTIVE);
+        UserCoupon userCoupon = userCoupon(1L, "user01", coupon, UserCouponStatus.ISSUED);
+        CouponAvailabilityRequest request = CouponAvailabilityRequest.builder()
+                .userId("other-user")
+                .userCouponId(1L)
+                .orderAmount(50000)
+                .build();
+
+        given(userCouponRepository.selectById(1L)).willReturn(userCoupon);
+
+        CouponAvailabilityResponse response = userCouponService.checkAvailable("user01", request);
+
+        assertThat(response.isAvailable()).isTrue();
+        assertThat(request.getUserId()).isEqualTo("user01");
         then(userCouponRepository).should().selectById(1L);
     }
 

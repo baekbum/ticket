@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.coupon.userCoupon;
 
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
@@ -17,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -41,10 +44,32 @@ public class UserCouponService {
         return userCouponRepository.insert(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
     }
 
+    public UserCouponResponse issue(String userId, Long couponId) {
+        IssueCouponRequest request = IssueCouponRequest.builder()
+                .userId(userId)
+                .couponId(couponId)
+                .build();
+
+        return issue(request);
+    }
+
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId) {
         return userCouponRepository.selectByUserId(userId).stream()
                 .map(UserCoupon::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CouponResponse> selectDownloadableCoupons(String userId) {
+        Set<Long> issuedCouponIds = userCouponRepository.selectByUserId(userId).stream()
+                .map(UserCoupon::getCoupon)
+                .map(Coupon::getCouponId)
+                .collect(Collectors.toSet());
+
+        return couponRepository.selectDownloadableCoupons(LocalDateTime.now()).stream()
+                .filter(coupon -> !issuedCouponIds.contains(coupon.getCouponId()))
+                .map(Coupon::toResponse)
                 .toList();
     }
 
@@ -68,6 +93,12 @@ public class UserCouponService {
                 .discountAmount(calculateDiscountAmount(coupon, request.getOrderAmount()))
                 .reason(null)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public CouponAvailabilityResponse checkAvailable(String currentUserId, CouponAvailabilityRequest request) {
+        request.setUserId(currentUserId);
+        return checkAvailable(request);
     }
 
     private String getUnavailableReason(CouponAvailabilityRequest request, UserCoupon userCoupon, Coupon coupon, LocalDateTime now) {
