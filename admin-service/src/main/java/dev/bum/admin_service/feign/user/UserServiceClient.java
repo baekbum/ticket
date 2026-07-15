@@ -17,31 +17,31 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1")
 public interface UserServiceClient {
 
-    @GetMapping("/check/duplication/{userId}")
+    @GetMapping("/manage/check/duplication/{userId}")
     void isDuplicated(@PathVariable("userId") String userId);
 
-    @PostMapping("/insert")
+    @PostMapping("/manage/insert")
     UserResponse insert(@RequestBody InsertUserRequest info);
 
-    @GetMapping("/select/id/{userId}")
+    @GetMapping("/manage/select/id/{userId}")
     UserResponse selectById(@PathVariable("userId") String userId);
 
-    @PostMapping("/select")
+    @PostMapping("/manage/select")
     CustomPageResponse<UserResponse> selectByCond(@RequestBody UserCondRequest cond);
 
-    @PostMapping("/validate/info")
+    @PostMapping("/manage/validate/info")
     void validateInfo(@Valid @RequestBody ValidatePasswordRequest info);
 
-    @PutMapping("/update/id/{userId}")
+    @PutMapping("/manage/update/id/{userId}")
     UserResponse update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info);
 
-    @PutMapping("/init/password/{userId}")
+    @PutMapping("/manage/init/password/{userId}")
     void initPassword(@PathVariable("userId") String userId);
 
-    @DeleteMapping("/delete/id/{userId}")
+    @DeleteMapping("/manage/delete/id/{userId}")
     UserResponse delete(@PathVariable("userId") String userId);
 
-    @DeleteMapping("/delete/bulk")
+    @DeleteMapping("/manage/delete/bulk")
     void deleteBulk(@Valid @RequestBody DeleteUserBulkRequest info);
 
     @PostMapping("/address/select/user/{userId}")
