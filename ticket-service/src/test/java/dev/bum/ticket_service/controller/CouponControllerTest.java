@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.ticket_service.controller.coupon.CouponController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import org.junit.jupiter.api.DisplayName;

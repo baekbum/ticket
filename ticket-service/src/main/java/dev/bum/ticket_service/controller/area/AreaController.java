@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.controller;
+package dev.bum.ticket_service.controller.area;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;

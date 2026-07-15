@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.controller;
+package dev.bum.ticket_service.controller.coupon;
 
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;

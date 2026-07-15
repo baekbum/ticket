@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.controller;
+package dev.bum.ticket_service.controller.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.controller;
+package dev.bum.ticket_service.controller.ticket;
 
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import dev.bum.ticket_service.service.ticket.TicketService;

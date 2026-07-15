@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.ticket_service.controller.event.EventController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.event.event.EventService;
 import org.junit.jupiter.api.DisplayName;

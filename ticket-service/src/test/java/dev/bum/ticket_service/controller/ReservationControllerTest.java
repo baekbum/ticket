@@ -11,6 +11,7 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import dev.bum.ticket_service.controller.reservation.ReservationController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.ReservationService;
 import org.junit.jupiter.api.DisplayName;

@@ -17,6 +17,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
+import dev.bum.ticket_service.controller.seat.SeatController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.seat.SeatService;
 import org.junit.jupiter.api.DisplayName;

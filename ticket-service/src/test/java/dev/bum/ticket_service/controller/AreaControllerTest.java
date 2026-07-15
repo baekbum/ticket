@@ -14,6 +14,7 @@ import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.ticket_service.controller.area.AreaController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.area.AreaService;
 import org.junit.jupiter.api.DisplayName;
