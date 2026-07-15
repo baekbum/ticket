@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class UserAddressServiceTest {
@@ -147,6 +149,37 @@ class UserAddressServiceTest {
     }
 
     @Test
+    @DisplayName("내 주소 수정")
+    void address_update_my_address() {
+        UpdateUserAddressRequest info = UpdateUserAddressRequest.builder().alias("office").build();
+        UserAddress address = address(1L, user("user01"), true, AddressStatus.ACTIVE);
+
+        given(repository.selectById(1L)).willReturn(address);
+        given(repository.update(1L, info)).willReturn(address);
+
+        UserAddressResponse response = userAddressService.updateMyAddress("user01", 1L, info);
+
+        assertThat(response.getAddressId()).isEqualTo(1L);
+        then(repository).should().selectById(1L);
+        then(repository).should().update(1L, info);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 주소 수정 시 예외 발생")
+    void address_update_my_address_fail_not_owner() {
+        UpdateUserAddressRequest info = UpdateUserAddressRequest.builder().alias("office").build();
+        UserAddress address = address(1L, user("user01"), true, AddressStatus.ACTIVE);
+
+        given(repository.selectById(1L)).willReturn(address);
+
+        assertThatThrownBy(() -> userAddressService.updateMyAddress("user02", 1L, info))
+                .isInstanceOf(AccessDeniedException.class);
+
+        then(repository).should().selectById(1L);
+        then(repository).should(never()).update(1L, info);
+    }
+
+    @Test
     @DisplayName("주소 삭제")
     void address_delete() {
         UserAddress address = address(1L, user("user01"), false, AddressStatus.DELETED);
@@ -160,7 +193,36 @@ class UserAddressServiceTest {
     }
 
     @Test
-    @DisplayName("주소 벌크 삭제")
+    @DisplayName("내 주소 삭제")
+    void address_delete_my_address() {
+        UserAddress address = address(1L, user("user01"), false, AddressStatus.DELETED);
+
+        given(repository.selectById(1L)).willReturn(address);
+        given(repository.delete(1L)).willReturn(address);
+
+        UserAddressResponse response = userAddressService.deleteMyAddress("user01", 1L);
+
+        assertThat(response.getStatus()).isEqualTo(AddressStatus.DELETED);
+        then(repository).should().selectById(1L);
+        then(repository).should().delete(1L);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 주소 삭제 시 예외 발생")
+    void address_delete_my_address_fail_not_owner() {
+        UserAddress address = address(1L, user("user01"), true, AddressStatus.ACTIVE);
+
+        given(repository.selectById(1L)).willReturn(address);
+
+        assertThatThrownBy(() -> userAddressService.deleteMyAddress("user02", 1L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        then(repository).should().selectById(1L);
+        then(repository).should(never()).delete(1L);
+    }
+
+    @Test
+    @DisplayName("주소 일괄 삭제")
     void address_delete_bulk() {
         DeleteUserAddressBulkRequest info = DeleteUserAddressBulkRequest.builder().addressIds(List.of(1L, 2L)).build();
         given(repository.delete(1L)).willReturn(address(1L, user("user01"), false, AddressStatus.DELETED));
@@ -173,7 +235,7 @@ class UserAddressServiceTest {
     }
 
     @Test
-    @DisplayName("주소 벌크 삭제 시 ID 목록이 비어 있으면 예외 발생")
+    @DisplayName("주소 일괄 삭제 시 ID 목록이 비어 있으면 예외 발생")
     void address_delete_bulk_fail_empty_ids() {
         DeleteUserAddressBulkRequest info = DeleteUserAddressBulkRequest.builder().addressIds(List.of()).build();
 

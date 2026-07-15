@@ -14,34 +14,34 @@ import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1")
+@FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1/manage")
 public interface UserServiceClient {
 
-    @GetMapping("/manage/check/duplication/{userId}")
+    @GetMapping("/check/duplication/{userId}")
     void isDuplicated(@PathVariable("userId") String userId);
 
-    @PostMapping("/manage/insert")
+    @PostMapping("/insert")
     UserResponse insert(@RequestBody InsertUserRequest info);
 
-    @GetMapping("/manage/select/id/{userId}")
+    @GetMapping("/select/id/{userId}")
     UserResponse selectById(@PathVariable("userId") String userId);
 
-    @PostMapping("/manage/select")
+    @PostMapping("/select")
     CustomPageResponse<UserResponse> selectByCond(@RequestBody UserCondRequest cond);
 
-    @PostMapping("/manage/validate/info")
+    @PostMapping("/validate/info")
     void validateInfo(@Valid @RequestBody ValidatePasswordRequest info);
 
-    @PutMapping("/manage/update/id/{userId}")
+    @PutMapping("/update/id/{userId}")
     UserResponse update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info);
 
-    @PutMapping("/manage/init/password/{userId}")
+    @PutMapping("/init/password/{userId}")
     void initPassword(@PathVariable("userId") String userId);
 
-    @DeleteMapping("/manage/delete/id/{userId}")
+    @DeleteMapping("/delete/id/{userId}")
     UserResponse delete(@PathVariable("userId") String userId);
 
-    @DeleteMapping("/manage/delete/bulk")
+    @DeleteMapping("/delete/bulk")
     void deleteBulk(@Valid @RequestBody DeleteUserBulkRequest info);
 
     @PostMapping("/address/select/user/{userId}")

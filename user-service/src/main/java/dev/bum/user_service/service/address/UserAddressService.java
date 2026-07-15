@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -66,8 +67,22 @@ public class UserAddressService {
         return repository.update(addressId, info).toResponse();
     }
 
+    public UserAddressResponse updateMyAddress(String currentUserId, Long addressId, UpdateUserAddressRequest info) {
+        UserAddress address = repository.selectById(addressId);
+        validateOwner(currentUserId, address);
+        log.info("[UPDATE MY ADDRESS] userId : {}, addressId : {}, info : {}", currentUserId, addressId, info);
+        return repository.update(addressId, info).toResponse();
+    }
+
     public UserAddressResponse delete(Long addressId) {
         log.info("[DELETE ADDRESS] addressId : {}", addressId);
+        return repository.delete(addressId).toResponse();
+    }
+
+    public UserAddressResponse deleteMyAddress(String currentUserId, Long addressId) {
+        UserAddress address = repository.selectById(addressId);
+        validateOwner(currentUserId, address);
+        log.info("[DELETE MY ADDRESS] userId : {}, addressId : {}", currentUserId, addressId);
         return repository.delete(addressId).toResponse();
     }
 
@@ -87,6 +102,13 @@ public class UserAddressService {
             return bodyUserId;
         }
         throw new IllegalArgumentException("배송지를 등록할 사용자 ID가 없습니다.");
+    }
+
+    private void validateOwner(String currentUserId, UserAddress address) {
+        String addressOwnerId = address.getUser().getUserId();
+        if (!StringUtils.hasText(currentUserId) || !currentUserId.equals(addressOwnerId)) {
+            throw new AccessDeniedException("본인 주소만 수정하거나 삭제할 수 있습니다.");
+        }
     }
 
     private Sort makeSortInfo(List<String> sorts) {

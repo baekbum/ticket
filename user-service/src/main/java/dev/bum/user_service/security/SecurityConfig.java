@@ -58,6 +58,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/select/me").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/update/me").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/validate/info").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/insert/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/select/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/update/me/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/delete/me/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
