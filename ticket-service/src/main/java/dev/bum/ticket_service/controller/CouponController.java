@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.ticket_service.service.coupon.coupon.CouponService;
+import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ import java.util.List;
 public class CouponController {
 
     private final CouponService couponService;
+    private final UserCouponService userCouponService;
 
     @PostMapping("/insert")
     public ResponseEntity<CouponResponse> insert(@Valid @RequestBody InsertCouponRequest request) {
@@ -54,16 +56,16 @@ public class CouponController {
 
     @PostMapping("/issue")
     public ResponseEntity<UserCouponResponse> issue(@Valid @RequestBody IssueCouponRequest request) {
-        return ResponseEntity.ok(couponService.issue(request));
+        return ResponseEntity.ok(userCouponService.issue(request));
     }
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<UserCouponResponse>> selectByUserId(@PathVariable("userId") String userId) {
-        return ResponseEntity.ok(couponService.selectByUserId(userId));
+        return ResponseEntity.ok(userCouponService.selectByUserId(userId));
     }
 
     @PostMapping("/available")
     public ResponseEntity<CouponAvailabilityResponse> checkAvailable(@Valid @RequestBody CouponAvailabilityRequest request) {
-        return ResponseEntity.ok(couponService.checkAvailable(request));
+        return ResponseEntity.ok(userCouponService.checkAvailable(request));
     }
 }

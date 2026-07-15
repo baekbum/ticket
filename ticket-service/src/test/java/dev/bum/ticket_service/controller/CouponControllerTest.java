@@ -17,6 +17,7 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.coupon.coupon.CouponService;
+import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ class CouponControllerTest {
 
     @MockitoBean
     private CouponService couponService;
+
+    @MockitoBean
+    private UserCouponService userCouponService;
 
     private final String baseUrl = "/api/v1/coupon";
 
@@ -159,7 +163,7 @@ class CouponControllerTest {
                 .build();
         UserCouponResponse response = userCouponResponse(1L, "user01");
 
-        given(couponService.issue(any())).willReturn(response);
+        given(userCouponService.issue(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/issue")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -168,7 +172,7 @@ class CouponControllerTest {
                 .andExpect(jsonPath("$.userCouponId").value(1L))
                 .andExpect(jsonPath("$.userId").value("user01"));
 
-        then(couponService).should().issue(request);
+        then(userCouponService).should().issue(request);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -177,14 +181,14 @@ class CouponControllerTest {
     void coupon_select_by_user_id() throws Exception {
         List<UserCouponResponse> response = List.of(userCouponResponse(1L, "user01"));
 
-        given(couponService.selectByUserId("user01")).willReturn(response);
+        given(userCouponService.selectByUserId("user01")).willReturn(response);
 
         mockMvc.perform(get(baseUrl + "/user/user01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].userCouponId").value(1L))
                 .andExpect(jsonPath("$[0].status").value(UserCouponStatus.ISSUED.name()));
 
-        then(couponService).should().selectByUserId("user01");
+        then(userCouponService).should().selectByUserId("user01");
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -201,7 +205,7 @@ class CouponControllerTest {
                 .discountAmount(10000)
                 .build();
 
-        given(couponService.checkAvailable(any())).willReturn(response);
+        given(userCouponService.checkAvailable(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/available")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -210,7 +214,7 @@ class CouponControllerTest {
                 .andExpect(jsonPath("$.available").value(true))
                 .andExpect(jsonPath("$.discountAmount").value(10000));
 
-        then(couponService).should().checkAvailable(request);
+        then(userCouponService).should().checkAvailable(request);
     }
 
     private InsertCouponRequest insertRequest() {

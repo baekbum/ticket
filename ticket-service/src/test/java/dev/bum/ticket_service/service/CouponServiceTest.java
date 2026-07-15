@@ -17,6 +17,7 @@ import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.service.coupon.coupon.CouponService;
+import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class CouponServiceTest {
 
     @InjectMocks
     private CouponService couponService;
+
+    @InjectMocks
+    private UserCouponService userCouponService;
 
     @Mock
     private CouponRepository couponRepository;
@@ -156,7 +160,7 @@ class CouponServiceTest {
         given(couponRepository.selectById(1L)).willReturn(coupon);
         given(userCouponRepository.insert(any())).willReturn(userCoupon);
 
-        UserCouponResponse response = couponService.issue(request);
+        UserCouponResponse response = userCouponService.issue(request);
 
         assertThat(response.getUserCouponId()).isEqualTo(1L);
         assertThat(response.getUserId()).isEqualTo("user01");
@@ -173,7 +177,7 @@ class CouponServiceTest {
 
         given(userCouponRepository.selectByUserId("user01")).willReturn(List.of(userCoupon));
 
-        List<UserCouponResponse> response = couponService.selectByUserId("user01");
+        List<UserCouponResponse> response = userCouponService.selectByUserId("user01");
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).getUserId()).isEqualTo("user01");
@@ -193,7 +197,7 @@ class CouponServiceTest {
 
         given(userCouponRepository.selectById(1L)).willReturn(userCoupon);
 
-        CouponAvailabilityResponse response = couponService.checkAvailable(request);
+        CouponAvailabilityResponse response = userCouponService.checkAvailable(request);
 
         assertThat(response.isAvailable()).isTrue();
         assertThat(response.getDiscountAmount()).isEqualTo(10000);
@@ -213,7 +217,7 @@ class CouponServiceTest {
 
         given(userCouponRepository.selectById(1L)).willReturn(userCoupon);
 
-        CouponAvailabilityResponse response = couponService.checkAvailable(request);
+        CouponAvailabilityResponse response = userCouponService.checkAvailable(request);
 
         assertThat(response.isAvailable()).isFalse();
         assertThat(response.getDiscountAmount()).isZero();
