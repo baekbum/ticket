@@ -49,21 +49,6 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     @Override
-    public void cancel(long id) {
-        Ticket ticket = select(id);
-        ticket.cancel();
-    }
-
-    @Override
-    public void cancelByReservation(Reservation reservation) {
-        List<Ticket> tickets = selectByReservation(reservation);
-
-        for (Ticket ticket : tickets) {
-            ticket.cancel();
-        }
-    }
-
-    @Override
     public boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
         // 취소(CANCELLED)된 티켓을 제외하고, 유저가 수량을 점유하고 있는 모든 티켓 상태 정의
         List<TicketStatus> activeStatuses = List.of(

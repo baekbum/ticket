@@ -10,7 +10,5 @@ public interface TicketRepository {
     Ticket select(long id);
     List<Ticket> selectByIdList(List<Long> idList);
     List<Ticket> selectByReservation(Reservation reservation);
-    void cancel(long id);
-    void cancelByReservation(Reservation reservation);
     boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt);
 }

@@ -306,23 +306,6 @@ public class SeatCacheService {
     }
 
     /**
-     * 예매 취소 후 단일 좌석 Redis 선점을 해제하는 메서드
-     * @param eventId
-     * @param zone
-     * @param row
-     * @param col
-     */
-    public void releaseSeat(Long eventId, String zone, int row, int col) {
-        String redisKey = buildSeatRedisKey(eventId, zone, row, col);
-        String lockKey = redisKey + ":lock";
-
-        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
-        seatRedisTemplate.delete(lockKey);
-
-        log.info("[좌석 취소 반영 완료] - Key: {}", redisKey);
-    }
-
-    /**
      * 다중 좌석 선점 중 오류가 발생했을 때 Redis 상태를 원복하는 메서드
      * @param lockKeys
      * @param redisKeys
