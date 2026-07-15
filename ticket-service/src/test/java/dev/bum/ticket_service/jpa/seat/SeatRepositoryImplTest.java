@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.seat;
 
+import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
@@ -7,9 +8,14 @@ import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.config.QuerydslConfig;
+import dev.bum.ticket_service.exception.seat.SeatDuplicateException;
 import dev.bum.ticket_service.exception.seat.SeatNotExistException;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
+import dev.bum.ticket_service.jpa.area.AreaRepositoryImpl;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
@@ -23,7 +29,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,12 +41,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 @Import({
         SeatRepositoryImpl.class,
+        AreaRepositoryImpl.class,
         EventRepositoryImpl.class,
         QuerydslConfig.class
 })
 @ActiveProfiles("test")
-@DataJpaTest()
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY) // H2 같은 내장 DB 사용 강제
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 class SeatRepositoryImplTest {
 
     @Autowired
@@ -54,194 +60,240 @@ class SeatRepositoryImplTest {
     private EventJpaRepository eventJpaRepository;
 
     @Autowired
+    private AreaJpaRepository areaJpaRepository;
+
+    @Autowired
     private EntityManager entityManager;
-    
-    private long eventId;
-    private Seat firstSeat;
-    private Seat secondSeat;
-    private Seat thirdSeat;
+
+    private Event event;
+    private Area area;
 
     @BeforeEach
-    void info_set_up() throws Exception {
-        // 이벤트 정보 등록
-        Event event = Event.builder()
-                .artistName("아이유")
-                .title("아이유 콘서트")
-                .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
-                .venue("올림픽 체조 경기장")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .totalSeats(14500)
-                .status(EventStatus.ON_SALE)
-                .maxTicketsPerPerson(4)
-                .build();
+    void setUp() {
+        event = eventJpaRepository.save(event());
+        area = areaJpaRepository.save(area(event));
 
-        Event savedEvent = eventJpaRepository.save(event);
-        this.eventId = savedEvent.getEventId();
+        seatRepository.insert(insertRequest("VIP", 2, 2));
+        entityManager.flush();
+        entityManager.clear();
+    }
 
-        // 좌석 정보 등록
-        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.VIP)
-                .zone("Floor A구역")
-                .rows(10)
-                .cols(10)
-                .price(168000)
-                .build();
+    @Test
+    @DisplayName("좌석 등록")
+    void seat_insert() {
+        seatRepository.insert(insertRequest("R", 1, 2));
 
-        InsertSeatAreaConfig r_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.R)
-                .zone("1구역")
-                .rows(10)
-                .cols(10)
-                .price(145000)
-                .build();
+        assertThat(seatRepository.countByEventId(event.getEventId())).isEqualTo(6);
+    }
 
-        InsertSeatAreaConfig s_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.S)
-                .zone("10구역")
-                .rows(10)
-                .cols(10)
-                .price(128000)
-                .build();
+    @Test
+    @DisplayName("예약 불가능 상태 좌석이 있으면 중복 예외 발생")
+    void seat_insert_duplicate_when_not_available_seat_exists() {
+        Seat firstSeat = seatJpaRepository.findAll().get(0);
+        firstSeat.lock();
 
-        InsertSeatAreaConfig a_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.A)
-                .zone("20구역")
-                .rows(10)
-                .cols(10)
-                .price(128000)
-                .build();
+        assertThatThrownBy(() -> seatRepository.insert(insertRequest("VIP", 2, 2)))
+                .isInstanceOf(SeatDuplicateException.class);
+    }
 
-        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat, r_seat, s_seat, a_seat);
+    @Test
+    @DisplayName("이벤트 기준 좌석 수 조회")
+    void count_by_event_id() {
+        long count = seatRepository.countByEventId(event.getEventId());
 
-        InsertSeatRequest info = InsertSeatRequest.builder()
-                .eventId(this.eventId)
-                .insertSeatAreaConfigs(insertSeatAreaConfigList)
-                .build();
+        assertThat(count).isEqualTo(4);
+    }
 
-        seatRepository.insert(info);
+    @Test
+    @DisplayName("ID로 좌석 조회")
+    void seat_select_by_id() {
+        Seat firstSeat = seatJpaRepository.findAll().get(0);
 
+        Seat response = seatRepository.selectById(firstSeat.getSeatId());
+
+        assertThat(response.getSeatId()).isEqualTo(firstSeat.getSeatId());
+        assertThat(response.getEvent().getEventId()).isEqualTo(event.getEventId());
+        assertThat(response.getZone()).isEqualTo("VIP");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 ID 조회 시 예외 발생")
+    void seat_select_by_id_fail() {
+        assertThatThrownBy(() -> seatRepository.selectById(999L))
+                .isInstanceOf(SeatNotExistException.class);
+    }
+
+    @Test
+    @DisplayName("이벤트 ID로 좌석 조회")
+    void seat_select_by_event_id() {
+        List<Seat> response = seatRepository.selectByEventId(event.getEventId());
+
+        assertThat(response).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("구역 ID로 좌석 조회")
+    void seat_select_by_area_id() {
+        List<Seat> response = seatRepository.selectByAreaId(area.getAreaId());
+
+        assertThat(response).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("좌석 목록 조회")
+    void seat_select_by_seat_list() {
         List<Seat> savedSeats = seatJpaRepository.findAll();
-        this.firstSeat = savedSeats.get(0);
-        this.secondSeat = savedSeats.get(1);
-        this.thirdSeat = savedSeats.get(2);
+        List<SeatInfo> seatInfos = savedSeats.stream()
+                .limit(2)
+                .map(seat -> SeatInfo.builder()
+                        .id(seat.getSeatId())
+                        .zone(seat.getZone())
+                        .row(seat.getSeatRow())
+                        .col(seat.getSeatCol())
+                        .build())
+                .toList();
+
+        List<Seat> response = seatRepository.selectBySeatList(event.getEventId(), seatInfos);
+
+        assertThat(response).hasSize(2);
     }
 
     @Test
-    @DisplayName("좌석 정보 추가")
-    void seat_insert() throws Exception {
-        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.VIP)
-                .zone("Floor B구역")
-                .rows(10)
-                .cols(10)
-                .price(168000)
-                .build();
-
-        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
-
-        InsertSeatRequest info = InsertSeatRequest.builder()
-                .eventId(this.eventId)
-                .insertSeatAreaConfigs(insertSeatAreaConfigList)
-                .build();
-
-        seatRepository.insert(info);
-
-        long totalCnt = seatRepository.countByEventId(this.eventId);
-
-        assertThat(totalCnt).isEqualTo(500); // 각 등급마다 100자리씩
-    }
-
-    @Test
-    @DisplayName("ID로 좌석 정보 조회")
-    void seat_select_by_id() throws Exception {
-        long seatId = firstSeat.getSeatId();
-        Seat response = seatRepository.selectById(seatId);
-
-        assertThat(response.getSeatId()).isEqualTo(seatId);
-        assertThat(response.getEvent().getEventId()).isEqualTo(this.eventId);
-        assertThat(response.getZone()).isEqualTo(firstSeat.getZone());
-        assertThat(response.getSeatRow()).isEqualTo(firstSeat.getSeatRow());
-        assertThat(response.getSeatCol()).isEqualTo(firstSeat.getSeatCol());
-        assertThat(response.getGrade()).isEqualTo(firstSeat.getGrade());
-        assertThat(response.getPrice()).isEqualTo(firstSeat.getPrice());
-    }
-
-    @Test
-    @DisplayName("조건을 통해 좌석 정보 조회")
-    void seat_select_by_cond() throws Exception {
-        InsertSeatAreaConfig vip_seat = InsertSeatAreaConfig.builder()
-                .grade(SeatGrade.VIP)
-                .zone("Floor B구역")
-                .rows(10)
-                .cols(10)
-                .price(168000)
-                .build();
-
-        List<InsertSeatAreaConfig> insertSeatAreaConfigList = List.of(vip_seat);
-
-        InsertSeatRequest info = InsertSeatRequest.builder()
-                .eventId(this.eventId)
-                .insertSeatAreaConfigs(insertSeatAreaConfigList)
-                .build();
-
-        seatRepository.insert(info);
-
-        SeatCondRequest cond = SeatCondRequest.builder()
-                .grade(SeatGrade.VIP)
-                .build();
-
-        Pageable pageable = PageRequest.of(cond.getPage(), 300); // 테스트를 위해 사이즈를 300으로 늘림
-
-        Page<Seat> seats = seatRepository.selectByCond(cond, pageable);
-
-        assertThat(seats.getContent().size()).isEqualTo(200);
-    }
-
-    @Test
-    @DisplayName("좌석 정보 수정")
-    void seat_update() throws Exception {
-
-        UpdateSeatAreaConfig config_1 = UpdateSeatAreaConfig.builder()
+    @DisplayName("이미 선택된 좌석이 포함되면 예외 발생")
+    void seat_select_by_seat_list_fail_with_locked_seat() {
+        List<Seat> savedSeats = seatJpaRepository.findAll();
+        Seat firstSeat = savedSeats.get(0);
+        firstSeat.lock();
+        List<SeatInfo> seatInfos = List.of(SeatInfo.builder()
                 .id(firstSeat.getSeatId())
-                .status(SeatStatus.LOCKED)
+                .zone(firstSeat.getZone())
+                .row(firstSeat.getSeatRow())
+                .col(firstSeat.getSeatCol())
+                .build());
+
+        assertThatThrownBy(() -> seatRepository.selectBySeatList(event.getEventId(), seatInfos))
+                .isInstanceOf(SeatNotExistException.class);
+    }
+
+    @Test
+    @DisplayName("조건으로 좌석 조회")
+    void seat_select_by_cond() {
+        SeatCondRequest cond = SeatCondRequest.builder()
+                .eventId(event.getEventId())
+                .areaId(area.getAreaId())
+                .grade(SeatGrade.VIP)
+                .status(SeatStatus.AVAILABLE)
                 .build();
 
-        UpdateSeatAreaConfig config_2 = UpdateSeatAreaConfig.builder()
-                .id(secondSeat.getSeatId())
-                .status(SeatStatus.LOCKED)
-                .build();
+        Page<Seat> response = seatRepository.selectByCond(cond, PageRequest.of(0, 10));
 
-        List<UpdateSeatAreaConfig> updateSeatAreaConfigList = List.of(config_1, config_2);
+        assertThat(response.getTotalElements()).isEqualTo(4);
+    }
 
+    @Test
+    @DisplayName("좌석 수정")
+    void seat_update() {
+        Seat firstSeat = seatJpaRepository.findAll().get(0);
         UpdateSeatRequest info = UpdateSeatRequest.builder()
-                .updateSeatAreaConfigs(updateSeatAreaConfigList)
+                .updateSeatAreaConfigs(List.of(UpdateSeatAreaConfig.builder()
+                        .id(firstSeat.getSeatId())
+                        .status(SeatStatus.LOCKED)
+                        .price(160000)
+                        .positionX(100D)
+                        .build()))
                 .build();
 
         seatRepository.update(info);
 
-        Seat seat_1 = seatRepository.selectById(firstSeat.getSeatId());
-        Seat seat_2 = seatRepository.selectById(secondSeat.getSeatId());
-        Seat seat_3 = seatRepository.selectById(thirdSeat.getSeatId());
-
-        assertThat(seat_1.getSeatId()).isEqualTo(firstSeat.getSeatId());
-        assertThat(seat_1.getStatus()).isEqualTo(SeatStatus.LOCKED);
-
-        assertThat(seat_2.getSeatId()).isEqualTo(secondSeat.getSeatId());
-        assertThat(seat_2.getStatus()).isEqualTo(SeatStatus.LOCKED);
-
-        assertThat(seat_3.getSeatId()).isEqualTo(thirdSeat.getSeatId());
-        assertThat(seat_3.getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+        Seat response = seatRepository.selectById(firstSeat.getSeatId());
+        assertThat(response.getStatus()).isEqualTo(SeatStatus.LOCKED);
+        assertThat(response.getPrice()).isEqualTo(160000);
+        assertThat(response.getPositionX()).isEqualTo(100D);
     }
 
     @Test
-    @DisplayName("좌석 정보 삭제")
-    void seat_delete() throws Exception {
-        long seatId = firstSeat.getSeatId();
+    @DisplayName("좌석 삭제")
+    void seat_delete() {
+        Seat firstSeat = seatJpaRepository.findAll().get(0);
 
-        seatRepository.delete(seatId);
+        seatRepository.delete(firstSeat.getSeatId());
 
-        assertThatThrownBy(() -> seatRepository.selectById(seatId))
-                .isInstanceOf(SeatNotExistException.class)
-                .hasMessageContaining("해당 좌석 정보는 존재하지 않습니다.");
+        assertThatThrownBy(() -> seatRepository.selectById(firstSeat.getSeatId()))
+                .isInstanceOf(SeatNotExistException.class);
+    }
+
+    @Test
+    @DisplayName("좌석 ID 목록 삭제")
+    void seat_delete_by_id_list() {
+        List<Long> ids = seatJpaRepository.findAll().stream()
+                .limit(2)
+                .map(Seat::getSeatId)
+                .toList();
+
+        seatRepository.deleteByIdList(ids);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(seatRepository.countByEventId(event.getEventId())).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("구역 ID 기준 좌석 삭제")
+    void seat_delete_by_area_id() {
+        seatRepository.deleteByAreaId(area.getAreaId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(seatJpaRepository.findByAreaAreaId(area.getAreaId())).isEmpty();
+    }
+
+    private InsertSeatRequest insertRequest(String zone, int rows, int cols) {
+        return InsertSeatRequest.builder()
+                .eventId(event.getEventId())
+                .areaId(area.getAreaId())
+                .insertSeatAreaConfigs(List.of(InsertSeatAreaConfig.builder()
+                        .grade(SeatGrade.VIP)
+                        .zone(zone)
+                        .rows(rows)
+                        .cols(cols)
+                        .price(150000)
+                        .startX(10D)
+                        .startY(20D)
+                        .seatWidth(14D)
+                        .seatHeight(14D)
+                        .gapX(4D)
+                        .gapY(4D)
+                        .build()))
+                .build();
+    }
+
+    private Event event() {
+        return Event.builder()
+                .artistName("IU")
+                .title("IU Concert")
+                .description("Concert description")
+                .venue("KSPO Dome")
+                .venueAddress("Seoul")
+                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
+                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
+                .runningMinutes(120)
+                .ageLimit(12)
+                .totalSeats(1000)
+                .availableSeats(1000)
+                .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(4)
+                .build();
+    }
+
+    private Area area(Event event) {
+        return Area.builder()
+                .event(event)
+                .areaName("VIP")
+                .grade(SeatGrade.VIP)
+                .price(150000)
+                .status(AreaStatus.ACTIVE)
+                .build();
     }
 }
