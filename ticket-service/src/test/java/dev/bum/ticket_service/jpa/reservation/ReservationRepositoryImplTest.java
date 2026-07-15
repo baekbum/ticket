@@ -1,6 +1,10 @@
 package dev.bum.ticket_service.jpa.reservation;
 
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
@@ -18,11 +22,17 @@ import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.area.AreaRepositoryImpl;
+import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
+import dev.bum.ticket_service.jpa.coupon.coupon.CouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepositoryImpl;
@@ -83,6 +93,15 @@ class ReservationRepositoryImplTest {
     private TicketJpaRepository ticketJpaRepository;
 
     @Autowired
+    private CouponJpaRepository couponJpaRepository;
+
+    @Autowired
+    private UserCouponJpaRepository userCouponJpaRepository;
+
+    @Autowired
+    private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     private Event event;
@@ -118,6 +137,85 @@ class ReservationRepositoryImplTest {
         assertThat(tickets).hasSize(2);
         assertThat(tickets).extracting(Ticket::getStatus).containsOnly(TicketStatus.PENDING_PAYMENT);
         assertThat(tickets).extracting(ticket -> ticket.getSeat().getStatus()).containsOnly(SeatStatus.RESERVED);
+    }
+
+    @Test
+    @DisplayName("쿠폰 없이 예약하면 할인 내역을 저장하지 않음")
+    void reservation_insert_without_coupon_does_not_save_discount() {
+        Reservation saved = reservationRepository.insert(
+                insertReservationRequest("order-1", "user01", event, seatList.subList(0, 2))
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        Reservation response = reservationRepository.selectById(saved.getReservationId());
+
+        assertThat(reservationDiscountJpaRepository.findByReservation(response)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("쿠폰으로 예약하면 할인 내역 저장 후 사용자 쿠폰을 사용 처리")
+    void reservation_insert_with_coupon_saves_discount_and_uses_user_coupon() {
+        UserCoupon userCoupon = userCouponJpaRepository.save(userCoupon("user01", coupon("coupon-1", 10000)));
+        entityManager.flush();
+        entityManager.clear();
+        InsertReservationRequest info = insertReservationRequest(
+                "order-1",
+                "user01",
+                event,
+                seatList.subList(0, 2),
+                userCoupon.getUserCouponId()
+        );
+
+        Reservation saved = reservationRepository.insert(info);
+        entityManager.flush();
+        entityManager.clear();
+
+        Reservation response = reservationRepository.selectById(saved.getReservationId());
+        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(response);
+        UserCoupon responseUserCoupon = userCouponJpaRepository.findById(userCoupon.getUserCouponId()).orElseThrow();
+
+        assertThat(discounts).hasSize(1);
+        assertThat(discounts.get(0).getDiscountType()).isEqualTo(DiscountType.COUPON);
+        assertThat(discounts.get(0).getDiscountName()).isEqualTo("coupon-1");
+        assertThat(discounts.get(0).getCouponDiscountType()).isEqualTo(CouponDiscountType.FIXED_AMOUNT);
+        assertThat(discounts.get(0).getDiscountValue()).isEqualTo(10000);
+        assertThat(discounts.get(0).getDiscountAmount()).isEqualTo(10000);
+        assertThat(responseUserCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
+        assertThat(responseUserCoupon.getUsedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("쿠폰 사용 예약을 전체 취소하면 사용자 쿠폰을 복구")
+    void reservation_cancel_all_restores_used_coupon() {
+        UserCoupon userCoupon = userCouponJpaRepository.save(userCoupon("user01", coupon("coupon-1", 10000)));
+        entityManager.flush();
+        entityManager.clear();
+        Reservation saved = reservationRepository.insert(insertReservationRequest(
+                "order-1",
+                "user01",
+                event,
+                seatList.subList(0, 2),
+                userCoupon.getUserCouponId()
+        ));
+        entityManager.flush();
+        entityManager.clear();
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(event.getEventId())
+                .selectedTicketIdList(new ArrayList<>())
+                .build();
+
+        reservationRepository.cancel(saved.getReservationId(), info);
+        entityManager.flush();
+        entityManager.clear();
+
+        UserCoupon responseUserCoupon = userCouponJpaRepository.findById(userCoupon.getUserCouponId()).orElseThrow();
+        Reservation response = reservationRepository.selectById(saved.getReservationId());
+
+        assertThat(response.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(responseUserCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
+        assertThat(responseUserCoupon.getUsedAt()).isNull();
     }
 
     @Test
@@ -273,6 +371,10 @@ class ReservationRepositoryImplTest {
     }
 
     private InsertReservationRequest insertReservationRequest(String orderId, String userId, Event event, List<Seat> seats) {
+        return insertReservationRequest(orderId, userId, event, seats, null);
+    }
+
+    private InsertReservationRequest insertReservationRequest(String orderId, String userId, Event event, List<Seat> seats, Long userCouponId) {
         List<SeatInfo> seatInfos = seats.stream()
                 .map(seat -> SeatInfo.builder()
                         .id(seat.getSeatId())
@@ -287,6 +389,30 @@ class ReservationRepositoryImplTest {
                 .userId(userId)
                 .eventId(event.getEventId())
                 .seats(seatInfos)
+                .userCouponId(userCouponId)
+                .build();
+    }
+
+    private UserCoupon userCoupon(String userId, Coupon coupon) {
+        return UserCoupon.builder()
+                .userId(userId)
+                .coupon(couponJpaRepository.save(coupon))
+                .status(UserCouponStatus.ISSUED)
+                .issuedAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                .expiresAt(LocalDateTime.of(2026, 12, 31, 23, 59))
+                .build();
+    }
+
+    private Coupon coupon(String name, int discountValue) {
+        return Coupon.builder()
+                .name(name)
+                .code(name)
+                .discountType(CouponDiscountType.FIXED_AMOUNT)
+                .discountValue(discountValue)
+                .minOrderAmount(10000)
+                .validFrom(LocalDateTime.of(2026, 1, 1, 0, 0))
+                .validUntil(LocalDateTime.of(2026, 12, 31, 23, 59))
+                .status(CouponStatus.ACTIVE)
                 .build();
     }
 
