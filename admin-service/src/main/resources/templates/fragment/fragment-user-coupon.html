@@ -1,0 +1,111 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/coupon/fragment-user-coupon.css}">
+
+<div class="frag-header">
+  <h2>유저 쿠폰 관리</h2>
+  <p class="sub-txt">유저가 발급받은 쿠폰과 사용 상태, 발급일, 만료일을 조회합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="text" class="search-input" id="user-coupon-search-user-id" placeholder="유저 ID 검색" onkeydown="handleUserCouponSearchKeydown(event)">
+    <button class="btn" onclick="loadUserCouponList()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetUserCouponSearch()">
+      <i class="ti ti-refresh"></i>초기화
+    </button>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn btn-success" onclick="openUserCouponIssueModal()">
+      <i class="ti ti-ticket"></i>쿠폰 발급
+    </button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table class="user-coupon-table">
+    <colgroup>
+      <col style="width:64px;">
+      <col style="width:120px;">
+      <col style="width:150px;">
+      <col style="width:220px;">
+      <col style="width:140px;">
+      <col style="width:120px;">
+      <col style="width:120px;">
+      <col style="width:160px;">
+      <col style="width:170px;">
+      <col style="width:170px;">
+      <col style="width:170px;">
+      <col style="width:120px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>유저 쿠폰 ID</th>
+      <th>유저 ID</th>
+      <th>쿠폰명</th>
+      <th>쿠폰 코드</th>
+      <th>할인 타입</th>
+      <th>할인 값</th>
+      <th>상태</th>
+      <th>발급일</th>
+      <th>사용일</th>
+      <th>만료일</th>
+      <th class="actions">관리</th>
+    </tr>
+    </thead>
+    <tbody id="user-coupon-table-body">
+    <tr>
+      <td colspan="12" class="empty-cell">유저 ID로 쿠폰을 검색하세요.</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="f-modal" id="user-coupon-issue-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">쿠폰 발급</p>
+    <p class="modal-subtitle">특정 유저에게 쿠폰을 수동 발급합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>유저 ID</label>
+        <input type="text" id="m-user-coupon-user-id" placeholder="user01">
+      </div>
+      <div class="form-group">
+        <label>쿠폰 ID</label>
+        <input type="number" id="m-user-coupon-coupon-id" min="1" placeholder="1">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>만료일</label>
+      <input type="datetime-local" id="m-user-coupon-expires-at">
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeUserCouponIssueModal()">취소</button>
+      <button class="btn" onclick="submitUserCouponIssue()">
+        <i class="ti ti-device-floppy"></i>발급
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="user-coupon-detail-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">유저 쿠폰 상세</p>
+    <p class="modal-subtitle">발급된 쿠폰 정보를 확인합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="detail-grid" id="user-coupon-detail-grid"></div>
+
+    <div class="modal-actions single-action">
+      <button class="btn btn-secondary" onclick="closeUserCouponDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/coupon/fragment-user-coupon.js}"></script>
