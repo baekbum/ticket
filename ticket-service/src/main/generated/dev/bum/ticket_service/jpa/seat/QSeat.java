@@ -26,7 +26,7 @@ public class QSeat extends EntityPathBase<Seat> {
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
-    public final dev.bum.ticket_service.jpa.event.QEvent event;
+    public final dev.bum.ticket_service.jpa.event.event.QEvent event;
 
     public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatGrade> grade = createEnum("grade", dev.bum.common.service.ticket.seat.enums.SeatGrade.class);
 
@@ -75,7 +75,7 @@ public class QSeat extends EntityPathBase<Seat> {
     public QSeat(Class<? extends Seat> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.area = inits.isInitialized("area") ? new dev.bum.ticket_service.jpa.area.QArea(forProperty("area"), inits.get("area")) : null;
-        this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.QEvent(forProperty("event")) : null;
+        this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.event.QEvent(forProperty("event")) : null;
     }
 
 }

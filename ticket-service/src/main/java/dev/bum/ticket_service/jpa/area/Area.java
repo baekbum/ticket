@@ -5,7 +5,7 @@ import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
-import dev.bum.ticket_service.jpa.event.Event;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

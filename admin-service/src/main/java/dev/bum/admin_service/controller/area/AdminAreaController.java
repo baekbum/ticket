@@ -9,7 +9,7 @@ import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
-import dev.bum.common.service.ticket.layout.dto.EventLayoutResponse;
+import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

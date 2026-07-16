@@ -51,18 +51,18 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
 
-                        // 1. Event 권한 설정
-                        .requestMatchers(HttpMethod.GET, "/api/*/event/**").hasAnyRole("USER", "ADMIN") // Read는 둘 다
-                        .requestMatchers("/api/*/event/**").hasRole("ADMIN") // 나머지는 ADMIN만
+                        // 2. 관리자용 통로
+                        .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
 
-                        // 2. Seat 권한 설정
-                        .requestMatchers(HttpMethod.GET, "/api/*/seat/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/seat/**").hasRole("ADMIN")
-
-                        // 3. Reservation 권한 설정 (일반적으로 생성/취소는 유저 본인도 가능해야 함)
+                        // 3. 사용자용 통로
+                        .requestMatchers("/api/*/coupon/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/event/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/seat/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
 
-                        // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
+                        // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));

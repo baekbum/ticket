@@ -2,8 +2,8 @@ package dev.bum.ticket_service.service.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.*;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
-import dev.bum.ticket_service.jpa.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -13,8 +13,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,11 @@ public class ReservationService {
 
         // 2. Kafka를 통해 최종 예매 등록을 비동기로 처리
         reservationProducer.send(info);
+    }
+
+    public void insertMyReservation(String currentUserId, InsertReservationRequest info) {
+        info.setUserId(currentUserId);
+        insert(info);
     }
 
     /**
@@ -77,6 +84,12 @@ public class ReservationService {
         return repository.selectById(id).toResponse();
     }
 
+    public ReservationResponse selectMyReservation(String currentUserId, long id) {
+        Reservation reservation = repository.selectById(id);
+        validateOwner(currentUserId, reservation);
+        return reservation.toResponse();
+    }
+
     /**
      * 조건으로 예매 내역을 조회하는 메서드
      * @param cond
@@ -94,6 +107,11 @@ public class ReservationService {
                 reservationPage.getTotalElements(),
                 reservationPage.getTotalPages()
         );
+    }
+
+    public CustomPageResponse<ReservationResponse> selectMyReservations(String currentUserId, ReservationCondRequest cond) {
+        cond.setUserId(currentUserId);
+        return selectByCond(cond);
     }
 
     /**
@@ -117,12 +135,24 @@ public class ReservationService {
         );
     }
 
+    public void cancelMyReservation(String currentUserId, long id, CancelReservationRequest info) {
+        Reservation reservation = repository.selectById(id);
+        validateOwner(currentUserId, reservation);
+        info.setUserId(currentUserId);
+        cancel(id, info);
+    }
+
     /**
      * 사용자가 추가 예매 가능한지 검증하는 메서드
      * @param info
      */
     public void isReservable(IsReservableRequest info) {
         repository.validateReservableFromDatabase(info.getUserId(), info.getEventId(), info.getSelectedSeatCnt());
+    }
+
+    public void isMyReservable(String currentUserId, IsReservableRequest info) {
+        info.setUserId(currentUserId);
+        isReservable(info);
     }
 
     /**
@@ -148,5 +178,11 @@ public class ReservationService {
         }
 
         return sort;
+    }
+
+    private void validateOwner(String currentUserId, Reservation reservation) {
+        if (!StringUtils.hasText(currentUserId) || !currentUserId.equals(reservation.getUserId())) {
+            throw new AccessDeniedException("본인 예약만 조회하거나 취소할 수 있습니다.");
+        }
     }
 }

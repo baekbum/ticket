@@ -41,25 +41,61 @@
     <!-- Sidebar -->
     <nav class="sidebar">
       <div class="sidebar-section-label">관리 메뉴</div>
-      <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
-        <i class="ti ti-users"></i>유저 관리
-      </button>
-      <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
-        <i class="ti ti-calendar-event"></i>이벤트 관리
-      </button>
-      <button class="menu-btn" data-menu="area" onclick="switchMenu('area', this)">
-        <i class="ti ti-armchair"></i>구역/좌석 관리
-      </button>
 
-      <div class="sidebar-section-label" style="margin-top: 1rem;">준비 중</div>
-      <button class="menu-btn disabled" data-menu="ticket" onclick="switchMenu('ticket', this)">
-        <i class="ti ti-ticket"></i>티켓 관리
-        <span class="menu-badge">Soon</span>
-      </button>
-      <button class="menu-btn disabled" data-menu="reservation" onclick="switchMenu('reservation', this)">
-        <i class="ti ti-calendar-stats"></i>예매 관리
-        <span class="menu-badge">Soon</span>
-      </button>
+      <div class="menu-group is-open" data-menu-group="user">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-users"></i>유저</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
+            <i class="ti ti-user-cog"></i>유저 관리
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-group is-open" data-menu-group="performance">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-calendar-event"></i>공연</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="event" onclick="switchMenu('event', this)">
+            <i class="ti ti-calendar-event"></i>이벤트 관리
+          </button>
+          <button class="menu-btn" data-menu="area" onclick="switchMenu('area', this)">
+            <i class="ti ti-armchair"></i>구역/좌석 관리
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-group is-open" data-menu-group="ticket">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-calendar-stats"></i>예매</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="reservation" onclick="switchMenu('reservation', this)">
+            <i class="ti ti-calendar-stats"></i>예매 관리
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-group is-open" data-menu-group="coupon">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-discount-2"></i>쿠폰</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="coupon" onclick="switchMenu('coupon', this)">
+            <i class="ti ti-discount-check"></i>쿠폰 관리
+          </button>
+          <button class="menu-btn disabled" data-menu="userCoupon" onclick="switchMenu('userCoupon', this)" aria-disabled="true">
+            <i class="ti ti-ticket-off"></i>유저 쿠폰
+            <span class="menu-badge">Soon</span>
+          </button>
+        </div>
+      </div>
     </nav>
 
     <!-- Main -->

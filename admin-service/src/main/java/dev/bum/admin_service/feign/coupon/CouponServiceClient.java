@@ -1,14 +1,14 @@
 package dev.bum.admin_service.feign.coupon;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.ticket.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.dto.CouponAvailabilityResponse;
-import dev.bum.common.service.ticket.coupon.dto.CouponCondRequest;
-import dev.bum.common.service.ticket.coupon.dto.CouponResponse;
-import dev.bum.common.service.ticket.coupon.dto.InsertCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.IssueCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.UpdateCouponRequest;
-import dev.bum.common.service.ticket.coupon.dto.UserCouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
-@FeignClient(name = "coupon-service", url = "${services.ticket-service.url}", path = "/api/v1/coupon")
+@FeignClient(name = "coupon-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/coupon")
 public interface CouponServiceClient {
 
     @PostMapping("/insert")

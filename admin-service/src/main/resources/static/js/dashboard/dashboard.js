@@ -1,4 +1,5 @@
   let fragmentContext = {};
+  const disabledMenus = new Set(['userCoupon']);
 
   document.addEventListener('DOMContentLoaded', async () => {
 
@@ -11,10 +12,13 @@
       const eventId = params.get('eventId');
       if (eventId) fragmentContext.area = { eventId: parseInt(eventId, 10) };
 
-      const defaultMenu = document.querySelector(`.menu-btn[data-menu="${requestedMenu}"]`)
-          || document.querySelector('.menu-btn[data-menu="user"]');
+      const requestedMenuButton = document.querySelector(`.menu-btn[data-menu="${requestedMenu}"]`);
+      const defaultMenu = requestedMenuButton && !disabledMenus.has(requestedMenu)
+          ? requestedMenuButton
+          : document.querySelector('.menu-btn[data-menu="user"]');
 
       if (defaultMenu) {
+          openMenuGroupForButton(defaultMenu);
           await switchMenu(defaultMenu.dataset.menu || 'user', defaultMenu);
       }
 
@@ -47,6 +51,25 @@
     syncThemeToggleIcon();
   }
 
+  function toggleMenuGroup(toggleButton) {
+    const group = toggleButton.closest('.menu-group');
+    if (!group) return;
+
+    const isOpen = group.classList.toggle('is-open');
+    toggleButton.setAttribute('aria-expanded', String(isOpen));
+  }
+
+  function openMenuGroupForButton(btnElement) {
+    const group = btnElement?.closest('.menu-group');
+    if (!group) return;
+
+    group.classList.add('is-open');
+    const toggleButton = group.querySelector('.menu-group-toggle');
+    if (toggleButton) {
+      toggleButton.setAttribute('aria-expanded', 'true');
+    }
+  }
+
   async function loadMyProfileHeader() {
     try {
       const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/user/select/me`, { method: 'GET' });
@@ -61,7 +84,8 @@
 
   async function switchMenu(menuName, btnElement, context = null) {
 
-    if (menuName === 'ticket' || menuName === 'reservation') return;
+    if (disabledMenus.has(menuName)) return;
+    if (!btnElement) return;
 
     if (context) {
       fragmentContext[menuName] = context;
@@ -71,6 +95,7 @@
         .forEach(btn => btn.classList.remove('active'));
 
     btnElement.classList.add('active');
+    openMenuGroupForButton(btnElement);
 
     const contentArea = document.getElementById('content-area');
 
@@ -201,6 +226,7 @@
   }
 
   window.switchMenu = switchMenu;
+  window.toggleMenuGroup = toggleMenuGroup;
   window.switchMenuWithContext = function (menuName, context = {}) {
     const btn = document.querySelector(`.menu-btn[data-menu="${menuName}"]`);
     return switchMenu(menuName, btn, context);

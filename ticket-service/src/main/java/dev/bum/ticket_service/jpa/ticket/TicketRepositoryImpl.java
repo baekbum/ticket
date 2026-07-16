@@ -2,8 +2,8 @@ package dev.bum.ticket_service.jpa.ticket;
 
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.ticket.TicketNotExistException;
-import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -46,21 +46,6 @@ public class TicketRepositoryImpl implements TicketRepository {
         if (tickets.isEmpty()) throw new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다.");
 
         return tickets;
-    }
-
-    @Override
-    public void cancel(long id) {
-        Ticket ticket = select(id);
-        ticket.cancel();
-    }
-
-    @Override
-    public void cancelByReservation(Reservation reservation) {
-        List<Ticket> tickets = selectByReservation(reservation);
-
-        for (Ticket ticket : tickets) {
-            ticket.cancel();
-        }
     }
 
     @Override

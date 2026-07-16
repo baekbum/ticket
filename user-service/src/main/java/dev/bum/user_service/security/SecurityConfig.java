@@ -52,12 +52,17 @@ public class SecurityConfig {
 
                         // 2. 비로그인 유저(전체) 허용: 로그인, 회원가입, 중복 검사
                         .requestMatchers("/api/*/check/duplication/**").permitAll()
-                        .requestMatchers("/api/*/insert").permitAll()
+                        .requestMatchers("/api/*/signup").permitAll()
 
                         // 3. 관리자(ADMIN) 및 유저(USER) 모두 접근 가능 (내 정보 조회 / 내 정보 수정)
                         .requestMatchers("/api/*/select/me").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/update/me").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/validate/info").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/insert/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/select/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/update/me/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/address/delete/me/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

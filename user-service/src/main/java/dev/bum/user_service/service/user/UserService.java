@@ -23,6 +23,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -116,7 +117,7 @@ public class UserService {
         UserResponse updatedUser = repository.update(userId, info).toResponse();
 
         // ROLE이 변경됐을 때 AUTH DB에 적용
-        if (!originalRole.name().equals(info.getRole())) {
+        if (StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole())) {
             UserDtoForEvent event = UserDtoForEvent.builder()
                     .eventType(TopicEventType.UPDATE)
                     .id(updatedUser.getId())

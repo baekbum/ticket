@@ -121,6 +121,7 @@ CREATE TABLE coupons (
     min_order_amount INTEGER,
     valid_from TIMESTAMP,
     valid_until TIMESTAMP,
+    valid_days_after_issue INTEGER,
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,6 +130,7 @@ CREATE TABLE coupons (
 );
 
 CREATE INDEX idx_coupon_status_valid_until ON coupons(status, valid_until);
+CREATE INDEX idx_coupon_status_valid_days_after_issue ON coupons(status, valid_days_after_issue);
 
 
 -- ==========================================

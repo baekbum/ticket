@@ -1,12 +1,15 @@
 package dev.bum.ticket_service.jpa.event;
 
-import dev.bum.common.service.ticket.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
-import dev.bum.common.service.ticket.event.dto.EventCondRequest;
-import dev.bum.common.service.ticket.event.dto.InsertEventRequest;
-import dev.bum.common.service.ticket.event.dto.UpdateEventRequest;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
+import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,19 +19,21 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
 @Import({EventRepositoryImpl.class, QuerydslConfig.class})
 @ActiveProfiles("test")
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY) // H2 같은 내장 DB 사용 강제
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 class EventRepositoryImplTest {
 
     @Autowired
@@ -38,216 +43,179 @@ class EventRepositoryImplTest {
     private EventJpaRepository jpaRepository;
 
     @BeforeEach
-    void setUp() throws Exception {
-        Event initData = Event.builder()
-                .artistName("아이유")
-                .title("아이유 콘서트")
-                .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
-                .venue("올림픽 체조 경기장")
-                .eventDateTime(LocalDateTime.of(2026, 5, 16, 18, 0))
-                .totalSeats(14500)
-                .maxTicketsPerPerson(4)
-                .status(EventStatus.ON_SALE)
-                .build();
-
-        jpaRepository.save(initData);
+    void setUp() {
+        jpaRepository.save(event("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 18, 18, 0)));
+        jpaRepository.save(event("AKMU", "AKMU Concert", "Olympic Hall", LocalDateTime.of(2026, 10, 1, 18, 0)));
     }
 
     @Test
-    @DisplayName("이벤트 정보 추가")
-    void event_insert() throws Exception {
-        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
-
-        InsertEventRequest info = InsertEventRequest.builder()
-                .artistName("윤하")
-                .title("윤하 소극장 콘서트")
-                .description("2026 윤하 소극장 콘서트")
-                .venue("신한카드홀")
-                .eventDateTime(eventDateTime)
-                .totalSeats(1768)
-                .maxTicketsPerPerson(2)
-                .build();
+    @DisplayName("이벤트 등록")
+    void event_insert() {
+        InsertEventRequest info = insertRequest("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0));
 
         Event response = eventRepository.insert(info);
 
-        assertThat(response.getArtistName()).isEqualTo("윤하");
-        assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
-        assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
-        assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
-        assertThat(response.getTotalSeats()).isEqualTo(1768);
-        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
+        assertThat(response.getEventId()).isNotNull();
+        assertThat(response.getArtistName()).isEqualTo("BTS");
+        assertThat(response.getTitle()).isEqualTo("BTS Concert");
+        assertThat(response.getVenue()).isEqualTo("Main Stadium");
+        assertThat(response.getAvailableSeats()).isEqualTo(30000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
     }
 
     @Test
-    @DisplayName("이벤트 정보 추가 시 이미 동일한 이벤트 정보가 존재하면 오류 반환")
-    void event_already_exist() throws Exception {
-        LocalDateTime eventDateTime = LocalDateTime.of(2026, 5, 16, 18, 0);
-
-        InsertEventRequest info = InsertEventRequest.builder()
-                .artistName("아이유")
-                .title("아이유 콘서트")
-                .description("올림픽 체조 경기장에서 하는 아이유 콘서트")
-                .venue("올림픽 체조 경기장")
-                .eventDateTime(eventDateTime)
-                .totalSeats(14500)
-                .maxTicketsPerPerson(4)
-                .build();
+    @DisplayName("동일한 이벤트 등록 시 예외 발생")
+    void event_insert_duplicate() {
+        InsertEventRequest info = insertRequest("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 18, 18, 0));
 
         assertThatThrownBy(() -> eventRepository.insert(info))
-                .isInstanceOf(EventDuplicateException.class)
-                .hasMessageContaining("동일한 공연 정보가 이미 존재합니다.");
+                .isInstanceOf(EventDuplicateException.class);
     }
 
     @Test
-    @DisplayName("ID 값으로 이벤트 검색")
-    void event_select_by_id() throws Exception {
-        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
-
-        InsertEventRequest info = InsertEventRequest.builder()
-                .artistName("윤하")
-                .title("윤하 소극장 콘서트")
-                .description("2026 윤하 소극장 콘서트")
-                .venue("신한카드홀")
-                .eventDateTime(eventDateTime)
-                .totalSeats(1768)
-                .maxTicketsPerPerson(2)
-                .build();
-
-        eventRepository.insert(info);
-
-        long eventId = 2L;
-
-        Event response = eventRepository.selectById(eventId);
-
-        assertThat(response.getEventId()).isEqualTo(2L);
-        assertThat(response.getArtistName()).isEqualTo("윤하");
-        assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
-        assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
-        assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
-        assertThat(response.getTotalSeats()).isEqualTo(1768);
-        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("조건으로 이벤트 검색")
-    void event_select_by_cond() throws Exception {
-        LocalDateTime eventDateTime_1 = LocalDateTime.of(2026, 4, 29, 18, 0);
-        LocalDateTime eventDateTime_2 = LocalDateTime.of(2026, 9, 18, 18, 0);
-
-        InsertEventRequest info_1 = InsertEventRequest.builder()
-                .artistName("윤하")
-                .title("윤하 소극장 콘서트")
-                .description("2026 윤하 소극장 콘서트")
-                .venue("신한카드홀")
-                .eventDateTime(eventDateTime_1)
-                .totalSeats(1768)
-                .maxTicketsPerPerson(2)
-                .build();
-
-        InsertEventRequest info_2 = InsertEventRequest.builder()
-                .artistName("아이유")
-                .title("아이유 콘서트")
-                .description("상암 월드컵 경기장에서 하는 아이유 콘서트")
-                .venue("상암 월드컵 경기장")
-                .eventDateTime(eventDateTime_2)
-                .totalSeats(60000)
-                .maxTicketsPerPerson(4)
-                .build();
-
-        eventRepository.insert(info_1);
-        eventRepository.insert(info_2);
-
+    @DisplayName("중복 이벤트가 없으면 중복 체크 통과")
+    void is_exist_success() {
         EventCondRequest cond = EventCondRequest.builder()
-                .artistName("아이유")
+                .artistName("BTS")
+                .title("BTS Concert")
+                .venue("Main Stadium")
+                .eventDate(LocalDate.of(2026, 11, 1))
+                .status(EventStatus.ON_SALE)
                 .build();
 
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
+        eventRepository.isExist(cond);
+    }
 
-        Page<Event> response = eventRepository.selectByCond(cond, pageable);
+    @Test
+    @DisplayName("ID로 이벤트 조회")
+    void event_select_by_id() {
+        Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
 
-        assertThat(response.getTotalElements()).isEqualTo(2);
-        assertThat(response.getContent().get(0).getArtistName()).isEqualTo("아이유");
-        assertThat(response.getContent().get(1).getArtistName()).isEqualTo("아이유");
-        assertThat(response.getContent().get(0).getVenue()).isEqualTo("올림픽 체조 경기장");
-        assertThat(response.getContent().get(1).getVenue()).isEqualTo("상암 월드컵 경기장");
+        Event response = eventRepository.selectById(saved.getEventId());
+
+        assertThat(response.getEventId()).isEqualTo(saved.getEventId());
+        assertThat(response.getTitle()).isEqualTo("BTS Concert");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 ID 조회 시 예외 발생")
+    void event_select_by_id_fail() {
+        assertThatThrownBy(() -> eventRepository.selectById(999L))
+                .isInstanceOf(EventNotExistException.class);
+    }
+
+    @Test
+    @DisplayName("조건으로 이벤트 조회")
+    void event_select_by_cond() {
+        EventCondRequest cond = EventCondRequest.builder()
+                .artistName("IU")
+                .eventDate(LocalDate.of(2026, 9, 18))
+                .status(EventStatus.ON_SALE)
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getArtistName()).isEqualTo("IU");
+    }
+
+    @Test
+    @DisplayName("기간 조건으로 이벤트 조회")
+    void event_select_by_date_range() {
+        EventCondRequest cond = EventCondRequest.builder()
+                .eventDateFrom(LocalDate.of(2026, 9, 1))
+                .eventDateTo(LocalDate.of(2026, 9, 30))
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getTitle()).isEqualTo("IU Concert");
+    }
+
+    @Test
+    @DisplayName("정렬 조건으로 이벤트 조회")
+    void event_select_by_cond_with_sort() {
+        EventCondRequest cond = EventCondRequest.builder().build();
+
+        Page<Event> response = eventRepository.selectByCond(
+                cond,
+                PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "eventDateTime"))
+        );
+
+        assertThat(response.getContent()).hasSize(2);
+        assertThat(response.getContent().get(0).getTitle()).isEqualTo("AKMU Concert");
+        assertThat(response.getContent().get(1).getTitle()).isEqualTo("IU Concert");
     }
 
     @Test
     @DisplayName("이벤트 정보 수정")
-    void event_update() throws Exception {
-        EventCondRequest cond = EventCondRequest.builder()
-                .artistName("아이유")
-                .title("아이유 콘서트")
-                .venue("올림픽 체조 경기장")
-                .build();
-
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-
-        Page<Event> events = eventRepository.selectByCond(cond, pageable);
-
-        Event event = events.getContent().get(0);
-
-        assertThat(event.getTitle()).isEqualTo("아이유 콘서트");
-        assertThat(event.getDescription()).isEqualTo("올림픽 체조 경기장에서 하는 아이유 콘서트");
-        assertThat(event.getVenue()).isEqualTo("올림픽 체조 경기장");
-        assertThat(event.getEventDateTime()).isEqualTo(LocalDateTime.of(2026, 5, 16, 18, 0));
-        assertThat(event.getTotalSeats()).isEqualTo(14500);
-
-        LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 18, 17, 0);
-
+    void event_update() {
+        Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
         UpdateEventRequest info = UpdateEventRequest.builder()
-                .description("고양 종합 운동장에서 하는 아이유 콘서트")
-                .venue("고양 종합 운동장")
-                .eventDateTime(eventDateTime)
-                .totalSeats(43000)
+                .title("Updated BTS Concert")
+                .venue("Updated Stadium")
+                .totalSeats(35000)
+                .availableSeats(34000)
+                .status(EventStatus.SOLD_OUT)
                 .build();
 
-        Event response = eventRepository.update(event.getEventId(), info);
+        Event response = eventRepository.update(saved.getEventId(), info);
 
-        assertThat(response.getTitle()).isEqualTo("아이유 콘서트");
-        assertThat(response.getDescription()).isEqualTo("고양 종합 운동장에서 하는 아이유 콘서트");
-        assertThat(response.getVenue()).isEqualTo("고양 종합 운동장");
-        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
-        assertThat(response.getTotalSeats()).isEqualTo(43000);
+        assertThat(response.getTitle()).isEqualTo("Updated BTS Concert");
+        assertThat(response.getVenue()).isEqualTo("Updated Stadium");
+        assertThat(response.getTotalSeats()).isEqualTo(35000);
+        assertThat(response.getAvailableSeats()).isEqualTo(34000);
+        assertThat(response.getStatus()).isEqualTo(EventStatus.SOLD_OUT);
     }
 
     @Test
-    @DisplayName("이벤트 정보 삭제")
-    void event_delete() throws Exception {
-        LocalDateTime eventDateTime = LocalDateTime.of(2026, 4, 29, 18, 0);
+    @DisplayName("이벤트 삭제")
+    void event_delete() {
+        Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
 
-        InsertEventRequest info= InsertEventRequest.builder()
-                .artistName("윤하")
-                .title("윤하 소극장 콘서트")
-                .description("2026 윤하 소극장 콘서트")
-                .venue("신한카드홀")
+        Event deleted = eventRepository.delete(saved.getEventId());
+
+        assertThat(deleted.getEventId()).isEqualTo(saved.getEventId());
+        assertThatThrownBy(() -> eventRepository.selectById(saved.getEventId()))
+                .isInstanceOf(EventNotExistException.class);
+    }
+
+    private Event event(String artistName, String title, String venue, LocalDateTime eventDateTime) {
+        return Event.builder()
+                .artistName(artistName)
+                .title(title)
+                .description(title + " description")
+                .venue(venue)
+                .venueAddress("Seoul")
                 .eventDateTime(eventDateTime)
-                .totalSeats(1768)
-                .maxTicketsPerPerson(2)
+                .saleStartAt(eventDateTime.minusMonths(1))
+                .saleEndAt(eventDateTime.minusDays(1))
+                .cancelDeadlineAt(eventDateTime.minusDays(1))
+                .runningMinutes(120)
+                .ageLimit(12)
+                .totalSeats(30000)
+                .availableSeats(30000)
+                .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(4)
                 .build();
+    }
 
-        Event event = eventRepository.insert(info);
-
-        Long eventId = event.getEventId();
-
-        Event response = eventRepository.selectById(eventId);
-
-        assertThat(response.getEventId()).isEqualTo(eventId);
-        assertThat(response.getArtistName()).isEqualTo("윤하");
-        assertThat(response.getTitle()).isEqualTo("윤하 소극장 콘서트");
-        assertThat(response.getDescription()).isEqualTo("2026 윤하 소극장 콘서트");
-        assertThat(response.getVenue()).isEqualTo("신한카드홀");
-        assertThat(response.getEventDateTime()).isEqualTo(eventDateTime);
-        assertThat(response.getTotalSeats()).isEqualTo(1768);
-        assertThat(response.getMaxTicketsPerPerson()).isEqualTo(2);
-
-        eventRepository.delete(eventId);
-
-        assertThatThrownBy(() -> eventRepository.selectById(eventId))
-                .isInstanceOf(EventNotExistException.class)
-                .hasMessageContaining("해당 이벤트 정보는 존재하지 않습니다.");
+    private InsertEventRequest insertRequest(String artistName, String title, String venue, LocalDateTime eventDateTime) {
+        return InsertEventRequest.builder()
+                .artistName(artistName)
+                .title(title)
+                .description(title + " description")
+                .venue(venue)
+                .venueAddress("Seoul")
+                .eventDateTime(eventDateTime)
+                .saleStartAt(eventDateTime.minusMonths(1))
+                .saleEndAt(eventDateTime.minusDays(1))
+                .cancelDeadlineAt(eventDateTime.minusDays(1))
+                .runningMinutes(120)
+                .ageLimit(12)
+                .totalSeats(30000)
+                .maxTicketsPerPerson(4)
+                .build();
     }
 }
