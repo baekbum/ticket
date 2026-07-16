@@ -11,7 +11,7 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
-import dev.bum.ticket_service.controller.reservation.ReservationController;
+import dev.bum.ticket_service.controller.reservation.ReservationManagementController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.ReservationService;
 import org.junit.jupiter.api.DisplayName;
@@ -20,8 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,7 +29,6 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -38,8 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
-@WebMvcTest(ReservationController.class)
-class ReservationControllerTest {
+@WebMvcTest(ReservationManagementController.class)
+class ReservationManagementControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -53,47 +51,54 @@ class ReservationControllerTest {
     @MockitoBean
     private ReservationService reservationService;
 
-    private final String baseUrl = "/api/v1/reservation";
+    private final String baseUrl = "/api/v1/manage/reservation";
 
     @Test
-    @DisplayName("인증 없이 예약 조회를 요청하면 4xx 응답")
+    @DisplayName("인증 없이 관리자용 예약 조회를 요청하면 4xx 응답")
     void token_invalid() throws Exception {
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().is4xxClientError());
     }
 
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("예약 등록 시 로그인 사용자 ID를 사용")
+    @DisplayName("관리자용 예약 등록")
     void reservation_insert() throws Exception {
-        InsertReservationRequest info = insertRequest("other-user");
+        InsertReservationRequest info = insertRequest("user01");
 
         mockMvc.perform(post(baseUrl + "/insert")
-                        .with(authentication(userAuthentication("user01")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(reservationService).should().insertMyReservation("user01", info);
+        then(reservationService).should().insert(info);
     }
 
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("내 예약 ID로 조회")
+    @DisplayName("ID로 예약 조회")
     void reservation_select_by_id() throws Exception {
         ReservationResponse response = reservationResponse(1L, 2);
-        given(reservationService.selectMyReservation("user01", 1L)).willReturn(response);
+        given(reservationService.selectById(1L)).willReturn(response);
 
-        mockMvc.perform(get(baseUrl + "/select/id/1")
-                        .with(authentication(userAuthentication("user01"))))
+        mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reservationId").value(1L))
-                .andExpect(jsonPath("$.userId").value("user01"));
+                .andExpect(jsonPath("$.reservationId").value(1L));
 
-        then(reservationService).should().selectMyReservation("user01", 1L);
+        then(reservationService).should().selectById(1L);
     }
 
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("내 예약 조건 조회")
+    @DisplayName("조건으로 예약 조회")
     void reservation_select_by_cond() throws Exception {
+        ReservationCondRequest cond = ReservationCondRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .status(ReservationStatus.PENDING_PAYMENT)
+                .page(0)
+                .size(10)
+                .build();
         CustomPageResponse<ReservationResponse> response = CustomPageResponse.of(
                 List.of(reservationResponse(1L, 2)),
                 10,
@@ -101,51 +106,44 @@ class ReservationControllerTest {
                 1,
                 1
         );
-        given(reservationService.selectMyReservations(any(), any())).willReturn(response);
 
-        mockMvc.perform(get(baseUrl + "/select")
-                        .with(authentication(userAuthentication("user01")))
-                        .param("eventId", "1")
-                        .param("status", ReservationStatus.PENDING_PAYMENT.name())
-                        .param("page", "0")
-                        .param("size", "10"))
+        given(reservationService.selectByCond(any())).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/select")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(cond)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].reservationId").value(1L));
 
-        then(reservationService).should().selectMyReservations("user01", ReservationCondRequest.builder()
-                .eventId(1L)
-                .status(ReservationStatus.PENDING_PAYMENT)
-                .page(0)
-                .size(10)
-                .build());
+        then(reservationService).should().selectByCond(cond);
     }
 
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("내 예약 취소")
+    @DisplayName("예약 취소")
     void reservation_cancel() throws Exception {
-        CancelReservationRequest info = cancelRequest("other-user");
+        CancelReservationRequest info = cancelRequest("user01");
 
         mockMvc.perform(put(baseUrl + "/cancel/id/1")
-                        .with(authentication(userAuthentication("user01")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(reservationService).should().cancelMyReservation("user01", 1L, info);
+        then(reservationService).should().cancel(1L, info);
     }
 
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("내 예약 가능 여부 확인")
+    @DisplayName("예약 가능 여부 확인")
     void reservation_is_reservable() throws Exception {
-        IsReservableRequest info = reservableRequest("other-user");
+        IsReservableRequest info = reservableRequest("user01");
 
         mockMvc.perform(post(baseUrl + "/reservable")
-                        .with(authentication(userAuthentication("user01")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(reservationService).should().isMyReservable("user01", info);
+        then(reservationService).should().isReservable(info);
     }
 
     private InsertReservationRequest insertRequest(String userId) {
@@ -153,10 +151,7 @@ class ReservationControllerTest {
                 .orderId("order-1")
                 .userId(userId)
                 .eventId(1L)
-                .seats(List.of(
-                        SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build(),
-                        SeatInfo.builder().id(2L).zone("VIP").row(1).col(2).build()
-                ))
+                .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build()))
                 .build();
     }
 
@@ -186,13 +181,5 @@ class ReservationControllerTest {
                 .ticketCount(ticketCount)
                 .status(ReservationStatus.PENDING_PAYMENT.name())
                 .build();
-    }
-
-    private UsernamePasswordAuthenticationToken userAuthentication(String userId) {
-        return new UsernamePasswordAuthenticationToken(
-                userId,
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
     }
 }

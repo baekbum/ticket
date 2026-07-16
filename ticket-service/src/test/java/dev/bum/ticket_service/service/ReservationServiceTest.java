@@ -28,11 +28,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -61,6 +63,19 @@ class ReservationServiceTest {
 
         reservationService.insert(info);
 
+        then(seatCacheService).should().validateOccupiedSeat(info);
+        then(reservationProducer).should().send(info);
+    }
+
+    @Test
+    @DisplayName("본인 예약 등록 요청은 로그인 사용자 ID로 예약자 ID를 변경한다")
+    void reservation_insert_my_reservation() {
+        InsertReservationRequest info = insertRequest();
+        info.setUserId("other-user");
+
+        reservationService.insertMyReservation("user01", info);
+
+        assertThat(info.getUserId()).isEqualTo("user01");
         then(seatCacheService).should().validateOccupiedSeat(info);
         then(reservationProducer).should().send(info);
     }
@@ -102,6 +117,31 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("본인 예약 ID로 조회")
+    void reservation_select_my_reservation() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event());
+        given(repository.selectById(1L)).willReturn(reservation);
+
+        ReservationResponse response = reservationService.selectMyReservation("user01", 1L);
+
+        assertThat(response.getReservationId()).isEqualTo(1L);
+        assertThat(response.getUserId()).isEqualTo("user01");
+        then(repository).should().selectById(1L);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 예약은 조회할 수 없다")
+    void reservation_select_my_reservation_forbidden() {
+        Reservation reservation = reservation(1L, "order-1", "other-user", event());
+        given(repository.selectById(1L)).willReturn(reservation);
+
+        assertThatThrownBy(() -> reservationService.selectMyReservation("user01", 1L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        then(repository).should().selectById(1L);
+    }
+
+    @Test
     @DisplayName("조건으로 예약 조회")
     void reservation_select_by_cond() {
         ReservationCondRequest cond = ReservationCondRequest.builder()
@@ -130,6 +170,27 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("본인 예약 조건 조회는 로그인 사용자 ID로 검색한다")
+    void reservation_select_my_reservations() {
+        ReservationCondRequest cond = ReservationCondRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .page(0)
+                .size(10)
+                .build();
+        Reservation reservation = reservation(1L, "order-1", "user01", event());
+
+        given(repository.selectByCond(any(), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(reservation)));
+
+        CustomPageResponse<ReservationResponse> response = reservationService.selectMyReservations("user01", cond);
+
+        assertThat(cond.getUserId()).isEqualTo("user01");
+        assertThat(response.getContent()).hasSize(1);
+        then(repository).should().selectByCond(eq(cond), any(Pageable.class));
+    }
+
+    @Test
     @DisplayName("예약 취소 후 좌석 캐시와 구매 제한 캐시 동기화")
     void reservation_cancel() {
         CancelReservationRequest info = CancelReservationRequest.builder()
@@ -149,6 +210,49 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("본인 예약 취소는 예약자 검증 후 로그인 사용자 ID로 취소한다")
+    void reservation_cancel_my_reservation() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event());
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+
+        reservationService.cancelMyReservation("user01", 1L, info);
+
+        assertThat(info.getUserId()).isEqualTo("user01");
+        then(repository).should().selectById(1L);
+        then(repository).should().cancel(1L, info);
+        then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
+        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 1, "SUB");
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 예약은 취소할 수 없다")
+    void reservation_cancel_my_reservation_forbidden() {
+        Reservation reservation = reservation(1L, "order-1", "other-user", event());
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+
+        given(repository.selectById(1L)).willReturn(reservation);
+
+        assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
+                .isInstanceOf(AccessDeniedException.class);
+
+        then(repository).should().selectById(1L);
+        then(repository).shouldHaveNoMoreInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("예약 가능 여부 확인")
     void reservation_is_reservable() {
         IsReservableRequest info = IsReservableRequest.builder()
@@ -159,6 +263,21 @@ class ReservationServiceTest {
 
         reservationService.isReservable(info);
 
+        then(repository).should().validateReservableFromDatabase("user01", 1L, 2);
+    }
+
+    @Test
+    @DisplayName("본인 예약 가능 여부 확인은 로그인 사용자 ID로 검증한다")
+    void reservation_is_my_reservable() {
+        IsReservableRequest info = IsReservableRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .selectedSeatCnt(2)
+                .build();
+
+        reservationService.isMyReservable("user01", info);
+
+        assertThat(info.getUserId()).isEqualTo("user01");
         then(repository).should().validateReservableFromDatabase("user01", 1L, 2);
     }
 

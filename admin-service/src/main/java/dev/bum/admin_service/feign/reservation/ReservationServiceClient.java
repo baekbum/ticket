@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "reservation-service", url = "${services.ticket-service.url}", path = "/api/v1/reservation")
+@FeignClient(name = "reservation-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/reservation")
 public interface ReservationServiceClient {
 
     @GetMapping("/select/id/{reservationId}")
