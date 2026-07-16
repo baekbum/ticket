@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/seat/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

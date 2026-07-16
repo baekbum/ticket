@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 
-@FeignClient(name = "ticket-service-client", url = "${services.ticket-service.url}", path = "/api/v1/ticket")
+@FeignClient(name = "ticket-service-client", url = "${services.ticket-service.url}", path = "/api/v1/manage/ticket")
 public interface TicketServiceClient {
 
     @GetMapping("/reservation/{reservationId}")
