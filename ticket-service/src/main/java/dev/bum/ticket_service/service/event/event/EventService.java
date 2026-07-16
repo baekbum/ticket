@@ -3,6 +3,8 @@ package dev.bum.ticket_service.service.event.event;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.service.event.file.FileStorageService;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
@@ -57,6 +59,15 @@ public class EventService {
         return repository.selectById(id).toResponse();
     }
 
+    @Transactional(readOnly = true)
+    public EventResponse selectVisibleById(Long id) {
+        Event event = repository.selectById(id);
+        if (event.getStatus() != EventStatus.ON_SALE) {
+            throw new EventNotExistException("노출 가능한 이벤트 정보가 존재하지 않습니다.");
+        }
+        return event.toResponse();
+    }
+
     /**
      * 조검을 통해 공연 정보 조회
      * @param cond
@@ -76,6 +87,12 @@ public class EventService {
                 eventPage.getTotalElements(),
                 eventPage.getTotalPages()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public CustomPageResponse<EventResponse> selectVisibleByCond(EventCondRequest cond) {
+        cond.setStatus(EventStatus.ON_SALE);
+        return selectByCond(cond);
     }
 
     /**

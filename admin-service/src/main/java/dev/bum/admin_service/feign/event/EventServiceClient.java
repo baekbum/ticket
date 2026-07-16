@@ -11,7 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-@FeignClient(name = "event-service", url = "${services.ticket-service.url}", path = "/api/v1/event")
+@FeignClient(name = "event-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/event")
 public interface EventServiceClient {
 
     @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
