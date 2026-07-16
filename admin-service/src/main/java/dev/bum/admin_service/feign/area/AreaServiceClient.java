@@ -17,7 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-@FeignClient(name = "area-service", url = "${services.ticket-service.url}", path = "/api/v1/area")
+@FeignClient(name = "area-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/area")
 public interface AreaServiceClient {
 
     @PostMapping("/insert")

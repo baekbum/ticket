@@ -54,11 +54,10 @@ public class SecurityConfig {
                         // 2. 관리자용 통로
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
 
-                        // 3. 쿠폰
+                        // 3. 사용자용 통로
                         .requestMatchers("/api/*/coupon/**").hasAnyRole("USER", "ADMIN")
-
-                        // 4. 이벤트
                         .requestMatchers("/api/*/event/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")
