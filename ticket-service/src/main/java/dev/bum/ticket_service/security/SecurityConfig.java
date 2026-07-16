@@ -58,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/coupon/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/event/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/seat/**").hasAnyRole("USER", "ADMIN")
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

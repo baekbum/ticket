@@ -6,7 +6,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "seat-service", url = "${services.ticket-service.url}", path = "/api/v1/seat")
+@FeignClient(name = "seat-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/seat")
 public interface SeatServiceClient {
 
     @PostMapping("/insert")
@@ -54,6 +54,6 @@ public interface SeatServiceClient {
     String unlockSeatCache(@PathVariable("seatId") Long seatId);
 
     @PostMapping("/occupy")
-    void occupySeat(@RequestBody SeatOccupyRequest request);
+    SeatOccupyResponse occupySeat(@RequestBody SeatOccupyRequest request);
 }
 
