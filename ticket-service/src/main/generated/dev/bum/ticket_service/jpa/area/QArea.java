@@ -28,7 +28,7 @@ public class QArea extends EntityPathBase<Area> {
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
-    public final dev.bum.ticket_service.jpa.event.QEvent event;
+    public final dev.bum.ticket_service.jpa.event.event.QEvent event;
 
     public final EnumPath<dev.bum.common.service.ticket.seat.enums.SeatGrade> grade = createEnum("grade", dev.bum.common.service.ticket.seat.enums.SeatGrade.class);
 
@@ -58,7 +58,7 @@ public class QArea extends EntityPathBase<Area> {
 
     public QArea(Class<? extends Area> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.QEvent(forProperty("event")) : null;
+        this.event = inits.isInitialized("event") ? new dev.bum.ticket_service.jpa.event.event.QEvent(forProperty("event")) : null;
     }
 
 }

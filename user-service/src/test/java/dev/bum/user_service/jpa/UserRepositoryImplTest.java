@@ -20,13 +20,18 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @Transactional
 @Import({UserRepositoryImpl.class, QuerydslConfig.class})
@@ -41,8 +46,13 @@ class UserRepositoryImplTest {
     @Autowired
     private UserJpaRepository jpaRepository;
 
+    @MockitoBean
+    private PasswordEncoder passwordEncoder;
+
     @BeforeEach
     void setUp() {
+        given(passwordEncoder.encode(anyString())).willAnswer(invocation -> "encoded-" + invocation.getArgument(0));
+
         User admin = User.builder()
                 .userId("admin")
                 .password("admin1234!")
@@ -85,11 +95,13 @@ class UserRepositoryImplTest {
         User response = userRepository.insert(info);
 
         assertThat(response.getUserId()).isEqualTo(info.getUserId());
-        assertThat(response.getPassword()).isEqualTo(info.getPassword());
+        assertThat(response.getPassword()).isEqualTo("encoded-addUser1234!");
         assertThat(response.getName()).isEqualTo(info.getName());
         assertThat(response.getPhoneNumber()).isEqualTo(info.getPhoneNumber());
         assertThat(response.getEmail()).isEqualTo(info.getEmail());
         assertThat(response.getBirthDate()).isEqualTo(info.getBirthDate());
+
+        then(passwordEncoder).should().encode("addUser1234!");
     }
 
     @Test
@@ -210,9 +222,8 @@ class UserRepositoryImplTest {
 
         Page<User> response = userRepository.selectByCond(cond, pageable);
 
-        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().get(0).getUserId()).isEqualTo("user01");
-        assertThat(response.getContent().get(1).getUserId()).isEqualTo("user02");
     }
 
     @Test
@@ -242,6 +253,58 @@ class UserRepositoryImplTest {
         assertThat(updatedUser.getUserId()).isEqualTo("IU");
         assertThat(updatedUser.getPhoneNumber()).isEqualTo("010-8888-9999");
         assertThat(updatedUser.getEmail()).isEqualTo("update@test.com");
+    }
+
+    @Test
+    @DisplayName("유저 비밀번호 수정")
+    void user_password_update() throws Exception {
+        String userId = "IU";
+
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .password("newPassword123!")
+                .build();
+
+        User updatedUser = userRepository.update(userId, info);
+
+        assertThat(updatedUser.getPassword()).isEqualTo("encoded-newPassword123!");
+
+        then(passwordEncoder).should().encode("newPassword123!");
+    }
+
+    @Test
+    @DisplayName("블랙리스트 여부로 유저 검색")
+    void select_by_blacklist_cond() throws Exception {
+        userRepository.update("IU", UpdateUserRequest.builder()
+                .isBlacklisted(true)
+                .build());
+
+        UserCondRequest cond = UserCondRequest.builder()
+                .isBlacklisted(true)
+                .build();
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
+
+        Page<User> response = userRepository.selectByCond(cond, pageable);
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getUserId()).isEqualTo("IU");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 유저 수정 시 예외")
+    void update_not_exist_user() {
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .email("none@test.com")
+                .build();
+
+        assertThatThrownBy(() -> userRepository.update("notExistId", info))
+                .isInstanceOf(UserNotExistException.class);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 유저 삭제 시 예외")
+    void delete_not_exist_user() {
+        assertThatThrownBy(() -> userRepository.delete("notExistId"))
+                .isInstanceOf(UserNotExistException.class);
     }
 
     @Test

@@ -1,9 +1,13 @@
 package dev.bum.user_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -22,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,7 +35,9 @@ import java.util.concurrent.CompletableFuture;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +51,9 @@ class UserServiceTest {
 
     @Mock
     private KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
     @Test
     @DisplayName("유저 등록")
@@ -89,8 +99,8 @@ class UserServiceTest {
         assertThat(response.getAddress()).isEqualTo("서울시 용산구 한남동");
         assertThat(response.getIsBlacklisted()).isFalse();
 
-        verify(userRepository).insert(userInfo);
-        verify(kafkaTemplate, times(1)).send(any(), eq("IU"), any(UserDtoForEvent.class));
+        then(userRepository).should().insert(userInfo);
+        then(kafkaTemplate).should(times(1)).send(any(), eq("IU"), any(UserDtoForEvent.class));
     }
 
     @Test
@@ -136,13 +146,13 @@ class UserServiceTest {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
         Page<User> result = new PageImpl<>(userList, pageable, userList.size());
 
-        given(userRepository.selectAll(any())).willReturn(result);
+        given(userRepository.selectByCond(any(), any())).willReturn(result);
 
         CustomPageResponse<UserResponse> response = userService.selectByCond(cond);
 
         assertThat(response.getPage().getTotalElements()).isEqualTo(4);
 
-        verify(userRepository).selectAll(argThat(pageRequest ->
+        then(userRepository).should().selectByCond(eq(cond), argThat(pageRequest ->
                 pageRequest.getPageNumber() == 0 && pageRequest.getPageSize() == 10
         ));
     }
@@ -177,7 +187,7 @@ class UserServiceTest {
         assertThat(result.getAddress()).isEqualTo(response.getAddress());
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
 
-        verify(userRepository).selectById(userId);
+        then(userRepository).should().selectById(userId);
     }
 
     @Test
@@ -231,7 +241,7 @@ class UserServiceTest {
         assertThat(response.getPage().getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().get(0).getUserId()).isEqualTo("user01");
 
-        verify(userRepository).selectByCond(cond, pageable);
+        then(userRepository).should().selectByCond(cond, pageable);
     }
 
     @Test
@@ -246,9 +256,11 @@ class UserServiceTest {
         User result = User.builder()
                 .id(1L)
                 .userId("user")
+                .role(UserRole.ROLE_USER)
                 .isBlacklisted(true)
                 .build();
 
+        given(userRepository.selectById(any())).willReturn(result);
         given(userRepository.update(any(), any())).willReturn(result);
 
         UserResponse response = userService.update(userId, info);
@@ -256,7 +268,8 @@ class UserServiceTest {
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
 
-        verify(userRepository).update(userId, info);
+        then(userRepository).should().update(userId, info);
+        then(kafkaTemplate).should(never()).send(any(), any(), any());
     }
 
     @Test
@@ -283,7 +296,140 @@ class UserServiceTest {
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getName()).isEqualTo(response.getName());
 
-        verify(userRepository).delete(userId);
+        then(userRepository).should().delete(userId);
+    }
+
+    @Test
+    @DisplayName("ID 중복 체크는 Repository에 위임")
+    void is_duplicated() {
+        String userId = "IU";
+
+        userService.isDuplicated(userId);
+
+        then(userRepository).should().isExist(userId);
+    }
+
+    @Test
+    @DisplayName("Role 변경 시 Kafka 이벤트 전송")
+    void user_update_role_changed_sends_event() {
+        String userId = "user";
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .role("ROLE_ADMIN")
+                .build();
+
+        User originalUser = User.builder()
+                .id(1L)
+                .userId(userId)
+                .role(UserRole.ROLE_USER)
+                .build();
+
+        User updatedUser = User.builder()
+                .id(1L)
+                .userId(userId)
+                .role(UserRole.ROLE_USER)
+                .build();
+
+        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
+
+        given(userRepository.selectById(userId)).willReturn(originalUser);
+        given(userRepository.update(userId, info)).willReturn(updatedUser);
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
+
+        userService.update(userId, info);
+
+        then(kafkaTemplate).should().send(any(), eq(userId), argThat(event ->
+                event.getEventType() == TopicEventType.UPDATE && event.getUserId().equals(userId)
+        ));
+    }
+
+    @Test
+    @DisplayName("비밀번호 검증 성공")
+    void validate_info_success() {
+        ValidatePasswordRequest info = ValidatePasswordRequest.builder()
+                .userId("IU")
+                .password("plain-password")
+                .build();
+
+        User user = User.builder()
+                .userId("IU")
+                .password("encoded-password")
+                .build();
+
+        given(userRepository.selectById("IU")).willReturn(user);
+        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
+
+        userService.validateInfo(info);
+
+        then(passwordEncoder).should().matches("plain-password", "encoded-password");
+    }
+
+    @Test
+    @DisplayName("비밀번호 검증 실패")
+    void validate_info_fail() {
+        ValidatePasswordRequest info = ValidatePasswordRequest.builder()
+                .userId("IU")
+                .password("wrong-password")
+                .build();
+
+        User user = User.builder()
+                .userId("IU")
+                .password("encoded-password")
+                .build();
+
+        given(userRepository.selectById("IU")).willReturn(user);
+        given(passwordEncoder.matches("wrong-password", "encoded-password")).willReturn(false);
+
+        assertThatThrownBy(() -> userService.validateInfo(info))
+                .isInstanceOf(PasswordIncorrectException.class);
+
+        then(userRepository).should().selectById("IU");
+        then(passwordEncoder).should().matches("wrong-password", "encoded-password");
+    }
+
+    @Test
+    @DisplayName("비밀번호 초기화")
+    void init_password() {
+        String userId = "IU";
+
+        userService.initPassword(userId);
+
+        then(userRepository).should().update(eq(userId), argThat(info ->
+                "123456789!".equals(info.getPassword())
+        ));
+    }
+
+    @Test
+    @DisplayName("벌크 삭제 시 모든 유저 삭제")
+    void delete_bulk() {
+        DeleteUserBulkRequest info = DeleteUserBulkRequest.builder()
+                .userIds(List.of("user01", "user02"))
+                .build();
+
+        User user01 = User.builder().id(1L).userId("user01").build();
+        User user02 = User.builder().id(2L).userId("user02").build();
+        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
+
+        given(userRepository.delete("user01")).willReturn(user01);
+        given(userRepository.delete("user02")).willReturn(user02);
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
+
+        userService.deleteBulk(info);
+
+        then(userRepository).should().delete("user01");
+        then(userRepository).should().delete("user02");
+    }
+
+    @Test
+    @DisplayName("벌크 삭제 대상이 비어있으면 예외 발생")
+    void delete_bulk_empty_ids() {
+        DeleteUserBulkRequest info = DeleteUserBulkRequest.builder()
+                .userIds(List.of())
+                .build();
+
+        assertThatThrownBy(() -> userService.deleteBulk(info))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        then(userRepository).should(never()).delete(any());
     }
 
 }

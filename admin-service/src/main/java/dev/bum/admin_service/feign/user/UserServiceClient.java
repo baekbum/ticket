@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1")
+@FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1/manage")
 public interface UserServiceClient {
 
     @GetMapping("/check/duplication/{userId}")

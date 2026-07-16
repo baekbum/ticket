@@ -1,8 +1,7 @@
 package dev.bum.ticket_service.jpa.ticket;
 
-import dev.bum.ticket_service.jpa.event.Event;
-import dev.bum.ticket_service.jpa.reservation.Reservation;
-import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 
 import java.util.List;
 
@@ -11,7 +10,5 @@ public interface TicketRepository {
     Ticket select(long id);
     List<Ticket> selectByIdList(List<Long> idList);
     List<Ticket> selectByReservation(Reservation reservation);
-    void cancel(long id);
-    void cancelByReservation(Reservation reservation);
-    boolean isReservable(String userId, Event event, int selectedSeatCnt);
+    boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt);
 }
