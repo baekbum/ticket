@@ -3,6 +3,18 @@
   const headers = { 'Content-Type': 'application/json' };
 
   let currentUserCouponList = [];
+  let currentSearchFilters = {
+    userId: null,
+    couponName: null,
+    couponCode: null,
+    discountType: null,
+    status: null,
+    issuedAt: null,
+    expiresAt: null,
+    usedAt: null
+  };
+  let currentSortFilters = { userCouponId: 'desc' };
+  let serverTotalPages = 1;
 
   function inputValue(id) {
     return document.getElementById(id)?.value?.trim() || '';
@@ -26,6 +38,33 @@
     return value ? `${value}:00` : null;
   }
 
+  function buildSortArray() {
+    return Object.keys(currentSortFilters).reduce((acc, field) => {
+      if (currentSortFilters[field]) acc.push(`${field}-${currentSortFilters[field]}`);
+      return acc;
+    }, []);
+  }
+
+  function buildCond(pageZeroIndexed) {
+    const pageSize = parseInt(document.getElementById('pagination-size').value, 10);
+    const cond = {
+      page: pageZeroIndexed,
+      size: pageSize,
+      sort: buildSortArray()
+    };
+
+    if (currentSearchFilters.userId) cond.userId = currentSearchFilters.userId;
+    if (currentSearchFilters.couponName) cond.couponName = currentSearchFilters.couponName;
+    if (currentSearchFilters.couponCode) cond.couponCode = currentSearchFilters.couponCode;
+    if (currentSearchFilters.discountType) cond.discountType = currentSearchFilters.discountType;
+    if (currentSearchFilters.status) cond.status = currentSearchFilters.status;
+    if (currentSearchFilters.issuedAt) cond.issuedAt = currentSearchFilters.issuedAt;
+    if (currentSearchFilters.expiresAt) cond.expiresAt = currentSearchFilters.expiresAt;
+    if (currentSearchFilters.usedAt) cond.usedAt = currentSearchFilters.usedAt;
+
+    return cond;
+  }
+
   function discountTypeBadge(type) {
     if (type === 'PERCENT') return '<span class="badge badge-percent">정률</span>';
     if (type === 'FIXED_AMOUNT') return '<span class="badge badge-fixed">정액</span>';
@@ -37,14 +76,12 @@
       ISSUED: '발급',
       USED: '사용',
       EXPIRED: '만료',
-      CANCELED: '취소',
       CANCELLED: '취소'
     }[status] || status || '-';
     const cls = {
       ISSUED: 'badge-issued',
       USED: 'badge-used',
       EXPIRED: 'badge-expired',
-      CANCELED: 'badge-cancelled',
       CANCELLED: 'badge-cancelled'
     }[status] || 'badge-cancelled';
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
@@ -61,7 +98,7 @@
       `<tr><td colspan="12" class="empty-cell">${escapeHtml(message)}</td></tr>`;
   }
 
-  function renderUserCouponRows() {
+  function renderUserCouponRows(pageZeroIndexed, pageSize) {
     const tbody = document.getElementById('user-coupon-table-body');
     tbody.innerHTML = '';
 
@@ -72,9 +109,10 @@
 
     currentUserCouponList.forEach((userCoupon, index) => {
       const coupon = userCoupon.coupon || {};
+      const rowNumber = pageZeroIndexed * pageSize + index + 1;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="text-align:center;color:var(--text-muted);">${index + 1}</td>
+        <td style="text-align:center;color:var(--text-muted);">${rowNumber}</td>
         <td><strong>${escapeHtml(userCoupon.userCouponId)}</strong></td>
         <td title="${escapeHtml(userCoupon.userId)}">${escapeHtml(userCoupon.userId || '-')}</td>
         <td title="${escapeHtml(coupon.name)}">${escapeHtml(coupon.name || '-')}</td>
@@ -94,40 +132,105 @@
     });
   }
 
-  window.loadUserCouponList = async function () {
-    const userId = inputValue('user-coupon-search-user-id');
-    if (!userId) {
-      showToast('유저 ID를 입력해주세요.', true);
-      renderEmpty('유저 ID로 쿠폰을 검색하세요.');
-      return;
-    }
-
+  window.loadUserCouponList = async function (pageZeroIndexed = 0) {
     try {
-      const res = await Fetch(`${USER_COUPON_URL}/user/${encodeURIComponent(userId)}`, { method: 'GET' });
+      const res = await Fetch(`${USER_COUPON_URL}/user-coupon/select`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(buildCond(pageZeroIndexed))
+      });
+
       if (!res.ok) {
-        showToast('유저 쿠폰 조회에 실패했습니다.', true);
+        showToast('유저 쿠폰 목록 조회에 실패했습니다.', true);
         return;
       }
 
-      currentUserCouponList = await res.json();
-      renderUserCouponRows();
+      const paged = await res.json();
+      currentUserCouponList = paged.content || [];
+      serverTotalPages = Math.max(paged.page?.totalPages || paged.totalPages || 1, 1);
+      const totalCount = paged.totalElements ?? paged.page?.totalElements ?? currentUserCouponList.length;
+      const pageSize = parseInt(document.getElementById('pagination-size').value, 10);
+
+      document.getElementById('pagination-total').textContent = serverTotalPages;
+      document.getElementById('pagination-current').value = pageZeroIndexed + 1;
+      document.getElementById('pagination-total-count').textContent = totalCount;
+
+      renderUserCouponRows(pageZeroIndexed, pageSize);
     } catch (e) {
       console.error('User coupon list load failed', e);
-      showToast('유저 쿠폰 조회 중 통신 오류가 발생했습니다.', true);
+      showToast('유저 쿠폰 목록 조회 중 통신 오류가 발생했습니다.', true);
     }
   };
 
+  window.triggerUserCouponSearch = function () {
+    currentSearchFilters = {
+      ...currentSearchFilters,
+      userId: inputValue('user-coupon-search-user-id') || null
+    };
+    setValue('cond-user-coupon-user-id', currentSearchFilters.userId);
+    loadUserCouponList(0);
+  };
+
   window.resetUserCouponSearch = function () {
+    currentSearchFilters = {
+      userId: null,
+      couponName: null,
+      couponCode: null,
+      discountType: null,
+      status: null,
+      issuedAt: null,
+      expiresAt: null,
+      usedAt: null
+    };
     setValue('user-coupon-search-user-id', '');
-    currentUserCouponList = [];
-    renderEmpty('유저 ID로 쿠폰을 검색하세요.');
+    setValue('cond-user-coupon-user-id', '');
+    setValue('cond-user-coupon-name', '');
+    setValue('cond-user-coupon-code', '');
+    setValue('cond-user-coupon-discount-type', '');
+    setValue('cond-user-coupon-status', '');
+    setValue('cond-user-coupon-issued-at', '');
+    setValue('cond-user-coupon-expires-at', '');
+    setValue('cond-user-coupon-used-at', '');
+    loadUserCouponList(0);
   };
 
   window.handleUserCouponSearchKeydown = function (event) {
     if (event.key === 'Enter') {
       event.preventDefault();
-      loadUserCouponList();
+      triggerUserCouponSearch();
     }
+  };
+
+  window.openUserCouponSearchModal = function () {
+    setValue('cond-user-coupon-user-id', currentSearchFilters.userId);
+    setValue('cond-user-coupon-name', currentSearchFilters.couponName);
+    setValue('cond-user-coupon-code', currentSearchFilters.couponCode);
+    setValue('cond-user-coupon-discount-type', currentSearchFilters.discountType);
+    setValue('cond-user-coupon-status', currentSearchFilters.status);
+    setValue('cond-user-coupon-issued-at', currentSearchFilters.issuedAt);
+    setValue('cond-user-coupon-expires-at', currentSearchFilters.expiresAt);
+    setValue('cond-user-coupon-used-at', currentSearchFilters.usedAt);
+    document.getElementById('user-coupon-search-modal').style.display = 'flex';
+  };
+
+  window.closeUserCouponSearchModal = function () {
+    document.getElementById('user-coupon-search-modal').style.display = 'none';
+  };
+
+  window.submitUserCouponDetailedSearch = function () {
+    currentSearchFilters = {
+      userId: inputValue('cond-user-coupon-user-id') || null,
+      couponName: inputValue('cond-user-coupon-name') || null,
+      couponCode: inputValue('cond-user-coupon-code') || null,
+      discountType: inputValue('cond-user-coupon-discount-type') || null,
+      status: inputValue('cond-user-coupon-status') || null,
+      issuedAt: inputValue('cond-user-coupon-issued-at') || null,
+      expiresAt: inputValue('cond-user-coupon-expires-at') || null,
+      usedAt: inputValue('cond-user-coupon-used-at') || null
+    };
+    setValue('user-coupon-search-user-id', currentSearchFilters.userId);
+    closeUserCouponSearchModal();
+    loadUserCouponList(0);
   };
 
   window.openUserCouponIssueModal = function () {
@@ -171,7 +274,8 @@
       showToast('쿠폰이 발급되었습니다.');
       closeUserCouponIssueModal();
       setValue('user-coupon-search-user-id', userId);
-      loadUserCouponList();
+      currentSearchFilters = { ...currentSearchFilters, userId };
+      loadUserCouponList(0);
     } catch (e) {
       console.error('User coupon issue failed', e);
       showToast('쿠폰 발급 중 통신 오류가 발생했습니다.', true);
@@ -210,4 +314,11 @@
   window.closeUserCouponDetailModal = function () {
     document.getElementById('user-coupon-detail-modal').style.display = 'none';
   };
+
+  window.Pagination.register({
+    load: window.loadUserCouponList,
+    getTotalPages: () => serverTotalPages
+  });
+
+  loadUserCouponList(0);
 })();

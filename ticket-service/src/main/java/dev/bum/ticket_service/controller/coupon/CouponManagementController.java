@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.ticket_service.service.coupon.coupon.CouponService;
 import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
@@ -62,6 +63,11 @@ public class CouponManagementController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<UserCouponResponse>> selectByUserId(@PathVariable("userId") String userId) {
         return ResponseEntity.ok(userCouponService.selectByUserId(userId));
+    }
+
+    @PostMapping("/user-coupon/select")
+    public ResponseEntity<CustomPageResponse<UserCouponResponse>> selectUserCouponsByCond(@RequestBody UserCouponCondRequest cond) {
+        return ResponseEntity.ok(userCouponService.selectByCond(cond));
     }
 
     @PostMapping("/available")
