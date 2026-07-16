@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateUserCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
@@ -57,6 +58,12 @@ public class UserCouponService {
                 .build();
 
         return issue(request);
+    }
+
+    public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
+        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        userCoupon.update(request);
+        return userCouponRepository.update(userCoupon).toResponse();
     }
 
     @Transactional(readOnly = true)

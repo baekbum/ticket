@@ -35,6 +35,11 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     }
 
     @Override
+    public UserCoupon update(UserCoupon userCoupon) {
+        return jpaRepository.saveAndFlush(userCoupon);
+    }
+
+    @Override
     public UserCoupon selectById(Long userCouponId) {
         return jpaRepository.findById(userCouponId)
                 .orElseThrow(() -> new IllegalArgumentException("User coupon not found."));

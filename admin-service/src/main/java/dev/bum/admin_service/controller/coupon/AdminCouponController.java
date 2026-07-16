@@ -9,6 +9,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateUserCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import jakarta.validation.Valid;
@@ -56,6 +57,14 @@ public class AdminCouponController {
     @PostMapping("/issue")
     public ResponseEntity<UserCouponResponse> issue(@Valid @RequestBody IssueCouponRequest request) {
         return ResponseEntity.ok(couponServiceClient.issue(request));
+    }
+
+    @PutMapping("/user-coupon/update/id/{userCouponId}")
+    public ResponseEntity<UserCouponResponse> updateUserCoupon(
+            @PathVariable("userCouponId") Long userCouponId,
+            @Valid @RequestBody UpdateUserCouponRequest request
+    ) {
+        return ResponseEntity.ok(couponServiceClient.updateUserCoupon(userCouponId, request));
     }
 
     @GetMapping("/user/{userId}")

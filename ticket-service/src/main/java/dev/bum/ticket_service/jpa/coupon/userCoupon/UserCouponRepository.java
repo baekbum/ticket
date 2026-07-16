@@ -11,6 +11,8 @@ public interface UserCouponRepository {
 
     UserCoupon insert(UserCoupon userCoupon);
 
+    UserCoupon update(UserCoupon userCoupon);
+
     UserCoupon selectById(Long userCouponId);
 
     List<UserCoupon> selectByUserId(String userId);

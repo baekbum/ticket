@@ -40,7 +40,7 @@
       <col style="width:170px;">
       <col style="width:170px;">
       <col style="width:170px;">
-      <col style="width:120px;">
+      <col style="width:170px;">
     </colgroup>
     <thead>
     <tr>
@@ -60,7 +60,7 @@
     </thead>
     <tbody id="user-coupon-table-body">
     <tr>
-      <td colspan="12" class="empty-cell">유저 ID로 쿠폰을 검색하세요.</td>
+      <td colspan="12" class="empty-cell">유저 쿠폰 목록을 불러오는 중입니다.</td>
     </tr>
     </tbody>
   </table>
@@ -160,6 +160,50 @@
       <button class="btn btn-secondary" onclick="closeUserCouponIssueModal()">취소</button>
       <button class="btn" onclick="submitUserCouponIssue()">
         <i class="ti ti-device-floppy"></i>발급
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="user-coupon-edit-modal">
+  <div class="f-modal-content">
+    <p class="modal-title">유저 쿠폰 수정</p>
+    <p class="modal-subtitle">상태와 만료일을 수정합니다.</p>
+    <div class="modal-divider"></div>
+
+    <input type="hidden" id="m-edit-user-coupon-id">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>유저 ID</label>
+        <input type="text" id="m-edit-user-id" disabled>
+      </div>
+      <div class="form-group">
+        <label>쿠폰명</label>
+        <input type="text" id="m-edit-coupon-name" disabled>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>상태</label>
+        <select id="m-edit-user-coupon-status">
+          <option value="ISSUED">ISSUED (발급)</option>
+          <option value="USED">USED (사용)</option>
+          <option value="EXPIRED">EXPIRED (만료)</option>
+          <option value="CANCELLED">CANCELLED (취소)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>만료일</label>
+        <input type="datetime-local" id="m-edit-user-coupon-expires-at">
+      </div>
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeUserCouponEditModal()">취소</button>
+      <button class="btn" onclick="submitUserCouponUpdate()">
+        <i class="ti ti-device-floppy"></i>저장
       </button>
     </div>
   </div>

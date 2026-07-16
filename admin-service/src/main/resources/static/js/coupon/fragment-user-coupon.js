@@ -34,8 +34,17 @@
       .replaceAll("'", '&#039;');
   }
 
+  function toDateTimeLocal(value) {
+    if (!value) return '';
+    return String(value).replace(' ', 'T').slice(0, 16);
+  }
+
   function toApiDateTime(value) {
     return value ? `${value}:00` : null;
+  }
+
+  function currentPageZeroIndexed() {
+    return Math.max(parseInt(document.getElementById('pagination-current')?.value || '1', 10) - 1, 0);
   }
 
   function buildSortArray() {
@@ -47,11 +56,7 @@
 
   function buildCond(pageZeroIndexed) {
     const pageSize = parseInt(document.getElementById('pagination-size').value, 10);
-    const cond = {
-      page: pageZeroIndexed,
-      size: pageSize,
-      sort: buildSortArray()
-    };
+    const cond = { page: pageZeroIndexed, size: pageSize, sort: buildSortArray() };
 
     if (currentSearchFilters.userId) cond.userId = currentSearchFilters.userId;
     if (currentSearchFilters.couponName) cond.couponName = currentSearchFilters.couponName;
@@ -125,6 +130,7 @@
         <td>${escapeHtml(userCoupon.expiresAt || '-')}</td>
         <td class="actions" onclick="event.stopPropagation()">
           <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openUserCouponDetailModal(${index})">상세</button>
+          <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openUserCouponEditModal(${index})">수정</button>
         </td>
       `;
       tr.onclick = () => openUserCouponDetailModal(index);
@@ -279,6 +285,62 @@
     } catch (e) {
       console.error('User coupon issue failed', e);
       showToast('쿠폰 발급 중 통신 오류가 발생했습니다.', true);
+    }
+  };
+
+  window.openUserCouponEditModal = function (index) {
+    const userCoupon = currentUserCouponList[index];
+    if (!userCoupon) {
+      showToast('유저 쿠폰 데이터를 찾을 수 없습니다.', true);
+      return;
+    }
+
+    const coupon = userCoupon.coupon || {};
+    setValue('m-edit-user-coupon-id', userCoupon.userCouponId);
+    setValue('m-edit-user-id', userCoupon.userId);
+    setValue('m-edit-coupon-name', coupon.name || '-');
+    setValue('m-edit-user-coupon-status', userCoupon.status || 'ISSUED');
+    setValue('m-edit-user-coupon-expires-at', toDateTimeLocal(userCoupon.expiresAt));
+    document.getElementById('user-coupon-edit-modal').style.display = 'flex';
+  };
+
+  window.closeUserCouponEditModal = function () {
+    document.getElementById('user-coupon-edit-modal').style.display = 'none';
+  };
+
+  window.submitUserCouponUpdate = async function () {
+    const userCouponId = inputValue('m-edit-user-coupon-id');
+    const status = inputValue('m-edit-user-coupon-status');
+    const expiresAt = toApiDateTime(inputValue('m-edit-user-coupon-expires-at'));
+
+    if (!userCouponId) {
+      showToast('수정할 유저 쿠폰을 찾을 수 없습니다.', true);
+      return;
+    }
+
+    if (!status) {
+      showToast('상태를 선택해주세요.', true);
+      return;
+    }
+
+    try {
+      const res = await Fetch(`${USER_COUPON_URL}/user-coupon/update/id/${userCouponId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ status, expiresAt })
+      });
+
+      if (!res.ok) {
+        showToast('유저 쿠폰 수정에 실패했습니다.', true);
+        return;
+      }
+
+      showToast('유저 쿠폰이 수정되었습니다.');
+      closeUserCouponEditModal();
+      loadUserCouponList(currentPageZeroIndexed());
+    } catch (e) {
+      console.error('User coupon update failed', e);
+      showToast('유저 쿠폰 수정 중 통신 오류가 발생했습니다.', true);
     }
   };
 
