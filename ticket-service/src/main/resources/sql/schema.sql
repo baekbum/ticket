@@ -109,7 +109,34 @@ CREATE INDEX idx_reservation_event_id ON reservations(event_id);
 
 
 -- ==========================================
--- 6. Coupons
+-- 6. Reservation deliveries
+-- ==========================================
+CREATE TABLE reservation_deliveries (
+    reservation_delivery_id BIGSERIAL PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    recipient_name VARCHAR(30) NOT NULL,
+    recipient_phone VARCHAR(20) NOT NULL,
+    zip_code VARCHAR(10) NOT NULL,
+    address VARCHAR(255) NOT NULL,
+    detail_address VARCHAR(255),
+    delivery_message VARCHAR(255),
+    status VARCHAR(30) NOT NULL,
+    carrier VARCHAR(50),
+    tracking_number VARCHAR(80),
+    shipped_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_reservation_deliveries_reservation_id UNIQUE (reservation_id)
+);
+
+CREATE INDEX idx_reservation_delivery_reservation_id ON reservation_deliveries(reservation_id);
+CREATE INDEX idx_reservation_delivery_status ON reservation_deliveries(status);
+
+
+-- ==========================================
+-- 7. Coupons
 -- ==========================================
 CREATE TABLE coupons (
     coupon_id BIGSERIAL PRIMARY KEY,
@@ -134,7 +161,7 @@ CREATE INDEX idx_coupon_status_valid_days_after_issue ON coupons(status, valid_d
 
 
 -- ==========================================
--- 7. User coupons
+-- 8. User coupons
 -- ==========================================
 CREATE TABLE user_coupons (
     user_coupon_id BIGSERIAL PRIMARY KEY,
@@ -155,7 +182,7 @@ CREATE INDEX idx_user_coupon_coupon_id ON user_coupons(coupon_id);
 
 
 -- ==========================================
--- 8. Reservation discounts
+-- 9. Reservation discounts
 -- ==========================================
 CREATE TABLE reservation_discounts (
     reservation_discount_id BIGSERIAL PRIMARY KEY,
@@ -174,7 +201,7 @@ CREATE INDEX idx_reservation_discount_user_coupon_id ON reservation_discounts(us
 
 
 -- ==========================================
--- 9. Payments
+-- 10. Payments
 -- ==========================================
 CREATE TABLE payments (
     payment_id BIGSERIAL PRIMARY KEY,
@@ -202,7 +229,7 @@ CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
 
 
 -- ==========================================
--- 10. Tickets
+-- 11. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,

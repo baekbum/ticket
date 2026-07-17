@@ -21,4 +21,5 @@ public class ReservationResponse {
     private String venue;
     private int ticketCount;
     private String status;
+    private ReservationDeliveryResponse delivery;
 }

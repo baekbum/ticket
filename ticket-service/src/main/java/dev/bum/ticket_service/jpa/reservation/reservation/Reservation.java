@@ -4,7 +4,9 @@ import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,6 +18,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -67,6 +70,9 @@ public class Reservation {
     @Builder.Default
     private List<Ticket> tickets = new ArrayList<>();
 
+    @OneToOne(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private ReservationDelivery delivery;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime reservedAt;
 
@@ -91,6 +97,7 @@ public class Reservation {
                 .venue(this.event != null ? this.event.getVenue() : null)
                 .ticketCount(this.tickets != null ? this.tickets.size() : 0)
                 .status(this.status != null ? this.status.name() : null)
+                .delivery(this.delivery != null ? this.delivery.toResponse() : null)
                 .build();
     }
 
@@ -101,6 +108,9 @@ public class Reservation {
         this.status = ReservationStatus.PENDING_PAYMENT;
         this.tickets = new ArrayList<>();
         this.reservedAt = LocalDateTime.now();
+        if (info.getDelivery() != null) {
+            this.delivery = new ReservationDelivery(this, info.getDelivery());
+        }
     }
 
     public void paid() {
