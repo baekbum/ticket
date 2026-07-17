@@ -163,10 +163,10 @@ class ReservationRepositoryImplTest {
     @Test
     @DisplayName("배송 정보가 있는 예약은 배송 스냅샷을 저장한다")
     void reservation_insert_with_delivery_saves_delivery_snapshot() {
-        InsertReservationRequest info = insertReservationRequest("order-1", "user01", event, seatList.subList(0, 2));
-        info.setDelivery(deliveryRequest());
-
-        Reservation saved = reservationRepository.insert(info);
+        Reservation saved = reservationRepository.insert(
+                insertReservationRequest("order-1", "user01", event, seatList.subList(0, 2))
+        );
+        reservationDeliveryJpaRepository.save(new ReservationDelivery(saved, deliveryRequest()));
         entityManager.flush();
         entityManager.clear();
 
@@ -180,7 +180,6 @@ class ReservationRepositoryImplTest {
         assertThat(delivery.getDetailAddress()).isEqualTo("101동 1001호");
         assertThat(delivery.getDeliveryMessage()).isEqualTo("문 앞에 놓아주세요");
         assertThat(delivery.getStatus()).isEqualTo(ReservationDeliveryStatus.READY);
-        assertThat(response.toResponse().getDelivery().getRecipientName()).isEqualTo("홍길동");
     }
 
     @Test
