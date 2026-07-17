@@ -1,5 +1,6 @@
 package dev.bum.common.service.user.user.dto;
 
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,7 @@ public class UserResponse {
     private Long id;
     private String userId;
     private UserRole role;
+    private UserGrade grade;
     private String name;
     private String phoneNumber;
     private String email;

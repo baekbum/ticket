@@ -15,6 +15,7 @@
     <input type="text" class="search-input" id="search-id" placeholder="아이디 검색…">
     <button class="btn" onclick="triggerNormalSearch()"><i class="ti ti-search"></i>검색</button>
     <button class="btn btn-outline" onclick="openSearchModal()"><i class="ti ti-adjustments-horizontal"></i>상세 검색</button>
+    <button class="btn btn-outline" onclick="resetUserSearch()"><i class="ti ti-refresh"></i>검색 조건 초기화</button>
     <div class="bulk-action-bar" id="bulk-action-bar">
       <i class="ti ti-checkbox"></i>
       <span><span class="bulk-count" id="bulk-count">0</span>명 선택됨</span>
@@ -39,10 +40,11 @@
       <col style="width:6%;">
       <col style="width:14%;">
       <col style="width:13%;">
-      <col style="width:22%;">
-      <col style="width:9%;">
+      <col style="width:18%;">
       <col style="width:8%;">
-      <col style="width:20%;">
+      <col style="width:8%;">
+      <col style="width:8%;">
+      <col style="width:17%;">
     </colgroup>
     <thead>
       <tr>
@@ -55,6 +57,7 @@
         <th class="sortable" data-sort-field="email"  onclick="handleSortClick(this, event)">이메일 <i class="sort-icon">↕</i></th>
         <th>권한</th>
         <th>상태</th>
+        <th>등급</th>
         <th class="actions">관리</th>
       </tr>
     </thead>
@@ -88,6 +91,18 @@
         <option value="">전체 유저</option>
         <option value="false">정상 이용 유저</option>
         <option value="true">블랙리스트 유저</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>등급</label>
+      <select id="cond-grade">
+        <option value="">전체 등급</option>
+        <option value="GENERAL">GENERAL</option>
+        <option value="GREEN">GREEN</option>
+        <option value="SILVER">SILVER</option>
+        <option value="GOLD">GOLD</option>
+        <option value="VIP">VIP</option>
+        <option value="MVIP">MVIP</option>
       </select>
     </div>
     <div class="form-row" style="margin-top:1.25rem;">
@@ -150,6 +165,19 @@
         <select id="m-role">
           <option value="ROLE_USER">일반 사용자 (USER)</option>
           <option value="ROLE_ADMIN">관리자 (ADMIN)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>등급</label>
+        <select id="m-grade">
+          <option value="GENERAL">GENERAL</option>
+          <option value="GREEN">GREEN</option>
+          <option value="SILVER">SILVER</option>
+          <option value="GOLD">GOLD</option>
+          <option value="VIP">VIP</option>
+          <option value="MVIP">MVIP</option>
         </select>
       </div>
     </div>

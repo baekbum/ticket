@@ -8,6 +8,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
 import lombok.RequiredArgsConstructor;
@@ -114,7 +115,8 @@ public class UserRepositoryImpl implements UserRepository {
                         emailContains(cond.getEmail()),
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
-                        isBlacklistedEq(cond.getIsBlacklisted())
+                        isBlacklistedEq(cond.getIsBlacklisted()),
+                        gradeEq(cond.getGrade())
                 )
                 .offset(pageable.getOffset()) // 오프셋 적용
                 .limit(pageable.getPageSize()) // 페이지 크기 적용
@@ -131,7 +133,8 @@ public class UserRepositoryImpl implements UserRepository {
                         emailContains(cond.getEmail()),
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
-                        isBlacklistedEq(cond.getIsBlacklisted())
+                        isBlacklistedEq(cond.getIsBlacklisted()),
+                        gradeEq(cond.getGrade())
                 )
                 .fetchOne();
 
@@ -201,5 +204,9 @@ public class UserRepositoryImpl implements UserRepository {
 
     private BooleanExpression isBlacklistedEq(Boolean isBlacklisted) {
         return isBlacklisted != null ? user.isBlacklisted.eq(isBlacklisted) : null;
+    }
+
+    private BooleanExpression gradeEq(String grade) {
+        return StringUtils.hasText(grade) ? user.grade.eq(UserGrade.valueOf(grade)) : null;
     }
 }

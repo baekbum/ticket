@@ -27,4 +27,6 @@ public class UpdateUserRequest {
     private Boolean isBlacklisted;
 
     private String role;
+
+    private String grade;
 }
