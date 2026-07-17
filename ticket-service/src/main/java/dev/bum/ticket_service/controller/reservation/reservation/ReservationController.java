@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.controller.reservation;
+package dev.bum.ticket_service.controller.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
@@ -6,7 +6,7 @@ import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.IsReservableRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
-import dev.bum.ticket_service.service.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

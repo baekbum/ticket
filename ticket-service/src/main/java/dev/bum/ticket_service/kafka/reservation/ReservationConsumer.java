@@ -1,7 +1,7 @@
 package dev.bum.ticket_service.kafka.reservation;
 
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
-import dev.bum.ticket_service.service.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,8 +1,8 @@
-package dev.bum.ticket_service.controller.reservation.delivery;
+package dev.bum.ticket_service.controller.reservation.reservationDelivery;
 
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
-import dev.bum.ticket_service.service.reservation.delivery.ReservationDeliveryService;
+import dev.bum.ticket_service.service.reservation.reservationDelivery.ReservationDeliveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

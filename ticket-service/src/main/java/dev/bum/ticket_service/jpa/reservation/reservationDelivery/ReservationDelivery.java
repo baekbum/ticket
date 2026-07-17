@@ -44,46 +44,60 @@ public class ReservationDelivery {
     @Column(name = "reservation_delivery_id")
     private Long reservationDeliveryId;
 
+    // 배송 정보가 귀속되는 예약. 예약 1건당 배송 스냅샷은 최대 1건만 가진다.
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reservation_id", nullable = false)
     private Reservation reservation;
 
+    // 예약 당시 확정된 수령인 이름. 회원 주소록이 수정되어도 이 값은 변경되지 않는다.
     @Column(name = "recipient_name", nullable = false, length = 30)
     private String recipientName;
 
+    // 예약 당시 확정된 수령인 연락처.
     @Column(name = "recipient_phone", nullable = false, length = 20)
     private String recipientPhone;
 
+    // 예약 당시 확정된 배송지 우편번호.
     @Column(name = "zip_code", nullable = false, length = 10)
     private String zipCode;
 
+    // 예약 당시 확정된 기본 배송지 주소.
     @Column(nullable = false, length = 255)
     private String address;
 
+    // 예약 당시 확정된 상세 주소. 아파트 동/호수 등 선택 입력값이다.
     @Column(name = "detail_address", length = 255)
     private String detailAddress;
 
+    // 배송 기사 또는 운영자가 참고할 요청 메시지.
     @Column(name = "delivery_message", length = 255)
     private String deliveryMessage;
 
+    // 배송 처리 상태. 예약 상태와 분리해서 출고/배송 흐름만 표현한다.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ReservationDeliveryStatus status;
 
+    // 운송장 등록 시 선택한 택배사 또는 배송사 이름.
     @Column(length = 50)
     private String carrier;
 
+    // 배송 추적에 사용할 운송장 번호.
     @Column(name = "tracking_number", length = 80)
     private String trackingNumber;
 
+    // 실제 발송 처리된 시각.
     private LocalDateTime shippedAt;
 
+    // 배송 완료 처리된 시각.
     private LocalDateTime deliveredAt;
 
+    // 배송 스냅샷 row가 최초 생성된 시각.
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 배송 상태, 운송장 정보 등이 마지막으로 변경된 시각.
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
@@ -126,6 +140,11 @@ public class ReservationDelivery {
         this.carrier = carrier;
         this.trackingNumber = trackingNumber;
         this.shippedAt = shippedAt != null ? shippedAt : LocalDateTime.now();
+    }
+
+    public void updateTracking(String carrier, String trackingNumber) {
+        this.carrier = carrier;
+        this.trackingNumber = trackingNumber;
     }
 
     public void deliver(LocalDateTime deliveredAt) {
