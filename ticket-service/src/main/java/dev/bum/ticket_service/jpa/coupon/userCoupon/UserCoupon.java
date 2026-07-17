@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.jpa.coupon.userCoupon;
 
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateUserCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import jakarta.persistence.Column;
@@ -121,6 +122,14 @@ public class UserCoupon {
         }
 
         this.usedAt = null;
+    }
+
+    public void update(UpdateUserCouponRequest request) {
+        if (request.getStatus() != null) {
+            this.status = request.getStatus();
+        }
+
+        this.expiresAt = request.getExpiresAt();
     }
 
     private String formatDateTime(LocalDateTime dateTime) {

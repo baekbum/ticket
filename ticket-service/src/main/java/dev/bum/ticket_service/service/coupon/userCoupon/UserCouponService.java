@@ -1,9 +1,12 @@
 package dev.bum.ticket_service.service.coupon.userCoupon;
 
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateUserCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
@@ -13,9 +16,13 @@ import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -53,11 +60,31 @@ public class UserCouponService {
         return issue(request);
     }
 
+    public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
+        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        userCoupon.update(request);
+        return userCouponRepository.update(userCoupon).toResponse();
+    }
+
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId) {
         return userCouponRepository.selectByUserId(userId).stream()
                 .map(UserCoupon::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CustomPageResponse<UserCouponResponse> selectByCond(UserCouponCondRequest cond) {
+        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+        Page<UserCouponResponse> page = userCouponRepository.selectByCond(cond, pageRequest).map(UserCoupon::toResponse);
+
+        return CustomPageResponse.of(
+                page.getContent(),
+                page.getSize(),
+                page.getNumber(),
+                page.getTotalElements(),
+                page.getTotalPages()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -164,5 +191,23 @@ public class UserCouponService {
         }
 
         return coupon.getValidUntil();
+    }
+
+    private Sort makeSortInfo(List<String> sorts) {
+        Sort sort = Sort.by(Sort.Order.desc("userCouponId"));
+        if (sorts != null && !sorts.isEmpty()) {
+            List<Sort.Order> orders = new ArrayList<>();
+            for (String infoStr : sorts) {
+                String[] infos = infoStr.split("-");
+                if (infos.length == 2) {
+                    orders.add(new Sort.Order(Sort.Direction.fromString(infos[1]), infos[0]));
+                }
+            }
+            if (!orders.isEmpty()) {
+                sort = Sort.by(orders);
+            }
+        }
+
+        return sort;
     }
 }
