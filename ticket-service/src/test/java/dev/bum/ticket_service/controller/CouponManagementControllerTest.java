@@ -11,6 +11,8 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.IssueCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateUserCouponRequest;
+import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
@@ -190,6 +192,66 @@ class CouponManagementControllerTest {
                 .andExpect(jsonPath("$[0].status").value(UserCouponStatus.ISSUED.name()));
 
         then(userCouponService).should().selectByUserId("user01");
+    }
+
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @Test
+    @DisplayName("조건으로 유저 쿠폰 조회")
+    void user_coupon_select_by_cond() throws Exception {
+        UserCouponCondRequest cond = UserCouponCondRequest.builder()
+                .userId("user01")
+                .couponName("Summer")
+                .status(UserCouponStatus.ISSUED)
+                .build();
+        CustomPageResponse<UserCouponResponse> response = CustomPageResponse.of(
+                List.of(userCouponResponse(1L, "user01")),
+                10,
+                0,
+                1,
+                1
+        );
+
+        given(userCouponService.selectByCond(any())).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/user-coupon/select")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(cond)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].userCouponId").value(1L))
+                .andExpect(jsonPath("$.content[0].status").value(UserCouponStatus.ISSUED.name()))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        then(userCouponService).should().selectByCond(cond);
+    }
+
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @Test
+    @DisplayName("유저 쿠폰 상태와 만료일 수정")
+    void user_coupon_update() throws Exception {
+        UpdateUserCouponRequest request = UpdateUserCouponRequest.builder()
+                .status(UserCouponStatus.EXPIRED)
+                .expiresAt(LocalDateTime.of(2026, 2, 1, 0, 0))
+                .build();
+        UserCouponResponse response = UserCouponResponse.builder()
+                .userCouponId(1L)
+                .userId("user01")
+                .coupon(couponResponse(1L, "SUMMER10", 10000))
+                .status(UserCouponStatus.EXPIRED)
+                .issuedAt("2026-01-01 00:00:00")
+                .expiresAt("2026-02-01 00:00:00")
+                .build();
+
+        given(userCouponService.update(1L, request)).willReturn(response);
+
+        mockMvc.perform(put(baseUrl + "/user-coupon/update/id/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userCouponId").value(1L))
+                .andExpect(jsonPath("$.status").value(UserCouponStatus.EXPIRED.name()))
+                .andExpect(jsonPath("$.expiresAt").value("2026-02-01 00:00:00"));
+
+        then(userCouponService).should().update(1L, request);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
