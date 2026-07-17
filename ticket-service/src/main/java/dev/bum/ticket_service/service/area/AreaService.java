@@ -4,7 +4,6 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
@@ -61,23 +60,6 @@ public class AreaService {
     private final SeatJpaRepository seatJpaRepository;
     private final ObjectMapper objectMapper;
 
-    public AreaResponse insert(InsertAreaRequest info) {
-        log.info("[AREA INSERT] {}", info);
-        return repository.insert(info).toResponse();
-    }
-
-    public List<AreaResponse> insertBulk(InsertAreaBulkRequest info) {
-        if (info.getAreas() == null || info.getAreas().isEmpty()) {
-            throw new IllegalArgumentException("등록할 구역 정보가 없습니다.");
-        }
-
-        log.info("[AREA BULK INSERT] count : {}", info.getAreas().size());
-        return info.getAreas().stream()
-                .map(repository::insert)
-                .map(Area::toResponse)
-                .toList();
-    }
-
     public List<AreaResponse> insertJson(InsertAreaJsonRequest info) {
         log.info("[AREA JSON INSERT]");
         try {
@@ -86,9 +68,7 @@ public class AreaService {
                     new TypeReference<List<InsertAreaRequest>>() {}
             );
 
-            return insertBulk(InsertAreaBulkRequest.builder()
-                    .areas(areas)
-                    .build());
+            return insertAreas(areas);
         } catch (Exception e) {
             throw new IllegalArgumentException("구역 JSON 형식이 올바르지 않습니다.", e);
         }
@@ -188,6 +168,18 @@ public class AreaService {
 
         log.info("[AREA BULK DELETE] areaIds : {}", info.getAreaIds());
         info.getAreaIds().forEach(this::delete);
+    }
+
+    private List<AreaResponse> insertAreas(List<InsertAreaRequest> areas) {
+        if (areas == null || areas.isEmpty()) {
+            throw new IllegalArgumentException("등록할 구역 정보가 없습니다.");
+        }
+
+        log.info("[AREA INSERT AREAS] count : {}", areas.size());
+        return areas.stream()
+                .map(repository::insert)
+                .map(Area::toResponse)
+                .toList();
     }
 
     private Sort makeSortInfo(List<String> sorts) {

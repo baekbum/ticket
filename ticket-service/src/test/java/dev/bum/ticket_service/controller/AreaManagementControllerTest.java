@@ -7,9 +7,7 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
@@ -65,41 +63,6 @@ class AreaManagementControllerTest {
     void token_invalid() throws Exception {
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().is4xxClientError());
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("구역 등록")
-    void area_insert() throws Exception {
-        InsertAreaRequest info = insertRequest("VIP");
-        given(areaService.insert(any())).willReturn(areaResponse(1L, "VIP"));
-
-        mockMvc.perform(post(baseUrl + "/insert")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaName").value("VIP"));
-
-        then(areaService).should().insert(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("구역 일괄 등록")
-    void area_insert_bulk() throws Exception {
-        InsertAreaBulkRequest info = InsertAreaBulkRequest.builder()
-                .areas(List.of(insertRequest("VIP"), insertRequest("R")))
-                .build();
-        given(areaService.insertBulk(any())).willReturn(List.of(areaResponse(1L, "VIP"), areaResponse(2L, "R")));
-
-        mockMvc.perform(post(baseUrl + "/insert/bulk")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"))
-                .andExpect(jsonPath("$[1].areaName").value("R"));
-
-        then(areaService).should().insertBulk(info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -226,16 +189,6 @@ class AreaManagementControllerTest {
                 .andExpect(status().isOk());
 
         then(areaService).should().deleteBulk(info);
-    }
-
-    private InsertAreaRequest insertRequest(String areaName) {
-        return InsertAreaRequest.builder()
-                .eventId(1L)
-                .areaName(areaName)
-                .grade(SeatGrade.VIP)
-                .price(150000)
-                .status(AreaStatus.ACTIVE)
-                .build();
     }
 
     private AreaResponse areaResponse(Long areaId, String areaName) {

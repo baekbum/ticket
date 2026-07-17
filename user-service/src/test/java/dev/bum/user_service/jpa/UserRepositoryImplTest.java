@@ -1,6 +1,7 @@
 package dev.bum.user_service.jpa;
 
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
@@ -96,6 +97,7 @@ class UserRepositoryImplTest {
 
         assertThat(response.getUserId()).isEqualTo(info.getUserId());
         assertThat(response.getPassword()).isEqualTo("encoded-addUser1234!");
+        assertThat(response.getGrade()).isEqualTo(UserGrade.GENERAL);
         assertThat(response.getName()).isEqualTo(info.getName());
         assertThat(response.getPhoneNumber()).isEqualTo(info.getPhoneNumber());
         assertThat(response.getEmail()).isEqualTo(info.getEmail());
@@ -169,6 +171,7 @@ class UserRepositoryImplTest {
         assertThat(user.getUserId()).isEqualTo("IU");
         assertThat(user.getPassword()).isEqualTo("IU05160918");
         assertThat(user.getRole()).isEqualTo(UserRole.ROLE_USER);
+        assertThat(user.getGrade()).isEqualTo(UserGrade.GENERAL);
         assertThat(user.getName()).isEqualTo("아이유");
         assertThat(user.getPhoneNumber()).isEqualTo("010-0516-0918");
         assertThat(user.getEmail()).isEqualTo("IU@test.com");
@@ -287,6 +290,37 @@ class UserRepositoryImplTest {
 
         assertThat(response.getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().get(0).getUserId()).isEqualTo("IU");
+    }
+
+    @Test
+    @DisplayName("등급으로 유저 검색")
+    void select_by_grade_cond() {
+        userRepository.update("IU", UpdateUserRequest.builder()
+                .grade("VIP")
+                .build());
+
+        UserCondRequest cond = UserCondRequest.builder()
+                .grade("VIP")
+                .build();
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
+
+        Page<User> response = userRepository.selectByCond(cond, pageable);
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getUserId()).isEqualTo("IU");
+        assertThat(response.getContent().get(0).getGrade()).isEqualTo(UserGrade.VIP);
+    }
+
+    @Test
+    @DisplayName("유저 등급 수정")
+    void user_grade_update() {
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .grade("VIP")
+                .build();
+
+        User updatedUser = userRepository.update("IU", info);
+
+        assertThat(updatedUser.getGrade()).isEqualTo(UserGrade.VIP);
     }
 
     @Test

@@ -7,7 +7,7 @@
     let currentUserList     = [];
     let currentAddressUser  = null;
     let currentAddressList  = [];
-    let currentSearchFilters = { userId: null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null };
+    let currentSearchFilters = { userId: null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null, grade: null };
     let serverTotalPages    = 1;
     let currentSortFilters  = {};
 
@@ -133,6 +133,9 @@
             ? `<span class="badge badge-black">블랙</span>`
             : `<span class="badge badge-ok">정상</span>`;
 
+          const grade = u.grade || 'GENERAL';
+          const gradeHtml = `<span class="badge badge-grade badge-grade-${grade.toLowerCase()}">${escapeHtml(grade)}</span>`;
+
           const rowOrder = (pageZeroIndexed * pageSize) + (index + 1);
           const tr = document.createElement('tr');
           tr.setAttribute('data-pk', u.id);
@@ -148,6 +151,7 @@
             <td style="color:var(--text-secondary);">${u.email}</td>
             <td>${roleHtml}</td>
             <td>${statusHtml}</td>
+            <td>${gradeHtml}</td>
             <td class="actions" onclick="event.stopPropagation()">
               <button type="button" class="btn btn-sm btn-address" data-user-id="${userIdAttr}" onclick="event.stopPropagation(); window.openUserAddressModal(this.dataset.userId)"><i class="ti ti-map-pin"></i>주소</button>
               <button type="button" class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${u.id}')">수정</button>
@@ -272,6 +276,7 @@
 
         document.getElementById('m-blacklist').value = 'false';
         document.getElementById('m-role').value = 'ROLE_USER';
+        document.getElementById('m-grade').value = 'GENERAL';
 
         // 버튼 영역
         const actionRow = document.getElementById('modal-action-row');
@@ -308,6 +313,7 @@
       _set('m-birth',     user.birthDate);
       _set('m-addr',      user.address);
       _set('m-role',      user.role || 'ROLE_USER');
+      _set('m-grade',     user.grade || 'GENERAL');
       _set('m-blacklist', user.isBlacklisted ? 'true' : 'false');
     }
 
@@ -525,6 +531,7 @@
         address:       document.getElementById('m-addr')?.value.trim()    || null,
         isBlacklisted: document.getElementById('m-blacklist')?.value === 'true',
         role:          document.getElementById('m-role')?.value           || 'ROLE_USER',
+        grade:         document.getElementById('m-grade')?.value          || 'GENERAL',
       };
 
       if (mode === 'CREATE') {
@@ -587,15 +594,24 @@
 
     /* ─────────────────── 검색 ─────────────────── */
     window.triggerNormalSearch = function () {
-      currentSearchFilters = { userId: document.getElementById('search-id').value.trim() || null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null };
+      currentSearchFilters = { userId: document.getElementById('search-id').value.trim() || null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null, grade: null };
       loadUserList(0);
     };
 
     window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
     window.closeSearchModal = function () { document.getElementById('search-modal').style.display = 'none'; };
 
+    window.resetUserSearch = function () {
+      document.getElementById('search-id').value = '';
+      document.querySelectorAll('#search-modal input').forEach(el => { el.value = ''; });
+      document.querySelectorAll('#search-modal select').forEach(el => { el.selectedIndex = 0; });
+      currentSearchFilters = { userId: null, name: null, phoneNumber: null, email: null, birthDate: null, address: null, isBlacklisted: null, grade: null };
+      loadUserList(0);
+    };
+
     window.submitDetailedSearch = function () {
       const isBlackVal = document.getElementById('cond-blacklist').value;
+      const gradeVal = document.getElementById('cond-grade').value;
       currentSearchFilters = {
         userId:        document.getElementById('cond-id').value.trim()    || null,
         name:          document.getElementById('cond-name').value.trim()  || null,
@@ -604,6 +620,7 @@
         birthDate:     document.getElementById('cond-birth').value        || null,
         address:       document.getElementById('cond-addr').value.trim()  || null,
         isBlacklisted: isBlackVal === '' ? null : isBlackVal === 'true',
+        grade:         gradeVal || null,
       };
       loadUserList(0);
       closeSearchModal();

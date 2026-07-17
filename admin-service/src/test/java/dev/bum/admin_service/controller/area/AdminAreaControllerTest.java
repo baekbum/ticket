@@ -58,40 +58,6 @@ class AdminAreaControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("구역 등록")
-    void area_insert() throws Exception {
-        InsertAreaRequest info = insertRequest("VIP");
-        given(areaServiceClient.insert(any())).willReturn(areaResponse(1L, "VIP"));
-
-        mockMvc.perform(post(baseUrl + "/insert")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaName").value("VIP"));
-
-        then(areaServiceClient).should().insert(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("구역 벌크 등록")
-    void area_insert_bulk() throws Exception {
-        InsertAreaBulkRequest info = InsertAreaBulkRequest.builder()
-                .areas(List.of(insertRequest("VIP"), insertRequest("R")))
-                .build();
-        given(areaServiceClient.insertBulk(any())).willReturn(List.of(areaResponse(1L, "VIP"), areaResponse(2L, "R")));
-
-        mockMvc.perform(post(baseUrl + "/insert/bulk")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
-
-        then(areaServiceClient).should().insertBulk(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
     @DisplayName("JSON 텍스트로 구역 등록")
     void area_insert_json() throws Exception {
         InsertAreaJsonRequest info = InsertAreaJsonRequest.builder().jsonText("[]").build();
@@ -220,16 +186,6 @@ class AdminAreaControllerTest {
                 .andExpect(status().isOk());
 
         then(areaServiceClient).should().deleteBulk(info);
-    }
-
-    private InsertAreaRequest insertRequest(String areaName) {
-        return InsertAreaRequest.builder()
-                .eventId(1L)
-                .areaName(areaName)
-                .grade(SeatGrade.VIP)
-                .price(150000)
-                .status(AreaStatus.ACTIVE)
-                .build();
     }
 
     private AreaResponse areaResponse(Long areaId, String areaName) {

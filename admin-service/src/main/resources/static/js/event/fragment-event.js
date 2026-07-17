@@ -660,6 +660,19 @@ loadEventList(0);
 window.openSearchModal  = function () { document.getElementById('search-modal').style.display = 'flex'; };
 window.closeSearchModal = function () { document.getElementById('search-modal').style.display = 'none'; };
 
+window.resetEventSearch = function () {
+document.getElementById('search-id').value = '';
+resetDetailedSearchForm();
+currentSearchFilters = {
+eventId: null, title: null, artistName: null,
+venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
+cancelDeadlineDate: null, eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
+saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+};
+loadEventList(0);
+};
+
 window.openAreaMenu = function (eventId) {
 if (typeof window.switchMenuWithContext === 'function') {
 window.switchMenuWithContext('area', { eventId });

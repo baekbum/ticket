@@ -27,6 +27,8 @@ public class QUser extends EntityPathBase<User> {
 
     public final StringPath email = createString("email");
 
+    public final EnumPath<dev.bum.common.service.user.user.enums.UserGrade> grade = createEnum("grade", dev.bum.common.service.user.user.enums.UserGrade.class);
+
     public final NumberPath<Long> id = createNumber("id", Long.class);
 
     public final BooleanPath isBlacklisted = createBoolean("isBlacklisted");

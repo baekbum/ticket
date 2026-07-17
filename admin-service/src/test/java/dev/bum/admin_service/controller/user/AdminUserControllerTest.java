@@ -12,6 +12,7 @@ import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,7 +91,8 @@ class AdminUserControllerTest {
 
         mockMvc.perform(get(baseUrl + "/select/id/user01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user01"));
+                .andExpect(jsonPath("$.userId").value("user01"))
+                .andExpect(jsonPath("$.grade").value("GENERAL"));
 
         then(userServiceClient).should().selectById("user01");
     }
@@ -232,6 +234,7 @@ class AdminUserControllerTest {
                 .id(1L)
                 .userId(userId)
                 .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
                 .name("User")
                 .email("user01@test.com")
                 .build();
