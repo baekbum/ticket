@@ -1,6 +1,7 @@
 package dev.bum.user_service.jpa.user;
 
 import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
@@ -38,6 +39,11 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role; // 기본값 처리는 비즈니스 로직이나 @Builder.Default 활용
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private UserGrade grade = UserGrade.GENERAL;
+
     @Column(nullable = false, length = 20)
     private String name;
 
@@ -71,6 +77,7 @@ public class User {
         this.userId = info.getUserId();
         this.password = info.getPassword();
         this.role = UserRole.ROLE_USER;
+        this.grade = UserGrade.GENERAL;
         this.name = info.getName();
         this.phoneNumber = info.getPhoneNumber();
         this.email = info.getEmail();
@@ -120,6 +127,7 @@ public class User {
                 .id(this.id)
                 .userId(this.userId)
                 .role(this.role != null ? UserRole.valueOf(this.role.name()) : null)
+                .grade(this.grade != null ? UserGrade.valueOf(this.grade.name()) : null)
                 .name(this.name)
                 .phoneNumber(this.phoneNumber)
                 .email(this.email)
