@@ -10,6 +10,7 @@ import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.controller.user.UserManagementController;
 import dev.bum.user_service.security.SecurityConfig;
@@ -102,7 +103,8 @@ class UserManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(99))
                 .andExpect(jsonPath("$.userId").value("IU"))
-                .andExpect(jsonPath("$.role").value("ROLE_USER"));
+                .andExpect(jsonPath("$.role").value("ROLE_USER"))
+                .andExpect(jsonPath("$.grade").value("GENERAL"));
 
         then(userService).should().selectById("IU");
     }
@@ -255,6 +257,7 @@ class UserManagementControllerTest {
                 .id(99L)
                 .userId(userId)
                 .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
                 .name(userId)
                 .phoneNumber("010-0516-0918")
                 .email(userId + "@test.com")
