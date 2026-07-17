@@ -8,9 +8,7 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
-import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
-import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
@@ -33,8 +31,6 @@ import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
-import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
-import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -106,9 +102,6 @@ class ReservationRepositoryImplTest {
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
 
     @Autowired
-    private ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
-
-    @Autowired
     private EntityManager entityManager;
 
     private Event event;
@@ -158,28 +151,6 @@ class ReservationRepositoryImplTest {
         Reservation response = reservationRepository.selectById(saved.getReservationId());
 
         assertThat(reservationDiscountJpaRepository.findByReservation(response)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("배송 정보가 있는 예약은 배송 스냅샷을 저장한다")
-    void reservation_insert_with_delivery_saves_delivery_snapshot() {
-        Reservation saved = reservationRepository.insert(
-                insertReservationRequest("order-1", "user01", event, seatList.subList(0, 2))
-        );
-        reservationDeliveryJpaRepository.save(new ReservationDelivery(saved, deliveryRequest()));
-        entityManager.flush();
-        entityManager.clear();
-
-        Reservation response = reservationRepository.selectById(saved.getReservationId());
-        ReservationDelivery delivery = reservationDeliveryJpaRepository.findByReservation(response).orElseThrow();
-
-        assertThat(delivery.getRecipientName()).isEqualTo("홍길동");
-        assertThat(delivery.getRecipientPhone()).isEqualTo("010-1234-5678");
-        assertThat(delivery.getZipCode()).isEqualTo("12345");
-        assertThat(delivery.getAddress()).isEqualTo("서울시 송파구 올림픽로");
-        assertThat(delivery.getDetailAddress()).isEqualTo("101동 1001호");
-        assertThat(delivery.getDeliveryMessage()).isEqualTo("문 앞에 놓아주세요");
-        assertThat(delivery.getStatus()).isEqualTo(ReservationDeliveryStatus.READY);
     }
 
     @Test
@@ -419,17 +390,6 @@ class ReservationRepositoryImplTest {
                 .eventId(event.getEventId())
                 .seats(seatInfos)
                 .userCouponId(userCouponId)
-                .build();
-    }
-
-    private ReservationDeliveryRequest deliveryRequest() {
-        return ReservationDeliveryRequest.builder()
-                .recipientName("홍길동")
-                .recipientPhone("010-1234-5678")
-                .zipCode("12345")
-                .address("서울시 송파구 올림픽로")
-                .detailAddress("101동 1001호")
-                .deliveryMessage("문 앞에 놓아주세요")
                 .build();
     }
 
