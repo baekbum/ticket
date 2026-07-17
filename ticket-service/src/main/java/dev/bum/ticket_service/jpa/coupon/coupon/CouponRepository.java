@@ -19,6 +19,8 @@ public interface CouponRepository {
 
     List<Coupon> selectDownloadableCoupons(LocalDateTime now);
 
+    long expireExpiredCoupons(LocalDateTime now);
+
     boolean existsByCode(String code);
 
     boolean existsByCodeExceptId(String code, Long couponId);

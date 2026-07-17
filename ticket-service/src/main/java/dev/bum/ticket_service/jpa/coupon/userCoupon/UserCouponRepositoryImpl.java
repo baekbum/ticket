@@ -18,6 +18,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,6 +98,22 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
                 .fetchOne();
 
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public long expireExpiredUserCoupons(LocalDateTime now) {
+        QUserCoupon userCoupon = QUserCoupon.userCoupon;
+
+        return queryFactory
+                .update(userCoupon)
+                .set(userCoupon.status, UserCouponStatus.EXPIRED)
+                .set(userCoupon.updatedAt, now)
+                .where(
+                        userCoupon.status.eq(UserCouponStatus.ISSUED),
+                        userCoupon.expiresAt.isNotNull(),
+                        userCoupon.expiresAt.lt(now)
+                )
+                .execute();
     }
 
     @Override

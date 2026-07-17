@@ -104,6 +104,22 @@ public class CouponRepositoryImpl implements CouponRepository {
     }
 
     @Override
+    public long expireExpiredCoupons(LocalDateTime now) {
+        QCoupon coupon = QCoupon.coupon;
+
+        return queryFactory
+                .update(coupon)
+                .set(coupon.status, CouponStatus.EXPIRED)
+                .set(coupon.updatedAt, now)
+                .where(
+                        coupon.status.eq(CouponStatus.ACTIVE),
+                        coupon.validUntil.isNotNull(),
+                        coupon.validUntil.lt(now)
+                )
+                .execute();
+    }
+
+    @Override
     public boolean existsByCode(String code) {
         return jpaRepository.existsByCode(code);
     }
