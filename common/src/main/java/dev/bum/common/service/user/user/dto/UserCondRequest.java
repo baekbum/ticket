@@ -19,6 +19,7 @@ public class UserCondRequest {
     private LocalDate birthDate;
     private String address;
     private Boolean isBlacklisted;
+    private String grade;
 
     @Builder.Default // 빌더 패턴을 사용해서 만들 때도 기본값을 유지
     private Integer page = 0; // page 필드에 기본값 0 할당
@@ -45,6 +46,7 @@ public class UserCondRequest {
         if (birthDate != null) sj.add("birthDate=" + birthDate);
         if (address != null) sj.add("address='" + address + "'");
         if (isBlacklisted != null) sj.add("isBlacklisted=" + isBlacklisted);
+        if (grade != null) sj.add("grade='" + grade + "'");
 
         // 정렬 조건 필드 검증
         if (sort != null && !sort.isEmpty()) {

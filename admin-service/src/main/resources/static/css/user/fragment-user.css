@@ -202,10 +202,11 @@
   .user-table th:nth-child(2), .user-table td:nth-child(2) { width: 6%;  text-align: center; } /* 순서 */
   .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 14%; } /* 유저 ID */
   .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 13%; } /* 이름 */
-  .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 22%; } /* 이메일 */
-  .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 9%; } /* 권한 */
+  .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 18%; } /* 이메일 */
+  .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 8%; } /* 권한 */
   .user-table th:nth-child(7), .user-table td:nth-child(7) { width: 8%;  } /* 상태 */
-  .user-table th:nth-child(8), .user-table td:nth-child(8) { width: 20%; text-align: center; } /* 관리 */
+  .user-table th:nth-child(8), .user-table td:nth-child(8) { width: 8%; text-align: center; } /* 등급 */
+  .user-table th:nth-child(9), .user-table td:nth-child(9) { width: 17%; text-align: center; } /* 관리 */
 
   .user-table th {
     background: #faf9fd;
@@ -338,6 +339,17 @@
   .badge-admin { background: #fdf0f5; color: #c2255c; }
   .badge-black { background: #fff1f0; color: var(--red); }
   .badge-ok    { background: #edfbf1; color: #2a7a3f; font-weight: 600; }
+  .badge-grade {
+    min-width: 58px;
+    text-align: center;
+    border: 1px solid transparent;
+  }
+  .badge-grade-general { background: #f2f1f6; color: #6e6b85; border-color: #e2dfec; }
+  .badge-grade-green   { background: #eaf8ef; color: #2b8a3e; border-color: rgba(43,138,62,0.18); }
+  .badge-grade-silver  { background: #eef3f8; color: #4f6478; border-color: #dce6ee; }
+  .badge-grade-gold    { background: #fff6db; color: #9a6700; border-color: rgba(245,159,0,0.22); }
+  .badge-grade-vip     { background: #f0edff; color: var(--purple); border-color: rgba(124,77,255,0.22); }
+  .badge-grade-mvip    { background: #fff0f6; color: #c2255c; border-color: rgba(194,37,92,0.18); }
 
   /* ── Modals ── */
   .f-modal {

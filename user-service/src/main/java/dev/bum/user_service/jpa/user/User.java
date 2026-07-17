@@ -120,6 +120,14 @@ public class User {
         if (info.getIsBlacklisted() != null) {
             this.isBlacklisted = info.getIsBlacklisted();
         }
+
+        if (StringUtils.hasText(info.getRole())) {
+            this.role = UserRole.valueOf(info.getRole());
+        }
+
+        if (StringUtils.hasText(info.getGrade())) {
+            this.grade = UserGrade.valueOf(info.getGrade());
+        }
     }
 
     public UserResponse toResponse() {
