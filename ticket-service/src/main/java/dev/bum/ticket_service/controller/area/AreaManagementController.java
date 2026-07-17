@@ -4,9 +4,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.ticket_service.service.area.AreaService;
@@ -36,16 +34,6 @@ import java.util.List;
 public class AreaManagementController {
 
     private final AreaService areaService;
-
-    @PostMapping("/insert")
-    public ResponseEntity<AreaResponse> insert(@Valid @RequestBody InsertAreaRequest info) {
-        return ResponseEntity.ok(areaService.insert(info));
-    }
-
-    @PostMapping("/insert/bulk")
-    public ResponseEntity<List<AreaResponse>> insertBulk(@Valid @RequestBody InsertAreaBulkRequest info) {
-        return ResponseEntity.ok(areaService.insertBulk(info));
-    }
 
     @PostMapping("/insert/json")
     public ResponseEntity<List<AreaResponse>> insertJson(@Valid @RequestBody InsertAreaJsonRequest info) {

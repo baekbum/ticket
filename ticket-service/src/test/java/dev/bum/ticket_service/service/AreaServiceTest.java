@@ -5,7 +5,6 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
@@ -70,52 +69,6 @@ class AreaServiceTest {
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
-
-    @Test
-    @DisplayName("구역 등록")
-    void insert() {
-        InsertAreaRequest info = insertRequest("VIP");
-        Area area = area(1L, "VIP");
-
-        given(repository.insert(info)).willReturn(area);
-
-        AreaResponse response = areaService.insert(info);
-
-        assertThat(response.getAreaName()).isEqualTo("VIP");
-        then(repository).should().insert(info);
-    }
-
-    @Test
-    @DisplayName("구역 벌크 등록")
-    void insert_bulk() {
-        InsertAreaRequest vip = insertRequest("VIP");
-        InsertAreaRequest r = insertRequest("R");
-        InsertAreaBulkRequest info = InsertAreaBulkRequest.builder()
-                .areas(List.of(vip, r))
-                .build();
-
-        given(repository.insert(vip)).willReturn(area(1L, "VIP"));
-        given(repository.insert(r)).willReturn(area(2L, "R"));
-
-        List<AreaResponse> response = areaService.insertBulk(info);
-
-        assertThat(response).hasSize(2);
-        then(repository).should().insert(vip);
-        then(repository).should().insert(r);
-    }
-
-    @Test
-    @DisplayName("구역 벌크 등록 대상이 비어있으면 예외 발생")
-    void insert_bulk_empty() {
-        InsertAreaBulkRequest info = InsertAreaBulkRequest.builder()
-                .areas(List.of())
-                .build();
-
-        assertThatThrownBy(() -> areaService.insertBulk(info))
-                .isInstanceOf(IllegalArgumentException.class);
-
-        then(repository).should(never()).insert(any());
-    }
 
     @Test
     @DisplayName("JSON 텍스트로 구역 등록")
