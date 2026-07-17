@@ -4,9 +4,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import jakarta.validation.Valid;
@@ -19,12 +17,6 @@ import java.util.List;
 
 @FeignClient(name = "area-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/area")
 public interface AreaServiceClient {
-
-    @PostMapping("/insert")
-    AreaResponse insert(@Valid @RequestBody InsertAreaRequest info);
-
-    @PostMapping("/insert/bulk")
-    List<AreaResponse> insertBulk(@Valid @RequestBody InsertAreaBulkRequest info);
 
     @PostMapping("/insert/json")
     List<AreaResponse> insertJson(@Valid @RequestBody InsertAreaJsonRequest info);

@@ -43,12 +43,6 @@
     <button class="btn btn-success" onclick="openAreaSvgModal()">
       <i class="ti ti-file-upload"></i>SVG 업로드
     </button>
-    <button class="btn btn-success" onclick="openAreaBulkModal()">
-      <i class="ti ti-layout-grid-add"></i>구역 일괄 등록
-    </button>
-    <button class="btn btn-success" onclick="openAreaModalForCreate()">
-      <i class="ti ti-plus"></i>구역 단건 등록
-    </button>
   </div>
 </div>
 
@@ -92,7 +86,6 @@
     <p class="modal-subtitle">구역의 기본 등급과 가격 정보를 입력합니다.</p>
     <div class="modal-divider"></div>
 
-    <input type="hidden" id="area-modal-mode" value="CREATE">
     <input type="hidden" id="area-target-id">
 
     <div class="form-row">
@@ -130,30 +123,6 @@
     <div class="form-row" style="margin-top:1.2rem;">
       <button class="btn btn-secondary" onclick="closeAreaModal()">취소</button>
       <button class="btn" onclick="submitAreaForm()"><i class="ti ti-check"></i>저장</button>
-    </div>
-  </div>
-</div>
-
-<div class="f-modal" id="area-bulk-modal">
-  <div class="f-modal-content area-bulk-content">
-    <p class="modal-title">구역 일괄 등록</p>
-    <p class="modal-subtitle">구역 카드를 추가해서 여러 구역을 한 번에 등록합니다.</p>
-    <div class="modal-divider"></div>
-
-    <div class="area-bulk-top">
-      <span class="area-bulk-count">등록 예정 <strong id="area-bulk-count">0</strong>개</span>
-    </div>
-
-    <div class="area-bulk-wrapper" id="area-bulk-wrapper"></div>
-    <button type="button" class="btn-add-area" onclick="addAreaBulkCard()">
-      <i class="ti ti-plus"></i>새 구역 추가
-    </button>
-
-    <div class="form-row" style="margin-top:1.2rem;">
-      <button class="btn btn-secondary" onclick="closeAreaBulkModal()">취소</button>
-      <button class="btn btn-success" onclick="submitAreaBulkForm()">
-        <i class="ti ti-check"></i>구역 일괄 등록
-      </button>
     </div>
   </div>
 </div>

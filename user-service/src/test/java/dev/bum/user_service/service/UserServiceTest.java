@@ -6,6 +6,7 @@ import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
@@ -92,6 +93,7 @@ class UserServiceTest {
 
         assertThat(response.getUserId()).isEqualTo("IU");
         assertThat(response.getRole()).isEqualTo(UserRole.ROLE_USER);
+        assertThat(response.getGrade()).isEqualTo(UserGrade.GENERAL);
         assertThat(response.getName()).isEqualTo("아이유");
         assertThat(response.getPhoneNumber()).isEqualTo("010-0516-0918");
         assertThat(response.getEmail()).isEqualTo("IU@test.com");
@@ -180,6 +182,7 @@ class UserServiceTest {
 
         assertThat(result.getUserId()).isEqualTo(response.getUserId());
         assertThat(result.getRole()).isEqualTo(response.getRole());
+        assertThat(response.getGrade()).isEqualTo(UserGrade.GENERAL);
         assertThat(result.getName()).isEqualTo(response.getName());
         assertThat(result.getPhoneNumber()).isEqualTo(response.getPhoneNumber());
         assertThat(result.getEmail()).isEqualTo(response.getEmail());
@@ -269,6 +272,37 @@ class UserServiceTest {
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
 
         then(userRepository).should().update(userId, info);
+        then(kafkaTemplate).should(never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Grade 변경 시 Kafka 이벤트를 전송하지 않음")
+    void user_update_grade_changed_does_not_send_event() {
+        String userId = "user";
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .grade("VIP")
+                .build();
+
+        User originalUser = User.builder()
+                .id(1L)
+                .userId(userId)
+                .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
+                .build();
+
+        User updatedUser = User.builder()
+                .id(1L)
+                .userId(userId)
+                .role(UserRole.ROLE_USER)
+                .grade(UserGrade.VIP)
+                .build();
+
+        given(userRepository.selectById(userId)).willReturn(originalUser);
+        given(userRepository.update(userId, info)).willReturn(updatedUser);
+
+        UserResponse response = userService.update(userId, info);
+
+        assertThat(response.getGrade()).isEqualTo(UserGrade.VIP);
         then(kafkaTemplate).should(never()).send(any(), any(), any());
     }
 

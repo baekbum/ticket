@@ -7,6 +7,7 @@ import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.controller.user.UserController;
 import dev.bum.user_service.security.SecurityConfig;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -77,7 +79,8 @@ class UserControllerTest {
 
         given(userService.insert(any())).willReturn(userResponse());
 
-        mockMvc.perform(post(baseUrl + "/insert")
+        mockMvc.perform(post(baseUrl + "/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk())
@@ -85,6 +88,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.userId").value("IU"))
                 .andExpect(jsonPath("$.name").value("IU"))
                 .andExpect(jsonPath("$.role").value("ROLE_USER"))
+                .andExpect(jsonPath("$.grade").value("GENERAL"))
                 .andExpect(jsonPath("$.email").value("IU@test.com"))
                 .andExpect(jsonPath("$.phoneNumber").value("010-0516-0918"))
                 .andExpect(jsonPath("$.createdAt").exists())
@@ -117,6 +121,7 @@ class UserControllerTest {
                 .id(99L)
                 .userId("IU")
                 .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
                 .name("IU")
                 .phoneNumber("010-0516-0918")
                 .email("update@test.com")
@@ -170,6 +175,7 @@ class UserControllerTest {
                 .id(99L)
                 .userId("IU")
                 .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
                 .name("IU")
                 .phoneNumber("010-0516-0918")
                 .email("IU@test.com")
