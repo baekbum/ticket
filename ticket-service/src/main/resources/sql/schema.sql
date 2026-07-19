@@ -221,7 +221,8 @@ CREATE TABLE payments (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
-    CONSTRAINT uk_payments_payment_no UNIQUE (payment_no)
+    CONSTRAINT uk_payments_payment_no UNIQUE (payment_no),
+    CONSTRAINT uk_payments_idempotency_key UNIQUE (idempotency_key)
 );
 
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);

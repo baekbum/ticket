@@ -5,7 +5,6 @@ import dev.bum.common.service.ticket.reservation.dto.*;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,24 +29,31 @@ public class ReservationService {
 
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
-    private final ReservationProducer reservationProducer;
-
     /**
      * 예매 요청을 Kafka로 전달하기 전 Redis 좌석 선점 정보를 검증하는 메서드
      * @param info
      */
-    public void insert(InsertReservationRequest info) {
+    public ReservationResponse insert(InsertReservationRequest info) {
         // 1. Redis의 좌석 선점 정보가 요청 사용자와 일치하는지 검증
         seatCacheService.validateOccupiedSeat(info);
         log.info("[좌석 선점 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());
 
         // 2. Kafka를 통해 최종 예매 등록을 비동기로 처리
-        reservationProducer.send(info);
+        Reservation reservation = repository.insert(info);
+
+        seatCacheService.updateUserPurchaseLimit(
+                info.getEventId(),
+                info.getUserId(),
+                info.getSeats().size(),
+                "PLUS"
+        );
+
+        return reservation.toResponse();
     }
 
-    public void insertMyReservation(String currentUserId, InsertReservationRequest info) {
+    public ReservationResponse insertMyReservation(String currentUserId, InsertReservationRequest info) {
         info.setUserId(currentUserId);
-        insert(info);
+        return insert(info);
     }
 
     /**
@@ -62,6 +68,7 @@ public class ReservationService {
         List<Seat> seats = reservation.getTickets().stream()
                 .map(ticket -> ticket.getSeat())
                 .collect(Collectors.toList());
+        seats.forEach(Seat::reserved);
         seatCacheService.syncReservedSeatsAfterCommit(seats);
 
         log.info("[DB INSERT 완료 (eventId : {}), (userId : {})]", info.getEventId(), info.getUserId());

@@ -84,7 +84,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 5. 검증이 끝난 좌석들의 상태를 RESERVED로 변경하고 티켓 생성
         for (Seat seat : seats) {
-            seat.reserved();
+            seat.lock();
 
             Ticket ticket = Ticket.builder()
                     .userId(info.getUserId())

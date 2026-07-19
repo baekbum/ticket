@@ -30,12 +30,11 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @PostMapping("/insert")
-    public ResponseEntity<Void> insert(
+    public ResponseEntity<ReservationResponse> insert(
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody InsertReservationRequest info
     ) {
-        reservationService.insertMyReservation(currentUserId, info);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(reservationService.insertMyReservation(currentUserId, info));
     }
 
     @GetMapping("/select/id/{reservationId}")
