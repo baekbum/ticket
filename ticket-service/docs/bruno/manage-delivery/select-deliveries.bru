@@ -1,0 +1,30 @@
+meta {
+  name: Select Deliveries
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/reservation/delivery/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "reservationDeliveryId-desc"
+    ]
+  }
+}

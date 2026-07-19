@@ -1,0 +1,15 @@
+meta {
+  name: Delete User By Id
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{userBaseUrl}}/manage/delete/id/{{userId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -1,0 +1,29 @@
+meta {
+  name: Select Users
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{userBaseUrl}}/manage/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "createdAt-desc"
+    ]
+  }
+}

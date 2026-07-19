@@ -2,6 +2,7 @@ package dev.bum.ticket_service.jpa.reservation.reservationDiscount;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDiscountResponse;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import jakarta.persistence.Column;
@@ -22,6 +23,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 예매에 실제 적용된 할인 결과 스냅샷.
@@ -33,6 +35,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReservationDiscount {
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -75,4 +79,17 @@ public class ReservationDiscount {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public ReservationDiscountResponse toResponse() {
+        return ReservationDiscountResponse.builder()
+                .reservationDiscountId(this.reservationDiscountId)
+                .userCouponId(this.userCoupon != null ? this.userCoupon.getUserCouponId() : null)
+                .discountType(this.discountType)
+                .discountName(this.discountName)
+                .couponDiscountType(this.couponDiscountType)
+                .discountValue(this.discountValue)
+                .discountAmount(this.discountAmount)
+                .createdAt(this.createdAt != null ? this.createdAt.format(DATE_TIME_FORMATTER) : null)
+                .build();
+    }
 }

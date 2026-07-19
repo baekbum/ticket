@@ -1,0 +1,28 @@
+meta {
+  name: Update Me
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{userBaseUrl}}/update/me
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "phoneNumber": "010-9999-0002",
+    "email": "updated-user@example.com",
+    "birthDate": "1995-01-01",
+    "address": "서울특별시 송파구 올림픽로 300"
+  }
+}

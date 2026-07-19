@@ -1,0 +1,27 @@
+meta {
+  name: Signup
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{userBaseUrl}}/signup
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userId": "testuser01",
+    "password": "user123!",
+    "name": "테스트유저",
+    "phoneNumber": "010-9999-0001",
+    "email": "testuser01@example.com",
+    "birthDate": "1995-01-01",
+    "address": "서울특별시 송파구 올림픽로 300"
+  }
+}

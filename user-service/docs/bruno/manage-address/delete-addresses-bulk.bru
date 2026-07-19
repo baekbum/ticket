@@ -1,0 +1,27 @@
+meta {
+  name: Delete Addresses Bulk
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{userBaseUrl}}/manage/address/delete/bulk
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "addressIds": [
+      1
+    ]
+  }
+}

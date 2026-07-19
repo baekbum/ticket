@@ -1,0 +1,15 @@
+meta {
+  name: Deliver Delivery
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{ticketBaseUrl}}/manage/reservation/delivery/deliver/id/{{reservationDeliveryId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

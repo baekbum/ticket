@@ -1,0 +1,27 @@
+meta {
+  name: Delete Users Bulk
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{userBaseUrl}}/manage/delete/bulk
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userIds": [
+      "admin-created-user"
+    ]
+  }
+}

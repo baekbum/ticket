@@ -1,0 +1,29 @@
+meta {
+  name: Select Events
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/event/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "eventId-desc"
+    ]
+  }
+}

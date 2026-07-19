@@ -1,0 +1,29 @@
+meta {
+  name: User Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{authBaseUrl}}/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userId": "user01",
+    "password": "user123!"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+  }
+}

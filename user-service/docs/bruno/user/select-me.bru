@@ -1,0 +1,15 @@
+meta {
+  name: Select Me
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{userBaseUrl}}/select/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

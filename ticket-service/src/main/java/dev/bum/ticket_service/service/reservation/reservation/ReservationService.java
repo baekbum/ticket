@@ -3,10 +3,17 @@ package dev.bum.ticket_service.service.reservation.reservation;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +37,41 @@ public class ReservationService {
 
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
+    private final TicketJpaRepository ticketJpaRepository;
+    private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+    private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
+    private final PaymentJpaRepository paymentJpaRepository;
 
     public ReservationResponse selectById(long id) {
         return repository.selectById(id).toResponse();
+    }
+
+    public ReservationDetailResponse selectDetailById(long id) {
+        Reservation reservation = repository.selectById(id);
+        List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
+        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
+
+        int totalTicketAmount = tickets.stream()
+                .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
+                .sum();
+        int totalDiscountAmount = discounts.stream()
+                .mapToInt(discount -> discount.getDiscountAmount() != null ? discount.getDiscountAmount() : 0)
+                .sum();
+
+        return ReservationDetailResponse.builder()
+                .reservation(reservation.toResponse())
+                .tickets(tickets.stream().map(Ticket::toResponse).toList())
+                .discounts(discounts.stream().map(ReservationDiscount::toResponse).toList())
+                .delivery(reservationDeliveryJpaRepository.findByReservation(reservation)
+                        .map(delivery -> delivery.toResponse())
+                        .orElse(null))
+                .payment(paymentJpaRepository.findByReservation(reservation)
+                        .map(payment -> payment.toResponse())
+                        .orElse(null))
+                .totalTicketAmount(totalTicketAmount)
+                .totalDiscountAmount(totalDiscountAmount)
+                .paymentAmount(Math.max(totalTicketAmount - totalDiscountAmount, 0))
+                .build();
     }
 
     public ReservationResponse selectMyReservation(String currentUserId, long id) {

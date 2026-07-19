@@ -1,0 +1,15 @@
+meta {
+  name: Select Layout
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{ticketBaseUrl}}/area/layout/event/{{eventId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -1,0 +1,15 @@
+meta {
+  name: My Coupons
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{ticketBaseUrl}}/coupon/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

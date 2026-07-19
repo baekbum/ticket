@@ -24,8 +24,8 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_SERVER}
     producer:
-      key-serializer: org.apache.kafka.common.serialization.LongSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
@@ -41,8 +41,9 @@ token:
   refreshTokenValidityInMilliseconds: 1209600000
 
 topic:
-  reservation:
-    name: reservation-event
+  payment:
+    completed:
+      name: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
 
 app:
   upload:

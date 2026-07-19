@@ -1,0 +1,31 @@
+meta {
+  name: Insert My Address
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{userBaseUrl}}/address/insert/me
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "alias": "집",
+    "recipientName": "홍길동",
+    "recipientPhone": "010-1111-2222",
+    "zipCode": "05540",
+    "address": "서울특별시 송파구 올림픽로 300",
+    "detailAddress": "101동 1203호",
+    "defaultAddress": true
+  }
+}
