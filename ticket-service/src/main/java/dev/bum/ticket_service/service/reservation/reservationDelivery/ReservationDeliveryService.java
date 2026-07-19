@@ -102,6 +102,13 @@ public class ReservationDeliveryService {
         return delivery.toResponse();
     }
 
+    public ReservationDeliveryResponse updateMyDelivery(String currentUserId, long id, ReservationDeliveryRequest info) {
+        ReservationDelivery delivery = selectEntityById(id);
+        validateOwner(currentUserId, delivery.getReservation());
+        delivery.updateDeliveryInfo(info);
+        return delivery.toResponse();
+    }
+
     public ReservationDeliveryResponse ship(long id, UpdateReservationDeliveryTrackingRequest info) {
         ReservationDelivery delivery = selectEntityById(id);
         delivery.ship(info != null ? info.getCarrier() : null, info != null ? info.getTrackingNumber() : null, LocalDateTime.now());
