@@ -18,7 +18,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
-import dev.bum.ticket_service.service.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

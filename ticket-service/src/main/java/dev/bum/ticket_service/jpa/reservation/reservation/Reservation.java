@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,6 +17,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -66,6 +68,9 @@ public class Reservation {
     @OneToMany(mappedBy = "reservation")
     @Builder.Default
     private List<Ticket> tickets = new ArrayList<>();
+
+    @OneToOne(mappedBy = "reservation", fetch = FetchType.LAZY)
+    private ReservationDelivery delivery;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime reservedAt;

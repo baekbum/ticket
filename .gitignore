@@ -42,5 +42,9 @@ common/src/test/java/dev/bum/common/JwtGenerator.java
 uploads/
 ticket-service/uploads/
 
+### Temporary files ###
+tmp/
+output/
+
 ### Local modules ###
 view-service/

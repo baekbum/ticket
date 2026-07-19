@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.reservation;
+package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.*;
