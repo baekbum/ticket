@@ -65,6 +65,7 @@ class AreaRepositoryImplTest {
         assertThat(response.getAreaId()).isNotNull();
         assertThat(response.getEvent().getEventId()).isEqualTo(event.getEventId());
         assertThat(response.getAreaName()).isEqualTo("S");
+        assertThat(response.getLayoutKey()).isEqualTo("S");
         assertThat(response.getGrade()).isEqualTo(SeatGrade.S);
         assertThat(response.getStatus()).isEqualTo(AreaStatus.ACTIVE);
     }
@@ -73,6 +74,22 @@ class AreaRepositoryImplTest {
     @DisplayName("동일 이벤트에 같은 구역명이 있으면 예외 발생")
     void area_insert_duplicate() {
         InsertAreaRequest info = insertRequest("VIP", SeatGrade.VIP, 150000);
+
+        assertThatThrownBy(() -> areaRepository.insert(info))
+                .isInstanceOf(AreaDuplicateException.class);
+    }
+
+    @Test
+    @DisplayName("동일 이벤트에 같은 레이아웃 키가 있으면 예외 발생")
+    void area_insert_duplicate_layout_key() {
+        InsertAreaRequest info = InsertAreaRequest.builder()
+                .eventId(event.getEventId())
+                .areaName("VIP-A")
+                .layoutKey("VIP")
+                .grade(SeatGrade.VIP)
+                .price(150000)
+                .status(AreaStatus.ACTIVE)
+                .build();
 
         assertThatThrownBy(() -> areaRepository.insert(info))
                 .isInstanceOf(AreaDuplicateException.class);
@@ -98,6 +115,7 @@ class AreaRepositoryImplTest {
 
         assertThat(response.getAreaId()).isEqualTo(saved.getAreaId());
         assertThat(response.getAreaName()).isEqualTo("S");
+        assertThat(response.getLayoutKey()).isEqualTo("S");
     }
 
     @Test
@@ -136,6 +154,19 @@ class AreaRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("레이아웃 키 조건으로 조회")
+    void area_select_by_layout_key() {
+        AreaCondRequest cond = AreaCondRequest.builder()
+                .layoutKey("VIP")
+                .build();
+
+        Page<Area> response = areaRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getAreaName()).isEqualTo("VIP");
+    }
+
+    @Test
     @DisplayName("정렬 조건으로 구역 조회")
     void area_select_by_cond_with_sort() {
         AreaCondRequest cond = AreaCondRequest.builder().build();
@@ -156,6 +187,7 @@ class AreaRepositoryImplTest {
         Area saved = areaJpaRepository.save(area("S", SeatGrade.S, 90000));
         UpdateAreaRequest info = UpdateAreaRequest.builder()
                 .areaName("S-A")
+                .layoutKey("section-s-a")
                 .grade(SeatGrade.A)
                 .price(70000)
                 .status(AreaStatus.INACTIVE)
@@ -164,6 +196,7 @@ class AreaRepositoryImplTest {
         Area response = areaRepository.update(saved.getAreaId(), info);
 
         assertThat(response.getAreaName()).isEqualTo("S-A");
+        assertThat(response.getLayoutKey()).isEqualTo("section-s-a");
         assertThat(response.getGrade()).isEqualTo(SeatGrade.A);
         assertThat(response.getPrice()).isEqualTo(70000);
         assertThat(response.getStatus()).isEqualTo(AreaStatus.INACTIVE);
@@ -185,6 +218,7 @@ class AreaRepositoryImplTest {
         return InsertAreaRequest.builder()
                 .eventId(event.getEventId())
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(grade)
                 .price(price)
                 .status(AreaStatus.ACTIVE)
@@ -195,6 +229,7 @@ class AreaRepositoryImplTest {
         return Area.builder()
                 .event(event)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(grade)
                 .price(price)
                 .status(AreaStatus.ACTIVE)

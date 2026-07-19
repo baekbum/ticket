@@ -228,10 +228,10 @@ public class AreaService {
             );
 
             List<InsertAreaRequest> areas = new ArrayList<>();
-            Set<String> parsedAreaNames = new LinkedHashSet<>();
+            Set<String> parsedLayoutKeys = new LinkedHashSet<>();
 
-            collectSvgAreaElements(document.getElementsByTagName("path"), eventId, areas, parsedAreaNames);
-            collectSvgAreaElements(document.getElementsByTagName("rect"), eventId, areas, parsedAreaNames);
+            collectSvgAreaElements(document.getElementsByTagName("path"), eventId, areas, parsedLayoutKeys);
+            collectSvgAreaElements(document.getElementsByTagName("rect"), eventId, areas, parsedLayoutKeys);
 
             return areas;
         } catch (Exception e) {
@@ -239,7 +239,7 @@ public class AreaService {
         }
     }
 
-    private void collectSvgAreaElements(NodeList elements, Long eventId, List<InsertAreaRequest> areas, Set<String> parsedAreaNames) {
+    private void collectSvgAreaElements(NodeList elements, Long eventId, List<InsertAreaRequest> areas, Set<String> parsedLayoutKeys) {
         for (int i = 0; i < elements.getLength(); i++) {
             Element element = (Element) elements.item(i);
             String className = element.getAttribute("class");
@@ -250,17 +250,19 @@ public class AreaService {
                 continue;
             }
 
-            String areaName = firstText(element.getAttribute("data-area-name"), normalizeId(element.getAttribute("id")));
+            String layoutKey = firstText(element.getAttribute("data-layout-key"), normalizeId(element.getAttribute("id")));
+            String areaName = firstText(element.getAttribute("data-area-name"), layoutKey);
             if ("CONSOLE".equalsIgnoreCase(areaName)) {
                 continue;
             }
-            if (!StringUtils.hasText(areaName) || !parsedAreaNames.add(areaName)) {
+            if (!StringUtils.hasText(layoutKey) || !parsedLayoutKeys.add(layoutKey)) {
                 continue;
             }
 
             areas.add(InsertAreaRequest.builder()
                     .eventId(eventId)
                     .areaName(areaName)
+                    .layoutKey(layoutKey)
                     .grade(parseGrade(element.getAttribute("data-grade"), className))
                     .price(parsePrice(element.getAttribute("data-price")))
                     .status(AreaStatus.ACTIVE)

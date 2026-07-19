@@ -84,6 +84,7 @@ class AreaServiceTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).getAreaName()).isEqualTo("VIP");
+        assertThat(response.get(0).getLayoutKey()).isEqualTo("VIP");
         then(repository).should().insert(argThat(area -> "VIP".equals(area.getAreaName())));
     }
 
@@ -109,19 +110,22 @@ class AreaServiceTest {
         given(eventRepository.selectById(1L)).willReturn(event);
         given(layoutJpaRepository.findByEvent_EventId(1L)).willReturn(Optional.empty());
         given(layoutJpaRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-        given(repository.insert(argThat(area -> area != null && "VIP".equals(area.getAreaName())))).willReturn(area(1L, "VIP"));
-        given(repository.insert(argThat(area -> area != null && "R".equals(area.getAreaName())))).willReturn(area(2L, "R"));
+        given(repository.insert(argThat(area -> area != null && "VIP".equals(area.getAreaName())))).willReturn(area(1L, "VIP", "vip-main"));
+        given(repository.insert(argThat(area -> area != null && "R".equals(area.getAreaName())))).willReturn(area(2L, "R", "R"));
 
         List<AreaResponse> response = areaService.insertSvg(1L, svgFile, false);
 
         assertThat(response).hasSize(2);
         assertThat(response).extracting(AreaResponse::getAreaName).containsExactly("VIP", "R");
+        assertThat(response).extracting(AreaResponse::getLayoutKey).containsExactly("vip-main", "R");
         then(eventRepository).should().selectById(1L);
         then(layoutJpaRepository).should().save(any(EventLayout.class));
         then(repository).should().insert(argThat(area -> area != null && "VIP".equals(area.getAreaName())
+                && "vip-main".equals(area.getLayoutKey())
                 && area.getGrade() == SeatGrade.VIP
                 && area.getPrice().equals(150000)));
         then(repository).should().insert(argThat(area -> area != null && "R".equals(area.getAreaName())
+                && "R".equals(area.getLayoutKey())
                 && area.getGrade() == SeatGrade.R
                 && area.getPrice().equals(120000)));
     }
@@ -195,6 +199,7 @@ class AreaServiceTest {
         AreaResponse response = areaService.selectById(1L);
 
         assertThat(response.getAreaName()).isEqualTo("VIP");
+        assertThat(response.getLayoutKey()).isEqualTo("VIP");
         then(repository).should().selectById(1L);
     }
 
@@ -226,14 +231,16 @@ class AreaServiceTest {
     void update() {
         UpdateAreaRequest info = UpdateAreaRequest.builder()
                 .areaName("VIP-A")
+                .layoutKey("vip-a")
                 .price(160000)
                 .build();
 
-        given(repository.update(1L, info)).willReturn(area(1L, "VIP-A"));
+        given(repository.update(1L, info)).willReturn(area(1L, "VIP-A", "vip-a"));
 
         AreaResponse response = areaService.update(1L, info);
 
         assertThat(response.getAreaName()).isEqualTo("VIP-A");
+        assertThat(response.getLayoutKey()).isEqualTo("vip-a");
         then(repository).should().update(1L, info);
     }
 
@@ -281,6 +288,7 @@ class AreaServiceTest {
         return InsertAreaRequest.builder()
                 .eventId(1L)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade("VIP".equals(areaName) ? SeatGrade.VIP : SeatGrade.R)
                 .price("VIP".equals(areaName) ? 150000 : 120000)
                 .status(AreaStatus.ACTIVE)
@@ -288,10 +296,15 @@ class AreaServiceTest {
     }
 
     private Area area(Long areaId, String areaName) {
+        return area(areaId, areaName, areaName);
+    }
+
+    private Area area(Long areaId, String areaName, String layoutKey) {
         return Area.builder()
                 .areaId(areaId)
                 .event(event())
                 .areaName(areaName)
+                .layoutKey(layoutKey)
                 .grade("VIP".equals(areaName) || "VIP-A".equals(areaName) ? SeatGrade.VIP : SeatGrade.R)
                 .price("VIP".equals(areaName) || "VIP-A".equals(areaName) ? 150000 : 120000)
                 .status(AreaStatus.ACTIVE)
@@ -314,7 +327,7 @@ class AreaServiceTest {
     private MockMultipartFile svgFile() {
         String svg = """
                 <svg xmlns="http://www.w3.org/2000/svg">
-                  <path id="area-vip-VIP" class="area vip" data-area-name="VIP" data-grade="VIP" data-price="150000"/>
+                  <path id="area-vip-VIP" class="area vip" data-layout-key="vip-main" data-area-name="VIP" data-grade="VIP" data-price="150000"/>
                   <rect id="area-R" class="area r" data-area-name="R" data-grade="R" data-price="120000"/>
                   <path id="console" class="area console" data-area-name="CONSOLE"/>
                 </svg>

@@ -33,17 +33,20 @@ CREATE TABLE areas (
     area_id BIGSERIAL PRIMARY KEY,
     event_id BIGINT NOT NULL,
     area_name VARCHAR(80) NOT NULL,
+    layout_key VARCHAR(100) NOT NULL,
     grade VARCHAR(10) NOT NULL,
     price INTEGER NOT NULL,
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uk_event_area_name UNIQUE (event_id, area_name)
+    CONSTRAINT uk_event_area_name UNIQUE (event_id, area_name),
+    CONSTRAINT uk_event_area_layout_key UNIQUE (event_id, layout_key)
 );
 
 CREATE INDEX idx_area_event_id ON areas(event_id);
 CREATE INDEX idx_area_event_name ON areas(event_id, area_name);
+CREATE INDEX idx_area_event_layout_key ON areas(event_id, layout_key);
 
 -- ==========================================
 -- 3. Event layouts 테이블
