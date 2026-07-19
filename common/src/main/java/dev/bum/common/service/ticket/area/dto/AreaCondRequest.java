@@ -18,6 +18,7 @@ public class AreaCondRequest {
     private Long areaId;
     private Long eventId;
     private String areaName;
+    private String layoutKey;
     private SeatGrade grade;
     private AreaStatus status;
 
@@ -37,6 +38,7 @@ public class AreaCondRequest {
         if (areaId != null) sj.add("areaId=" + areaId);
         if (eventId != null) sj.add("eventId=" + eventId);
         if (areaName != null) sj.add("areaName='" + areaName + "'");
+        if (layoutKey != null) sj.add("layoutKey='" + layoutKey + "'");
         if (grade != null) sj.add("grade=" + grade);
         if (status != null) sj.add("status=" + status);
         if (sort != null && !sort.isEmpty()) sj.add("sort=[" + String.join(", ", sort) + "]");

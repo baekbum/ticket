@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UpdateAreaRequest {
     private String areaName;
+    private String layoutKey;
     private SeatGrade grade;
     private Integer price;
     private AreaStatus status;

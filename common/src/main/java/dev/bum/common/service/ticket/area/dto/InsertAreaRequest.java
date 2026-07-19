@@ -20,6 +20,8 @@ public class InsertAreaRequest {
     @NotBlank
     private String areaName;
 
+    private String layoutKey;
+
     @NotNull
     private SeatGrade grade;
 

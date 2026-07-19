@@ -18,6 +18,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -35,7 +37,10 @@ import java.util.List;
 @Entity
 @Table(
         name = "areas",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "area_name"})
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"event_id", "area_name"}),
+                @UniqueConstraint(columnNames = {"event_id", "layout_key"})
+        }
 )
 @Getter
 @NoArgsConstructor
@@ -54,6 +59,9 @@ public class Area {
 
     @Column(name = "area_name", nullable = false, length = 80)
     private String areaName;
+
+    @Column(name = "layout_key", nullable = false, length = 100)
+    private String layoutKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -81,6 +89,7 @@ public class Area {
     public Area(InsertAreaRequest info, Event event) {
         this.event = event;
         this.areaName = info.getAreaName();
+        this.layoutKey = resolveLayoutKey(info.getLayoutKey(), info.getAreaName());
         this.grade = info.getGrade();
         this.price = info.getPrice();
         this.status = info.getStatus() != null ? info.getStatus() : AreaStatus.ACTIVE;
@@ -93,6 +102,7 @@ public class Area {
                 .eventId(this.event != null ? this.event.getEventId() : null)
                 .eventTitle(this.event != null ? this.event.getTitle() : null)
                 .areaName(this.areaName)
+                .layoutKey(this.layoutKey)
                 .grade(this.grade)
                 .price(this.price)
                 .status(this.status)
@@ -101,8 +111,19 @@ public class Area {
 
     public void update(UpdateAreaRequest info) {
         if (StringUtils.hasText(info.getAreaName())) this.areaName = info.getAreaName();
+        if (StringUtils.hasText(info.getLayoutKey())) this.layoutKey = info.getLayoutKey().trim();
         if (info.getGrade() != null) this.grade = info.getGrade();
         if (info.getPrice() != null) this.price = info.getPrice();
         if (info.getStatus() != null) this.status = info.getStatus();
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void normalizeLayoutKey() {
+        this.layoutKey = resolveLayoutKey(this.layoutKey, this.areaName);
+    }
+
+    private String resolveLayoutKey(String layoutKey, String areaName) {
+        return StringUtils.hasText(layoutKey) ? layoutKey.trim() : areaName;
     }
 }

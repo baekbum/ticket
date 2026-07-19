@@ -76,7 +76,8 @@ class AreaManagementControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
+                .andExpect(jsonPath("$[0].areaName").value("VIP"))
+                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
         then(areaService).should().insertJson(info);
     }
@@ -94,7 +95,8 @@ class AreaManagementControllerTest {
                         .file(svgFile)
                         .param("force", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
+                .andExpect(jsonPath("$[0].areaName").value("VIP"))
+                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
         then(areaService).should().insertSvg(eq(1L), eq(svgFile), eq(true));
     }
@@ -126,7 +128,8 @@ class AreaManagementControllerTest {
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaId").value(1L));
+                .andExpect(jsonPath("$.areaId").value(1L))
+                .andExpect(jsonPath("$.layoutKey").value("VIP"));
 
         then(areaService).should().selectById(1L);
     }
@@ -196,6 +199,7 @@ class AreaManagementControllerTest {
                 .areaId(areaId)
                 .eventId(1L)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(SeatGrade.VIP)
                 .price(150000)
                 .status(AreaStatus.ACTIVE)
