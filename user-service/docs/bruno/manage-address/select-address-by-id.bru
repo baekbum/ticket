@@ -1,0 +1,15 @@
+meta {
+  name: Select Address By Id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{userBaseUrl}}/manage/address/select/id/{{addressId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

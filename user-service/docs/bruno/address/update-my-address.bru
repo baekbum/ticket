@@ -1,0 +1,32 @@
+meta {
+  name: Update My Address
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{userBaseUrl}}/address/update/me/{{addressId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "alias": "집",
+    "recipientName": "홍길동",
+    "recipientPhone": "010-3333-4444",
+    "zipCode": "05540",
+    "address": "서울특별시 송파구 올림픽로 300",
+    "detailAddress": "101동 1204호",
+    "defaultAddress": true,
+    "status": "ACTIVE"
+  }
+}

@@ -1,0 +1,32 @@
+meta {
+  name: Update Address By Id
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{userBaseUrl}}/manage/address/update/id/{{addressId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "alias": "관리자 수정 주소",
+    "recipientName": "이지은",
+    "recipientPhone": "010-1111-3333",
+    "zipCode": "05540",
+    "address": "서울특별시 송파구 올림픽로 300",
+    "detailAddress": "101동 1204호",
+    "defaultAddress": false,
+    "status": "ACTIVE"
+  }
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Insert User
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{userBaseUrl}}/manage/insert
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "admin-created-user",
+    "password": "user123!",
+    "name": "관리자생성",
+    "phoneNumber": "010-8888-0001",
+    "email": "admin-created-user@example.com",
+    "birthDate": "1990-01-01",
+    "address": "서울특별시 송파구 올림픽로 300"
+  }
+}

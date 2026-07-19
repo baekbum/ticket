@@ -1,0 +1,26 @@
+meta {
+  name: Validate Info
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{userBaseUrl}}/validate/info
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "password": "user123!"
+  }
+}
