@@ -1,0 +1,105 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/reservation/fragment-reservation-delivery.css}">
+
+<div class="frag-header">
+  <h2>배송 관리</h2>
+  <p class="sub-txt">예약별 배송 스냅샷을 조회하고 운송장 등록, 발송, 완료, 반송, 취소 상태를 처리합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="text" class="search-input" id="delivery-search-user-id" placeholder="사용자 ID 검색">
+    <input type="number" class="search-input delivery-search-number" id="delivery-search-reservation-id" placeholder="예약 ID" min="1">
+    <select class="search-input delivery-search-status" id="delivery-search-status">
+      <option value="">전체 상태</option>
+      <option value="READY">READY</option>
+      <option value="PREPARING">PREPARING</option>
+      <option value="SHIPPED">SHIPPED</option>
+      <option value="DELIVERED">DELIVERED</option>
+      <option value="RETURNED">RETURNED</option>
+      <option value="CANCELLED">CANCELLED</option>
+    </select>
+    <button class="btn" onclick="triggerDeliverySearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetDeliverySearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+  <div class="toolbar-right"></div>
+</div>
+
+<div class="delivery-status-tabs">
+  <button class="delivery-tab active" data-status="" onclick="quickDeliveryStatus(this)">전체</button>
+  <button class="delivery-tab" data-status="READY" onclick="quickDeliveryStatus(this)">준비 대상</button>
+  <button class="delivery-tab" data-status="PREPARING" onclick="quickDeliveryStatus(this)">준비중</button>
+  <button class="delivery-tab" data-status="SHIPPED" onclick="quickDeliveryStatus(this)">발송</button>
+  <button class="delivery-tab" data-status="DELIVERED" onclick="quickDeliveryStatus(this)">완료</button>
+  <button class="delivery-tab" data-status="RETURNED" onclick="quickDeliveryStatus(this)">반송</button>
+  <button class="delivery-tab" data-status="CANCELLED" onclick="quickDeliveryStatus(this)">취소</button>
+</div>
+
+<div class="table-wrap">
+  <table class="reservation-delivery-table">
+    <colgroup>
+      <col style="width:64px;">
+      <col style="width:120px;">
+      <col style="width:110px;">
+      <col style="width:130px;">
+      <col style="width:130px;">
+      <col style="width:150px;">
+      <col style="width:320px;">
+      <col style="width:120px;">
+      <col style="width:140px;">
+      <col style="width:150px;">
+      <col style="width:260px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>배송 ID</th>
+      <th>예약 ID</th>
+      <th>수령인</th>
+      <th>연락처</th>
+      <th>우편번호</th>
+      <th>주소</th>
+      <th>상태</th>
+      <th>택배사</th>
+      <th>운송장</th>
+      <th class="actions">처리</th>
+    </tr>
+    </thead>
+    <tbody id="reservation-delivery-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="delivery-tracking-modal">
+  <div class="f-modal-content delivery-tracking-content">
+    <p class="modal-title" id="delivery-tracking-title">운송장 등록</p>
+    <p class="modal-subtitle">배송 ID <strong id="delivery-tracking-id">-</strong>의 택배사와 운송장 번호를 입력합니다.</p>
+    <div class="modal-divider"></div>
+
+    <input type="hidden" id="delivery-tracking-mode">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>택배사</label>
+        <input type="text" id="delivery-carrier" placeholder="CJ대한통운">
+      </div>
+      <div class="form-group">
+        <label>운송장 번호</label>
+        <input type="text" id="delivery-tracking-number" placeholder="1234567890">
+      </div>
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeDeliveryTrackingModal()">취소</button>
+      <button class="btn" onclick="submitDeliveryTracking()">
+        <i class="ti ti-device-floppy"></i>저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/reservation/fragment-reservation-delivery.js}"></script>

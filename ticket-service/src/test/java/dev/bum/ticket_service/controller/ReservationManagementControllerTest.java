@@ -5,15 +5,12 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
-import dev.bum.common.service.ticket.reservation.dto.IsReservableRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
-import dev.bum.common.service.ticket.seat.vo.SeatInfo;
-import dev.bum.ticket_service.controller.reservation.ReservationManagementController;
+import dev.bum.ticket_service.controller.reservation.reservation.ReservationManagementController;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +51,7 @@ class ReservationManagementControllerTest {
     private final String baseUrl = "/api/v1/manage/reservation";
 
     @Test
-    @DisplayName("인증 없이 관리자용 예약 조회를 요청하면 4xx 응답")
+    @DisplayName("인증 없이 관리자 예약 조회를 요청하면 4xx 응답")
     void token_invalid() throws Exception {
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().is4xxClientError());
@@ -62,21 +59,7 @@ class ReservationManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("관리자용 예약 등록")
-    void reservation_insert() throws Exception {
-        InsertReservationRequest info = insertRequest("user01");
-
-        mockMvc.perform(post(baseUrl + "/insert")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk());
-
-        then(reservationService).should().insert(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("ID로 예약 조회")
+    @DisplayName("관리자가 예약을 ID로 조회한다")
     void reservation_select_by_id() throws Exception {
         ReservationResponse response = reservationResponse(1L, 2);
         given(reservationService.selectById(1L)).willReturn(response);
@@ -90,7 +73,7 @@ class ReservationManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("조건으로 예약 조회")
+    @DisplayName("관리자가 조건으로 예약 목록을 조회한다")
     void reservation_select_by_cond() throws Exception {
         ReservationCondRequest cond = ReservationCondRequest.builder()
                 .userId("user01")
@@ -120,7 +103,7 @@ class ReservationManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("예약 취소")
+    @DisplayName("관리자가 예약을 취소한다")
     void reservation_cancel() throws Exception {
         CancelReservationRequest info = cancelRequest("user01");
 
@@ -132,42 +115,11 @@ class ReservationManagementControllerTest {
         then(reservationService).should().cancel(1L, info);
     }
 
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("예약 가능 여부 확인")
-    void reservation_is_reservable() throws Exception {
-        IsReservableRequest info = reservableRequest("user01");
-
-        mockMvc.perform(post(baseUrl + "/reservable")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk());
-
-        then(reservationService).should().isReservable(info);
-    }
-
-    private InsertReservationRequest insertRequest(String userId) {
-        return InsertReservationRequest.builder()
-                .orderId("order-1")
-                .userId(userId)
-                .eventId(1L)
-                .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build()))
-                .build();
-    }
-
     private CancelReservationRequest cancelRequest(String userId) {
         return CancelReservationRequest.builder()
                 .userId(userId)
                 .selectedTicketIdList(List.of(1L, 2L))
                 .eventId(1L)
-                .build();
-    }
-
-    private IsReservableRequest reservableRequest(String userId) {
-        return IsReservableRequest.builder()
-                .userId(userId)
-                .eventId(1L)
-                .selectedSeatCnt(2)
                 .build();
     }
 

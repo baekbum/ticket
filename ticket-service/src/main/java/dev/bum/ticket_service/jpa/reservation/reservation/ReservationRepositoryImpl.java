@@ -84,7 +84,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         // 5. 검증이 끝난 좌석들의 상태를 RESERVED로 변경하고 티켓 생성
         for (Seat seat : seats) {
-            seat.reserved();
+            seat.lock();
 
             Ticket ticket = Ticket.builder()
                     .userId(info.getUserId())
@@ -225,12 +225,24 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 선택한 좌석의 총 가격을 계산
+     * @param seats
+     * @return
+     */
     private int calculateTotalTicketAmount(List<Seat> seats) {
         return seats.stream()
                 .mapToInt(seat -> seat.getPrice() != null ? seat.getPrice() : 0)
                 .sum();
     }
 
+    /**
+     * 쿠폰을 사용했을 때, 할인 금액을 계산한 스냅샷을 반환
+     * @param info
+     * @param reservation
+     * @param totalTicketAmount
+     * @return
+     */
     private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, Reservation reservation, int totalTicketAmount) {
         if (info.getUserCouponId() == null) {
             return null;
@@ -248,6 +260,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             throw new IllegalArgumentException("쿠폰 할인 금액이 유효하지 않습니다.");
         }
 
+        // 쿠폰의 상태를 현재 시간 기준으로 사용으로 변경
         userCoupon.use(now);
 
         return new DiscountSnapshot(
@@ -259,6 +272,14 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         );
     }
 
+    /**
+     * 쿠폰 검증
+     * @param info
+     * @param userCoupon
+     * @param coupon
+     * @param totalTicketAmount
+     * @param now
+     */
     private void validateUserCoupon(InsertReservationRequest info, UserCoupon userCoupon, Coupon coupon, int totalTicketAmount, LocalDateTime now) {
         if (!info.getUserId().equals(userCoupon.getUserId())) {
             throw new IllegalArgumentException("해당 사용자의 쿠폰이 아닙니다.");
@@ -289,6 +310,12 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         }
     }
 
+    /**
+     * 할인 금액 계산
+     * @param coupon
+     * @param totalTicketAmount
+     * @return
+     */
     private int calculateDiscountAmount(Coupon coupon, int totalTicketAmount) {
         int discountAmount;
 
@@ -306,6 +333,11 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         return Math.min(discountAmount, totalTicketAmount);
     }
 
+    /**
+     * 할인된 금액 스냅샷을 저장
+     * @param reservation
+     * @param discountSnapshot
+     */
     private void saveReservationDiscount(Reservation reservation, DiscountSnapshot discountSnapshot) {
         if (discountSnapshot == null || discountSnapshot.getDiscountAmount() <= 0) {
             return;
@@ -322,6 +354,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .build());
     }
 
+    /**
+     * 취소시 쿠폰을 다시 복구
+     * @param reservation
+     */
     private void restoreUsedCoupons(Reservation reservation) {
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
         LocalDateTime now = LocalDateTime.now();

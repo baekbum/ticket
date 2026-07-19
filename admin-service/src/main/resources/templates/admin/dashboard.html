@@ -81,6 +81,18 @@
         </div>
       </div>
 
+      <div class="menu-group is-open" data-menu-group="delivery">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-truck-delivery"></i>배송</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="reservationDelivery" onclick="switchMenu('reservationDelivery', this)">
+            <i class="ti ti-truck-delivery"></i>배송 관리
+          </button>
+        </div>
+      </div>
+
       <div class="menu-group is-open" data-menu-group="coupon">
         <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
           <span><i class="ti ti-discount-2"></i>쿠폰</span>

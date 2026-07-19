@@ -1,0 +1,90 @@
+.delivery-search-number { width: 150px; }
+.delivery-search-status { width: 160px; }
+
+.btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); box-shadow: none; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.badge-pending { background: #fff8e8; color: #996b00; }
+.badge-paid { background: #e6fcf5; color: #0c8f5a; }
+.badge-partial { background: #eef4ff; color: #2c69d4; }
+.badge-cancelled { background: #fff1f0; color: var(--red); }
+.badge-expired { background: #f4f3f8; color: var(--text-muted); }
+
+.delivery-status-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.delivery-tab {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.delivery-tab.active,
+.delivery-tab:hover {
+  border-color: var(--purple);
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+
+.reservation-delivery-table {
+  width: 100%;
+  min-width: 1780px;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.reservation-delivery-table th,
+.reservation-delivery-table td {
+  padding: 9px 8px;
+  border-right: 1px solid rgba(230,228,239,.45);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.reservation-delivery-table th {
+  background: #faf9fd;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.reservation-delivery-table .actions { text-align: center; }
+
+.delivery-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.delivery-tracking-content { max-width: 680px; }
+
+body.dark-mode .reservation-delivery-table th { background: #151722; }

@@ -3,22 +3,18 @@ package dev.bum.ticket_service.service;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
-import dev.bum.common.service.ticket.reservation.dto.IsReservableRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
-import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.kafka.reservation.ReservationProducer;
-import dev.bum.ticket_service.service.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,54 +49,8 @@ class ReservationServiceTest {
     @Mock
     private SeatCacheService seatCacheService;
 
-    @Mock
-    private ReservationProducer reservationProducer;
-
     @Test
-    @DisplayName("예약 등록 요청 시 좌석 점유 검증 후 큐로 전송")
-    void reservation_insert() {
-        InsertReservationRequest info = insertRequest();
-
-        reservationService.insert(info);
-
-        then(seatCacheService).should().validateOccupiedSeat(info);
-        then(reservationProducer).should().send(info);
-    }
-
-    @Test
-    @DisplayName("본인 예약 등록 요청은 로그인 사용자 ID로 예약자 ID를 변경한다")
-    void reservation_insert_my_reservation() {
-        InsertReservationRequest info = insertRequest();
-        info.setUserId("other-user");
-
-        reservationService.insertMyReservation("user01", info);
-
-        assertThat(info.getUserId()).isEqualTo("user01");
-        then(seatCacheService).should().validateOccupiedSeat(info);
-        then(reservationProducer).should().send(info);
-    }
-
-    @Test
-    @DisplayName("큐 예약 생성 후 예약 좌석 캐시와 구매 제한 캐시 동기화")
-    void create_reservation_from_queue() {
-        InsertReservationRequest info = insertRequest();
-        Reservation reservation = reservation(1L, "order-1", "user01", event());
-        Seat firstSeat = seat(1L, reservation.getEvent(), "VIP", 1, 1);
-        Seat secondSeat = seat(2L, reservation.getEvent(), "VIP", 1, 2);
-        new Ticket(1L, "user01", reservation, reservation.getEvent(), firstSeat, TicketStatus.PENDING_PAYMENT);
-        new Ticket(2L, "user01", reservation, reservation.getEvent(), secondSeat, TicketStatus.PENDING_PAYMENT);
-
-        given(repository.insert(info)).willReturn(reservation);
-
-        reservationService.createReservationFromQueue(info);
-
-        then(repository).should().insert(info);
-        then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(firstSeat, secondSeat));
-        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 2, "PLUS");
-    }
-
-    @Test
-    @DisplayName("ID로 예약 조회")
+    @DisplayName("ID로 예약을 조회한다")
     void reservation_select_by_id() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
         new Ticket(1L, "user01", reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
@@ -117,7 +67,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("본인 예약 ID로 조회")
+    @DisplayName("본인 예약을 ID로 조회한다")
     void reservation_select_my_reservation() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
         given(repository.selectById(1L)).willReturn(reservation);
@@ -142,7 +92,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("조건으로 예약 조회")
+    @DisplayName("조건으로 예약 목록을 조회한다")
     void reservation_select_by_cond() {
         ReservationCondRequest cond = ReservationCondRequest.builder()
                 .userId("user01")
@@ -170,7 +120,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("본인 예약 조건 조회는 로그인 사용자 ID로 검색한다")
+    @DisplayName("본인 예약 목록 조회는 로그인 사용자 ID로 검색한다")
     void reservation_select_my_reservations() {
         ReservationCondRequest cond = ReservationCondRequest.builder()
                 .userId("other-user")
@@ -191,7 +141,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("예약 취소 후 좌석 캐시와 구매 제한 캐시 동기화")
+    @DisplayName("예약 취소 후 좌석 캐시와 구매 제한 캐시를 갱신한다")
     void reservation_cancel() {
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
@@ -210,7 +160,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("본인 예약 취소는 예약자 검증 후 로그인 사용자 ID로 취소한다")
+    @DisplayName("본인 예약 취소는 로그인 사용자 ID로 취소한다")
     void reservation_cancel_my_reservation() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
         CancelReservationRequest info = CancelReservationRequest.builder()
@@ -250,47 +200,6 @@ class ReservationServiceTest {
         then(repository).should().selectById(1L);
         then(repository).shouldHaveNoMoreInteractions();
         then(seatCacheService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("예약 가능 여부 확인")
-    void reservation_is_reservable() {
-        IsReservableRequest info = IsReservableRequest.builder()
-                .userId("user01")
-                .eventId(1L)
-                .selectedSeatCnt(2)
-                .build();
-
-        reservationService.isReservable(info);
-
-        then(repository).should().validateReservableFromDatabase("user01", 1L, 2);
-    }
-
-    @Test
-    @DisplayName("본인 예약 가능 여부 확인은 로그인 사용자 ID로 검증한다")
-    void reservation_is_my_reservable() {
-        IsReservableRequest info = IsReservableRequest.builder()
-                .userId("other-user")
-                .eventId(1L)
-                .selectedSeatCnt(2)
-                .build();
-
-        reservationService.isMyReservable("user01", info);
-
-        assertThat(info.getUserId()).isEqualTo("user01");
-        then(repository).should().validateReservableFromDatabase("user01", 1L, 2);
-    }
-
-    private InsertReservationRequest insertRequest() {
-        return InsertReservationRequest.builder()
-                .orderId("order-1")
-                .userId("user01")
-                .eventId(1L)
-                .seats(List.of(
-                        SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build(),
-                        SeatInfo.builder().id(2L).zone("VIP").row(1).col(2).build()
-                ))
-                .build();
     }
 
     private Reservation reservation(Long reservationId, String orderId, String userId, Event event) {
