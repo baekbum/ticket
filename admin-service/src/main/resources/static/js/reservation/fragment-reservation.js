@@ -63,6 +63,14 @@
     return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(statusLabel(status))}</span>`;
   }
 
+  function money(value) {
+    return `${Number(value || 0).toLocaleString()}원`;
+  }
+
+  function valueOrDash(value) {
+    return value == null || value === '' ? '-' : value;
+  }
+
   function buildSortArray() {
     return Object.keys(currentSortFilters).reduce((acc, field) => {
       if (currentSortFilters[field]) acc.push(`${field}-${currentSortFilters[field]}`);
@@ -136,7 +144,6 @@
           <td>${statusBadge(reservation.status)}</td>
           <td class="actions" onclick="event.stopPropagation()">
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openReservationDetailModal(${reservation.reservationId})">상세</button>
-            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openReservationTicketModal(${reservation.reservationId})"><i class="ti ti-ticket"></i>티켓</button>
           </td>
         `;
         tr.onclick = () => openReservationDetailModal(reservation.reservationId);
@@ -248,21 +255,36 @@
   }
 
   window.openReservationDetailModal = async function (reservationId) {
-    let reservation = currentReservationList.find(item => Number(item.reservationId) === Number(reservationId));
+    document.getElementById('reservation-detail-loading').style.display = 'flex';
+    document.getElementById('reservation-detail-body').style.display = 'none';
+    document.getElementById('reservation-detail-modal').style.display = 'flex';
 
-    if (!reservation) {
-      try {
-        const res = await Fetch(`${RESERVATION_URL}/select/id/${reservationId}`, { method: 'GET' });
-        if (!res.ok) {
-          showToast('예매 상세 조회에 실패했습니다.', true);
-          return;
-        }
-        reservation = await res.json();
-      } catch (e) {
-        showToast('예매 상세 통신 오류가 발생했습니다.', true);
+    try {
+      const res = await Fetch(`${RESERVATION_URL}/select/detail/${reservationId}`, { method: 'GET' });
+      if (!res.ok) {
+        showToast('예매 상세 조회에 실패했습니다.', true);
+        closeReservationDetailModal();
         return;
       }
+
+      renderReservationDetail(await res.json());
+    } catch (e) {
+      console.error('Reservation detail load failed', e);
+      showToast('예매 상세 통신 오류가 발생했습니다.', true);
+      closeReservationDetailModal();
     }
+  };
+
+  window.closeReservationDetailModal = function () {
+    document.getElementById('reservation-detail-modal').style.display = 'none';
+  };
+
+  function renderReservationDetail(detail) {
+    const reservation = detail?.reservation || {};
+    const tickets = Array.isArray(detail?.tickets) ? detail.tickets : [];
+    const discounts = Array.isArray(detail?.discounts) ? detail.discounts : [];
+    const delivery = detail?.delivery;
+    const payment = detail?.payment;
 
     document.getElementById('detail-reservation-id').textContent = reservation.reservationId ?? '-';
     document.getElementById('detail-order-id').textContent = reservation.orderId || '-';
@@ -273,13 +295,134 @@
     document.getElementById('detail-venue').textContent = reservation.venue || '-';
     document.getElementById('detail-event-date-time').textContent = reservation.eventDateTime || '-';
     document.getElementById('detail-reserved-date').textContent = reservation.reservedDate || '-';
-    document.getElementById('detail-ticket-count').textContent = `${Number(reservation.ticketCount || 0).toLocaleString()}매`;
-    document.getElementById('reservation-detail-modal').style.display = 'flex';
-  };
+    document.getElementById('detail-ticket-count').textContent = `${Number(reservation.ticketCount || tickets.length || 0).toLocaleString()}매`;
 
-  window.closeReservationDetailModal = function () {
-    document.getElementById('reservation-detail-modal').style.display = 'none';
-  };
+    renderDetailTickets(tickets);
+    renderDetailDiscounts(discounts);
+    renderDetailDelivery(delivery);
+    renderDetailPayment(payment, detail);
+
+    document.getElementById('reservation-detail-loading').style.display = 'none';
+    document.getElementById('reservation-detail-body').style.display = 'block';
+  }
+
+  function renderDetailTickets(tickets) {
+    document.getElementById('detail-ticket-summary').textContent =
+      `${tickets.length.toLocaleString()}매 / ${money(tickets.reduce((sum, ticket) => sum + Number(ticket.price || 0), 0))}`;
+
+    const tbody = document.getElementById('detail-ticket-body');
+    if (tickets.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="detail-empty-cell">연결된 티켓이 없습니다.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = tickets.map(ticket => `
+      <tr>
+        <td>#${escapeHtml(ticket.ticketId)}</td>
+        <td title="${escapeHtml(ticket.seatName)}">${escapeHtml(ticket.seatName || formatSeatRowCol(ticket))}</td>
+        <td>${escapeHtml(ticket.zone || '-')}</td>
+        <td>${escapeHtml(ticket.grade || '-')}</td>
+        <td class="number-cell">${money(ticket.price)}</td>
+        <td>${ticketStatusBadge(ticket.status)}</td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="openTicketSeatLocation(${ticket.seatId})">
+            <i class="ti ti-map-pin"></i>위치
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function renderDetailDiscounts(discounts) {
+    const totalDiscount = discounts.reduce((sum, discount) => sum + Number(discount.discountAmount || 0), 0);
+    document.getElementById('detail-discount-summary').textContent = `${discounts.length.toLocaleString()}건 / ${money(totalDiscount)}`;
+
+    const tbody = document.getElementById('detail-discount-body');
+    if (discounts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="detail-empty-cell">적용된 할인 내역이 없습니다.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = discounts.map(discount => `
+      <tr>
+        <td title="${escapeHtml(discount.discountName)}">${escapeHtml(discount.discountName || '-')}</td>
+        <td>${escapeHtml(formatDiscountType(discount))}</td>
+        <td>${escapeHtml(formatDiscountValue(discount))}</td>
+        <td class="number-cell">${money(discount.discountAmount)}</td>
+        <td>${escapeHtml(discount.createdAt || '-')}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderDetailDelivery(delivery) {
+    const grid = document.getElementById('detail-delivery-grid');
+    if (!delivery) {
+      grid.innerHTML = `<div class="detail-empty-state detail-grid-empty"><i class="ti ti-truck-off"></i><span>배송 정보가 없습니다.</span></div>`;
+      return;
+    }
+
+    grid.innerHTML = [
+      ['수령인', delivery.recipientName],
+      ['연락처', delivery.recipientPhone],
+      ['상태', delivery.status],
+      ['우편번호', delivery.zipCode],
+      ['주소', joinAddress(delivery)],
+      ['요청사항', delivery.deliveryMessage],
+      ['택배사', delivery.carrier],
+      ['운송장 번호', delivery.trackingNumber],
+      ['발송일', delivery.shippedAt],
+      ['배송 완료일', delivery.deliveredAt]
+    ].map(([label, value]) => detailItem(label, value)).join('');
+  }
+
+  function renderDetailPayment(payment, detail) {
+    document.getElementById('detail-payment-summary').textContent =
+      `티켓 ${money(detail?.totalTicketAmount)} / 할인 ${money(detail?.totalDiscountAmount)} / 결제 ${money(detail?.paymentAmount)}`;
+
+    const grid = document.getElementById('detail-payment-grid');
+    if (!payment) {
+      grid.innerHTML = `<div class="detail-empty-state detail-grid-empty"><i class="ti ti-credit-card-off"></i><span>결제 정보가 없습니다.</span></div>`;
+      return;
+    }
+
+    grid.innerHTML = [
+      ['결제 ID', payment.paymentId],
+      ['결제 번호', payment.paymentNo],
+      ['수단', payment.method],
+      ['상태', payment.status],
+      ['결제 금액', money(payment.amount)],
+      ['입금자명', payment.depositorName],
+      ['은행', payment.bankName],
+      ['계좌번호', payment.accountNumber],
+      ['요청일', payment.requestedAt],
+      ['완료일', payment.paidAt],
+      ['만료일', payment.expiresAt]
+    ].map(([label, value]) => detailItem(label, value)).join('');
+  }
+
+  function detailItem(label, value) {
+    return `
+      <div class="detail-item">
+        <span>${escapeHtml(label)}</span>
+        <strong title="${escapeHtml(valueOrDash(value))}">${escapeHtml(valueOrDash(value))}</strong>
+      </div>
+    `;
+  }
+
+  function formatDiscountType(discount) {
+    if (discount.discountType === 'COUPON') return `쿠폰 ${discount.couponDiscountType || ''}`.trim();
+    return discount.discountType || '-';
+  }
+
+  function formatDiscountValue(discount) {
+    if (discount.couponDiscountType === 'PERCENT') return `${Number(discount.discountValue || 0).toLocaleString()}%`;
+    if (discount.discountValue != null) return money(discount.discountValue);
+    return '-';
+  }
+
+  function joinAddress(delivery) {
+    return [delivery.address, delivery.detailAddress].filter(Boolean).join(' ');
+  }
 
   window.openReservationTicketModal = async function (reservationId) {
     const reservation = currentReservationList.find(item => Number(item.reservationId) === Number(reservationId));

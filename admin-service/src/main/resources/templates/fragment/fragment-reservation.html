@@ -116,50 +116,121 @@
 <div class="f-modal" id="reservation-detail-modal">
   <div class="f-modal-content reservation-detail-content">
     <p class="modal-title">예매 상세 조회</p>
-    <p class="modal-subtitle">선택한 예매의 기본 정보를 확인합니다.</p>
+    <p class="modal-subtitle">선택한 예매의 티켓, 할인, 배송, 결제 정보를 확인합니다.</p>
     <div class="modal-divider"></div>
 
-    <div class="reservation-detail-grid">
-      <div class="detail-item">
-        <span>예매 ID</span>
-        <strong id="detail-reservation-id">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>주문 번호</span>
-        <strong id="detail-order-id">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>유저 ID</span>
-        <strong id="detail-user-id">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>상태</span>
-        <strong id="detail-status">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>공연 ID</span>
-        <strong id="detail-event-id">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>공연 제목</span>
-        <strong id="detail-event-title">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>공연장</span>
-        <strong id="detail-venue">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>공연 일시</span>
-        <strong id="detail-event-date-time">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>예매일</span>
-        <strong id="detail-reserved-date">-</strong>
-      </div>
-      <div class="detail-item">
-        <span>티켓 매수</span>
-        <strong id="detail-ticket-count">-</strong>
-      </div>
+    <div id="reservation-detail-loading" class="detail-empty-state">
+      <i class="ti ti-loader-2"></i>
+      <span>예매 상세 정보를 불러오는 중입니다.</span>
+    </div>
+
+    <div id="reservation-detail-body" style="display:none;">
+      <section class="detail-section">
+        <div class="detail-section-head">
+          <h3>기본 예매 정보</h3>
+        </div>
+        <div class="reservation-detail-grid">
+          <div class="detail-item">
+            <span>예매 ID</span>
+            <strong id="detail-reservation-id">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>주문 번호</span>
+            <strong id="detail-order-id">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>유저 ID</span>
+            <strong id="detail-user-id">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>상태</span>
+            <strong id="detail-status">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>공연 ID</span>
+            <strong id="detail-event-id">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>공연 제목</span>
+            <strong id="detail-event-title">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>공연장</span>
+            <strong id="detail-venue">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>공연 일시</span>
+            <strong id="detail-event-date-time">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>예매일</span>
+            <strong id="detail-reserved-date">-</strong>
+          </div>
+          <div class="detail-item">
+            <span>티켓 매수</span>
+            <strong id="detail-ticket-count">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <div class="detail-section-head">
+          <h3>티켓/좌석 내역</h3>
+          <span id="detail-ticket-summary">-</span>
+        </div>
+        <div class="detail-table-wrap">
+          <table class="detail-table">
+            <thead>
+            <tr>
+              <th>티켓 ID</th>
+              <th>좌석</th>
+              <th>구역</th>
+              <th>등급</th>
+              <th>가격</th>
+              <th>상태</th>
+              <th>관리</th>
+            </tr>
+            </thead>
+            <tbody id="detail-ticket-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <div class="detail-section-head">
+          <h3>할인 내역</h3>
+          <span id="detail-discount-summary">-</span>
+        </div>
+        <div class="detail-table-wrap">
+          <table class="detail-table">
+            <thead>
+            <tr>
+              <th>할인명</th>
+              <th>유형</th>
+              <th>기준값</th>
+              <th>할인 금액</th>
+              <th>생성일</th>
+            </tr>
+            </thead>
+            <tbody id="detail-discount-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <div class="detail-section-head">
+          <h3>배송 정보 요약</h3>
+        </div>
+        <div class="reservation-detail-grid" id="detail-delivery-grid"></div>
+      </section>
+
+      <section class="detail-section">
+        <div class="detail-section-head">
+          <h3>결제 정보 요약</h3>
+          <span id="detail-payment-summary">-</span>
+        </div>
+        <div class="reservation-detail-grid" id="detail-payment-grid"></div>
+      </section>
     </div>
 
     <div class="form-row modal-actions">

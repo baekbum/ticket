@@ -3,6 +3,7 @@ package dev.bum.ticket_service.controller.reservation.reservation;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,11 @@ public class ReservationManagementController {
     @GetMapping("/select/id/{reservationId}")
     public ResponseEntity<ReservationResponse> selectById(@PathVariable("reservationId") long id) {
         return ResponseEntity.ok(reservationService.selectById(id));
+    }
+
+    @GetMapping("/select/detail/{reservationId}")
+    public ResponseEntity<ReservationDetailResponse> selectDetailById(@PathVariable("reservationId") long id) {
+        return ResponseEntity.ok(reservationService.selectDetailById(id));
     }
 
     @PostMapping("/select")
