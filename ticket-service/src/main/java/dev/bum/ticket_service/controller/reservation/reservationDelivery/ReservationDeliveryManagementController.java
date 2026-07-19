@@ -2,7 +2,6 @@ package dev.bum.ticket_service.controller.reservation.reservationDelivery;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryCondRequest;
-import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationDeliveryTrackingRequest;
 import dev.bum.ticket_service.service.reservation.reservationDelivery.ReservationDeliveryService;
@@ -25,14 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReservationDeliveryManagementController {
 
     private final ReservationDeliveryService reservationDeliveryService;
-
-    @PostMapping("/insert/reservation/{reservationId}")
-    public ResponseEntity<ReservationDeliveryResponse> insert(
-            @PathVariable("reservationId") long reservationId,
-            @Valid @RequestBody ReservationDeliveryRequest info
-    ) {
-        return ResponseEntity.ok(reservationDeliveryService.insert(reservationId, info));
-    }
 
     @GetMapping("/select/id/{reservationDeliveryId}")
     public ResponseEntity<ReservationDeliveryResponse> selectById(@PathVariable("reservationDeliveryId") long id) {

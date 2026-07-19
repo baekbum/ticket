@@ -221,7 +221,8 @@ CREATE TABLE payments (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
-    CONSTRAINT uk_payments_payment_no UNIQUE (payment_no)
+    CONSTRAINT uk_payments_payment_no UNIQUE (payment_no),
+    CONSTRAINT uk_payments_idempotency_key UNIQUE (idempotency_key)
 );
 
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
@@ -244,3 +245,4 @@ CREATE TABLE tickets (
 CREATE INDEX idx_ticket_reservation_id ON tickets(reservation_id);
 CREATE INDEX idx_ticket_user_id ON tickets(user_id);
 CREATE INDEX idx_ticket_seat_id ON tickets(seat_id);
+CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);

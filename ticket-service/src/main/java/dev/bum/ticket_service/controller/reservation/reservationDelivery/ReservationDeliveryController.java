@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,15 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReservationDeliveryController {
 
     private final ReservationDeliveryService reservationDeliveryService;
-
-    @PostMapping("/insert/reservation/{reservationId}")
-    public ResponseEntity<ReservationDeliveryResponse> insert(
-            @AuthenticationPrincipal String currentUserId,
-            @PathVariable("reservationId") long reservationId,
-            @Valid @RequestBody ReservationDeliveryRequest info
-    ) {
-        return ResponseEntity.ok(reservationDeliveryService.insertMyDelivery(currentUserId, reservationId, info));
-    }
 
     @GetMapping("/select/id/{reservationDeliveryId}")
     public ResponseEntity<ReservationDeliveryResponse> selectById(
@@ -46,5 +37,14 @@ public class ReservationDeliveryController {
             @PathVariable("reservationId") long reservationId
     ) {
         return ResponseEntity.ok(reservationDeliveryService.selectMyByReservationId(currentUserId, reservationId));
+    }
+
+    @PutMapping("/update/id/{reservationDeliveryId}")
+    public ResponseEntity<ReservationDeliveryResponse> update(
+            @AuthenticationPrincipal String currentUserId,
+            @PathVariable("reservationDeliveryId") long id,
+            @Valid @RequestBody ReservationDeliveryRequest info
+    ) {
+        return ResponseEntity.ok(reservationDeliveryService.updateMyDelivery(currentUserId, id, info));
     }
 }

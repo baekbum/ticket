@@ -131,6 +131,19 @@ public class ReservationDelivery {
                 .build();
     }
 
+    public void updateDeliveryInfo(ReservationDeliveryRequest info) {
+        if (this.status != ReservationDeliveryStatus.READY) {
+            throw new IllegalStateException("배송 준비 전 상태에서만 배송지를 변경할 수 있습니다.");
+        }
+
+        this.recipientName = info.getRecipientName();
+        this.recipientPhone = info.getRecipientPhone();
+        this.zipCode = info.getZipCode();
+        this.address = info.getAddress();
+        this.detailAddress = info.getDetailAddress();
+        this.deliveryMessage = info.getDeliveryMessage();
+    }
+
     public void prepare() {
         this.status = ReservationDeliveryStatus.PREPARING;
     }
