@@ -1,0 +1,35 @@
+meta {
+  name: Occupy Seat
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{ticketBaseUrl}}/seat/occupy
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "eventId": {{eventId}},
+    "userId": "{{userId}}",
+    "maxTicketsPerPerson": 4,
+    "seats": [
+      {
+        "id": {{seatId}},
+        "zone": "VIP",
+        "row": 1,
+        "col": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Insert Coupon
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/coupon/insert
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "웰컴 쿠폰",
+    "code": "WELCOME2026",
+    "discountType": "FIXED_AMOUNT",
+    "discountValue": 10000,
+    "minOrderAmount": 10000,
+    "validDaysAfterIssue": 30,
+    "status": "ACTIVE"
+  }
+}

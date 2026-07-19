@@ -1,0 +1,15 @@
+meta {
+  name: Download Coupon
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{ticketBaseUrl}}/coupon/download/{{couponId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

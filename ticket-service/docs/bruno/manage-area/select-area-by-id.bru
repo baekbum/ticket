@@ -1,0 +1,15 @@
+meta {
+  name: Select Area By Id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{ticketBaseUrl}}/manage/area/select/id/{{areaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

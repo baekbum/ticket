@@ -1,0 +1,29 @@
+meta {
+  name: Cancel Reservation
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{ticketBaseUrl}}/manage/reservation/cancel/id/{{reservationId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "eventId": {{eventId}},
+    "selectedTicketIdList": [
+      {{ticketId}}
+    ]
+  }
+}

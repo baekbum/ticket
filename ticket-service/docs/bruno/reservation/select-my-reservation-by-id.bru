@@ -1,0 +1,15 @@
+meta {
+  name: Select My Reservation By Id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{ticketBaseUrl}}/reservation/select/id/{{reservationId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

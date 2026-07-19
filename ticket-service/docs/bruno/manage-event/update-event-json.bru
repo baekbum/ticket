@@ -1,0 +1,39 @@
+meta {
+  name: Update Event Json
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{ticketBaseUrl}}/manage/event/update/id/{{eventId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "artistName": "IU",
+    "title": "IU CONCERT",
+    "description": "관리자 API 테스트용 수정",
+    "venue": "KSPO DOME",
+    "venueAddress": "서울특별시 송파구 올림픽로 424",
+    "eventDateTime": "2026-08-15T19:00:00",
+    "saleStartAt": "2026-07-01T10:00:00",
+    "saleEndAt": "2026-08-15T18:00:00",
+    "cancelDeadlineAt": "2026-08-14T23:59:59",
+    "runningMinutes": 120,
+    "ageLimit": 7,
+    "totalSeats": 1000,
+    "availableSeats": 1000,
+    "status": "ON_SALE",
+    "maxTicketsPerPerson": 4
+  }
+}

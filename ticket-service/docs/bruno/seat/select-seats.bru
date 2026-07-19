@@ -1,0 +1,15 @@
+meta {
+  name: Select Seats
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{ticketBaseUrl}}/seat/select?eventId={{eventId}}&page=0&size=10&sort=seatId-asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
