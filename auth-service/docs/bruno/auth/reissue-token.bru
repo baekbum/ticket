@@ -1,0 +1,22 @@
+meta {
+  name: Reissue Token
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{authBaseUrl}}/reissue
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization-Refresh: Bearer {{refreshToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+  }
+}

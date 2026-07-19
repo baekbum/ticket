@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "ticket-service",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

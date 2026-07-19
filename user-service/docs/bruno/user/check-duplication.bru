@@ -1,0 +1,11 @@
+meta {
+  name: Check Duplication
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{userBaseUrl}}/check/duplication/{{userId}}
+  body: none
+  auth: none
+}

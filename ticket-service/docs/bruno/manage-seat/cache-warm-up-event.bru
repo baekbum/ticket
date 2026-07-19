@@ -1,0 +1,15 @@
+meta {
+  name: Cache Warm Up Event
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/seat/cache/warm-up/event/{{eventId}}?mode=AVAILABLE_ONLY
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -9,20 +9,12 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaTopicConfig {
 
-    @Value("${topic.reservation.name}")
-    private String reservationTopicName;
+    @Value("${topic.payment.completed.name}")
+    private String paymentCompletedTopicName;
 
     @Bean
-    public NewTopic reservationTopic() {
-        return TopicBuilder.name(reservationTopicName)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    public NewTopic reservationDltTopic() {
-        return TopicBuilder.name(reservationTopicName + ".DLT")
+    public NewTopic paymentCompletedTopic() {
+        return TopicBuilder.name(paymentCompletedTopicName)
                 .partitions(3)
                 .replicas(1)
                 .build();

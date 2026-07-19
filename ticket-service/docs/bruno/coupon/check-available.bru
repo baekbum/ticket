@@ -1,0 +1,27 @@
+meta {
+  name: Check Available
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{ticketBaseUrl}}/coupon/available
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "userCouponId": {{userCouponId}},
+    "orderAmount": 150000
+  }
+}

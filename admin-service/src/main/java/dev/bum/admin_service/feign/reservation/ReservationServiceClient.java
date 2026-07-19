@@ -3,6 +3,7 @@ package dev.bum.admin_service.feign.reservation;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,9 @@ public interface ReservationServiceClient {
 
     @GetMapping("/select/id/{reservationId}")
     ReservationResponse selectById(@PathVariable("reservationId") Long reservationId);
+
+    @GetMapping("/select/detail/{reservationId}")
+    ReservationDetailResponse selectDetailById(@PathVariable("reservationId") Long reservationId);
 
     @PostMapping("/select")
     CustomPageResponse<ReservationResponse> selectByCond(@RequestBody ReservationCondRequest cond);

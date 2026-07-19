@@ -1,0 +1,30 @@
+meta {
+  name: Select Reservations
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/reservation/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "reservationId-desc"
+    ]
+  }
+}

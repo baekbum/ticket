@@ -1,0 +1,26 @@
+meta {
+  name: Ship Delivery
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{ticketBaseUrl}}/manage/reservation/delivery/ship/id/{{reservationDeliveryId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "carrier": "CJ대한통운",
+    "trackingNumber": "123456789012"
+  }
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Issue Coupon
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/coupon/issue
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "couponId": {{couponId}},
+    "expiresAt": "2026-08-15T23:59:59"
+  }
+}

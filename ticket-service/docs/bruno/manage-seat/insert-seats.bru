@@ -1,0 +1,45 @@
+meta {
+  name: Insert Seats
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/seat/insert
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "eventId": {{eventId}},
+    "areaId": {{areaId}},
+    "insertSeatAreaConfigs": [
+      {
+        "grade": "VIP",
+        "zone": "VIP",
+        "rows": 2,
+        "cols": 5,
+        "price": 150000,
+        "startRow": 1,
+        "startCol": 1,
+        "startX": 80,
+        "startY": 80,
+        "seatWidth": 14,
+        "seatHeight": 14,
+        "gapX": 18,
+        "gapY": 18,
+        "rotation": 0,
+        "layoutAngle": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Delete Address By Id
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{userBaseUrl}}/manage/address/delete/id/{{addressId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

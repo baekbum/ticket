@@ -1,0 +1,30 @@
+meta {
+  name: Select User Coupons
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/coupon/user-coupon/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "userCouponId-desc"
+    ]
+  }
+}

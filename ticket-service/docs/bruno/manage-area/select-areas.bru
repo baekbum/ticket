@@ -1,0 +1,30 @@
+meta {
+  name: Select Areas
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{ticketBaseUrl}}/manage/area/select
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "eventId": {{eventId}},
+    "page": 0,
+    "size": 10,
+    "sort": [
+      "areaId-desc"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Delete Event By Id
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{ticketBaseUrl}}/manage/event/delete/id/{{eventId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
