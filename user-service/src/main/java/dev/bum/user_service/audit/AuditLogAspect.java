@@ -73,6 +73,8 @@ public class AuditLogAspect {
                     .userAgent(headerOf(request, "User-Agent"))
                     .requestId(valueOrNewUuid(firstHeaderOf(request, "X-Request-Id", "X-Correlation-Id")))
                     .traceId(valueOrNewTraceId(firstHeaderOf(request, "traceparent", "X-B3-TraceId")))
+                    .beforeData(AuditContext.getBeforeData())
+                    .afterData(AuditContext.getAfterData())
                     .metadata(metadataOf(joinPoint, actorId, targetId))
                     .build();
 

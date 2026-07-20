@@ -3,9 +3,13 @@ package dev.bum.user_service.audit;
 import dev.bum.common.service.user.user.enums.UserRole;
 import org.springframework.util.StringUtils;
 
+import java.util.Map;
+
 public final class AuditContext {
 
     private static final ThreadLocal<Actor> ACTOR = new ThreadLocal<>();
+    private static final ThreadLocal<Map<String, Object>> BEFORE_DATA = new ThreadLocal<>();
+    private static final ThreadLocal<Map<String, Object>> AFTER_DATA = new ThreadLocal<>();
 
     private AuditContext() {
     }
@@ -32,8 +36,26 @@ public final class AuditContext {
         return actor != null ? actor.getActorType() : null;
     }
 
+    public static void setBeforeData(Map<String, Object> beforeData) {
+        BEFORE_DATA.set(beforeData);
+    }
+
+    public static Map<String, Object> getBeforeData() {
+        return BEFORE_DATA.get();
+    }
+
+    public static void setAfterData(Map<String, Object> afterData) {
+        AFTER_DATA.set(afterData);
+    }
+
+    public static Map<String, Object> getAfterData() {
+        return AFTER_DATA.get();
+    }
+
     public static void clear() {
         ACTOR.remove();
+        BEFORE_DATA.remove();
+        AFTER_DATA.remove();
     }
 
     private static String toActorType(UserRole role) {
