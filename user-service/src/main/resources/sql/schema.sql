@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS audit_log CASCADE;
 DROP TABLE IF EXISTS user_addresses CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
@@ -56,34 +57,34 @@ CREATE UNIQUE INDEX uk_user_addresses_default_active
 -- 3. 감사 로그 테이블
 -- ==========================================
 CREATE TABLE audit_log (
-                           id BIGSERIAL PRIMARY KEY,
-                           occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   id BIGSERIAL PRIMARY KEY,
+   occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                           service_name VARCHAR(50) NOT NULL,
+   service_name VARCHAR(50) NOT NULL,
 
-                           actor_type VARCHAR(30) NOT NULL,
-                           actor_id VARCHAR(50),
-                           actor_name VARCHAR(100),
+   actor_type VARCHAR(30) NOT NULL,
+   actor_id VARCHAR(50),
+   actor_name VARCHAR(100),
 
-                           action VARCHAR(100) NOT NULL,
+   action VARCHAR(100) NOT NULL,
 
-                           target_type VARCHAR(50),
-                           target_id VARCHAR(100),
+   target_type VARCHAR(50),
+   target_id VARCHAR(100),
 
-                           result VARCHAR(20) NOT NULL,
-                           reason VARCHAR(500),
+   result VARCHAR(20) NOT NULL,
+   reason VARCHAR(500),
 
-                           ip_address VARCHAR(45),
-                           user_agent VARCHAR(500),
+   ip_address VARCHAR(45),
+   user_agent VARCHAR(500),
 
-                           request_id VARCHAR(100),
-                           trace_id VARCHAR(100),
+   request_id VARCHAR(100),
+   trace_id VARCHAR(100),
 
-                           before_data JSONB,
-                           after_data JSONB,
-                           metadata JSONB,
+   before_data JSONB,
+   after_data JSONB,
+   metadata JSONB,
 
-                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_audit_log_occurred_at ON audit_log(occurred_at);

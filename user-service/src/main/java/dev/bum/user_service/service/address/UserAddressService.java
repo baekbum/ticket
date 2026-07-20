@@ -3,6 +3,7 @@ package dev.bum.user_service.service.address;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.user.address.dto.*;
 import dev.bum.common.service.user.address.enums.AddressStatus;
+import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.jpa.address.UserAddress;
 import dev.bum.user_service.jpa.address.UserAddressRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class UserAddressService {
 
     private final UserAddressRepository repository;
 
+    @AuditLog(action = "USER_ADDRESS_CREATE", targetType = "USER_ADDRESS")
     public UserAddressResponse insert(String userId, InsertUserAddressRequest info) {
         String targetUserId = resolveUserId(userId, info.getUserId());
         log.info("[INSERT ADDRESS] userId : {}, info : {}", targetUserId, info);
@@ -62,11 +64,13 @@ public class UserAddressService {
         return selectByCond(cond);
     }
 
+    @AuditLog(action = "USER_ADDRESS_UPDATE", targetType = "USER_ADDRESS")
     public UserAddressResponse update(Long addressId, UpdateUserAddressRequest info) {
         log.info("[UPDATE ADDRESS] addressId : {}, info : {}", addressId, info);
         return repository.update(addressId, info).toResponse();
     }
 
+    @AuditLog(action = "USER_ADDRESS_UPDATE", targetType = "USER_ADDRESS")
     public UserAddressResponse updateMyAddress(String currentUserId, Long addressId, UpdateUserAddressRequest info) {
         UserAddress address = repository.selectById(addressId);
         validateOwner(currentUserId, address);
@@ -74,11 +78,13 @@ public class UserAddressService {
         return repository.update(addressId, info).toResponse();
     }
 
+    @AuditLog(action = "USER_ADDRESS_DELETE", targetType = "USER_ADDRESS")
     public UserAddressResponse delete(Long addressId) {
         log.info("[DELETE ADDRESS] addressId : {}", addressId);
         return repository.delete(addressId).toResponse();
     }
 
+    @AuditLog(action = "USER_ADDRESS_DELETE", targetType = "USER_ADDRESS")
     public UserAddressResponse deleteMyAddress(String currentUserId, Long addressId) {
         UserAddress address = repository.selectById(addressId);
         validateOwner(currentUserId, address);
@@ -86,6 +92,7 @@ public class UserAddressService {
         return repository.delete(addressId).toResponse();
     }
 
+    @AuditLog(action = "USER_ADDRESS_DELETE_BULK", targetType = "USER_ADDRESS")
     public void deleteBulk(DeleteUserAddressBulkRequest info) {
         if (info.getAddressIds() == null || info.getAddressIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 배송지 정보가 없습니다.");

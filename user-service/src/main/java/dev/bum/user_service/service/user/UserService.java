@@ -6,6 +6,7 @@ import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
@@ -55,6 +56,7 @@ public class UserService {
      * @param info
      * @return
      */
+    @AuditLog(action = "USER_CREATE", targetType = "USER")
     public UserResponse insert(InsertUserRequest info) {
         log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
@@ -110,6 +112,7 @@ public class UserService {
      * @param info
      * @return
      */
+    @AuditLog(action = "USER_UPDATE", targetType = "USER")
     public UserResponse update(String userId, UpdateUserRequest info) {
         log.info("[UPDATE] updateUserInfo : {}", info.toString());
 
@@ -131,6 +134,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
     public void validateInfo(ValidatePasswordRequest info) {
         log.info("[VALIDATE] : {}", info);
         User user = repository.selectById(info.getUserId());
@@ -140,6 +144,7 @@ public class UserService {
         }
     }
 
+    @AuditLog(action = "USER_PASSWORD_INIT", targetType = "USER")
     public void initPassword(String userId) {
         log.info("[INIT PASSWORD] userId : {}", userId);
         UpdateUserRequest info = UpdateUserRequest.builder()
@@ -155,6 +160,7 @@ public class UserService {
      * @param userId
      * @return
      */
+    @AuditLog(action = "USER_DELETE", targetType = "USER")
     public UserResponse delete(String userId) {
         log.info("[DELETE] userId : {}", userId);
 
@@ -171,6 +177,7 @@ public class UserService {
         return deletedUser.toResponse();
     }
 
+    @AuditLog(action = "USER_DELETE_BULK", targetType = "USER")
     public void deleteBulk(DeleteUserBulkRequest info) {
         if (info.getUserIds() == null || info.getUserIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 유저 정보가 없습니다.");
