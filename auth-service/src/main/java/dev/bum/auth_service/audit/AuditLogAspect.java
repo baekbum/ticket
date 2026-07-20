@@ -41,6 +41,8 @@ public class AuditLogAspect {
         } catch (Throwable throwable) {
             saveAuditLog(joinPoint, auditLog, RESULT_FAILURE, throwable);
             throw throwable;
+        } finally {
+            AuditContext.clear();
         }
     }
 
@@ -53,11 +55,12 @@ public class AuditLogAspect {
         try {
             HttpServletRequest request = currentRequest();
             String actorId = findActorId(joinPoint.getArgs());
+            String actorType = findActorType(actorId);
 
             AuditLogEntity entity = AuditLogEntity.builder()
                     .occurredAt(LocalDateTime.now())
                     .serviceName(serviceName)
-                    .actorType(StringUtils.hasText(actorId) ? "USER" : "ANONYMOUS")
+                    .actorType(actorType)
                     .actorId(actorId)
                     .action(auditLog.action())
                     .targetType(blankToNull(auditLog.targetType()))
@@ -68,7 +71,7 @@ public class AuditLogAspect {
                     .userAgent(headerOf(request, "User-Agent"))
                     .requestId(firstHeaderOf(request, "X-Request-Id", "X-Correlation-Id"))
                     .traceId(firstHeaderOf(request, "traceparent", "X-B3-TraceId"))
-                    .metadata(metadataOf(joinPoint))
+                    .metadata(metadataOf(joinPoint, actorId))
                     .build();
 
             persistenceService.save(entity);
@@ -86,6 +89,11 @@ public class AuditLogAspect {
     }
 
     private String findActorId(Object[] args) {
+        String actorId = AuditContext.getActorId();
+        if (StringUtils.hasText(actorId)) {
+            return actorId;
+        }
+
         for (Object arg : args) {
             if (arg instanceof LoginRequest loginRequest) {
                 return loginRequest.getUserId();
@@ -93,6 +101,19 @@ public class AuditLogAspect {
         }
 
         return null;
+    }
+
+    private String findActorType(String actorId) {
+        String actorType = AuditContext.getActorType();
+        if (StringUtils.hasText(actorType)) {
+            return actorType;
+        }
+
+        if (!StringUtils.hasText(actorId)) {
+            return "ANONYMOUS";
+        }
+
+        return "ANONYMOUS";
     }
 
     private String reasonOf(Throwable throwable) {
@@ -145,13 +166,12 @@ public class AuditLogAspect {
         return blankToNull(request.getHeader(name));
     }
 
-    private Map<String, Object> metadataOf(ProceedingJoinPoint joinPoint) {
+    private Map<String, Object> metadataOf(ProceedingJoinPoint joinPoint, String actorId) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("className", signature.getDeclaringType().getSimpleName());
         metadata.put("methodName", signature.getMethod().getName());
 
-        String actorId = findActorId(joinPoint.getArgs());
         if (StringUtils.hasText(actorId)) {
             metadata.put("loginUserId", actorId);
         }

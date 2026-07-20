@@ -1,6 +1,7 @@
 package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.audit.AuditLog;
+import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
@@ -53,6 +54,7 @@ public class AuthService {
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
         log.info("login info : {}", info.toString());
         Auth auth = findByUserId(info.getUserId());
+        AuditContext.setActor(auth);
 
         log.info("id : {}", auth.getId());
         log.info("user id : {}", auth.getUserId());
@@ -144,6 +146,7 @@ public class AuthService {
 
         // 5. 최신 권한(Role) 정보를 매핑하기 위해 DB 유저 조회
         Auth auth = repository.findByUserId(userId);
+        AuditContext.setActor(auth);
         if (auth == null) {
             throw new UserNotExistException("존재하지 않는 유저입니다.");
         }
