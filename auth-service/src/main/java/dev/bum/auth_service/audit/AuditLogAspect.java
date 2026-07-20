@@ -17,6 +17,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Aspect
@@ -69,8 +70,8 @@ public class AuditLogAspect {
                     .reason(reasonOf(throwable))
                     .ipAddress(ipAddressOf(request))
                     .userAgent(headerOf(request, "User-Agent"))
-                    .requestId(firstHeaderOf(request, "X-Request-Id", "X-Correlation-Id"))
-                    .traceId(firstHeaderOf(request, "traceparent", "X-B3-TraceId"))
+                    .requestId(valueOrNewUuid(firstHeaderOf(request, "X-Request-Id", "X-Correlation-Id")))
+                    .traceId(valueOrNewTraceId(firstHeaderOf(request, "traceparent", "X-B3-TraceId")))
                     .metadata(metadataOf(joinPoint, actorId))
                     .build();
 
@@ -137,10 +138,18 @@ public class AuditLogAspect {
 
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
+            return normalizeIp(forwardedFor.split(",")[0].trim());
         }
 
-        return request.getRemoteAddr();
+        return normalizeIp(request.getRemoteAddr());
+    }
+
+    private String normalizeIp(String ipAddress) {
+        if ("0:0:0:0:0:0:0:1".equals(ipAddress) || "::1".equals(ipAddress)) {
+            return "127.0.0.1";
+        }
+
+        return ipAddress;
     }
 
     private String firstHeaderOf(HttpServletRequest request, String... names) {
@@ -156,6 +165,22 @@ public class AuditLogAspect {
         }
 
         return null;
+    }
+
+    private String valueOrNewUuid(String value) {
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+
+        return UUID.randomUUID().toString();
+    }
+
+    private String valueOrNewTraceId(String value) {
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private String headerOf(HttpServletRequest request, String name) {
