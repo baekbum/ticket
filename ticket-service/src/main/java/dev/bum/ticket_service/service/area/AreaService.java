@@ -4,12 +4,9 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
@@ -60,26 +57,6 @@ public class AreaService {
     private final EventRepository eventRepository;
     private final EventLayoutJpaRepository layoutJpaRepository;
     private final SeatJpaRepository seatJpaRepository;
-    private final ObjectMapper objectMapper;
-
-    /**
-     * JSON 텍스트로 전달된 구역 목록을 파싱해 일괄 등록한다.
-     */
-    @AuditLog(action = "AREA_CREATE_JSON", targetType = "AREA")
-    public List<AreaResponse> insertJson(InsertAreaJsonRequest info) {
-        log.info("[AREA JSON INSERT]");
-        try {
-            List<InsertAreaRequest> areas = objectMapper.readValue(
-                    info.getJsonText(),
-                    new TypeReference<List<InsertAreaRequest>>() {}
-            );
-
-            return insertAreas(areas);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("구역 JSON 형식이 올바르지 않습니다.", e);
-        }
-    }
-
     /**
      * SVG 배치도 파일을 저장하고 SVG 안의 구역 path/rect 정보를 구역 데이터로 등록한다.
      */

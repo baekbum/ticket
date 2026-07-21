@@ -31,5 +31,5 @@ ticket-service/docs/bruno
 주의:
 
 - 삭제, 취소, 배송 상태 변경 요청은 실제 데이터를 변경합니다.
-- 공연 등록과 SVG 구역 등록은 multipart 요청입니다. Bruno에서 직접 요청을 추가할 때 `event` 또는 `svgFile` form field를 맞춰 사용하세요.
+- 공연 등록과 SVG 구역 등록은 multipart 요청입니다. SVG 구역 등록은 `manage-area / Insert Area Svg` 요청과 `samples/area-layout.svg` 샘플 파일을 사용할 수 있습니다.
 - `Prepare Checkout`은 좌석 상태, 쿠폰 상태, 사용자 구매 제한의 영향을 받습니다. 실패하면 먼저 좌석/쿠폰/캐시 상태를 확인하세요.

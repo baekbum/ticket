@@ -7,7 +7,6 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
@@ -63,23 +62,6 @@ class AreaManagementControllerTest {
     void token_invalid() throws Exception {
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().is4xxClientError());
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("JSON 텍스트로 구역 등록")
-    void area_insert_json() throws Exception {
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder().jsonText("[]").build();
-        given(areaService.insertJson(any())).willReturn(List.of(areaResponse(1L, "VIP")));
-
-        mockMvc.perform(post(baseUrl + "/insert/json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"))
-                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
-
-        then(areaService).should().insertJson(info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})

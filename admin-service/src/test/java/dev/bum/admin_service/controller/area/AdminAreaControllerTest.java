@@ -58,23 +58,6 @@ class AdminAreaControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("JSON 텍스트로 구역 등록")
-    void area_insert_json() throws Exception {
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder().jsonText("[]").build();
-        given(areaServiceClient.insertJson(any())).willReturn(List.of(areaResponse(1L, "VIP")));
-
-        mockMvc.perform(post(baseUrl + "/insert/json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"))
-                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
-
-        then(areaServiceClient).should().insertJson(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
     @DisplayName("SVG 파일로 구역 등록")
     void area_insert_svg() throws Exception {
         MockMultipartFile eventId = new MockMultipartFile("eventId", "", "text/plain", "1".getBytes());
