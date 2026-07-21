@@ -64,6 +64,56 @@
     return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(statusLabel(status))}</span>`;
   }
 
+  function deliveryStatusLabel(status) {
+    const labels = {
+      READY: '준비 대기',
+      PREPARING: '준비중',
+      SHIPPED: '발송',
+      DELIVERED: '완료',
+      RETURNED: '반송',
+      CANCELLED: '취소'
+    };
+    return labels[status] || status || '-';
+  }
+
+  function deliveryStatusBadge(status) {
+    const classMap = {
+      READY: 'badge-pending',
+      PREPARING: 'badge-partial',
+      SHIPPED: 'badge-paid',
+      DELIVERED: 'badge-paid',
+      RETURNED: 'badge-expired',
+      CANCELLED: 'badge-cancelled'
+    };
+    return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(deliveryStatusLabel(status))}</span>`;
+  }
+
+  function paymentStatusLabel(status) {
+    const labels = {
+      READY: '결제 대기',
+      WAITING_DEPOSIT: '입금 대기',
+      PAID: '결제 완료',
+      FAILED: '결제 실패',
+      CANCELLED: '결제 취소',
+      EXPIRED: '만료',
+      REFUNDED: '환불 완료'
+    };
+    return labels[status] || status || '-';
+  }
+
+  function paymentStatusBadge(status) {
+    const classMap = {
+      READY: 'badge-pending',
+      WAITING_DEPOSIT: 'badge-pending',
+      PAID: 'badge-paid',
+      FAILED: 'badge-cancelled',
+      CANCELLED: 'badge-cancelled',
+      EXPIRED: 'badge-expired',
+      REFUNDED: 'badge-partial'
+    };
+    return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(paymentStatusLabel(status))}</span>`;
+  }
+
   function money(value) {
     return `${Number(value || 0).toLocaleString()}원`;
   }
@@ -305,7 +355,7 @@
     renderDetailPayment(payment, detail);
 
     document.getElementById('reservation-detail-loading').style.display = 'none';
-    document.getElementById('reservation-detail-body').style.display = 'block';
+    document.getElementById('reservation-detail-body').style.display = 'grid';
   }
 
   function renderDetailTickets(tickets) {
@@ -366,7 +416,7 @@
     grid.innerHTML = [
       ['수령인', delivery.recipientName],
       ['연락처', delivery.recipientPhone],
-      ['상태', delivery.status],
+      ['상태', deliveryStatusBadge(delivery.status), true],
       ['우편번호', delivery.zipCode],
       ['주소', joinAddress(delivery)],
       ['요청사항', delivery.deliveryMessage],
@@ -374,7 +424,7 @@
       ['운송장 번호', delivery.trackingNumber],
       ['발송일', delivery.shippedAt],
       ['배송 완료일', delivery.deliveredAt]
-    ].map(([label, value]) => detailItem(label, value)).join('');
+    ].map(([label, value, html]) => detailItem(label, value, html)).join('');
   }
 
   function renderDetailPayment(payment, detail) {
@@ -391,7 +441,7 @@
       ['결제 ID', payment.paymentId],
       ['결제 번호', payment.paymentNo],
       ['수단', payment.method],
-      ['상태', payment.status],
+      ['상태', paymentStatusBadge(payment.status), true],
       ['결제 금액', money(payment.amount)],
       ['입금자명', payment.depositorName],
       ['은행', payment.bankName],
@@ -399,14 +449,15 @@
       ['요청일', payment.requestedAt],
       ['완료일', payment.paidAt],
       ['만료일', payment.expiresAt]
-    ].map(([label, value]) => detailItem(label, value)).join('');
+    ].map(([label, value, html]) => detailItem(label, value, html)).join('');
   }
 
-  function detailItem(label, value) {
+  function detailItem(label, value, html = false) {
+    const displayValue = valueOrDash(value);
     return `
       <div class="detail-item">
         <span>${escapeHtml(label)}</span>
-        <strong title="${escapeHtml(valueOrDash(value))}">${escapeHtml(valueOrDash(value))}</strong>
+        <strong title="${html ? '' : escapeHtml(displayValue)}">${html ? displayValue : escapeHtml(displayValue)}</strong>
       </div>
     `;
   }
