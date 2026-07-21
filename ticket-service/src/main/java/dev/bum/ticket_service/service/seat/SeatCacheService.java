@@ -518,6 +518,9 @@ public class SeatCacheService {
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 좌석 DB 트랜잭션 커밋 이후 Redis 동기화 작업을 실행한다.
+             */
             @Override
             public void afterCommit() {
                 runnable.run();
@@ -533,20 +536,32 @@ public class SeatCacheService {
         private final String value;
         private final Duration ttl;
 
+        /**
+         * Redis key, 저장 값, TTL을 하나의 동기화 작업 단위로 묶는다.
+         */
         private SeatCacheUpdate(String redisKey, String value, Duration ttl) {
             this.redisKey = redisKey;
             this.value = value;
             this.ttl = ttl;
         }
 
+        /**
+         * 동기화할 Redis key를 반환한다.
+         */
         private String getRedisKey() {
             return redisKey;
         }
 
+        /**
+         * Redis에 저장할 좌석 상태 값을 반환한다.
+         */
         private String getValue() {
             return value;
         }
 
+        /**
+         * Redis key에 적용할 만료 시간을 반환한다.
+         */
         private Duration getTtl() {
             return ttl;
         }

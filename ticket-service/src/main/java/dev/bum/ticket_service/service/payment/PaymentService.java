@@ -85,6 +85,9 @@ public class PaymentService {
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 결제 트랜잭션 커밋 이후 결제 완료 이벤트를 발행한다.
+             */
             @Override
             public void afterCommit() {
                 runnable.run();
