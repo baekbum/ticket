@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
@@ -36,6 +37,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -206,6 +208,7 @@ public class ReservationService {
                         foundPayment.cancel();
                     }
                 });
+                restoreUsedCoupons(reservation);
             }
             case EXPIRED -> {
                 reservation.expire();
@@ -216,6 +219,7 @@ public class ReservationService {
                 });
                 delivery.ifPresent(ReservationDelivery::cancel);
                 payment.ifPresent(Payment::expire);
+                restoreUsedCoupons(reservation);
             }
         }
 
@@ -250,6 +254,17 @@ public class ReservationService {
         }
         if (!availableSeats.isEmpty()) {
             seatCacheService.syncAvailableSeatsAfterCommit(availableSeats);
+        }
+    }
+
+    private void restoreUsedCoupons(Reservation reservation) {
+        LocalDateTime now = LocalDateTime.now();
+        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
+
+        for (ReservationDiscount discount : discounts) {
+            if (discount.getUserCoupon() != null && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
+                discount.getUserCoupon().restore(now);
+            }
         }
     }
 
