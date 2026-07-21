@@ -5,7 +5,9 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -44,5 +46,13 @@ public class ReservationManagementController {
     public ResponseEntity<Void> cancel(@PathVariable("id") long id, @RequestBody CancelReservationRequest info) {
         reservationService.cancel(id, info);
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/status/id/{id}")
+    public ResponseEntity<ReservationDetailResponse> updateStatus(
+            @PathVariable("id") long id,
+            @Valid @RequestBody UpdateReservationStatusRequest request
+    ) {
+        return ResponseEntity.ok(reservationService.updateStatus(id, request));
     }
 }

@@ -153,6 +153,12 @@ public class Payment {
         this.status = PaymentStatus.REFUNDED;
     }
 
+    public void ready() {
+        this.status = PaymentStatus.READY;
+        this.paidAt = null;
+        this.expiresAt = null;
+    }
+
     private String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }

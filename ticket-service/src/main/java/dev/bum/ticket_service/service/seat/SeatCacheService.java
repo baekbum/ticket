@@ -263,6 +263,27 @@ public class SeatCacheService {
     }
 
     /**
+     * 예매 결제 대기 보정 후 좌석 Redis 상태를 LOCKED로 동기화하는 메서드
+     * @param seats
+     */
+    public void syncLockedSeatsAfterCommit(List<Seat> seats) {
+        List<SeatCacheUpdate> updates = seats.stream()
+                .map(seat -> new SeatCacheUpdate(
+                        buildSeatRedisKey(seat),
+                        SeatStatus.LOCKED.name(),
+                        calculateSeatCacheTtl(seat)
+                ))
+                .collect(Collectors.toList());
+
+        runAfterCommit(() -> {
+            for (SeatCacheUpdate update : updates) {
+                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
+                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
+            }
+        });
+    }
+
+    /**
      * 예매 취소 후 좌석 Redis 상태를 AVAILABLE로 동기화하는 메서드
      * @param seats
      */

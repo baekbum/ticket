@@ -15,6 +15,7 @@
   };
   let currentSortFilters = { reservationId: 'desc' };
   let serverTotalPages = 1;
+  let currentStatusAdjustDetail = null;
 
   function inputValue(id) {
     return document.getElementById(id)?.value?.trim() || '';
@@ -144,6 +145,7 @@
           <td>${statusBadge(reservation.status)}</td>
           <td class="actions" onclick="event.stopPropagation()">
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openReservationDetailModal(${reservation.reservationId})">상세</button>
+            <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); openReservationStatusModal(${reservation.reservationId})">상태 보정</button>
           </td>
         `;
         tr.onclick = () => openReservationDetailModal(reservation.reservationId);
@@ -453,6 +455,193 @@
 
   window.closeReservationTicketModal = function () {
     document.getElementById('reservation-ticket-modal').style.display = 'none';
+  };
+
+  window.openReservationStatusModal = async function (reservationId) {
+    currentStatusAdjustDetail = null;
+    document.getElementById('status-modal-reservation-id').textContent = reservationId ?? '-';
+    document.getElementById('status-modal-order-id').textContent = '-';
+    document.getElementById('reservation-status-reason').value = '';
+    document.getElementById('reservation-status-loading').style.display = 'flex';
+    document.getElementById('reservation-status-body').style.display = 'none';
+    document.getElementById('reservation-status-modal').style.display = 'flex';
+
+    try {
+      const res = await Fetch(`${RESERVATION_URL}/select/detail/${reservationId}`, { method: 'GET' });
+      if (!res.ok) {
+        showToast('예매 상세 조회에 실패했습니다.', true);
+        closeReservationStatusModal();
+        return;
+      }
+
+      currentStatusAdjustDetail = await res.json();
+      renderReservationStatusModal(currentStatusAdjustDetail);
+    } catch (e) {
+      console.error('Reservation status modal load failed', e);
+      showToast('상태 보정 정보 조회 중 오류가 발생했습니다.', true);
+      closeReservationStatusModal();
+    }
+  };
+
+  window.closeReservationStatusModal = function () {
+    document.getElementById('reservation-status-modal').style.display = 'none';
+    currentStatusAdjustDetail = null;
+  };
+
+  function renderReservationStatusModal(detail) {
+    const reservation = detail?.reservation || {};
+    const payment = detail?.payment;
+    const delivery = detail?.delivery;
+
+    document.getElementById('status-modal-reservation-id').textContent = reservation.reservationId ?? '-';
+    document.getElementById('status-modal-order-id').textContent = reservation.orderId || '-';
+    document.getElementById('status-modal-current-status').innerHTML = statusBadge(reservation.status);
+    document.getElementById('status-modal-payment-status').textContent = payment?.status || '-';
+    document.getElementById('status-modal-delivery-status').textContent = delivery?.status || '-';
+    setValue('reservation-status-target', reservation.status || 'PAID');
+    renderStatusTicketSelector(Array.isArray(detail?.tickets) ? detail.tickets : []);
+    syncReservationStatusAdjustPreview();
+
+    document.getElementById('reservation-status-loading').style.display = 'none';
+    document.getElementById('reservation-status-body').style.display = 'block';
+  }
+
+  function renderStatusTicketSelector(tickets) {
+    const tbody = document.getElementById('status-ticket-select-body');
+    if (tickets.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="detail-empty-cell">선택 가능한 티켓이 없습니다.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = tickets.map(ticket => `
+      <tr>
+        <td style="text-align:center;">
+          <input type="checkbox" class="status-ticket-checkbox" value="${escapeHtml(ticket.ticketId)}" onchange="syncReservationStatusAdjustPreview()">
+        </td>
+        <td>#${escapeHtml(ticket.ticketId)}</td>
+        <td title="${escapeHtml(ticket.seatName)}">${escapeHtml(ticket.seatName || formatSeatRowCol(ticket))}</td>
+        <td class="number-cell">${money(ticket.price)}</td>
+        <td>${ticketStatusBadge(ticket.status)}</td>
+      </tr>
+    `).join('');
+  }
+
+  window.syncReservationStatusAdjustPreview = function () {
+    const target = inputValue('reservation-status-target');
+    const selectedIds = selectedStatusTicketIds();
+    const tickets = Array.isArray(currentStatusAdjustDetail?.tickets) ? currentStatusAdjustDetail.tickets : [];
+    const ticketSelectWrap = document.getElementById('status-ticket-select-wrap');
+
+    ticketSelectWrap.style.display = target === 'PARTIALLY_CANCELLED' ? 'block' : 'none';
+    document.getElementById('status-ticket-selected-count').textContent = `${selectedIds.length.toLocaleString()}매 선택`;
+    document.getElementById('status-adjust-preview').innerHTML = buildStatusAdjustPreview(target, tickets, selectedIds);
+  };
+
+  function selectedStatusTicketIds() {
+    return [...document.querySelectorAll('.status-ticket-checkbox:checked')]
+      .map(checkbox => Number(checkbox.value))
+      .filter(Number.isFinite);
+  }
+
+  function buildStatusAdjustPreview(target, tickets, selectedIds) {
+    const total = tickets.length;
+    const selected = selectedIds.length;
+    const remained = Math.max(total - selected, 0);
+
+    const rows = {
+      PENDING_PAYMENT: [
+        ['예매', 'PENDING_PAYMENT'],
+        ['티켓', `전체 ${total}매 PENDING_PAYMENT`],
+        ['좌석', `전체 ${total}석 LOCKED`],
+        ['결제', 'READY'],
+        ['배송', 'READY']
+      ],
+      PAID: [
+        ['예매', 'PAID'],
+        ['티켓', `전체 ${total}매 PAID`],
+        ['좌석', `전체 ${total}석 RESERVED`],
+        ['결제', 'PAID'],
+        ['배송', 'READY']
+      ],
+      PARTIALLY_CANCELLED: [
+        ['예매', 'PARTIALLY_CANCELLED'],
+        ['티켓', `선택 ${selected}매 CANCELLED / 잔여 ${remained}매 PAID`],
+        ['좌석', `선택 ${selected}석 AVAILABLE / 잔여 ${remained}석 RESERVED`],
+        ['결제', 'PAID 유지'],
+        ['배송', '현재 상태 유지']
+      ],
+      CANCELLED: [
+        ['예매', 'CANCELLED'],
+        ['티켓', `전체 ${total}매 CANCELLED`],
+        ['좌석', `전체 ${total}석 AVAILABLE`],
+        ['결제', 'PAID면 REFUNDED, 아니면 CANCELLED'],
+        ['배송', 'CANCELLED']
+      ],
+      EXPIRED: [
+        ['예매', 'EXPIRED'],
+        ['티켓', `전체 ${total}매 EXPIRED`],
+        ['좌석', `전체 ${total}석 AVAILABLE`],
+        ['결제', 'EXPIRED'],
+        ['배송', 'CANCELLED']
+      ]
+    }[target] || [];
+
+    return `
+      <div class="detail-section-head">
+        <h3>연동 변경 미리보기</h3>
+      </div>
+      <div class="status-preview-grid">
+        ${rows.map(([label, value]) => detailItem(label, value)).join('')}
+      </div>
+    `;
+  }
+
+  window.submitReservationStatusAdjust = async function () {
+    const reservationId = currentStatusAdjustDetail?.reservation?.reservationId;
+    const target = inputValue('reservation-status-target');
+    const reason = inputValue('reservation-status-reason');
+    const selectedTicketIdList = selectedStatusTicketIds();
+
+    if (!reservationId) {
+      showToast('예매 정보를 찾을 수 없습니다.', true);
+      return;
+    }
+    if (!reason) {
+      showToast('상태 보정 사유를 입력해주세요.', true);
+      return;
+    }
+    if (target === 'PARTIALLY_CANCELLED') {
+      const total = currentStatusAdjustDetail?.tickets?.length || 0;
+      if (selectedTicketIdList.length === 0) {
+        showToast('부분 취소할 티켓을 선택해주세요.', true);
+        return;
+      }
+      if (selectedTicketIdList.length >= total) {
+        showToast('전체 취소는 CANCELLED 상태로 보정해주세요.', true);
+        return;
+      }
+    }
+
+    try {
+      const res = await Fetch(`${RESERVATION_URL}/status/id/${reservationId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ status: target, selectedTicketIdList, reason })
+      });
+
+      if (!res.ok) {
+        showToast('예매 상태 보정에 실패했습니다.', true);
+        return;
+      }
+
+      currentStatusAdjustDetail = await res.json();
+      renderReservationStatusModal(currentStatusAdjustDetail);
+      showToast('예매 상태가 보정되었습니다.');
+      loadReservationList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+    } catch (e) {
+      console.error('Reservation status adjust failed', e);
+      showToast('예매 상태 보정 통신 오류가 발생했습니다.', true);
+    }
   };
 
   function showTicketEmptyState(message) {
