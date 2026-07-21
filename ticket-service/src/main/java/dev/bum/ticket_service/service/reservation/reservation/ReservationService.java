@@ -5,6 +5,8 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
@@ -99,6 +101,7 @@ public class ReservationService {
         return selectByCond(cond);
     }
 
+    @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancel(long id, CancelReservationRequest info) {
         List<Seat> cancelledSeats = repository.cancel(id, info);
 
@@ -111,11 +114,14 @@ public class ReservationService {
         );
     }
 
+    @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancelMyReservation(String currentUserId, long id, CancelReservationRequest info) {
         Reservation reservation = repository.selectById(id);
+        Object beforeStatus = reservation.getStatus();
         validateOwner(currentUserId, reservation);
         info.setUserId(currentUserId);
         cancel(id, info);
+        AuditDataMapper.setFieldChange("status", beforeStatus, "CANCELLED");
     }
 
     private Sort makeSortInfo(List<String> sorts) {

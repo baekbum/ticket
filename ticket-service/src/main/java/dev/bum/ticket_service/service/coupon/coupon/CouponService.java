@@ -6,6 +6,8 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
 
+    @AuditLog(action = "COUPON_CREATE", targetType = "COUPON")
     public CouponResponse insert(InsertCouponRequest request) {
         log.info("[COUPON][INSERT] request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
                 request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
@@ -46,11 +49,13 @@ public class CouponService {
         return savedCoupon.toResponse();
     }
 
+    @AuditLog(action = "COUPON_UPDATE", targetType = "COUPON")
     public CouponResponse update(Long couponId, UpdateCouponRequest request) {
         log.info("[COUPON][UPDATE] couponId={}, request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
                 couponId, request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
 
         Coupon coupon = selectCoupon(couponId);
+        AuditDataMapper.setChangedData(coupon, request);
         log.info("[COUPON][UPDATE][BEFORE] couponId={}, name={}, code={}, discountType={}, discountValue={}, maxDiscountAmount={}, minOrderAmount={}, validFrom={}, validUntil={}, validDaysAfterIssue={}, status={}",
                 coupon.getCouponId(), coupon.getName(), coupon.getCode(), coupon.getDiscountType(), coupon.getDiscountValue(),
                 coupon.getMaxDiscountAmount(), coupon.getMinOrderAmount(), coupon.getValidFrom(), coupon.getValidUntil(),

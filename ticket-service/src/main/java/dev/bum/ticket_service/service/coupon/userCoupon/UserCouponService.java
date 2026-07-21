@@ -11,6 +11,8 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
@@ -36,6 +38,7 @@ public class UserCouponService {
     private final CouponRepository couponRepository;
     private final UserCouponRepository userCouponRepository;
 
+    @AuditLog(action = "USER_COUPON_ISSUE", targetType = "USER_COUPON")
     public UserCouponResponse issue(IssueCouponRequest request) {
         Coupon coupon = couponRepository.selectById(request.getCouponId());
 
@@ -51,6 +54,7 @@ public class UserCouponService {
         return userCouponRepository.insert(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
     }
 
+    @AuditLog(action = "USER_COUPON_ISSUE", targetType = "USER_COUPON")
     public UserCouponResponse issue(String userId, Long couponId) {
         IssueCouponRequest request = IssueCouponRequest.builder()
                 .userId(userId)
@@ -60,8 +64,10 @@ public class UserCouponService {
         return issue(request);
     }
 
+    @AuditLog(action = "USER_COUPON_UPDATE", targetType = "USER_COUPON")
     public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
         UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        AuditDataMapper.setChangedData(userCoupon, request);
         userCoupon.update(request);
         return userCouponRepository.update(userCoupon).toResponse();
     }

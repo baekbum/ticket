@@ -11,6 +11,8 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,6 +39,7 @@ public class EventService {
      * @param info
      * @return
      */
+    @AuditLog(action = "EVENT_CREATE", targetType = "EVENT")
     public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
         log.info("[INSERT WITH POSTER] Info : {}", info.toString());
 
@@ -101,15 +104,20 @@ public class EventService {
      * @param info
      * @return
      */
+    @AuditLog(action = "EVENT_UPDATE", targetType = "EVENT")
     public EventResponse update(Long id, UpdateEventRequest info) {
         log.info("[UPDATE] Id : {}, Info : {}", id, info);
+        Event beforeEvent = repository.selectById(id);
+        AuditDataMapper.setChangedData(beforeEvent, info, "description", "venueAddress", "posterUrl");
         return repository.update(id, info).toResponse();
     }
 
+    @AuditLog(action = "EVENT_UPDATE", targetType = "EVENT")
     public EventResponse update(Long id, UpdateEventRequest info, MultipartFile posterImage) {
         log.info("[UPDATE WITH POSTER] Id : {}, Info : {}", id, info);
 
         Event event = repository.selectById(id);
+        AuditDataMapper.setChangedData(event, info, "description", "venueAddress", "posterUrl");
         String previousPosterUrl = event.getPosterUrl();
         String newPosterUrl = fileStorageService.saveEventPoster(id, posterImage);
 
@@ -131,12 +139,14 @@ public class EventService {
      * @param id
      * @return
      */
+    @AuditLog(action = "EVENT_DELETE", targetType = "EVENT")
     public EventResponse delete(Long id) {
         log.info("[DELETE] EventId : {}", id);
 
         return repository.delete(id).toResponse();
     }
 
+    @AuditLog(action = "EVENT_DELETE_BULK", targetType = "EVENT")
     public void deleteBulk(DeleteEventBulkRequest info) {
         if (info.getEventIds() == null || info.getEventIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 이벤트 정보가 없습니다.");
