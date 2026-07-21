@@ -485,6 +485,12 @@
     cursor: pointer;
   }
 
+  .layout-area-inactive {
+    cursor: default;
+    opacity: 0.38;
+    pointer-events: none;
+  }
+
   .click-area {
     cursor: pointer;
     pointer-events: all;
@@ -514,9 +520,25 @@
     stroke-width: 3;
   }
 
+  .layout-area-inactive:hover,
+  .layout-area-inactive:hover rect,
+  .layout-area-inactive:hover path {
+    filter: none;
+    stroke-width: 2;
+  }
+
+  .layout-area-inactive-label {
+    opacity: 0.38;
+    pointer-events: none;
+  }
+
+  .layout-grade-vip,
   .layout-grade-vip rect, .layout-grade-vip path { fill: #3f65d7; }
+  .layout-grade-r,
   .layout-grade-r rect, .layout-grade-r path { fill: #d96ccf; }
+  .layout-grade-s,
   .layout-grade-s rect, .layout-grade-s path { fill: #f2df49; }
+  .layout-grade-a,
   .layout-grade-a rect, .layout-grade-a path { fill: #68c77a; }
 
   .layout-seat {
