@@ -14,6 +14,8 @@ import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
 import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.area.AreaRepository;
@@ -60,6 +62,7 @@ public class AreaService {
     private final SeatJpaRepository seatJpaRepository;
     private final ObjectMapper objectMapper;
 
+    @AuditLog(action = "AREA_CREATE_JSON", targetType = "AREA")
     public List<AreaResponse> insertJson(InsertAreaJsonRequest info) {
         log.info("[AREA JSON INSERT]");
         try {
@@ -74,6 +77,7 @@ public class AreaService {
         }
     }
 
+    @AuditLog(action = "AREA_CREATE_SVG", targetType = "AREA")
     public List<AreaResponse> insertSvg(Long eventId, MultipartFile svgFile, boolean force) {
         if (eventId == null) {
             throw new IllegalArgumentException("이벤트 ID를 입력해주세요.");
@@ -151,16 +155,21 @@ public class AreaService {
         );
     }
 
+    @AuditLog(action = "AREA_UPDATE", targetType = "AREA")
     public AreaResponse update(Long id, UpdateAreaRequest info) {
         log.info("[AREA UPDATE] areaId : {}, info : {}", id, info);
+        Area beforeArea = repository.selectById(id);
+        AuditDataMapper.setChangedData(beforeArea, info);
         return repository.update(id, info).toResponse();
     }
 
+    @AuditLog(action = "AREA_DELETE", targetType = "AREA")
     public AreaResponse delete(Long id) {
         log.info("[AREA DELETE] areaId : {}", id);
         return repository.delete(id).toResponse();
     }
 
+    @AuditLog(action = "AREA_DELETE_BULK", targetType = "AREA")
     public void deleteBulk(DeleteAreaBulkRequest info) {
         if (info.getAreaIds() == null || info.getAreaIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 구역 정보가 없습니다.");

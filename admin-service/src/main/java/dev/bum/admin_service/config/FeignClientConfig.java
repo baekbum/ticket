@@ -33,6 +33,13 @@ public class FeignClientConfig {
                     if (isValidBearer(authHeader)) {
                         template.header("Authorization", authHeader);
                     }
+
+                    addHeader(template, RequestTracingFilter.FORWARDED_FOR_HEADER,
+                            request.getAttribute(RequestTracingFilter.FORWARDED_FOR_ATTRIBUTE));
+                    addHeader(template, RequestTracingFilter.REQUEST_ID_HEADER,
+                            request.getAttribute(RequestTracingFilter.REQUEST_ID_ATTRIBUTE));
+                    addHeader(template, RequestTracingFilter.TRACE_ID_HEADER,
+                            request.getAttribute(RequestTracingFilter.TRACE_ID_ATTRIBUTE));
                 }
 
                 Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -58,5 +65,16 @@ public class FeignClientConfig {
         return StringUtils.hasText(token)
                 && !"null".equalsIgnoreCase(token)
                 && !"undefined".equalsIgnoreCase(token);
+    }
+
+    private void addHeader(RequestTemplate template, String name, Object value) {
+        if (!(value instanceof String)) {
+            return;
+        }
+
+        String stringValue = (String) value;
+        if (StringUtils.hasText(stringValue)) {
+            template.header(name, stringValue);
+        }
     }
 }

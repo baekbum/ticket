@@ -4,6 +4,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class SeatService {
      * 좌석 정보 등록 메서드
      * @param info
      */
+    @AuditLog(action = "SEAT_CREATE", targetType = "SEAT")
     public void insert(InsertSeatRequest info) {
         if (!info.getInsertSeatAreaConfigs().isEmpty()) {
             for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
@@ -94,6 +96,7 @@ public class SeatService {
      * 좌석 정보 수정 메서드
      * @param info
      */
+    @AuditLog(action = "SEAT_UPDATE", targetType = "SEAT")
     public void update(UpdateSeatRequest info) {
         log.info("[UPDATE] {}", info.toString());
         repository.update(info);
@@ -103,6 +106,7 @@ public class SeatService {
      * 좌석 정보 삭제 메서드
      * @param id
      */
+    @AuditLog(action = "SEAT_DELETE", targetType = "SEAT")
     public void delete(Long id) {
         log.info("[DELETE] SeatId : {}", id);
         repository.delete(id);
@@ -112,6 +116,7 @@ public class SeatService {
      * 선택한 좌석 일괄 삭제 메서드
      * @param info
      */
+    @AuditLog(action = "SEAT_DELETE_BULK", targetType = "SEAT")
     public void deleteBySeatIdList(DeleteSeatRequest info) {
         if (!info.getSeatIdList().isEmpty()) {
             log.info("[DELETE] {}", info);
@@ -123,6 +128,7 @@ public class SeatService {
      * 구역 기준 좌석 삭제 메서드
      * @param areaId
      */
+    @AuditLog(action = "SEAT_DELETE_BY_AREA", targetType = "SEAT")
     public void deleteByAreaId(Long areaId) {
         log.info("[DELETE] AreaId : {}", areaId);
         repository.deleteByAreaId(areaId);
@@ -172,6 +178,7 @@ public class SeatService {
      * @param userId
      * @return
      */
+    @AuditLog(action = "SEAT_LOCK", targetType = "SEAT")
     public String lockSeatCacheForUser(Long seatId, String userId) {
         return seatCacheService.lockSeatCacheForUser(seatId, userId);
     }
@@ -181,6 +188,7 @@ public class SeatService {
      * @param seatId
      * @return
      */
+    @AuditLog(action = "SEAT_UNLOCK", targetType = "SEAT")
     public String unlockSeatCache(Long seatId) {
         return seatCacheService.unlockSeatCache(seatId);
     }
@@ -189,6 +197,7 @@ public class SeatService {
      * Redis를 이용한 다중 좌석 선점 메서드
      * @param request
      */
+    @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
         return seatCacheService.occupySeat(request);
     }

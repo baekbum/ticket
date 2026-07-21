@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -42,6 +43,7 @@ public class CheckoutService {
      * 결제 버튼 클릭 시 호출되는 결제 준비 로직.
      * Redis 좌석 선점을 검증한 뒤 예약, 할인, 배송, 결제 정보를 하나의 트랜잭션으로 생성한다.
      */
+    @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, CheckoutPrepareRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
         CheckoutPrepareResponse existingResponse = findExistingResponse(currentUserId, idempotencyKey);

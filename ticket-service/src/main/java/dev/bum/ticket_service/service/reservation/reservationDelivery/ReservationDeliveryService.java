@@ -5,6 +5,8 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryCondRequ
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationDeliveryTrackingRequest;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
@@ -32,6 +34,7 @@ public class ReservationDeliveryService {
     private final ReservationRepository reservationRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
 
+    @AuditLog(action = "RESERVATION_DELIVERY_CREATE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse insert(long reservationId, ReservationDeliveryRequest info) {
         Reservation reservation = reservationRepository.selectById(reservationId);
         validateNotExists(reservation);
@@ -39,6 +42,7 @@ public class ReservationDeliveryService {
         return reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, info)).toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_CREATE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse insertMyDelivery(String currentUserId, long reservationId, ReservationDeliveryRequest info) {
         Reservation reservation = reservationRepository.selectById(reservationId);
         validateOwner(currentUserId, reservation);
@@ -90,46 +94,65 @@ public class ReservationDeliveryService {
                 .toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_PREPARE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse prepare(long id) {
         ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
         delivery.prepare();
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_TRACKING_UPDATE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse updateTracking(long id, UpdateReservationDeliveryTrackingRequest info) {
         ReservationDelivery delivery = selectEntityById(id);
+        AuditDataMapper.setChangedData(delivery, info, "trackingNumber");
         delivery.updateTracking(info.getCarrier(), info.getTrackingNumber());
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_UPDATE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse updateMyDelivery(String currentUserId, long id, ReservationDeliveryRequest info) {
         ReservationDelivery delivery = selectEntityById(id);
         validateOwner(currentUserId, delivery.getReservation());
+        AuditDataMapper.setChangedData(delivery, info, "recipientName", "recipientPhone", "address", "detailAddress");
         delivery.updateDeliveryInfo(info);
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_SHIP", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse ship(long id, UpdateReservationDeliveryTrackingRequest info) {
         ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
         delivery.ship(info != null ? info.getCarrier() : null, info != null ? info.getTrackingNumber() : null, LocalDateTime.now());
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_DELIVER", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse deliver(long id) {
         ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
         delivery.deliver(LocalDateTime.now());
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_RETURN", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse returnDelivery(long id) {
         ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
         delivery.returnDelivery();
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
         return delivery.toResponse();
     }
 
+    @AuditLog(action = "RESERVATION_DELIVERY_CANCEL", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse cancel(long id) {
         ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
         delivery.cancel();
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
         return delivery.toResponse();
     }
 
