@@ -1,11 +1,9 @@
 package dev.bum.ticket_service.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
@@ -26,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -66,38 +63,6 @@ class AreaServiceTest {
 
     @Mock
     private SeatJpaRepository seatJpaRepository;
-
-    @Spy
-    private ObjectMapper objectMapper = new ObjectMapper();
-
-    @Test
-    @DisplayName("JSON 텍스트로 구역 등록")
-    void insert_json() throws Exception {
-        InsertAreaRequest vip = insertRequest("VIP");
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder()
-                .jsonText(objectMapper.writeValueAsString(List.of(vip)))
-                .build();
-
-        given(repository.insert(argThat(area -> "VIP".equals(area.getAreaName())))).willReturn(area(1L, "VIP"));
-
-        List<AreaResponse> response = areaService.insertJson(info);
-
-        assertThat(response).hasSize(1);
-        assertThat(response.get(0).getAreaName()).isEqualTo("VIP");
-        assertThat(response.get(0).getLayoutKey()).isEqualTo("VIP");
-        then(repository).should().insert(argThat(area -> "VIP".equals(area.getAreaName())));
-    }
-
-    @Test
-    @DisplayName("잘못된 JSON 텍스트면 예외 발생")
-    void insert_json_invalid() {
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder()
-                .jsonText("{invalid")
-                .build();
-
-        assertThatThrownBy(() -> areaService.insertJson(info))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
 
     @Test
     @DisplayName("SVG 파일로 구역 등록")

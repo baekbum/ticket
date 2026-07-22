@@ -173,6 +173,14 @@ public class ReservationDelivery {
         this.status = ReservationDeliveryStatus.CANCELLED;
     }
 
+    public void ready() {
+        this.status = ReservationDeliveryStatus.READY;
+        this.carrier = null;
+        this.trackingNumber = null;
+        this.shippedAt = null;
+        this.deliveredAt = null;
+    }
+
     private String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }

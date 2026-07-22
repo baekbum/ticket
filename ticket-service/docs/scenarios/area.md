@@ -4,7 +4,6 @@
 
 - [구역 단건 등록](#구역-단건-등록)
 - [구역 다건 등록](#구역-다건-등록)
-- [구역 JSON 텍스트 등록](#구역-json-텍스트-등록)
 - [구역 SVG 등록](#구역-svg-등록)
 - [이벤트 배치 조회](#이벤트-배치-조회)
 - [구역 단건 조회](#구역-단건-조회)
@@ -161,65 +160,6 @@ Browser
 | 상황 | 위치 | 결과 |
 | --- | --- | --- |
 | `areas`가 비어 있음 | `AreaService.insertBulk(...)` | `400 Bad Request` |
-| 이벤트가 존재하지 않음 | `EventRepositoryImpl.selectById(...)` | `404 Not Found` |
-| 중복 구역 존재 | `AreaRepositoryImpl.isExist(...)` | `400 Bad Request` |
-| 관리자 권한 없음 | Spring Security | `403 Forbidden` |
-
-## 구역 JSON 텍스트 등록
-
-관리자가 JSON 문자열로 작성된 구역 목록을 등록하는 시나리오입니다.
-
-### 요청
-
-```text
-POST /ticket/api/v1/area/insert/json
-Content-Type: application/json
-권한: ADMIN
-```
-
-요청 본문은 `InsertAreaJsonRequest`입니다.
-
-```json
-{
-  "jsonText": "[{\"eventId\":1,\"areaName\":\"VIP\",\"grade\":\"VIP\",\"price\":165000}]"
-}
-```
-
-### 처리 흐름
-
-```text
-Browser
-  -> AreaController.insertJson(...)
-  -> AreaService.insertJson(...)
-  -> ObjectMapper.readValue(...)
-  -> AreaService.insertBulk(...)
-  -> AreaRepositoryImpl.insert(...)
-  -> Area.toResponse(...)
-  -> Browser
-```
-
-### 단계별 설명
-
-1. `AreaController.insertJson(...)`
-   - JSON 요청 본문을 `InsertAreaJsonRequest`로 받습니다.
-   - `areaService.insertJson(info)`를 호출합니다.
-
-2. `AreaService.insertJson(...)`
-   - `info.getJsonText()`를 `ObjectMapper.readValue(...)`로 `List<InsertAreaRequest>`로 변환합니다.
-   - 변환한 목록을 `InsertAreaBulkRequest`로 감싸 `insertBulk(...)`를 호출합니다.
-
-3. `AreaService.insertBulk(...)`
-   - 다건 등록과 같은 흐름으로 구역들을 저장합니다.
-
-### 응답
-
-정상 처리되면 `List<AreaResponse>`를 `200 OK`로 반환합니다.
-
-### 주요 실패 케이스
-
-| 상황 | 위치 | 결과 |
-| --- | --- | --- |
-| `jsonText` 형식 오류 | `AreaService.insertJson(...)` | `400 Bad Request` |
 | 이벤트가 존재하지 않음 | `EventRepositoryImpl.selectById(...)` | `404 Not Found` |
 | 중복 구역 존재 | `AreaRepositoryImpl.isExist(...)` | `400 Bad Request` |
 | 관리자 권한 없음 | Spring Security | `403 Forbidden` |

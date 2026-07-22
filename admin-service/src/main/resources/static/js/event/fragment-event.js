@@ -796,10 +796,11 @@ if (event.button !== 0) return;
 svg.setPointerCapture(event.pointerId);
 const areaEl = event.target.closest ? event.target.closest('.layout-area, .click-area, [data-area-name], [data-layout-key]') : null;
 const seatEl = event.target.closest ? event.target.closest('.layout-seat') : null;
+const disabledArea = areaEl?.dataset?.areaStatus === 'INACTIVE' || areaEl?.classList?.contains('layout-area-inactive');
 const layoutKey = areaEl ? getSvgAreaLayoutKey(areaEl) : null;
 const areaName = areaEl ? areaEl.dataset.areaName : null;
 const areaDisplayName = areaEl ? (areaEl.dataset.areaDisplayName || areaName) : null;
-const matchedArea = areaEl && !areaEl.dataset.areaId ? findLayoutAreaByLayoutKey(layoutKey) : null;
+const matchedArea = areaEl && !disabledArea && !areaEl.dataset.areaId ? findLayoutAreaByLayoutKey(layoutKey) : null;
 layoutDragged = false;
 layoutDragState = {
 pointerId: event.pointerId,
@@ -807,8 +808,8 @@ startClientX: event.clientX,
 startClientY: event.clientY,
 startViewBoxX: layoutViewBox.x,
 startViewBoxY: layoutViewBox.y,
-areaId: areaEl ? (areaEl.dataset.areaId || matchedArea?.areaId || null) : null,
-areaName: areaEl ? (areaDisplayName || matchedArea?.areaName || null) : null,
+areaId: areaEl && !disabledArea ? (areaEl.dataset.areaId || matchedArea?.areaId || null) : null,
+areaName: areaEl && !disabledArea ? (areaDisplayName || matchedArea?.areaName || null) : null,
 seatId: seatEl ? seatEl.dataset.seatId : null
 };
 svg.classList.add('is-dragging');
@@ -877,6 +878,23 @@ if (!normalizedKey) return null;
 return currentLayoutAreas.find(area => String(area.layoutKey ?? area.areaName ?? '').trim() === normalizedKey) || null;
 }
 
+function getSvgAreaLabelElement(areaElement) {
+const nextElement = areaElement?.nextElementSibling;
+return nextElement && nextElement.tagName?.toLowerCase() === 'text' ? nextElement : null;
+}
+
+function removeSvgAreaElement(areaElement) {
+const labelElement = getSvgAreaLabelElement(areaElement);
+labelElement?.remove();
+areaElement?.remove();
+}
+
+function markSvgAreaInactive(areaElement) {
+areaElement.classList.add('layout-area-inactive');
+areaElement.dataset.areaStatus = 'INACTIVE';
+getSvgAreaLabelElement(areaElement)?.classList.add('layout-area-inactive-label');
+}
+
 function getSvgAreaLayoutKey(areaElement) {
 const rawKey = areaElement?.dataset?.layoutKey || areaElement?.dataset?.areaName || normalizeSvgAreaId(areaElement?.id);
 return String(rawKey || '').trim();
@@ -892,8 +910,8 @@ return String(id || '')
 }
 
 function getSvgAreaLabel(areaElement) {
-const nextElement = areaElement?.nextElementSibling;
-if (nextElement && nextElement.tagName?.toLowerCase() === 'text') {
+const nextElement = getSvgAreaLabelElement(areaElement);
+if (nextElement) {
 const label = nextElement.textContent?.trim();
 if (label) return label;
 }
@@ -1009,13 +1027,23 @@ document.getElementById('layout-preview-count').textContent = `${areas.length}Í∞
 svg.querySelectorAll('.area, [data-area-name], [data-layout-key]').forEach(el => {
 const layoutKey = getSvgAreaLayoutKey(el);
 const matchedArea = findLayoutAreaByLayoutKey(layoutKey) || findLayoutAreaByName(el.dataset.areaName || '');
-if (!matchedArea) return;
+if (!matchedArea) {
+removeSvgAreaElement(el);
+return;
+}
 const areaDisplayName = formatLayoutAreaDisplayName(matchedArea, getSvgAreaLabel(el));
 el.classList.add('layout-area');
 el.dataset.areaId = matchedArea.areaId;
 el.dataset.layoutKey = matchedArea.layoutKey || layoutKey;
 el.dataset.areaName = matchedArea.areaName;
 el.dataset.areaDisplayName = areaDisplayName;
+el.dataset.areaStatus = matchedArea.status || '';
+if (matchedArea.grade) {
+el.classList.add(`layout-grade-${String(matchedArea.grade).toLowerCase()}`);
+}
+if (matchedArea.status === 'INACTIVE') {
+markSvgAreaInactive(el);
+}
 if (!el.querySelector('title')) {
 const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
 title.textContent = `${areaDisplayName || matchedArea.areaName || matchedArea.areaId} / ${matchedArea.price != null ? Number(matchedArea.price).toLocaleString() + 'Ïõê' : '-'}`;

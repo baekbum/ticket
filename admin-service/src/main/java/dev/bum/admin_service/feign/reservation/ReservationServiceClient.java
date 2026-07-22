@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,4 +27,10 @@ public interface ReservationServiceClient {
 
     @PutMapping("/cancel/id/{reservationId}")
     void cancel(@PathVariable("reservationId") Long reservationId, @RequestBody CancelReservationRequest info);
+
+    @PutMapping("/status/id/{reservationId}")
+    ReservationDetailResponse updateStatus(
+            @PathVariable("reservationId") Long reservationId,
+            @RequestBody UpdateReservationStatusRequest request
+    );
 }

@@ -116,4 +116,8 @@ public class Ticket {
     public void expire() {
         this.status = TicketStatus.EXPIRED;
     }
+
+    public void pendingPayment() {
+        this.status = TicketStatus.PENDING_PAYMENT;
+    }
 }

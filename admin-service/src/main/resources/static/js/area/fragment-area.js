@@ -292,41 +292,6 @@ window.submitAreaSvgForm = async function (force = false) {
 };
 
 
-window.openAreaJsonModal = function () {
-  document.getElementById('area-json-modal').style.display = 'flex';
-};
-
-window.closeAreaJsonModal = function () {
-  document.getElementById('area-json-modal').style.display = 'none';
-};
-
-window.submitAreaJsonForm = async function () {
-  const jsonText = inputValue('area-json-text');
-  if (!jsonText) {
-    showToast('등록할 JSON을 입력해주세요.', true);
-    return;
-  }
-
-  try {
-    const res = await Fetch(`${AREA_URL}/insert/json`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ jsonText })
-    });
-
-    if (res.ok) {
-      const inserted = await res.json();
-      showToast(`${inserted.length}개 구역을 등록했습니다.`);
-      closeAreaJsonModal();
-      loadAreaList(0);
-    } else {
-      showToast('구역 JSON 등록에 실패했습니다.', true);
-    }
-  } catch (e) {
-    showToast('구역 JSON 등록 통신 오류가 발생했습니다.', true);
-  }
-};
-
 window.openAreaModalForUpdate = function (areaId) {
   const area = currentAreaList.find(item => item.areaId === areaId);
   if (!area) { showToast('구역 정보를 찾을 수 없습니다.', true); return; }

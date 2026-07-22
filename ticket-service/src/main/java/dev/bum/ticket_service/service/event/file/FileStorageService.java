@@ -29,6 +29,9 @@ public class FileStorageService {
         this.publicUrlPrefix = trimTrailingSlash(publicUrlPrefix);
     }
 
+    /**
+     * 이벤트 포스터 이미지를 검증한 뒤 이벤트별 업로드 경로에 저장하고 공개 URL을 반환한다.
+     */
     public String saveEventPoster(Long eventId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return null;
@@ -58,6 +61,9 @@ public class FileStorageService {
         return publicUrlPrefix + "/events/posters/" + eventId + "/" + storedFileName;
     }
 
+    /**
+     * 공개 URL이 업로드 경로에 속하면 연결된 포스터 파일을 삭제한다.
+     */
     public void deleteByPublicUrl(String publicUrl) {
         if (!StringUtils.hasText(publicUrl) || !publicUrl.startsWith(publicUrlPrefix + "/")) {
             return;
@@ -77,6 +83,9 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 업로드 파일의 확장자와 content-type이 이미지인지 검증한다.
+     */
     private void validateImage(MultipartFile file, String extension) {
         if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("jpg, jpeg, png, webp의 확장자만 등록 가능합니다.");
@@ -88,6 +97,9 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 원본 파일명에서 소문자 확장자를 추출한다.
+     */
     private String extractExtension(String originalFilename) {
         String filename = StringUtils.cleanPath(originalFilename != null ? originalFilename : "");
         int dotIndex = filename.lastIndexOf('.');
@@ -99,6 +111,9 @@ public class FileStorageService {
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * URL prefix 비교가 흔들리지 않도록 마지막 슬래시를 제거한다.
+     */
     private String trimTrailingSlash(String value) {
         if (value == null || value.isBlank()) {
             return "";

@@ -123,4 +123,8 @@ public class Reservation {
     public void expire() {
         this.status = ReservationStatus.EXPIRED;
     }
+
+    public void pendingPayment() {
+        this.status = ReservationStatus.PENDING_PAYMENT;
+    }
 }

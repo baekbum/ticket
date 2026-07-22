@@ -28,7 +28,7 @@
       <col style="width:64px;">
       <col style="width:110px;">
       <col style="width:170px;">
-      <col style="width:130px;">
+      <col style="width:190px;">
       <col style="width:100px;">
       <col style="width:230px;">
       <col style="width:160px;">
@@ -253,6 +253,87 @@
 
     <div class="form-row modal-actions">
       <button class="btn btn-secondary" onclick="closeReservationTicketModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal" id="reservation-status-modal">
+  <div class="f-modal-content reservation-status-content">
+    <p class="modal-title">예매 상태 보정</p>
+    <p class="modal-subtitle">
+      예매 ID <strong id="status-modal-reservation-id">-</strong>
+      <span class="ticket-modal-divider">·</span>
+      주문 번호 <strong id="status-modal-order-id">-</strong>
+    </p>
+    <div class="modal-divider"></div>
+
+    <div id="reservation-status-loading" class="detail-empty-state">
+      <i class="ti ti-loader-2"></i>
+      <span>예매 상태 정보를 불러오는 중입니다.</span>
+    </div>
+
+    <div id="reservation-status-body" style="display:none;">
+      <div class="reservation-status-current">
+        <div>
+          <span>현재 예매 상태</span>
+          <strong id="status-modal-current-status">-</strong>
+        </div>
+        <div>
+          <span>현재 결제 상태</span>
+          <strong id="status-modal-payment-status">-</strong>
+        </div>
+        <div>
+          <span>현재 배송 상태</span>
+          <strong id="status-modal-delivery-status">-</strong>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>변경할 예매 상태</label>
+          <select id="reservation-status-target" onchange="syncReservationStatusAdjustPreview()">
+            <option value="PENDING_PAYMENT">PENDING_PAYMENT (결제 대기)</option>
+            <option value="PAID">PAID (결제 완료)</option>
+            <option value="PARTIALLY_CANCELLED">PARTIALLY_CANCELLED (부분 취소)</option>
+            <option value="CANCELLED">CANCELLED (전체 취소)</option>
+            <option value="EXPIRED">EXPIRED (만료)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>보정 사유</label>
+          <input type="text" id="reservation-status-reason" placeholder="예: PG 승인 콜백 누락으로 수동 보정">
+        </div>
+      </div>
+
+      <div class="status-ticket-select" id="status-ticket-select-wrap">
+        <div class="detail-section-head">
+          <h3>부분 취소 티켓 선택</h3>
+          <span id="status-ticket-selected-count">0매 선택</span>
+        </div>
+        <div class="detail-table-wrap">
+          <table class="detail-table">
+            <thead>
+            <tr>
+              <th style="width:54px;">선택</th>
+              <th>티켓 ID</th>
+              <th>좌석</th>
+              <th>가격</th>
+              <th>상태</th>
+            </tr>
+            </thead>
+            <tbody id="status-ticket-select-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="status-adjust-preview" id="status-adjust-preview"></div>
+    </div>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeReservationStatusModal()">취소</button>
+      <button class="btn btn-warning" onclick="submitReservationStatusAdjust()">
+        <i class="ti ti-adjustments-check"></i>상태 보정
+      </button>
     </div>
   </div>
 </div>

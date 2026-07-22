@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,5 +49,13 @@ public class AdminReservationController {
     ) {
         reservationServiceClient.cancel(reservationId, info);
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/status/id/{reservationId}")
+    public ResponseEntity<ReservationDetailResponse> updateStatus(
+            @PathVariable("reservationId") Long reservationId,
+            @Valid @RequestBody UpdateReservationStatusRequest request
+    ) {
+        return ResponseEntity.ok(reservationServiceClient.updateStatus(reservationId, request));
     }
 }
