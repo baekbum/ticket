@@ -98,6 +98,7 @@ class AreaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.areaId").value(1L))
                 .andExpect(jsonPath("$.areaName").value("VIP"))
+                .andExpect(jsonPath("$.layoutKey").value("VIP"))
                 .andExpect(jsonPath("$.status").value("INACTIVE"));
 
         then(areaService).should().selectById(1L);
@@ -123,6 +124,7 @@ class AreaControllerTest {
                         .param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].areaName").value("VIP"))
+                .andExpect(jsonPath("$.content[0].layoutKey").value("VIP"))
                 .andExpect(jsonPath("$.content[1].status").value("INACTIVE"))
                 .andExpect(jsonPath("$.page.totalElements").value(2));
 
@@ -138,6 +140,7 @@ class AreaControllerTest {
                 .areaId(areaId)
                 .eventId(1L)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(SeatGrade.VIP)
                 .price(150000)
                 .status(status)

@@ -58,22 +58,6 @@ class AdminAreaControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("JSON 텍스트로 구역 등록")
-    void area_insert_json() throws Exception {
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder().jsonText("[]").build();
-        given(areaServiceClient.insertJson(any())).willReturn(List.of(areaResponse(1L, "VIP")));
-
-        mockMvc.perform(post(baseUrl + "/insert/json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
-
-        then(areaServiceClient).should().insertJson(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
     @DisplayName("SVG 파일로 구역 등록")
     void area_insert_svg() throws Exception {
         MockMultipartFile eventId = new MockMultipartFile("eventId", "", "text/plain", "1".getBytes());
@@ -85,7 +69,8 @@ class AdminAreaControllerTest {
                         .file(svgFile)
                         .param("force", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
+                .andExpect(jsonPath("$[0].areaName").value("VIP"))
+                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
         then(areaServiceClient).should().insertSvg(eq("1"), eq(svgFile), eq(true));
     }
@@ -124,7 +109,8 @@ class AdminAreaControllerTest {
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaId").value(1L));
+                .andExpect(jsonPath("$.areaId").value(1L))
+                .andExpect(jsonPath("$.layoutKey").value("VIP"));
 
         then(areaServiceClient).should().selectById(1L);
     }
@@ -193,6 +179,7 @@ class AdminAreaControllerTest {
                 .areaId(areaId)
                 .eventId(1L)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(SeatGrade.VIP)
                 .price(150000)
                 .status(AreaStatus.ACTIVE)

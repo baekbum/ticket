@@ -3,6 +3,8 @@ package dev.bum.ticket_service.service.payment;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -34,6 +36,7 @@ public class PaymentService {
      * PG 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
      * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정하고 커밋 후 후속 이벤트를 발행한다.
      */
+    @AuditLog(action = "PAYMENT_CONFIRM", targetType = "PAYMENT")
     public PaymentResponse confirm(CompletePaymentRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("해당 결제 정보가 존재하지 않습니다."));
@@ -44,6 +47,7 @@ public class PaymentService {
         if (payment.getStatus() != PaymentStatus.READY && payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
             throw new IllegalArgumentException("결제 완료 처리할 수 없는 상태입니다.");
         }
+        PaymentStatus beforePaymentStatus = payment.getStatus();
 
         Reservation reservation = payment.getReservation();
         List<Ticket> tickets = ticketRepository.selectByReservation(reservation);
@@ -52,6 +56,7 @@ public class PaymentService {
                 .collect(Collectors.toList());
 
         payment.complete(request.getPaidAt());
+        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
         reservation.paid();
         for (Ticket ticket : tickets) {
             ticket.paid();
@@ -80,6 +85,9 @@ public class PaymentService {
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 결제 트랜잭션 커밋 이후 결제 완료 이벤트를 발행한다.
+             */
             @Override
             public void afterCommit() {
                 runnable.run();

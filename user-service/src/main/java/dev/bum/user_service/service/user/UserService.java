@@ -6,6 +6,8 @@ import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.user_service.audit.AuditContext;
+import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
@@ -26,7 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -55,6 +60,7 @@ public class UserService {
      * @param info
      * @return
      */
+    @AuditLog(action = "USER_CREATE", targetType = "USER")
     public UserResponse insert(InsertUserRequest info) {
         log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
@@ -110,11 +116,19 @@ public class UserService {
      * @param info
      * @return
      */
+    @AuditLog(action = "USER_UPDATE", targetType = "USER")
     public UserResponse update(String userId, UpdateUserRequest info) {
         log.info("[UPDATE] updateUserInfo : {}", info.toString());
 
-        UserRole originalRole = repository.selectById(userId).getRole();
+        User beforeUser = repository.selectById(userId);
+        UserRole originalRole = beforeUser.getRole();
+        Map<String, Object> beforeData = new LinkedHashMap<>();
+        Map<String, Object> afterData = new LinkedHashMap<>();
+        putUserUpdateAuditData(beforeData, afterData, beforeUser, info);
+
         UserResponse updatedUser = repository.update(userId, info).toResponse();
+        AuditContext.setBeforeData(beforeData);
+        AuditContext.setAfterData(afterData);
 
         // ROLE이 변경됐을 때 AUTH DB에 적용
         if (StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole())) {
@@ -131,6 +145,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
     public void validateInfo(ValidatePasswordRequest info) {
         log.info("[VALIDATE] : {}", info);
         User user = repository.selectById(info.getUserId());
@@ -140,6 +155,7 @@ public class UserService {
         }
     }
 
+    @AuditLog(action = "USER_PASSWORD_INIT", targetType = "USER")
     public void initPassword(String userId) {
         log.info("[INIT PASSWORD] userId : {}", userId);
         UpdateUserRequest info = UpdateUserRequest.builder()
@@ -155,6 +171,7 @@ public class UserService {
      * @param userId
      * @return
      */
+    @AuditLog(action = "USER_DELETE", targetType = "USER")
     public UserResponse delete(String userId) {
         log.info("[DELETE] userId : {}", userId);
 
@@ -171,6 +188,7 @@ public class UserService {
         return deletedUser.toResponse();
     }
 
+    @AuditLog(action = "USER_DELETE_BULK", targetType = "USER")
     public void deleteBulk(DeleteUserBulkRequest info) {
         if (info.getUserIds() == null || info.getUserIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 유저 정보가 없습니다.");
@@ -203,6 +221,108 @@ public class UserService {
         }
 
         return sort;
+    }
+
+    private void putUserUpdateAuditData(
+            Map<String, Object> beforeData,
+            Map<String, Object> afterData,
+            User beforeUser,
+            UpdateUserRequest info
+    ) {
+        putPasswordChanged(beforeData, afterData, info.getPassword());
+        putChangedText(beforeData, afterData, "phoneNumber", info.getPhoneNumber(),
+                beforeUser.getPhoneNumber(), maskPhoneNumber(beforeUser.getPhoneNumber()), maskPhoneNumber(info.getPhoneNumber()));
+        putChangedText(beforeData, afterData, "email", info.getEmail(),
+                beforeUser.getEmail(), maskEmail(beforeUser.getEmail()), maskEmail(info.getEmail()));
+        putChangedValue(beforeData, afterData, "birthDate", info.getBirthDate(),
+                beforeUser.getBirthDate(), "MASKED", "CHANGED");
+        putChangedText(beforeData, afterData, "address", info.getAddress(),
+                beforeUser.getAddress(), "MASKED", "CHANGED");
+        putChangedValue(beforeData, afterData, "isBlacklisted", info.getIsBlacklisted(),
+                beforeUser.getIsBlacklisted(), beforeUser.getIsBlacklisted(), info.getIsBlacklisted());
+        putChangedText(beforeData, afterData, "role", info.getRole(),
+                beforeUser.getRole() != null ? beforeUser.getRole().name() : null,
+                beforeUser.getRole() != null ? beforeUser.getRole().name() : null, info.getRole());
+        putChangedText(beforeData, afterData, "grade", info.getGrade(),
+                beforeUser.getGrade() != null ? beforeUser.getGrade().name() : null,
+                beforeUser.getGrade() != null ? beforeUser.getGrade().name() : null, info.getGrade());
+    }
+
+    private void putChangedText(
+            Map<String, Object> beforeData,
+            Map<String, Object> afterData,
+            String fieldName,
+            String requestedValue,
+            String originalValue,
+            Object beforeValue,
+            Object afterValue
+    ) {
+        if (!StringUtils.hasText(requestedValue)) {
+            return;
+        }
+
+        if (Objects.equals(originalValue, requestedValue)) {
+            return;
+        }
+
+        beforeData.put(fieldName, beforeValue);
+        afterData.put(fieldName, afterValue);
+    }
+
+    private void putPasswordChanged(
+            Map<String, Object> beforeData,
+            Map<String, Object> afterData,
+            String requestedPassword
+    ) {
+        if (!StringUtils.hasText(requestedPassword)) {
+            return;
+        }
+
+        beforeData.put("password", "UNCHANGED");
+        afterData.put("password", "CHANGED");
+    }
+
+    private void putChangedValue(
+            Map<String, Object> beforeData,
+            Map<String, Object> afterData,
+            String fieldName,
+            Object requestedValue,
+            Object originalValue,
+            Object beforeValue,
+            Object afterValue
+    ) {
+        if (requestedValue == null) {
+            return;
+        }
+
+        if (Objects.equals(originalValue, requestedValue)) {
+            return;
+        }
+
+        beforeData.put(fieldName, beforeValue);
+        afterData.put(fieldName, afterValue);
+    }
+
+    private String maskEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return email;
+        }
+
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return "MASKED";
+        }
+
+        return email.substring(0, 1) + "***" + email.substring(atIndex);
+    }
+
+    private String maskPhoneNumber(String phoneNumber) {
+        if (!StringUtils.hasText(phoneNumber)) {
+            return phoneNumber;
+        }
+
+        int visibleLength = Math.min(4, phoneNumber.length());
+        return "***" + phoneNumber.substring(phoneNumber.length() - visibleLength);
     }
 
     /**

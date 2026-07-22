@@ -43,6 +43,7 @@ public class AreaRepositoryImpl implements AreaRepository {
         AreaCondRequest cond = AreaCondRequest.builder()
                 .eventId(info.getEventId())
                 .areaName(info.getAreaName())
+                .layoutKey(info.getLayoutKey())
                 .build();
         isExist(cond);
 
@@ -58,7 +59,7 @@ public class AreaRepositoryImpl implements AreaRepository {
                 .from(area)
                 .where(
                         eventIdEq(cond.getEventId()),
-                        areaNameEq(cond.getAreaName())
+                        duplicateIdentityEq(cond.getAreaName(), cond.getLayoutKey())
                 )
                 .fetch();
 
@@ -125,6 +126,7 @@ public class AreaRepositoryImpl implements AreaRepository {
                 areaIdEq(cond.getAreaId()),
                 eventIdEq(cond.getEventId()),
                 areaNameLike(cond.getAreaName()),
+                layoutKeyEq(cond.getLayoutKey()),
                 gradeEq(cond.getGrade()),
                 statusEq(cond.getStatus())
         };
@@ -144,8 +146,24 @@ public class AreaRepositoryImpl implements AreaRepository {
         return StringUtils.hasText(areaName) ? area.areaName.eq(areaName) : null;
     }
 
+    private BooleanExpression duplicateIdentityEq(String areaName, String layoutKey) {
+        BooleanExpression expression = null;
+        if (StringUtils.hasText(areaName)) {
+            expression = area.areaName.eq(areaName);
+        }
+        if (StringUtils.hasText(layoutKey)) {
+            BooleanExpression layoutKeyExpression = area.layoutKey.eq(layoutKey.trim());
+            expression = expression == null ? layoutKeyExpression : expression.or(layoutKeyExpression);
+        }
+        return expression;
+    }
+
     private BooleanExpression areaNameLike(String areaName) {
         return StringUtils.hasText(areaName) ? area.areaName.like("%" + areaName + "%") : null;
+    }
+
+    private BooleanExpression layoutKeyEq(String layoutKey) {
+        return StringUtils.hasText(layoutKey) ? area.layoutKey.eq(layoutKey.trim()) : null;
     }
 
     private BooleanExpression gradeEq(SeatGrade grade) {

@@ -16,6 +16,7 @@ public class AreaResponse {
     private Long eventId;
     private String eventTitle;
     private String areaName;
+    private String layoutKey;
     private SeatGrade grade;
     private Integer price;
     private AreaStatus status;

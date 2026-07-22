@@ -6,6 +6,8 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.CouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,10 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
 
+    /**
+     * 쿠폰 정책을 검증한 뒤 신규 쿠폰을 등록한다.
+     */
+    @AuditLog(action = "COUPON_CREATE", targetType = "COUPON")
     public CouponResponse insert(InsertCouponRequest request) {
         log.info("[COUPON][INSERT] request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
                 request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
@@ -46,11 +52,16 @@ public class CouponService {
         return savedCoupon.toResponse();
     }
 
+    /**
+     * 쿠폰 정책과 중복 코드를 검증한 뒤 기존 쿠폰 정보를 수정한다.
+     */
+    @AuditLog(action = "COUPON_UPDATE", targetType = "COUPON")
     public CouponResponse update(Long couponId, UpdateCouponRequest request) {
         log.info("[COUPON][UPDATE] couponId={}, request name={}, code={}, discountType={}, discountValue={}, status={}, validDaysAfterIssue={}",
                 couponId, request.getName(), request.getCode(), request.getDiscountType(), request.getDiscountValue(), request.getStatus(), request.getValidDaysAfterIssue());
 
         Coupon coupon = selectCoupon(couponId);
+        AuditDataMapper.setChangedData(coupon, request);
         log.info("[COUPON][UPDATE][BEFORE] couponId={}, name={}, code={}, discountType={}, discountValue={}, maxDiscountAmount={}, minOrderAmount={}, validFrom={}, validUntil={}, validDaysAfterIssue={}, status={}",
                 coupon.getCouponId(), coupon.getName(), coupon.getCode(), coupon.getDiscountType(), coupon.getDiscountValue(),
                 coupon.getMaxDiscountAmount(), coupon.getMinOrderAmount(), coupon.getValidFrom(), coupon.getValidUntil(),
@@ -77,11 +88,17 @@ public class CouponService {
         return updatedCoupon.toResponse();
     }
 
+    /**
+     * 쿠폰 ID로 단건 쿠폰 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CouponResponse selectById(Long couponId) {
         return selectCoupon(couponId).toResponse();
     }
 
+    /**
+     * 검색 조건과 페이징 조건으로 쿠폰 목록을 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<CouponResponse> selectByCond(CouponCondRequest cond) {
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -96,10 +113,16 @@ public class CouponService {
         );
     }
 
+    /**
+     * 쿠폰 ID로 엔티티를 조회하고 없으면 repository 예외를 전달한다.
+     */
     private Coupon selectCoupon(Long couponId) {
         return couponRepository.selectById(couponId);
     }
 
+    /**
+     * 할인 타입별 할인 값과 최대 할인 금액 정책이 유효한지 검증한다.
+     */
     private void validateCouponPolicy(CouponDiscountType discountType, Integer discountValue, Integer maxDiscountAmount) {
         if (discountType == null || discountValue == null || discountValue <= 0) {
             throw new IllegalArgumentException("쿠폰 할인 값을 확인해주세요.");
@@ -114,12 +137,18 @@ public class CouponService {
         }
     }
 
+    /**
+     * 발급 후 유효 일수가 음수가 아닌지 검증한다.
+     */
     private void validateValidDaysAfterIssue(Integer validDaysAfterIssue) {
         if (validDaysAfterIssue != null && validDaysAfterIssue < 0) {
             throw new IllegalArgumentException("발급 후 유효 일수는 0 이상이어야 합니다.");
         }
     }
 
+    /**
+     * 요청 sort 문자열을 Spring Data Sort 객체로 변환한다.
+     */
     private Sort makeSortInfo(List<String> sorts) {
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {

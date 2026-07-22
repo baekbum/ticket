@@ -33,17 +33,20 @@ CREATE TABLE areas (
     area_id BIGSERIAL PRIMARY KEY,
     event_id BIGINT NOT NULL,
     area_name VARCHAR(80) NOT NULL,
+    layout_key VARCHAR(100) NOT NULL,
     grade VARCHAR(10) NOT NULL,
     price INTEGER NOT NULL,
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uk_event_area_name UNIQUE (event_id, area_name)
+    CONSTRAINT uk_event_area_name UNIQUE (event_id, area_name),
+    CONSTRAINT uk_event_area_layout_key UNIQUE (event_id, layout_key)
 );
 
 CREATE INDEX idx_area_event_id ON areas(event_id);
 CREATE INDEX idx_area_event_name ON areas(event_id, area_name);
+CREATE INDEX idx_area_event_layout_key ON areas(event_id, layout_key);
 
 -- ==========================================
 -- 3. Event layouts 테이블
@@ -246,3 +249,43 @@ CREATE INDEX idx_ticket_reservation_id ON tickets(reservation_id);
 CREATE INDEX idx_ticket_user_id ON tickets(user_id);
 CREATE INDEX idx_ticket_seat_id ON tickets(seat_id);
 CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
+
+-- ==========================================
+-- 12. 감사 로그 테이블
+-- ==========================================
+CREATE TABLE audit_log (
+   id BIGSERIAL PRIMARY KEY,
+   occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+   service_name VARCHAR(50) NOT NULL,
+
+   actor_type VARCHAR(30) NOT NULL,
+   actor_id VARCHAR(50),
+   actor_name VARCHAR(100),
+
+   action VARCHAR(100) NOT NULL,
+
+   target_type VARCHAR(50),
+   target_id VARCHAR(100),
+
+   result VARCHAR(20) NOT NULL,
+   reason VARCHAR(500),
+
+   ip_address VARCHAR(45),
+   user_agent VARCHAR(500),
+
+   request_id VARCHAR(100),
+   trace_id VARCHAR(100),
+
+   before_data JSONB,
+   after_data JSONB,
+   metadata JSONB,
+
+   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_log_occurred_at ON audit_log(occurred_at);
+CREATE INDEX idx_audit_log_actor ON audit_log(actor_type, actor_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_target ON audit_log(target_type, target_id);
+CREATE INDEX idx_audit_log_trace_id ON audit_log(trace_id);

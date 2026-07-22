@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 180">
+  <rect
+    id="area-vip-a"
+    class="area vip"
+    data-layout-key="VIP-A"
+    data-area-name="VIP A"
+    data-grade="VIP"
+    data-price="165000"
+    x="20"
+    y="20"
+    width="180"
+    height="120"
+  />
+  <rect
+    id="area-r-a"
+    class="area r"
+    data-layout-key="R-A"
+    data-area-name="R A"
+    data-grade="R"
+    data-price="143000"
+    x="220"
+    y="20"
+    width="180"
+    height="120"
+  />
+</svg>

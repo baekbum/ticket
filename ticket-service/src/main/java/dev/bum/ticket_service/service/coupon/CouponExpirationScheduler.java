@@ -18,6 +18,9 @@ public class CouponExpirationScheduler {
     private final CouponRepository couponRepository;
     private final UserCouponRepository userCouponRepository;
 
+    /**
+     * 만료 시각이 지난 쿠폰 정책과 사용자 쿠폰을 주기적으로 만료 처리한다.
+     */
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void expireCouponData() {

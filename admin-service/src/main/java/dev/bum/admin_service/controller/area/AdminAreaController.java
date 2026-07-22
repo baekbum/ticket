@@ -5,7 +5,6 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import feign.FeignException;
@@ -26,11 +25,6 @@ import java.util.List;
 public class AdminAreaController {
 
     private final AreaServiceClient areaServiceClient;
-
-    @PostMapping("/insert/json")
-    public ResponseEntity<List<AreaResponse>> insertJson(@Valid @RequestBody InsertAreaJsonRequest info) {
-        return ResponseEntity.ok(areaServiceClient.insertJson(info));
-    }
 
     @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> insertSvg(

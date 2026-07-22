@@ -7,7 +7,6 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
-import dev.bum.common.service.ticket.area.dto.InsertAreaJsonRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
@@ -67,22 +66,6 @@ class AreaManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("JSON 텍스트로 구역 등록")
-    void area_insert_json() throws Exception {
-        InsertAreaJsonRequest info = InsertAreaJsonRequest.builder().jsonText("[]").build();
-        given(areaService.insertJson(any())).willReturn(List.of(areaResponse(1L, "VIP")));
-
-        mockMvc.perform(post(baseUrl + "/insert/json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
-
-        then(areaService).should().insertJson(info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
     @DisplayName("SVG 파일로 구역 등록")
     void area_insert_svg() throws Exception {
         MockMultipartFile eventIdPart = new MockMultipartFile("eventId", "", "text/plain", "1".getBytes());
@@ -94,7 +77,8 @@ class AreaManagementControllerTest {
                         .file(svgFile)
                         .param("force", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].areaName").value("VIP"));
+                .andExpect(jsonPath("$[0].areaName").value("VIP"))
+                .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
         then(areaService).should().insertSvg(eq(1L), eq(svgFile), eq(true));
     }
@@ -126,7 +110,8 @@ class AreaManagementControllerTest {
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.areaId").value(1L));
+                .andExpect(jsonPath("$.areaId").value(1L))
+                .andExpect(jsonPath("$.layoutKey").value("VIP"));
 
         then(areaService).should().selectById(1L);
     }
@@ -196,6 +181,7 @@ class AreaManagementControllerTest {
                 .areaId(areaId)
                 .eventId(1L)
                 .areaName(areaName)
+                .layoutKey(areaName)
                 .grade(SeatGrade.VIP)
                 .price(150000)
                 .status(AreaStatus.ACTIVE)

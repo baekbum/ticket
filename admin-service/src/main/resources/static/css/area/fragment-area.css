@@ -397,10 +397,6 @@
   box-shadow: 0 0 0 3px var(--purple-ring);
 }
 
-.area-json-content {
-  max-width: 860px;
-}
-
 .area-svg-content {
   max-width: 520px;
 }
@@ -433,27 +429,6 @@
 
 .area-file-label i {
   font-size: 18px;
-}
-
-.area-json-textarea {
-  width: 100%;
-  min-height: 420px;
-  resize: vertical;
-  box-sizing: border-box;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #111827;
-  color: #f8fafc;
-  font-family: Consolas, Monaco, monospace;
-  font-size: 12.5px;
-  line-height: 1.55;
-  outline: none;
-}
-
-.area-json-textarea:focus {
-  border-color: var(--purple);
-  box-shadow: 0 0 0 3px var(--purple-ring);
 }
 
 .btn-add-area {

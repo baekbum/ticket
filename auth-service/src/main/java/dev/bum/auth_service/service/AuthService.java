@@ -1,5 +1,7 @@
 package dev.bum.auth_service.service;
 
+import dev.bum.auth_service.audit.AuditLog;
+import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
@@ -48,9 +50,11 @@ public class AuthService {
      * @return
      */
     @Transactional(readOnly = true)
+    @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
         log.info("login info : {}", info.toString());
         Auth auth = findByUserId(info.getUserId());
+        AuditContext.setActor(auth);
 
         log.info("id : {}", auth.getId());
         log.info("user id : {}", auth.getUserId());
@@ -121,6 +125,7 @@ public class AuthService {
     /**
      * Refresh Token을 활용해 Access/Refresh Token 세트를 재발급(갱신)하는 메서드
      */
+    @AuditLog(action = "TOKEN_REISSUE", targetType = "AUTH")
     public TokenResponse reissueToken(String refreshToken) {
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
@@ -141,6 +146,7 @@ public class AuthService {
 
         // 5. 최신 권한(Role) 정보를 매핑하기 위해 DB 유저 조회
         Auth auth = repository.findByUserId(userId);
+        AuditContext.setActor(auth);
         if (auth == null) {
             throw new UserNotExistException("존재하지 않는 유저입니다.");
         }
