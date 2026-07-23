@@ -5,6 +5,7 @@ import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
 import dev.bum.ticket_service.exception.area.AreaNotExistException;
+import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.exception.reservation.ReservationDuplicateException;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.seat.*;
@@ -106,5 +107,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(QueueAccessDeniedException.class)
+    public ResponseEntity<String> handleQueueAccessDeniedException(QueueAccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(ex.getMessage());
     }
 }

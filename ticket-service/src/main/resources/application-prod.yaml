@@ -1,5 +1,7 @@
 server:
   port: 8080
+  servlet:
+    context-path: /
 
 spring:
   application:
@@ -49,3 +51,6 @@ app:
   upload:
     root: ${APP_UPLOAD_ROOT:/app/uploads}
     public-url-prefix: ${APP_UPLOAD_PUBLIC_URL_PREFIX:/ticket/uploads}
+  queue:
+    enabled: ${APP_QUEUE_ENABLED:true}
+    base-url: ${APP_QUEUE_BASE_URL:http://queue-service:8080}

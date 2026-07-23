@@ -1,0 +1,22 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: queue-service
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
+
+app:
+  queue:
+    admission-size: ${APP_QUEUE_ADMISSION_SIZE:100}
+    token-ttl: ${APP_QUEUE_TOKEN_TTL:20m}
