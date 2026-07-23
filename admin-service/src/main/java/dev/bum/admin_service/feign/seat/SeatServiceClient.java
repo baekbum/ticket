@@ -47,6 +47,17 @@ public interface SeatServiceClient {
     @DeleteMapping("/cache/area/{areaId}")
     String deleteAreaSeatCache(@PathVariable("areaId") Long areaId);
 
+    @GetMapping("/cache/inspect/event/{eventId}")
+    SeatRedisInspectResponse inspectEventSeatCache(@PathVariable("eventId") Long eventId,
+                                                   @RequestParam("limit") int limit);
+
+    @GetMapping("/cache/inspect/area/{areaId}")
+    SeatRedisInspectResponse inspectAreaSeatCache(@PathVariable("areaId") Long areaId,
+                                                  @RequestParam("limit") int limit);
+
+    @GetMapping("/cache/inspect/seat/{seatId}")
+    SeatRedisInspectResponse inspectSeatCache(@PathVariable("seatId") Long seatId);
+
     @PostMapping("/cache/seat/{seatId}/test-lock")
     String lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId);
 

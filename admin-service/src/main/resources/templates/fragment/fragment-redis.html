@@ -1,0 +1,447 @@
+﻿<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.redis-frag {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+
+.redis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 1.5rem 1.75rem 1.25rem;
+}
+
+.redis-header h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.redis-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding: 0 1.75rem 1rem;
+}
+
+.redis-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 170px;
+  flex: 0 0 170px;
+}
+
+.redis-field label {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.redis-field input,
+.redis-field select {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fafafa;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.redis-field input:focus,
+.redis-field select:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px var(--purple-ring);
+  background: #fff;
+}
+
+.redis-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 520px;
+  min-width: 520px;
+}
+
+.redis-limit-field {
+  width: 145px;
+  flex: 0 0 145px;
+}
+
+.redis-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  min-width: 142px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.redis-toggle-btn {
+  width: 66px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.redis-toggle-btn.active {
+  background: var(--purple);
+  color: #fff;
+}
+
+.redis-interval-field {
+  width: 96px;
+  flex: 0 0 96px;
+}
+
+.redis-interval-field label {
+  display: none;
+}
+
+.redis-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  min-width: 112px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--purple);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.redis-btn-outline {
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  min-width: 128px;
+}
+
+.redis-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 0 1.75rem 1rem;
+}
+
+.redis-summary > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 10px 12px;
+}
+
+.summary-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.redis-summary strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.redis-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 1.75rem 1.5rem;
+  background: var(--card-bg);
+}
+
+.redis-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+
+.redis-table th,
+.redis-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.redis-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #faf9fd;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.redis-table th:nth-child(1),
+.redis-table td:nth-child(1) {
+  width: 31%;
+}
+
+.redis-table th:nth-child(2),
+.redis-table td:nth-child(2) {
+  width: 20%;
+}
+
+.redis-table th:nth-child(3),
+.redis-table td:nth-child(3) {
+  width: 10%;
+}
+
+.redis-table th:nth-child(4),
+.redis-table td:nth-child(4),
+.redis-table th:nth-child(6),
+.redis-table td:nth-child(6) {
+  width: 9%;
+  text-align: right;
+}
+
+.redis-table th:nth-child(5),
+.redis-table td:nth-child(5) {
+  width: 21%;
+}
+
+.redis-key,
+.redis-value {
+  font-family: Consolas, Monaco, monospace;
+}
+
+.redis-badge {
+  display: inline-block;
+  min-width: 66px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.redis-badge.available {
+  background: #e6fcf5;
+  color: #0ca678;
+}
+
+.redis-badge.locked {
+  background: #fff3bf;
+  color: #e67700;
+}
+
+.redis-badge.reserved {
+  background: rgba(214, 59, 59, 0.09);
+  color: var(--red);
+}
+
+.redis-badge.missing {
+  background: #edf2ff;
+  color: #4263eb;
+}
+
+.redis-row-changed {
+  animation: redisChanged 1.8s ease-out;
+  background: #fff8e1;
+}
+
+.redis-empty {
+  height: 180px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.redis-placeholder {
+  margin: 0 1.75rem 1.5rem;
+  min-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary);
+}
+
+.redis-placeholder i {
+  color: var(--purple);
+  font-size: 20px;
+}
+
+.is-hidden {
+  display: none;
+}
+
+@keyframes redisChanged {
+  from { background: #fff3bf; }
+  to { background: transparent; }
+}
+
+@media (max-width: 960px) {
+  .redis-header,
+  .redis-toolbar,
+  .redis-summary {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .redis-header {
+    flex-direction: column;
+  }
+
+  .redis-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .redis-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .redis-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .redis-table-wrap {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+}
+
+</style>
+
+<div class="redis-frag">
+  <div class="redis-header">
+    <div>
+      <h2>Seat Redis</h2>
+    </div>
+  </div>
+
+  <section class="redis-toolbar">
+    <div class="redis-field">
+      <label for="redis-scope">&#51312;&#54924; &#48276;&#50948;</label>
+      <select id="redis-scope" onchange="syncRedisScopeFields()">
+        <option value="event">Event</option>
+        <option value="area">Area</option>
+        <option value="seat">Seat</option>
+      </select>
+    </div>
+    <div class="redis-field" id="redis-event-field">
+      <label for="redis-event-id">Event ID</label>
+      <input id="redis-event-id" type="number" min="1" placeholder="eventId">
+    </div>
+    <div class="redis-field is-hidden" id="redis-area-field">
+      <label for="redis-area-id">Area ID</label>
+      <input id="redis-area-id" type="number" min="1" placeholder="areaId">
+    </div>
+    <div class="redis-field is-hidden" id="redis-seat-field">
+      <label for="redis-seat-id">Seat ID</label>
+      <input id="redis-seat-id" type="number" min="1" placeholder="seatId">
+    </div>
+    <div class="redis-field" id="redis-limit-field">
+      <label for="redis-limit">&#51312;&#54924; &#44060;&#49688;</label>
+      <select id="redis-limit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="200">200</option>
+        <option value="500">500</option>
+      </select>
+    </div>
+    <div class="redis-actions">
+      <div class="redis-toggle-group" aria-label="&#51088;&#46041; &#49352;&#47196;&#44256;&#52840;">
+        <button class="redis-toggle-btn" id="redis-auto-start" type="button" onclick="setRedisAutoRefresh(true)">&#49884;&#51089;</button>
+        <button class="redis-toggle-btn active" id="redis-auto-stop" type="button" onclick="setRedisAutoRefresh(false)">&#51473;&#51648;</button>
+      </div>
+      <div class="redis-field redis-interval-field">
+        <label for="redis-refresh-interval">&#51452;&#44592;</label>
+        <select id="redis-refresh-interval" onchange="updateRedisAutoRefreshInterval()">
+          <option value="5" selected>5&#52488;</option>
+          <option value="10">10&#52488;</option>
+          <option value="20">20&#52488;</option>
+          <option value="30">30&#52488;</option>
+          <option value="60">60&#52488;</option>
+        </select>
+      </div>
+      <button class="redis-btn redis-btn-outline" type="button" onclick="clearRedisSnapshot()">
+        &#48320;&#44221; &#52488;&#44592;&#54868;
+      </button>
+      <button class="redis-btn" type="button" onclick="loadSeatRedis()">
+        &#49352;&#47196;&#44256;&#52840;
+      </button>
+    </div>
+  </section>
+
+  <section class="redis-summary">
+    <div>
+      <span class="summary-label">&#51312;&#54924; &#48276;&#50948;</span>
+      <strong id="redis-summary-scope">-</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#51312;&#54924; &#44148;&#49688;</span>
+      <strong id="redis-summary-count">0</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#48320;&#44221; &#44048;&#51648;</span>
+      <strong id="redis-summary-changed">0</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#47560;&#51648;&#47561; &#51312;&#54924;</span>
+      <strong id="redis-summary-time">-</strong>
+    </div>
+  </section>
+
+  <div class="redis-table-wrap">
+    <table class="redis-table">
+      <thead>
+      <tr>
+        <th>Key</th>
+        <th>Value</th>
+        <th>Status</th>
+        <th>TTL</th>
+        <th>Lock Value</th>
+        <th>Lock TTL</th>
+      </tr>
+      </thead>
+      <tbody id="redis-seat-body">
+      <tr>
+        <td colspan="6" class="redis-empty">Enter a target and refresh.</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script th:src="@{/js/redis/fragment-redis.js}"></script>
+

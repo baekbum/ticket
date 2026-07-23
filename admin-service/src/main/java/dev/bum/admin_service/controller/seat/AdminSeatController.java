@@ -91,6 +91,27 @@ public class AdminSeatController {
         return ResponseEntity.ok(seatServiceClient.deleteAreaSeatCache(areaId));
     }
 
+    @GetMapping("/cache/inspect/event/{eventId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectEventSeatCache(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit
+    ) {
+        return ResponseEntity.ok(seatServiceClient.inspectEventSeatCache(eventId, limit));
+    }
+
+    @GetMapping("/cache/inspect/area/{areaId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectAreaSeatCache(
+            @PathVariable("areaId") Long areaId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit
+    ) {
+        return ResponseEntity.ok(seatServiceClient.inspectAreaSeatCache(areaId, limit));
+    }
+
+    @GetMapping("/cache/inspect/seat/{seatId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectSeatCache(@PathVariable("seatId") Long seatId) {
+        return ResponseEntity.ok(seatServiceClient.inspectSeatCache(seatId));
+    }
+
     @PostMapping("/cache/seat/{seatId}/test-lock")
     public ResponseEntity<String> lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId) {
         try {

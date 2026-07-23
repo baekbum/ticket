@@ -3,6 +3,8 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
@@ -14,8 +16,12 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -24,6 +30,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -99,6 +106,57 @@ public class SeatCacheService {
      * @param userId
      * @return
      */
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, int limit) {
+        int normalizedLimit = normalizeInspectLimit(limit);
+        List<SeatRedisEntryResponse> entries = scanSeatKeys("event:" + eventId + ":seat:*", normalizedLimit)
+                .stream()
+                .filter(key -> !key.endsWith(":lock"))
+                .limit(normalizedLimit)
+                .map(this::toSeatRedisEntry)
+                .collect(Collectors.toList());
+
+        return SeatRedisInspectResponse.builder()
+                .scope("EVENT")
+                .eventId(eventId)
+                .limit(normalizedLimit)
+                .count(entries.size())
+                .entries(entries)
+                .build();
+    }
+
+    public SeatRedisInspectResponse inspectAreaSeatCache(Long areaId, int limit) {
+        int normalizedLimit = normalizeInspectLimit(limit);
+        List<SeatRedisEntryResponse> entries = repository.selectByAreaId(areaId)
+                .stream()
+                .limit(normalizedLimit)
+                .map(this::buildSeatRedisKey)
+                .map(this::toSeatRedisEntry)
+                .collect(Collectors.toList());
+
+        return SeatRedisInspectResponse.builder()
+                .scope("AREA")
+                .areaId(areaId)
+                .limit(normalizedLimit)
+                .count(entries.size())
+                .entries(entries)
+                .build();
+    }
+
+    public SeatRedisInspectResponse inspectSeatCache(Long seatId) {
+        Seat seat = repository.selectById(seatId);
+        SeatRedisEntryResponse entry = toSeatRedisEntry(buildSeatRedisKey(seat));
+
+        return SeatRedisInspectResponse.builder()
+                .scope("SEAT")
+                .eventId(seat.getEvent() == null ? null : seat.getEvent().getEventId())
+                .areaId(seat.getArea() == null ? null : seat.getArea().getAreaId())
+                .seatId(seatId)
+                .limit(1)
+                .count(1)
+                .entries(List.of(entry))
+                .build();
+    }
+
     public String lockSeatCacheForUser(Long seatId, String userId) {
         log.info("[REDIS-TEST-LOCK] SeatId : {}, UserId : {}", seatId, userId);
         Seat seat = repository.selectById(seatId);
@@ -405,6 +463,63 @@ public class SeatCacheService {
             }
         }
         return inserted;
+    }
+
+    private int normalizeInspectLimit(int limit) {
+        if (limit <= 0) {
+            return 100;
+        }
+        return Math.min(limit, 500);
+    }
+
+    private List<String> scanSeatKeys(String pattern, int limit) {
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(pattern)
+                .count(Math.min(limit * 2L, 1000L))
+                .build();
+
+        List<String> keys = seatRedisTemplate.execute((RedisCallback<List<String>>) connection -> {
+            List<String> foundKeys = new ArrayList<>();
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                while (cursor.hasNext() && foundKeys.size() < limit * 2) {
+                    foundKeys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+                }
+            }
+            return foundKeys;
+        });
+
+        return keys == null ? List.of() : keys;
+    }
+
+    private SeatRedisEntryResponse toSeatRedisEntry(String redisKey) {
+        String value = seatRedisTemplate.opsForValue().get(redisKey);
+        Long ttlSeconds = seatRedisTemplate.getExpire(redisKey);
+        DataType dataType = seatRedisTemplate.type(redisKey);
+        String lockKey = redisKey + ":lock";
+        String lockValue = seatRedisTemplate.opsForValue().get(lockKey);
+        Long lockTtlSeconds = seatRedisTemplate.getExpire(lockKey);
+
+        return SeatRedisEntryResponse.builder()
+                .key(redisKey)
+                .value(value)
+                .ttlSeconds(ttlSeconds)
+                .type(dataType == null ? null : dataType.name())
+                .status(resolveSeatCacheStatus(value))
+                .locked(lockValue != null || (value != null && value.startsWith("LOCKED:")))
+                .lockKey(lockKey)
+                .lockValue(lockValue)
+                .lockTtlSeconds(lockTtlSeconds)
+                .build();
+    }
+
+    private String resolveSeatCacheStatus(String value) {
+        if (value == null) {
+            return "MISSING";
+        }
+        if (value.startsWith("LOCKED:")) {
+            return "LOCKED";
+        }
+        return value;
     }
 
     /**

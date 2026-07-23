@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
@@ -103,6 +104,27 @@ public class SeatManagementController {
     @DeleteMapping("/cache/area/{areaId}")
     public ResponseEntity<String> deleteAreaSeatCache(@PathVariable("areaId") Long areaId) {
         return ResponseEntity.ok(seatService.deleteAreaSeatsFromCache(areaId));
+    }
+
+    @GetMapping("/cache/inspect/event/{eventId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectEventSeatCache(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit
+    ) {
+        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, limit));
+    }
+
+    @GetMapping("/cache/inspect/area/{areaId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectAreaSeatCache(
+            @PathVariable("areaId") Long areaId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit
+    ) {
+        return ResponseEntity.ok(seatService.inspectAreaSeatCache(areaId, limit));
+    }
+
+    @GetMapping("/cache/inspect/seat/{seatId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectSeatCache(@PathVariable("seatId") Long seatId) {
+        return ResponseEntity.ok(seatService.inspectSeatCache(seatId));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-lock")

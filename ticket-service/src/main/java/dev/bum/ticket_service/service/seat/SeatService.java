@@ -172,6 +172,21 @@ public class SeatService {
         return seatCacheService.deleteAreaSeatsFromCache(areaId);
     }
 
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, int limit) {
+        return seatCacheService.inspectEventSeatCache(eventId, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectAreaSeatCache(Long areaId, int limit) {
+        return seatCacheService.inspectAreaSeatCache(areaId, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectSeatCache(Long seatId) {
+        return seatCacheService.inspectSeatCache(seatId);
+    }
+
     /**
      * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
      * @param seatId
