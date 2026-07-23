@@ -12,6 +12,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.controller.seat.SeatController;
+import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.seat.SeatService;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +53,9 @@ class SeatControllerTest {
 
     @MockitoBean
     private SeatService seatService;
+
+    @MockitoBean
+    private QueueAccessService queueAccessService;
 
     private final String baseUrl = "/api/v1/seat";
 

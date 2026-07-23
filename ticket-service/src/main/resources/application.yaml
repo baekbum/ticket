@@ -53,3 +53,6 @@ app:
   upload:
     root: uploads
     public-url-prefix: /ticket/uploads
+  queue:
+    enabled: true
+    base-url: http://localhost:8083/queue
