@@ -1,10 +1,10 @@
 package dev.bum.queue_service.service;
 
 import dev.bum.queue_service.config.QueueProperties;
-import dev.bum.queue_service.dto.QueueEnterResponse;
-import dev.bum.queue_service.dto.QueueStatusResponse;
-import dev.bum.queue_service.dto.QueueValidateRequest;
-import dev.bum.queue_service.dto.QueueValidateResponse;
+import dev.bum.common.service.queue.dto.QueueEnterResponse;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
+import dev.bum.common.service.queue.dto.QueueValidateRequest;
+import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;

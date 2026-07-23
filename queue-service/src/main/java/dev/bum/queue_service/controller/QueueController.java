@@ -1,9 +1,9 @@
 package dev.bum.queue_service.controller;
 
-import dev.bum.queue_service.dto.QueueEnterResponse;
-import dev.bum.queue_service.dto.QueueStatusResponse;
-import dev.bum.queue_service.dto.QueueValidateRequest;
-import dev.bum.queue_service.dto.QueueValidateResponse;
+import dev.bum.common.service.queue.dto.QueueEnterResponse;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
+import dev.bum.common.service.queue.dto.QueueValidateRequest;
+import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.queue_service.service.QueueService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

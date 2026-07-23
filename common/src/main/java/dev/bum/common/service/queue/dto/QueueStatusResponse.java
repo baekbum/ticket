@@ -1,4 +1,4 @@
-package dev.bum.queue_service.dto;
+package dev.bum.common.service.queue.dto;
 
 public record QueueStatusResponse(
         // 대기열을 적용하는 공연/이벤트 ID

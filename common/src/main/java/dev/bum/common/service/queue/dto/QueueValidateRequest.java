@@ -1,4 +1,4 @@
-package dev.bum.queue_service.dto;
+package dev.bum.common.service.queue.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
