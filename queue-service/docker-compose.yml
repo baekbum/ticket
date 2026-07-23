@@ -1,0 +1,20 @@
+services:
+  queue-service:
+    build:
+      context: ../
+      dockerfile: queue-service/Dockerfile
+    deploy:
+      replicas: 1
+    environment:
+      - SPRING_DATA_REDIS_HOST=queue-redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_PROFILES_ACTIVE=prod
+      - APP_QUEUE_ADMISSION_SIZE=100
+      - APP_QUEUE_TOKEN_TTL=10m
+      - TOKEN_SECRET=ticket-project-secret-value-is-made-by-random
+    networks:
+      - ticket-network
+
+networks:
+  ticket-network:
+    external: true

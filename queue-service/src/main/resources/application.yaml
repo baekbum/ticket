@@ -1,0 +1,24 @@
+server:
+  port: 8083
+  servlet:
+    context-path: /queue
+
+spring:
+  profiles:
+    default: local
+  application:
+    name: queue-service
+  data:
+    redis:
+      host: localhost
+      port: 6381
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+  accessTokenValidityInMilliseconds: 3600000
+  refreshTokenValidityInMilliseconds: 1209600000
+
+app:
+  queue:
+    admission-size: 100
+    token-ttl: 20m

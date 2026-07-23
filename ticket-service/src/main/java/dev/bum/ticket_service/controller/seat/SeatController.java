@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
+import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SeatController {
 
     private final SeatService seatService;
+    private final QueueAccessService queueAccessService;
 
     @GetMapping("/select/id/{seatId}")
     public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
@@ -39,8 +42,10 @@ public class SeatController {
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(
             @AuthenticationPrincipal String currentUserId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
             @RequestBody SeatOccupyRequest request
     ) {
+        queueAccessService.validate(request.getEventId(), currentUserId, queueToken);
         request.setUserId(currentUserId);
         return ResponseEntity.ok(seatService.occupySeat(request));
     }
