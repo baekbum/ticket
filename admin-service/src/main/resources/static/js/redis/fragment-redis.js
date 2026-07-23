@@ -5,6 +5,8 @@
   let autoRefreshTimer = null;
   let autoRefreshEnabled = false;
   let redisMode = 'SEAT';
+  let redisSort = { field: 'key', direction: 'asc' };
+  let lastEntries = [];
 
   function limitValue() {
     return document.getElementById('redis-limit')?.value || '100';
@@ -50,6 +52,15 @@
     return `<span class="redis-badge ${css}">${escapeHtml(normalized)}</span>`;
   }
 
+  function sortIndicator(field) {
+    if (redisSort.field !== field) return '';
+    return `<span class="redis-sort-indicator">${redisSort.direction === 'asc' ? '▲' : '▼'}</span>`;
+  }
+
+  function sortableHeader(label, field) {
+    return `<button class="redis-sort-btn" type="button" onclick="sortSeatRedis('${field}')">${label}${sortIndicator(field)}</button>`;
+  }
+
   function entrySignature(entry) {
     return JSON.stringify({
       mode: redisMode,
@@ -65,33 +76,59 @@
 
     if (redisMode === 'LOCK') {
       headRow.innerHTML = `
-        <th>Lock Key</th>
-        <th>Lock Value</th>
-        <th>TTL</th>
-        <th>Seat Key</th>
-        <th>Seat Value</th>
-        <th>Seat TTL</th>
+        <th>${sortableHeader('Lock Key', 'key')}</th>
+        <th>${sortableHeader('Lock Value', 'value')}</th>
+        <th>${sortableHeader('TTL', 'ttlSeconds')}</th>
+        <th>${sortableHeader('Seat Key', 'lockKey')}</th>
+        <th>${sortableHeader('Seat Value', 'lockValue')}</th>
+        <th>${sortableHeader('Seat TTL', 'lockTtlSeconds')}</th>
       `;
       return;
     }
 
     headRow.innerHTML = `
-      <th>Key</th>
-      <th>Value</th>
-      <th>Status</th>
-      <th>TTL</th>
-      <th>Lock Value</th>
-      <th>Lock TTL</th>
+      <th>${sortableHeader('Key', 'key')}</th>
+      <th>${sortableHeader('Value', 'value')}</th>
+      <th>${sortableHeader('Status', 'status')}</th>
+      <th>${sortableHeader('TTL', 'ttlSeconds')}</th>
+      <th>${sortableHeader('Lock Value', 'lockValue')}</th>
+      <th>${sortableHeader('Lock TTL', 'lockTtlSeconds')}</th>
     `;
   }
 
-  function renderEntries(entries) {
+  function valueForSort(entry, field) {
+    const value = entry?.[field];
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'number') return value;
+    return String(value).toLowerCase();
+  }
+
+  function sortEntries(entries) {
+    const directionMultiplier = redisSort.direction === 'asc' ? 1 : -1;
+    return [...entries].sort((a, b) => {
+      const aValue = valueForSort(a, redisSort.field);
+      const bValue = valueForSort(b, redisSort.field);
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return (aValue - bValue) * directionMultiplier;
+      }
+
+      return String(aValue).localeCompare(String(bValue), undefined, { numeric: true }) * directionMultiplier;
+    });
+  }
+
+  function renderEntries(entries, options = {}) {
     const tbody = document.getElementById('redis-seat-body');
     if (!tbody) return 0;
+    const detectChanges = options.detectChanges !== false;
 
-    if (!entries.length) {
+    const sortedEntries = sortEntries(entries);
+
+    if (!sortedEntries.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="redis-empty">No Redis entries found.</td></tr>';
-      previousSnapshot = new Map();
+      if (detectChanges) {
+        previousSnapshot = new Map();
+      }
       return 0;
     }
 
@@ -99,10 +136,10 @@
     const nextSnapshot = new Map();
     tbody.innerHTML = '';
 
-    entries.forEach(entry => {
+    sortedEntries.forEach(entry => {
       const signature = entrySignature(entry);
       const previous = previousSnapshot.get(entry.key);
-      const changed = previous !== undefined && previous !== signature;
+      const changed = detectChanges && previous !== undefined && previous !== signature;
       if (changed) changedCount += 1;
       nextSnapshot.set(entry.key, signature);
 
@@ -131,7 +168,9 @@
       tbody.appendChild(tr);
     });
 
-    previousSnapshot = nextSnapshot;
+    if (detectChanges) {
+      previousSnapshot = nextSnapshot;
+    }
     return changedCount;
   }
 
@@ -162,9 +201,22 @@
 
   window.setSeatRedisMode = function (mode) {
     redisMode = mode === 'LOCK' ? 'LOCK' : 'SEAT';
+    redisSort = { field: 'key', direction: 'asc' };
+    lastEntries = [];
     previousSnapshot = new Map();
     document.getElementById('redis-summary-changed').textContent = '0';
     syncRedisModeToggle();
+  };
+
+  window.sortSeatRedis = function (field) {
+    if (redisSort.field === field) {
+      redisSort.direction = redisSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      redisSort = { field, direction: 'asc' };
+    }
+
+    renderTableHeader();
+    renderEntries(lastEntries, { detectChanges: false });
   };
 
   window.clearRedisSnapshot = function () {
@@ -199,7 +251,8 @@
         return;
       }
       const data = await res.json();
-      const changedCount = renderEntries(data.entries || []);
+      lastEntries = data.entries || [];
+      const changedCount = renderEntries(lastEntries);
       updateSummary(data, changedCount);
     } catch (e) {
       console.error(e);
