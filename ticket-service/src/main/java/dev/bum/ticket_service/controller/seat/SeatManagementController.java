@@ -109,22 +109,12 @@ public class SeatManagementController {
     @GetMapping("/cache/inspect/event/{eventId}")
     public ResponseEntity<SeatRedisInspectResponse> inspectEventSeatCache(
             @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "zone", required = false) String zone,
+            @RequestParam(value = "row", required = false) Integer row,
+            @RequestParam(value = "col", required = false) Integer col,
             @RequestParam(value = "limit", defaultValue = "100") int limit
     ) {
-        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, limit));
-    }
-
-    @GetMapping("/cache/inspect/area/{areaId}")
-    public ResponseEntity<SeatRedisInspectResponse> inspectAreaSeatCache(
-            @PathVariable("areaId") Long areaId,
-            @RequestParam(value = "limit", defaultValue = "100") int limit
-    ) {
-        return ResponseEntity.ok(seatService.inspectAreaSeatCache(areaId, limit));
-    }
-
-    @GetMapping("/cache/inspect/seat/{seatId}")
-    public ResponseEntity<SeatRedisInspectResponse> inspectSeatCache(@PathVariable("seatId") Long seatId) {
-        return ResponseEntity.ok(seatService.inspectSeatCache(seatId));
+        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, zone, row, col, limit));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-lock")

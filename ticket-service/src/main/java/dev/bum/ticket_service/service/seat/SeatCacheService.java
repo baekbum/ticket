@@ -106,9 +106,9 @@ public class SeatCacheService {
      * @param userId
      * @return
      */
-    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, int limit) {
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit) {
         int normalizedLimit = normalizeInspectLimit(limit);
-        List<SeatRedisEntryResponse> entries = scanSeatKeys("event:" + eventId + ":seat:*", normalizedLimit)
+        List<SeatRedisEntryResponse> entries = scanSeatKeys(buildSeatInspectPattern(eventId, zone, row, col), normalizedLimit)
                 .stream()
                 .filter(key -> !key.endsWith(":lock"))
                 .limit(normalizedLimit)
@@ -121,39 +121,6 @@ public class SeatCacheService {
                 .limit(normalizedLimit)
                 .count(entries.size())
                 .entries(entries)
-                .build();
-    }
-
-    public SeatRedisInspectResponse inspectAreaSeatCache(Long areaId, int limit) {
-        int normalizedLimit = normalizeInspectLimit(limit);
-        List<SeatRedisEntryResponse> entries = repository.selectByAreaId(areaId)
-                .stream()
-                .limit(normalizedLimit)
-                .map(this::buildSeatRedisKey)
-                .map(this::toSeatRedisEntry)
-                .collect(Collectors.toList());
-
-        return SeatRedisInspectResponse.builder()
-                .scope("AREA")
-                .areaId(areaId)
-                .limit(normalizedLimit)
-                .count(entries.size())
-                .entries(entries)
-                .build();
-    }
-
-    public SeatRedisInspectResponse inspectSeatCache(Long seatId) {
-        Seat seat = repository.selectById(seatId);
-        SeatRedisEntryResponse entry = toSeatRedisEntry(buildSeatRedisKey(seat));
-
-        return SeatRedisInspectResponse.builder()
-                .scope("SEAT")
-                .eventId(seat.getEvent() == null ? null : seat.getEvent().getEventId())
-                .areaId(seat.getArea() == null ? null : seat.getArea().getAreaId())
-                .seatId(seatId)
-                .limit(1)
-                .count(1)
-                .entries(List.of(entry))
                 .build();
     }
 
@@ -489,6 +456,30 @@ public class SeatCacheService {
         });
 
         return keys == null ? List.of() : keys;
+    }
+
+    private String buildSeatInspectPattern(Long eventId, String zone, Integer row, Integer col) {
+        StringBuilder pattern = new StringBuilder("event:")
+                .append(eventId)
+                .append(":seat:");
+
+        if (zone == null || zone.isBlank()) {
+            return pattern.append("*").toString();
+        }
+
+        pattern.append(zone.replace(" ", "_"));
+
+        if (row == null) {
+            return pattern.append(":*").toString();
+        }
+
+        pattern.append(":").append(row);
+
+        if (col == null) {
+            return pattern.append(":*").toString();
+        }
+
+        return pattern.append(":").append(col).toString();
     }
 
     private SeatRedisEntryResponse toSeatRedisEntry(String redisKey) {

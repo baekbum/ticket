@@ -173,18 +173,8 @@ public class SeatService {
     }
 
     @Transactional(readOnly = true)
-    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, int limit) {
-        return seatCacheService.inspectEventSeatCache(eventId, limit);
-    }
-
-    @Transactional(readOnly = true)
-    public SeatRedisInspectResponse inspectAreaSeatCache(Long areaId, int limit) {
-        return seatCacheService.inspectAreaSeatCache(areaId, limit);
-    }
-
-    @Transactional(readOnly = true)
-    public SeatRedisInspectResponse inspectSeatCache(Long seatId) {
-        return seatCacheService.inspectSeatCache(seatId);
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit) {
+        return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit);
     }
 
     /**

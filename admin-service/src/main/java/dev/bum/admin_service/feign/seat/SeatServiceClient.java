@@ -49,14 +49,10 @@ public interface SeatServiceClient {
 
     @GetMapping("/cache/inspect/event/{eventId}")
     SeatRedisInspectResponse inspectEventSeatCache(@PathVariable("eventId") Long eventId,
+                                                   @RequestParam(value = "zone", required = false) String zone,
+                                                   @RequestParam(value = "row", required = false) Integer row,
+                                                   @RequestParam(value = "col", required = false) Integer col,
                                                    @RequestParam("limit") int limit);
-
-    @GetMapping("/cache/inspect/area/{areaId}")
-    SeatRedisInspectResponse inspectAreaSeatCache(@PathVariable("areaId") Long areaId,
-                                                  @RequestParam("limit") int limit);
-
-    @GetMapping("/cache/inspect/seat/{seatId}")
-    SeatRedisInspectResponse inspectSeatCache(@PathVariable("seatId") Long seatId);
 
     @PostMapping("/cache/seat/{seatId}/test-lock")
     String lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId);

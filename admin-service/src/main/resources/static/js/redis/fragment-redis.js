@@ -5,21 +5,12 @@
   let autoRefreshTimer = null;
   let autoRefreshEnabled = false;
 
-  function currentScope() {
-    return document.getElementById('redis-scope')?.value || 'event';
-  }
-
-  function targetValue(scope) {
-    const inputId = {
-      event: 'redis-event-id',
-      area: 'redis-area-id',
-      seat: 'redis-seat-id'
-    }[scope];
-    return document.getElementById(inputId)?.value.trim();
-  }
-
   function limitValue() {
     return document.getElementById('redis-limit')?.value || '100';
+  }
+
+  function inputValue(id) {
+    return document.getElementById(id)?.value.trim() || '';
   }
 
   function refreshIntervalMillis() {
@@ -105,19 +96,22 @@
   }
 
   function updateSummary(data, changedCount) {
-    document.getElementById('redis-summary-scope').textContent = data.scope || '-';
+    document.getElementById('redis-summary-scope').textContent = buildSummaryTarget();
     document.getElementById('redis-summary-count').textContent = String(data.count ?? 0);
     document.getElementById('redis-summary-changed').textContent = String(changedCount);
     document.getElementById('redis-summary-time').textContent = new Date().toLocaleTimeString();
   }
 
-  window.syncRedisScopeFields = function () {
-    const scope = currentScope();
-    document.getElementById('redis-event-field').classList.toggle('is-hidden', scope !== 'event');
-    document.getElementById('redis-area-field').classList.toggle('is-hidden', scope !== 'area');
-    document.getElementById('redis-seat-field').classList.toggle('is-hidden', scope !== 'seat');
-    document.getElementById('redis-limit-field').classList.toggle('is-hidden', scope === 'seat');
-  };
+  function buildSummaryTarget() {
+    const parts = [`Event ${inputValue('redis-event-id') || '-'}`];
+    const zone = inputValue('redis-zone');
+    const row = inputValue('redis-row');
+    const col = inputValue('redis-col');
+    if (zone) parts.push(`Zone ${zone}`);
+    if (row) parts.push(`Row ${row}`);
+    if (col) parts.push(`Col ${col}`);
+    return parts.join(' / ');
+  }
 
   window.clearRedisSnapshot = function () {
     previousSnapshot = new Map();
@@ -126,19 +120,25 @@
   };
 
   window.loadSeatRedis = async function () {
-    const scope = currentScope();
-    const target = targetValue(scope);
-    if (!target) {
+    const eventId = inputValue('redis-event-id');
+    if (!eventId) {
       showToast('\uC870\uD68C \uB300\uC0C1 ID\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.', true);
       return;
     }
 
-    const suffix = scope === 'seat'
-      ? `/seat/${encodeURIComponent(target)}`
-      : `/${scope}/${encodeURIComponent(target)}?limit=${encodeURIComponent(limitValue())}`;
+    const params = new URLSearchParams();
+    params.set('limit', limitValue());
+
+    const zone = inputValue('redis-zone');
+    const row = inputValue('redis-row');
+    const col = inputValue('redis-col');
+
+    if (zone) params.set('zone', zone);
+    if (row) params.set('row', row);
+    if (col) params.set('col', col);
 
     try {
-      const res = await Fetch(`${SEAT_REDIS_URL}${suffix}`, { method: 'GET', headers });
+      const res = await Fetch(`${SEAT_REDIS_URL}/event/${encodeURIComponent(eventId)}?${params.toString()}`, { method: 'GET', headers });
       if (!res.ok) {
         showToast('Seat Redis \uC870\uD68C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.', true);
         return;
@@ -187,6 +187,5 @@
     window.removeEventListener('admin:fragment-loaded', cleanupRedisTimer);
   });
 
-  syncRedisScopeFields();
   syncAutoRefreshToggle();
 })();
