@@ -199,12 +199,19 @@
     renderTableHeader();
   }
 
+  function resetSummary() {
+    document.getElementById('redis-summary-scope').textContent = '-';
+    document.getElementById('redis-summary-count').textContent = '0';
+    document.getElementById('redis-summary-changed').textContent = '0';
+    document.getElementById('redis-summary-time').textContent = '-';
+  }
+
   window.setSeatRedisMode = function (mode) {
     redisMode = mode === 'LOCK' ? 'LOCK' : 'SEAT';
     redisSort = { field: 'key', direction: 'asc' };
     lastEntries = [];
     previousSnapshot = new Map();
-    document.getElementById('redis-summary-changed').textContent = '0';
+    resetSummary();
     syncRedisModeToggle();
   };
 
