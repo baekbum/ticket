@@ -3,6 +3,7 @@ package dev.bum.admin_service.feign.seat;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -52,6 +53,7 @@ public interface SeatServiceClient {
                                                    @RequestParam(value = "zone", required = false) String zone,
                                                    @RequestParam(value = "row", required = false) Integer row,
                                                    @RequestParam(value = "col", required = false) Integer col,
+                                                   @RequestParam("mode") SeatRedisInspectMode mode,
                                                    @RequestParam("limit") int limit);
 
     @PostMapping("/cache/seat/{seatId}/test-lock")

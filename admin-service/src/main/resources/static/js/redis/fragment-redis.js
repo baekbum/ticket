@@ -4,6 +4,7 @@
   let previousSnapshot = new Map();
   let autoRefreshTimer = null;
   let autoRefreshEnabled = false;
+  let redisMode = 'SEAT';
 
   function limitValue() {
     return document.getElementById('redis-limit')?.value || '100';
@@ -51,10 +52,37 @@
 
   function entrySignature(entry) {
     return JSON.stringify({
+      mode: redisMode,
       value: entry.value,
       status: entry.status,
       lockValue: entry.lockValue
     });
+  }
+
+  function renderTableHeader() {
+    const headRow = document.getElementById('redis-table-head-row');
+    if (!headRow) return;
+
+    if (redisMode === 'LOCK') {
+      headRow.innerHTML = `
+        <th>Lock Key</th>
+        <th>Lock Value</th>
+        <th>TTL</th>
+        <th>Seat Key</th>
+        <th>Seat Value</th>
+        <th>Seat TTL</th>
+      `;
+      return;
+    }
+
+    headRow.innerHTML = `
+      <th>Key</th>
+      <th>Value</th>
+      <th>Status</th>
+      <th>TTL</th>
+      <th>Lock Value</th>
+      <th>Lock TTL</th>
+    `;
   }
 
   function renderEntries(entries) {
@@ -80,14 +108,26 @@
 
       const tr = document.createElement('tr');
       if (changed) tr.classList.add('redis-row-changed');
-      tr.innerHTML = `
-        <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
-        <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
-        <td>${statusBadge(entry.status)}</td>
-        <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
-        <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
-        <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
-      `;
+
+      if (redisMode === 'LOCK') {
+        tr.innerHTML = `
+          <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
+          <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
+          <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
+          <td class="redis-key" title="${escapeHtml(entry.lockKey || '')}">${escapeHtml(entry.lockKey || '-')}</td>
+          <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
+          <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
+        `;
+      } else {
+        tr.innerHTML = `
+          <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
+          <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
+          <td>${statusBadge(entry.status)}</td>
+          <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
+          <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
+          <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
+        `;
+      }
       tbody.appendChild(tr);
     });
 
@@ -113,6 +153,20 @@
     return parts.join(' / ');
   }
 
+  function syncRedisModeToggle() {
+    document.getElementById('redis-mode-seat')?.classList.toggle('active', redisMode === 'SEAT');
+    document.getElementById('redis-mode-lock')?.classList.toggle('active', redisMode === 'LOCK');
+    document.querySelector('.redis-table')?.classList.toggle('lock-mode', redisMode === 'LOCK');
+    renderTableHeader();
+  }
+
+  window.setSeatRedisMode = function (mode) {
+    redisMode = mode === 'LOCK' ? 'LOCK' : 'SEAT';
+    previousSnapshot = new Map();
+    document.getElementById('redis-summary-changed').textContent = '0';
+    syncRedisModeToggle();
+  };
+
   window.clearRedisSnapshot = function () {
     previousSnapshot = new Map();
     document.getElementById('redis-summary-changed').textContent = '0';
@@ -128,6 +182,7 @@
 
     const params = new URLSearchParams();
     params.set('limit', limitValue());
+    params.set('mode', redisMode);
 
     const zone = inputValue('redis-zone');
     const row = inputValue('redis-row');
@@ -188,4 +243,5 @@
   });
 
   syncAutoRefreshToggle();
+  syncRedisModeToggle();
 })();

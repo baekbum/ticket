@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.ticket_service.service.seat.SeatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -112,9 +113,10 @@ public class SeatManagementController {
             @RequestParam(value = "zone", required = false) String zone,
             @RequestParam(value = "row", required = false) Integer row,
             @RequestParam(value = "col", required = false) Integer col,
-            @RequestParam(value = "limit", defaultValue = "100") int limit
+            @RequestParam(value = "limit", defaultValue = "100") int limit,
+            @RequestParam(value = "mode", defaultValue = "SEAT") SeatRedisInspectMode mode
     ) {
-        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, zone, row, col, limit));
+        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, zone, row, col, limit, mode));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-lock")

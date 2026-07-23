@@ -12,7 +12,7 @@
 .redis-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   padding: 1.5rem 1.75rem 1.25rem;
 }
@@ -82,6 +82,25 @@
 .redis-small-field {
   width: 96px;
   flex: 0 0 96px;
+}
+
+.redis-mode-btn {
+  height: 34px;
+  min-width: 86px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.redis-mode-btn.active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
 }
 
 .redis-auto-control {
@@ -250,12 +269,40 @@
 .redis-table th:nth-child(6),
 .redis-table td:nth-child(6) {
   width: 9%;
-  text-align: right;
+  text-align: left;
 }
 
 .redis-table th:nth-child(5),
 .redis-table td:nth-child(5) {
   width: 21%;
+}
+
+.redis-table.lock-mode th:nth-child(1),
+.redis-table.lock-mode td:nth-child(1) {
+  width: 24%;
+}
+
+.redis-table.lock-mode th:nth-child(2),
+.redis-table.lock-mode td:nth-child(2) {
+  width: 20%;
+}
+
+.redis-table.lock-mode th:nth-child(3),
+.redis-table.lock-mode td:nth-child(3),
+.redis-table.lock-mode th:nth-child(6),
+.redis-table.lock-mode td:nth-child(6) {
+  width: 8%;
+  text-align: left;
+}
+
+.redis-table.lock-mode th:nth-child(4),
+.redis-table.lock-mode td:nth-child(4) {
+  width: 17%;
+}
+
+.redis-table.lock-mode th:nth-child(5),
+.redis-table.lock-mode td:nth-child(5) {
+  width: 23%;
 }
 
 .redis-key,
@@ -365,6 +412,10 @@
     <div>
       <h2>Seat Redis</h2>
     </div>
+    <div class="redis-mode-bar">
+      <button class="redis-mode-btn active" id="redis-mode-seat" type="button" onclick="setSeatRedisMode('SEAT')">Seat</button>
+      <button class="redis-mode-btn" id="redis-mode-lock" type="button" onclick="setSeatRedisMode('LOCK')">Lock</button>
+    </div>
   </div>
 
   <section class="redis-toolbar">
@@ -444,7 +495,7 @@
   <div class="redis-table-wrap">
     <table class="redis-table">
       <thead>
-      <tr>
+      <tr id="redis-table-head-row">
         <th>Key</th>
         <th>Value</th>
         <th>Status</th>
