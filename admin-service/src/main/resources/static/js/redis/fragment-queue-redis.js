@@ -202,6 +202,7 @@
     document.getElementById('queue-event-field')?.classList.toggle('is-hidden', queueMode === 'TOKEN');
     document.getElementById('queue-token-field')?.classList.toggle('is-hidden', queueMode !== 'TOKEN');
     document.getElementById('queue-limit-field')?.classList.toggle('is-hidden', queueMode === 'TOKEN');
+    document.querySelector('.queue-table')?.classList.toggle('active-mode', queueMode === 'ACTIVE');
     renderTableHeader();
   }
 
