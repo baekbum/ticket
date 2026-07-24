@@ -191,7 +191,13 @@
     border-right: 1px solid var(--border);
     padding: 1.25rem 0.875rem;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     background: #faf9fd;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .sidebar-section-label {

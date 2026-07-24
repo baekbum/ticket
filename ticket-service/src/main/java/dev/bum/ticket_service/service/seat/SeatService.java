@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -170,6 +171,11 @@ public class SeatService {
      */
     public String deleteAreaSeatsFromCache(Long areaId) {
         return seatCacheService.deleteAreaSeatsFromCache(areaId);
+    }
+
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit, SeatRedisInspectMode mode) {
+        return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit, mode);
     }
 
     /**

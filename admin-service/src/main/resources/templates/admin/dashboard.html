@@ -107,6 +107,21 @@
           </button>
         </div>
       </div>
+
+      <div class="menu-group is-open" data-menu-group="infra">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-database"></i>Infra</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="seatRedis" onclick="switchMenu('seatRedis', this)">
+            <i class="ti ti-armchair"></i>Seat Redis
+          </button>
+          <button class="menu-btn" data-menu="queueRedis" onclick="switchMenu('queueRedis', this)">
+            <i class="ti ti-users-group"></i>Queue Redis
+          </button>
+        </div>
+      </div>
     </nav>
 
     <!-- Main -->

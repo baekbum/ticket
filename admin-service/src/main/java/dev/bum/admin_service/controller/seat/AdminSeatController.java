@@ -4,6 +4,7 @@ import dev.bum.admin_service.feign.seat.SeatServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -89,6 +90,18 @@ public class AdminSeatController {
     @DeleteMapping("/cache/area/{areaId}")
     public ResponseEntity<String> deleteAreaSeatCache(@PathVariable("areaId") Long areaId) {
         return ResponseEntity.ok(seatServiceClient.deleteAreaSeatCache(areaId));
+    }
+
+    @GetMapping("/cache/inspect/event/{eventId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectEventSeatCache(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "zone", required = false) String zone,
+            @RequestParam(value = "row", required = false) Integer row,
+            @RequestParam(value = "col", required = false) Integer col,
+            @RequestParam(value = "limit", defaultValue = "100") int limit,
+            @RequestParam(value = "mode", defaultValue = "SEAT") SeatRedisInspectMode mode
+    ) {
+        return ResponseEntity.ok(seatServiceClient.inspectEventSeatCache(eventId, zone, row, col, mode, limit));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-lock")

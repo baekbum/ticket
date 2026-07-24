@@ -3,7 +3,10 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
@@ -14,8 +17,12 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -24,6 +31,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -95,10 +103,28 @@ public class SeatCacheService {
 
     /**
      * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
-     * @param seatId
-     * @param userId
      * @return
      */
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit, SeatRedisInspectMode mode) {
+        int normalizedLimit = normalizeInspectLimit(limit);
+        SeatRedisInspectMode inspectMode = mode == null ? SeatRedisInspectMode.SEAT : mode;
+
+        List<SeatRedisEntryResponse> entries = scanSeatKeys(buildSeatInspectPattern(eventId, zone, row, col, inspectMode), normalizedLimit)
+                .stream()
+                .filter(key -> matchesInspectMode(key, inspectMode))
+                .limit(normalizedLimit)
+                .map(key -> inspectMode == SeatRedisInspectMode.LOCK ? toSeatRedisLockEntry(key) : toSeatRedisEntry(key))
+                .collect(Collectors.toList());
+
+        return SeatRedisInspectResponse.builder()
+                .scope(inspectMode.name())
+                .eventId(eventId)
+                .limit(normalizedLimit)
+                .count(entries.size())
+                .entries(entries)
+                .build();
+    }
+
     public String lockSeatCacheForUser(Long seatId, String userId) {
         log.info("[REDIS-TEST-LOCK] SeatId : {}, UserId : {}", seatId, userId);
         Seat seat = repository.selectById(seatId);
@@ -405,6 +431,122 @@ public class SeatCacheService {
             }
         }
         return inserted;
+    }
+
+    private int normalizeInspectLimit(int limit) {
+        if (limit <= 0) {
+            return 100;
+        }
+        return Math.min(limit, 500);
+    }
+
+    private List<String> scanSeatKeys(String pattern, int limit) {
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(pattern)
+                .count(Math.min(limit * 2L, 1000L))
+                .build();
+
+        List<String> keys = seatRedisTemplate.execute((RedisCallback<List<String>>) connection -> {
+            List<String> foundKeys = new ArrayList<>();
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                while (cursor.hasNext() && foundKeys.size() < limit * 2) {
+                    foundKeys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+                }
+            }
+            return foundKeys;
+        });
+
+        return keys == null ? List.of() : keys;
+    }
+
+    private boolean matchesInspectMode(String key, SeatRedisInspectMode mode) {
+        if (mode == SeatRedisInspectMode.LOCK) {
+            return key.endsWith(":lock");
+        }
+
+        return !key.endsWith(":lock");
+    }
+
+    private String buildSeatInspectPattern(Long eventId, String zone, Integer row, Integer col, SeatRedisInspectMode mode) {
+        StringBuilder pattern = new StringBuilder("event:")
+                .append(eventId)
+                .append(":seat:");
+        boolean lockMode = mode == SeatRedisInspectMode.LOCK;
+
+        if (zone == null || zone.isBlank()) {
+            return pattern.append(lockMode ? "*:lock" : "*").toString();
+        }
+
+        pattern.append(zone.replace(" ", "_"));
+
+        if (row == null) {
+            return pattern.append(lockMode ? ":*:lock" : ":*").toString();
+        }
+
+        pattern.append(":").append(row);
+
+        if (col == null) {
+            return pattern.append(lockMode ? ":*:lock" : ":*").toString();
+        }
+
+        pattern.append(":").append(col);
+        if (lockMode) {
+            pattern.append(":lock");
+        }
+
+        return pattern.toString();
+    }
+
+    private SeatRedisEntryResponse toSeatRedisEntry(String redisKey) {
+        String value = seatRedisTemplate.opsForValue().get(redisKey);
+        Long ttlSeconds = seatRedisTemplate.getExpire(redisKey);
+        DataType dataType = seatRedisTemplate.type(redisKey);
+        String lockKey = redisKey + ":lock";
+        String lockValue = seatRedisTemplate.opsForValue().get(lockKey);
+        Long lockTtlSeconds = seatRedisTemplate.getExpire(lockKey);
+
+        return SeatRedisEntryResponse.builder()
+                .key(redisKey)
+                .value(value)
+                .ttlSeconds(ttlSeconds)
+                .type(dataType == null ? null : dataType.name())
+                .status(resolveSeatCacheStatus(value))
+                .locked(lockValue != null || (value != null && value.startsWith("LOCKED:")))
+                .lockKey(lockKey)
+                .lockValue(lockValue)
+                .lockTtlSeconds(lockTtlSeconds)
+                .build();
+    }
+
+    private SeatRedisEntryResponse toSeatRedisLockEntry(String lockKey) {
+        String lockValue = seatRedisTemplate.opsForValue().get(lockKey);
+        Long ttlSeconds = seatRedisTemplate.getExpire(lockKey);
+        DataType dataType = seatRedisTemplate.type(lockKey);
+        String seatKey = lockKey.endsWith(":lock")
+                ? lockKey.substring(0, lockKey.length() - ":lock".length())
+                : lockKey;
+
+        return SeatRedisEntryResponse.builder()
+                .key(lockKey)
+                .value(lockValue)
+                .ttlSeconds(ttlSeconds)
+                .type(dataType == null ? null : dataType.name())
+                .status(lockValue == null ? "MISSING" : "LOCKED")
+                .locked(lockValue != null)
+                .lockKey(seatKey)
+                .lockValue(seatRedisTemplate.opsForValue().get(seatKey))
+                .lockTtlSeconds(seatRedisTemplate.getExpire(seatKey))
+                .build();
+    }
+
+    private String resolveSeatCacheStatus(String value) {
+        if (value == null) {
+            return "MISSING";
+        }
+        if (value.startsWith("LOCKED:")) {
+            return "LOCKED";
+        }
+        return value;
     }
 
     /**

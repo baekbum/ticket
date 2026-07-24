@@ -3,6 +3,7 @@ package dev.bum.admin_service.feign.seat;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +47,14 @@ public interface SeatServiceClient {
 
     @DeleteMapping("/cache/area/{areaId}")
     String deleteAreaSeatCache(@PathVariable("areaId") Long areaId);
+
+    @GetMapping("/cache/inspect/event/{eventId}")
+    SeatRedisInspectResponse inspectEventSeatCache(@PathVariable("eventId") Long eventId,
+                                                   @RequestParam(value = "zone", required = false) String zone,
+                                                   @RequestParam(value = "row", required = false) Integer row,
+                                                   @RequestParam(value = "col", required = false) Integer col,
+                                                   @RequestParam("mode") SeatRedisInspectMode mode,
+                                                   @RequestParam("limit") int limit);
 
     @PostMapping("/cache/seat/{seatId}/test-lock")
     String lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId);

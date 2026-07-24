@@ -1,0 +1,366 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.queue-redis-frag {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+
+.queue-redis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 1.5rem 1.75rem 1.25rem;
+}
+
+.queue-redis-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.queue-mode-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.queue-mode-btn {
+  height: 34px;
+  min-width: 86px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-mode-btn.active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+
+.queue-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 0 1.75rem 1rem;
+}
+
+.queue-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 180px;
+  flex: 0 0 180px;
+}
+
+.queue-field label,
+.queue-auto-label {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.queue-field input,
+.queue-field select {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fafafa;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.queue-limit-field {
+  width: 145px;
+  flex: 0 0 145px;
+}
+
+.queue-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 1 1 520px;
+  min-width: 520px;
+}
+
+.queue-auto-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.queue-auto-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  min-width: 142px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.queue-toggle-btn {
+  width: 66px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-toggle-btn.active {
+  background: var(--purple);
+  color: #fff;
+}
+
+.queue-interval-field {
+  width: 96px;
+  flex: 0 0 96px;
+}
+
+.queue-interval-field label {
+  display: none;
+}
+
+.queue-btn {
+  height: 36px;
+  min-width: 112px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--purple);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-btn-outline {
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  min-width: 128px;
+}
+
+.queue-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 0 1.75rem 1rem;
+}
+
+.queue-summary > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 10px 12px;
+}
+
+.summary-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.queue-summary strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.queue-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 1.75rem 1.5rem;
+  background: var(--card-bg);
+}
+
+.queue-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+
+.queue-table th,
+.queue-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.queue-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #faf9fd;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.queue-sort-btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+}
+
+.queue-sort-indicator {
+  color: var(--purple);
+  font-size: 10px;
+}
+
+.queue-key,
+.queue-value {
+  font-family: Consolas, Monaco, monospace;
+}
+
+.queue-row-changed {
+  animation: queueChanged 1.8s ease-out;
+  background: #fff8e1;
+}
+
+.queue-empty {
+  height: 180px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.is-hidden {
+  display: none;
+}
+
+@keyframes queueChanged {
+  from { background: #fff3bf; }
+  to { background: transparent; }
+}
+</style>
+
+<div class="queue-redis-frag">
+  <div class="queue-redis-header">
+    <h2>Queue Redis</h2>
+    <div class="queue-mode-bar">
+      <button class="queue-mode-btn active" id="queue-mode-waiting" type="button" onclick="setQueueRedisMode('WAITING')">Waiting</button>
+      <button class="queue-mode-btn" id="queue-mode-active" type="button" onclick="setQueueRedisMode('ACTIVE')">Active</button>
+      <button class="queue-mode-btn" id="queue-mode-token" type="button" onclick="setQueueRedisMode('TOKEN')">Token</button>
+    </div>
+  </div>
+
+  <section class="queue-toolbar">
+    <div class="queue-field" id="queue-event-field">
+      <label for="queue-event-id">Event ID</label>
+      <input id="queue-event-id" type="number" min="1" placeholder="eventId">
+    </div>
+    <div class="queue-field is-hidden" id="queue-token-field">
+      <label for="queue-token">Token</label>
+      <input id="queue-token" type="text" placeholder="token">
+    </div>
+    <div class="queue-field queue-limit-field" id="queue-limit-field">
+      <label for="queue-limit">&#51312;&#54924; &#44060;&#49688;</label>
+      <select id="queue-limit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="200">200</option>
+        <option value="500">500</option>
+      </select>
+    </div>
+    <div class="queue-actions">
+      <div class="queue-auto-control">
+        <span class="queue-auto-label">&#51088;&#46041; &#49352;&#47196;&#44256;&#52840;</span>
+        <div class="queue-auto-row">
+          <div class="queue-toggle-group" aria-label="&#51088;&#46041; &#49352;&#47196;&#44256;&#52840;">
+            <button class="queue-toggle-btn" id="queue-auto-start" type="button" onclick="setQueueAutoRefresh(true)">&#49884;&#51089;</button>
+            <button class="queue-toggle-btn active" id="queue-auto-stop" type="button" onclick="setQueueAutoRefresh(false)">&#51473;&#51648;</button>
+          </div>
+          <div class="queue-field queue-interval-field">
+            <label for="queue-refresh-interval">&#51452;&#44592;</label>
+            <select id="queue-refresh-interval" onchange="updateQueueAutoRefreshInterval()">
+              <option value="5" selected>5&#52488;</option>
+              <option value="10">10&#52488;</option>
+              <option value="20">20&#52488;</option>
+              <option value="30">30&#52488;</option>
+              <option value="60">60&#52488;</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="queue-btn queue-btn-outline" type="button" onclick="clearQueueSnapshot()">&#48320;&#44221; &#52488;&#44592;&#54868;</button>
+      <button class="queue-btn" type="button" onclick="loadQueueRedis()">&#49688;&#46041; &#44160;&#49353;</button>
+    </div>
+  </section>
+
+  <section class="queue-summary">
+    <div>
+      <span class="summary-label">&#51312;&#54924; &#44592;&#51456;</span>
+      <strong id="queue-summary-target">-</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#51312;&#54924; &#44148;&#49688;</span>
+      <strong id="queue-summary-count">0</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#48320;&#44221; &#44048;&#51648;</span>
+      <strong id="queue-summary-changed">0</strong>
+    </div>
+    <div>
+      <span class="summary-label">&#47560;&#51648;&#47561; &#51312;&#54924;</span>
+      <strong id="queue-summary-time">-</strong>
+    </div>
+  </section>
+
+  <div class="queue-table-wrap">
+    <table class="queue-table">
+      <thead>
+      <tr id="queue-table-head-row"></tr>
+      </thead>
+      <tbody id="queue-table-body">
+      <tr>
+        <td colspan="5" class="queue-empty">Enter a target and search.</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script th:src="@{/js/redis/fragment-queue-redis.js}"></script>
