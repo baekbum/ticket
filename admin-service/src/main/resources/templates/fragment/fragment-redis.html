@@ -84,25 +84,6 @@
   flex: 0 0 96px;
 }
 
-.redis-mode-btn {
-  height: 34px;
-  min-width: 86px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card-bg);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.redis-mode-btn.active {
-  background: var(--purple);
-  border-color: var(--purple);
-  color: #fff;
-}
-
 .redis-auto-control {
   display: flex;
   flex-direction: column;
@@ -299,34 +280,6 @@
   width: 21%;
 }
 
-.redis-table.lock-mode th:nth-child(1),
-.redis-table.lock-mode td:nth-child(1) {
-  width: 24%;
-}
-
-.redis-table.lock-mode th:nth-child(2),
-.redis-table.lock-mode td:nth-child(2) {
-  width: 20%;
-}
-
-.redis-table.lock-mode th:nth-child(3),
-.redis-table.lock-mode td:nth-child(3),
-.redis-table.lock-mode th:nth-child(6),
-.redis-table.lock-mode td:nth-child(6) {
-  width: 8%;
-  text-align: left;
-}
-
-.redis-table.lock-mode th:nth-child(4),
-.redis-table.lock-mode td:nth-child(4) {
-  width: 17%;
-}
-
-.redis-table.lock-mode th:nth-child(5),
-.redis-table.lock-mode td:nth-child(5) {
-  width: 23%;
-}
-
 .redis-key,
 .redis-value {
   font-family: Consolas, Monaco, monospace;
@@ -434,10 +387,6 @@
     <div>
       <h2>Seat Redis</h2>
     </div>
-    <div class="redis-mode-bar">
-      <button class="redis-mode-btn active" id="redis-mode-seat" type="button" onclick="setSeatRedisMode('SEAT')">Seat</button>
-      <button class="redis-mode-btn" id="redis-mode-lock" type="button" onclick="setSeatRedisMode('LOCK')">Lock</button>
-    </div>
   </div>
 
   <section class="redis-toolbar">
@@ -526,11 +475,7 @@
         <th>Lock TTL</th>
       </tr>
       </thead>
-      <tbody id="redis-seat-body">
-      <tr>
-        <td colspan="6" class="redis-empty">Enter a target and refresh.</td>
-      </tr>
-      </tbody>
+      <tbody id="redis-seat-body"></tbody>
     </table>
   </div>
 </div>
