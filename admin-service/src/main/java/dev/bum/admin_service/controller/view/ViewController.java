@@ -59,6 +59,10 @@ public class ViewController {
             return "fragment/fragment-redis";
         } else if ("queueRedis".equals(menuName)) {
             return "fragment/fragment-queue-redis";
+        } else if ("seatReservationTest".equals(menuName)) {
+            return "fragment/fragment-seat-reservation-test";
+        } else if ("queueEnterTest".equals(menuName)) {
+            return "fragment/fragment-queue-enter-test";
         }
 
         return "error/404";

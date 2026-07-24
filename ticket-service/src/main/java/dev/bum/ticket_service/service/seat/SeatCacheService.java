@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
@@ -181,6 +182,49 @@ public class SeatCacheService {
      * Redis를 이용한 다중 좌석 선점 메서드
      * @param request
      */
+    public String unlockEventSeatCache(Long eventId) {
+        log.info("[REDIS-TEST-UNLOCK-EVENT] EventId : {}", eventId);
+        List<Seat> seats = repository.selectByEventId(eventId);
+        int released = 0;
+
+        for (Seat seat : seats) {
+            String redisKey = buildSeatRedisKey(seat);
+            String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
+
+            if (currentStatus != null && currentStatus.startsWith("LOCKED:")) {
+                seatRedisTemplate.opsForValue().set(redisKey, SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
+                seatRedisTemplate.delete(redisKey + ":lock");
+                released++;
+            }
+        }
+
+        return String.format("이벤트 %d번 좌석 선점 %d건을 취소했습니다.", eventId, released);
+    }
+
+    public SeatResponse applyCachedStatus(SeatResponse seat) {
+        if (seat == null || seat.getEventId() == null || seat.getZone() == null
+                || seat.getSeatRow() == null || seat.getSeatCol() == null) {
+            return seat;
+        }
+
+        String redisKey = buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
+        String value = seatRedisTemplate.opsForValue().get(redisKey);
+
+        if (value == null) {
+            return seat;
+        }
+        if (value.startsWith("LOCKED:")) {
+            seat.setStatus(SeatStatus.LOCKED);
+            return seat;
+        }
+        try {
+            seat.setStatus(SeatStatus.valueOf(value));
+        } catch (IllegalArgumentException ignored) {
+            seat.setStatus(SeatStatus.LOCKED);
+        }
+        return seat;
+    }
+
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
         validateUserPurchaseLimit(request);
 

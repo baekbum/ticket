@@ -51,6 +51,11 @@ public class SeatManagementController {
         return ResponseEntity.ok(seatService.selectByCond(cond));
     }
 
+    @PostMapping("/test/select")
+    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCondWithCacheStatus(@RequestBody SeatCondRequest cond) {
+        return ResponseEntity.ok(seatService.selectByCondWithCacheStatus(cond));
+    }
+
     @PutMapping("/update")
     public ResponseEntity<Void> update(@Valid @RequestBody UpdateSeatRequest info) {
         seatService.update(info);
@@ -130,6 +135,11 @@ public class SeatManagementController {
     @PostMapping("/cache/seat/{seatId}/test-unlock")
     public ResponseEntity<String> unlockSeatCache(@PathVariable("seatId") Long seatId) {
         return ResponseEntity.ok(seatService.unlockSeatCache(seatId));
+    }
+
+    @PostMapping("/cache/event/{eventId}/test-unlock")
+    public ResponseEntity<String> unlockEventSeatCache(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatService.unlockEventSeatCache(eventId));
     }
 
     @PostMapping("/occupy")
