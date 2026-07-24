@@ -181,14 +181,31 @@
     return data;
   }
 
+  async function refreshUserStatuses(eventId, userIds) {
+    const targetUserIds = userIds.filter(userId => users.get(userId)?.status !== 'COMPLETED');
+    if (!targetUserIds.length) {
+      return [];
+    }
+
+    const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}/statuses`, {
+      method: 'POST',
+      body: { userIds: targetUserIds }
+    });
+    if (!res.ok) {
+      throw new Error(`statuses failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    data.forEach((status, index) => applyResponse(targetUserIds[index], status));
+    return data;
+  }
+
   async function refreshWaitingUsers(eventId) {
     const waitingUserIds = [...users.values()]
       .filter(user => user.status === 'WAITING')
       .map(user => user.userId);
 
-    for (const userId of waitingUserIds) {
-      await refreshUserStatus(eventId, userId);
-    }
+    await refreshUserStatuses(eventId, waitingUserIds);
   }
 
   window.enterSingleQueueTestUser = async function () {
@@ -240,9 +257,7 @@
     }
 
     try {
-      for (const userId of userIds) {
-        await refreshUserStatus(eventId, userId);
-      }
+      await refreshUserStatuses(eventId, userIds);
       addLog('상태 새로고침 완료', `${userIds.length}명 조회`);
       showToast('대기열 상태를 새로고침했습니다.');
     } catch (e) {

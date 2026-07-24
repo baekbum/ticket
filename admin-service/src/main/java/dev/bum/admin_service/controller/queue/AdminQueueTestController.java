@@ -1,6 +1,7 @@
 package dev.bum.admin_service.controller.queue;
 
 import dev.bum.admin_service.feign.queue.QueueTestServiceClient;
+import dev.bum.common.service.queue.dto.QueueBulkStatusRequest;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/queue/test")
@@ -37,6 +40,14 @@ public class AdminQueueTestController {
             @RequestParam("userId") String userId
     ) {
         return ResponseEntity.ok(queueTestServiceClient.status(eventId, userId));
+    }
+
+    @PostMapping("/events/{eventId}/statuses")
+    public ResponseEntity<List<QueueStatusResponse>> statuses(
+            @PathVariable("eventId") Long eventId,
+            @RequestBody QueueBulkStatusRequest request
+    ) {
+        return ResponseEntity.ok(queueTestServiceClient.statuses(eventId, request));
     }
 
     @PostMapping("/validate")
