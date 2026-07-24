@@ -11,6 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,6 +79,26 @@ public class QueueService {
                 null,
                 null
         );
+    }
+
+    public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
+        pruneExpiredActiveTokens(eventId);
+        Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId);
+        List<QueueStatusResponse> responses = new ArrayList<>();
+
+        for (String userId : userIds) {
+            validateUserId(userId);
+
+            String activeToken = activeTokenByUserId.get(userId);
+            if (activeToken != null) {
+                responses.add(readyStatusResponse(eventId, activeToken));
+                continue;
+            }
+
+            responses.add(statusWithoutPrune(eventId, userId));
+        }
+
+        return responses;
     }
 
     /**
@@ -153,6 +177,48 @@ public class QueueService {
             }
         }
         return null;
+    }
+
+    private Map<String, String> activeTokenByUserId(Long eventId) {
+        Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey(eventId), 0, -1);
+        Map<String, String> tokenByUserId = new HashMap<>();
+        if (activeTokens == null || activeTokens.isEmpty()) {
+            return tokenByUserId;
+        }
+
+        String prefix = eventId + ":";
+        for (String token : activeTokens) {
+            String value = redisTemplate.opsForValue().get(tokenKey(token));
+            if (value != null && value.startsWith(prefix)) {
+                tokenByUserId.put(value.substring(prefix.length()), token);
+            }
+        }
+        return tokenByUserId;
+    }
+
+    private QueueStatusResponse statusWithoutPrune(Long eventId, String userId) {
+        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
+        if (rank == null) {
+            redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
+            rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
+        }
+
+        long activeCount = activeCount(eventId);
+        long availableSlots = Math.max(0L, properties.admissionSize() - activeCount);
+
+        if (rank != null && rank < availableSlots) {
+            String token = admit(eventId, userId);
+            return readyStatusResponse(eventId, token);
+        }
+
+        return new QueueStatusResponse(
+                eventId,
+                STATUS_WAITING,
+                rank == null ? null : rank + 1,
+                redisTemplate.opsForZSet().zCard(waitingKey(eventId)),
+                null,
+                null
+        );
     }
 
     /**

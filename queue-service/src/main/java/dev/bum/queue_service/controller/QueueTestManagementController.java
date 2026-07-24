@@ -51,10 +51,7 @@ public class QueueTestManagementController {
             @PathVariable Long eventId,
             @RequestBody QueueBulkStatusRequest request
     ) {
-        List<QueueStatusResponse> responses = request.userIds().stream()
-                .map(userId -> queueService.status(eventId, userId))
-                .toList();
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(queueService.statuses(eventId, request.userIds()));
     }
 
     @PostMapping("/validate")
