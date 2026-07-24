@@ -212,12 +212,30 @@
     document.getElementById('queue-summary-time').textContent = '-';
   }
 
+  function resetTable() {
+    const tbody = document.getElementById('queue-table-body');
+    if (tbody) {
+      tbody.innerHTML = '';
+    }
+  }
+
+  function stopAutoRefresh() {
+    autoRefreshEnabled = false;
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+    syncAutoRefreshToggle();
+  }
+
   window.setQueueRedisMode = function (mode) {
     queueMode = ['WAITING', 'ACTIVE', 'TOKEN'].includes(mode) ? mode : 'WAITING';
     queueSort = defaultSortForMode(queueMode);
     lastEntries = [];
     previousSnapshot = new Map();
+    stopAutoRefresh();
     resetSummary();
+    resetTable();
     syncModeUi();
   };
 

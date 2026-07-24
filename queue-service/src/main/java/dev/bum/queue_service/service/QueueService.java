@@ -18,8 +18,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final String STATUS_READY = "READY";
-    private static final String STATUS_WAITING = "WAITING";
+    private static final String STATUS_READY = "READY"; // 통과 상태
+    private static final String STATUS_WAITING = "WAITING"; // 대기열 대기 상태
 
     private final StringRedisTemplate redisTemplate;
     private final QueueProperties properties;
@@ -30,6 +30,11 @@ public class QueueService {
     public QueueEnterResponse enter(Long eventId, String userId) {
         validateUserId(userId);
         pruneExpiredActiveTokens(eventId);
+
+        String activeToken = findActiveToken(eventId, userId);
+        if (activeToken != null) {
+            return readyStatusResponse(eventId, activeToken).toEnterResponse();
+        }
 
         redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
         return status(eventId, userId).toEnterResponse();
@@ -42,6 +47,11 @@ public class QueueService {
     public QueueStatusResponse status(Long eventId, String userId) {
         validateUserId(userId);
         pruneExpiredActiveTokens(eventId);
+
+        String activeToken = findActiveToken(eventId, userId);
+        if (activeToken != null) {
+            return readyStatusResponse(eventId, activeToken);
+        }
 
         Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId); // 현재 내가 몇번째 순서인지 확인.
         if (rank == null) {
@@ -73,6 +83,17 @@ public class QueueService {
     public QueueValidateResponse validate(QueueValidateRequest request) {
         boolean valid = isTokenValid(request.eventId(), request.userId(), request.token());
         return new QueueValidateResponse(valid, valid ? "OK" : "INVALID_QUEUE_TOKEN");
+    }
+
+    public boolean complete(Long eventId, String userId, String token) {
+        validateUserId(userId);
+        if (!StringUtils.hasText(token) || !isTokenValid(eventId, userId, token)) {
+            return false;
+        }
+
+        redisTemplate.opsForZSet().remove(activeKey(eventId), token);
+        redisTemplate.delete(tokenKey(token));
+        return true;
     }
 
     /**
@@ -117,6 +138,21 @@ public class QueueService {
     private boolean isTokenValid(Long eventId, String userId, String token) {
         String tokenValue = redisTemplate.opsForValue().get(tokenKey(token));
         return (eventId + ":" + userId).equals(tokenValue);
+    }
+
+    private String findActiveToken(Long eventId, String userId) {
+        Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey(eventId), 0, -1);
+        if (activeTokens == null || activeTokens.isEmpty()) {
+            return null;
+        }
+
+        String expectedValue = eventId + ":" + userId;
+        for (String token : activeTokens) {
+            if (expectedValue.equals(redisTemplate.opsForValue().get(tokenKey(token)))) {
+                return token;
+            }
+        }
+        return null;
     }
 
     /**

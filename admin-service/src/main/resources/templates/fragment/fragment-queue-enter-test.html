@@ -1,7 +1,311 @@
 <head>
   <meta charset="UTF-8">
 </head>
-<div style="padding: 1.75rem; color: var(--text-primary);">
-  <h2 style="font-size:17px; font-weight:600; margin-bottom:8px;">대기열 진입 테스트</h2>
-  <p style="color:var(--text-secondary); font-size:13px;">대기열 진입 테스트 화면은 다음 단계에서 구현합니다.</p>
+<style>
+.queue-test-frag {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+.queue-test-header {
+  padding: 1.5rem 1.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.queue-test-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.queue-test-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding: 1rem 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.queue-test-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 160px;
+}
+.queue-test-field.wide {
+  width: 220px;
+}
+.queue-test-field label {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.queue-test-field input {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fafafa;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.queue-test-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 20.5px;
+}
+.queue-test-btn {
+  height: 36px;
+  min-width: 112px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--purple);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.queue-test-btn.secondary {
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.queue-test-btn.danger {
+  background: rgba(214,59,59,0.08);
+  color: var(--red);
+  border: 1px solid rgba(214,59,59,0.18);
+}
+.queue-test-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 1rem 1.75rem;
+}
+.queue-test-summary > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 10px 12px;
+}
+.queue-test-summary span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.queue-test-summary strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+.queue-test-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  padding: 0 1.75rem 1.5rem;
+}
+.queue-test-panel {
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.queue-test-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.queue-test-panel-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.queue-test-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.queue-test-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+.queue-test-table th,
+.queue-test-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.queue-test-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #faf9fd;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.queue-test-badge {
+  display: inline-block;
+  min-width: 66px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+.queue-test-badge.ready {
+  background: #e6fcf5;
+  color: #0ca678;
+}
+.queue-test-badge.waiting {
+  background: #fff3bf;
+  color: #e67700;
+}
+.queue-test-badge.completed {
+  background: #edf2ff;
+  color: #4263eb;
+}
+.queue-test-token {
+  font-family: Consolas, Monaco, monospace;
+}
+.queue-test-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.queue-test-log-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.queue-test-log-item strong {
+  color: var(--text-primary);
+}
+.queue-test-empty {
+  height: 180px;
+  text-align: center;
+  color: var(--text-muted);
+}
+</style>
+
+<div class="queue-test-frag">
+  <div class="queue-test-header">
+    <h2>대기열 진입 테스트</h2>
+  </div>
+
+  <section class="queue-test-toolbar">
+    <div class="queue-test-field">
+      <label for="queue-test-event-id">Event ID</label>
+      <input id="queue-test-event-id" type="number" min="1" placeholder="eventId">
+    </div>
+    <div class="queue-test-field wide">
+      <label for="queue-test-user-id">User ID</label>
+      <input id="queue-test-user-id" type="text" placeholder="test-user-1">
+    </div>
+    <div class="queue-test-field wide">
+      <label for="queue-test-prefix">User ID Prefix</label>
+      <input id="queue-test-prefix" type="text" value="test-user">
+    </div>
+    <div class="queue-test-field">
+      <label for="queue-test-count">진입 인원 수</label>
+      <input id="queue-test-count" type="number" min="1" max="500" value="10">
+    </div>
+    <div class="queue-test-field">
+      <label for="queue-test-interval">진입 간격(ms)</label>
+      <input id="queue-test-interval" type="number" min="0" max="5000" value="100">
+    </div>
+    <div class="queue-test-actions">
+      <button class="queue-test-btn secondary" type="button" onclick="enterSingleQueueTestUser()">단일 유저 진입</button>
+      <button class="queue-test-btn" type="button" onclick="enterBulkQueueTestUsers()">N명 대기열 진입</button>
+      <button class="queue-test-btn secondary" type="button" onclick="refreshQueueTestStatuses()">상태 새로고침</button>
+      <button class="queue-test-btn danger" type="button" onclick="clearQueueTestEvent()">대기열 초기화</button>
+    </div>
+  </section>
+
+  <section class="queue-test-summary">
+    <div>
+      <span>Waiting</span>
+      <strong id="queue-test-waiting-count">0</strong>
+    </div>
+    <div>
+      <span>Ready</span>
+      <strong id="queue-test-ready-count">0</strong>
+    </div>
+    <div>
+      <span>Tracked Users</span>
+      <strong id="queue-test-user-count">0</strong>
+    </div>
+    <div>
+      <span>Last User</span>
+      <strong id="queue-test-last-user">-</strong>
+    </div>
+    <div>
+      <span>Last Token</span>
+      <strong id="queue-test-last-token">-</strong>
+    </div>
+  </section>
+
+  <div class="queue-test-body">
+    <section class="queue-test-panel">
+      <div class="queue-test-panel-head">
+        <h3>테스트 유저 상태</h3>
+        <button class="queue-test-btn secondary" type="button" onclick="clearQueueTestRows()">화면 초기화</button>
+      </div>
+      <div class="queue-test-table-wrap">
+        <table class="queue-test-table">
+          <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Status</th>
+            <th>Rank</th>
+            <th>Waiting Count</th>
+            <th>Token</th>
+            <th>TTL</th>
+            <th>Last Checked</th>
+            <th>Validate</th>
+            <th>Complete</th>
+          </tr>
+          </thead>
+          <tbody id="queue-test-body">
+          <tr>
+            <td colspan="9" class="queue-test-empty">테스트 유저를 진입시키면 상태가 표시됩니다.</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="queue-test-panel">
+      <div class="queue-test-panel-head">
+        <h3>최근 결과</h3>
+      </div>
+      <div class="queue-test-log" id="queue-test-log"></div>
+    </aside>
+  </div>
 </div>
+
+<script th:src="@{/js/redis/fragment-queue-enter-test.js}"></script>
