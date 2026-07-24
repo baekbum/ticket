@@ -73,27 +73,26 @@
   background: var(--card-bg);
 }
 .seat-test-popup {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
+  margin: 0 1.75rem 1.5rem;
+  flex: 1;
+  min-height: 0;
   display: none;
-  background: rgba(24, 23, 43, 0.38);
-  padding: 24px;
+  background: transparent;
 }
 .seat-test-popup.is-open {
   display: flex;
 }
 .seat-test-window {
-  width: min(1180px, 100%);
-  height: min(820px, 100%);
-  margin: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  margin: 0;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0,0,0,0.20);
 }
 .seat-test-popup-header,
 .seat-test-popup-toolbar {
@@ -105,6 +104,21 @@
 }
 .seat-test-popup-header {
   justify-content: space-between;
+}
+.seat-test-popup-toolbar {
+  justify-content: space-between;
+}
+.seat-test-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.seat-test-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 20.5px;
 }
 .seat-test-popup-title {
   font-size: 14px;
@@ -215,40 +229,43 @@
       <label for="seat-test-event-id">이벤트 ID</label>
       <input id="seat-test-event-id" type="number" min="1" placeholder="eventId">
     </div>
-    <button class="seat-test-btn" type="button" onclick="openSeatReservationTestPopup()">구역 배치도 열기</button>
+    <button class="seat-test-btn" type="button" onclick="openSeatReservationTestPopup()">테스트 대시보드 열기</button>
   </section>
-  <div class="seat-test-placeholder">이벤트 ID를 입력하고 구역 배치도를 열어 테스트를 시작하세요.</div>
-</div>
+  <div class="seat-test-placeholder" id="seat-test-empty">
+    이벤트 ID를 입력하고 테스트 대시보드를 열어 시작하세요.
+  </div>
 
-<div class="seat-test-popup" id="seat-test-popup">
-  <div class="seat-test-window">
-    <div class="seat-test-popup-header">
-      <div class="seat-test-popup-title">좌석 선점 테스트 - Event <span id="seat-test-popup-event-id">-</span></div>
-      <button class="seat-test-btn secondary" type="button" onclick="closeSeatReservationTestPopup()">닫기</button>
-    </div>
-    <div class="seat-test-popup-toolbar">
-      <div class="seat-test-field">
-        <label for="seat-test-user-id">User ID</label>
-        <input id="seat-test-user-id" type="text" placeholder="ticketing userId">
-      </div>
-      <button class="seat-test-btn secondary" type="button" onclick="refreshSeatTestAreas()">구역 새로고침</button>
-      <button class="seat-test-btn secondary" type="button" onclick="refreshSeatTestSeats()">좌석 새로고침</button>
-      <button class="seat-test-btn" type="button" onclick="occupySeatTestSelection()">좌석 선점</button>
-      <button class="seat-test-btn secondary" type="button" onclick="releaseAllSeatTestLocks()">좌석 전체 선점 취소</button>
-    </div>
-    <div class="seat-test-stage">
-      <div class="seat-test-canvas">
-        <div class="seat-test-svg-wrap" id="seat-test-layout"></div>
-        <svg class="seat-test-seat-svg" id="seat-test-seat-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet" style="display:none;"></svg>
-      </div>
-      <aside class="seat-test-side">
-        <h3>선택 정보</h3>
-        <div class="seat-test-selected-list" id="seat-test-selected-list"></div>
-        <div style="color:var(--text-secondary); font-size:12px; line-height:1.7;">
-          <div>구역: <strong id="seat-test-area-label">-</strong></div>
-          <div>좌석 수: <strong id="seat-test-count-label">0</strong></div>
+  <div class="seat-test-popup" id="seat-test-popup">
+    <div class="seat-test-window">
+      <div class="seat-test-popup-toolbar">
+        <div class="seat-test-toolbar-left">
+          <div class="seat-test-field">
+            <label for="seat-test-user-id">User ID</label>
+            <input id="seat-test-user-id" type="text" placeholder="ticketing userId">
+          </div>
+          <div class="seat-test-toolbar-actions">
+            <button class="seat-test-btn secondary" type="button" onclick="refreshSeatTestAreas()">구역 새로고침</button>
+            <button class="seat-test-btn secondary" type="button" onclick="refreshSeatTestSeats()">좌석 새로고침</button>
+            <button class="seat-test-btn" type="button" onclick="occupySeatTestSelection()">좌석 선점</button>
+            <button class="seat-test-btn secondary" type="button" onclick="releaseAllSeatTestLocks()">좌석 전체 선점 취소</button>
+          </div>
         </div>
-      </aside>
+        <button class="seat-test-btn secondary" type="button" onclick="closeSeatReservationTestPopup()">닫기</button>
+      </div>
+      <div class="seat-test-stage">
+        <div class="seat-test-canvas">
+          <div class="seat-test-svg-wrap" id="seat-test-layout"></div>
+          <svg class="seat-test-seat-svg" id="seat-test-seat-svg" viewBox="0 0 700 520" preserveAspectRatio="xMidYMid meet" style="display:none;"></svg>
+        </div>
+        <aside class="seat-test-side">
+          <h3>선택 정보</h3>
+          <div class="seat-test-selected-list" id="seat-test-selected-list"></div>
+          <div style="color:var(--text-secondary); font-size:12px; line-height:1.7;">
+            <div>구역: <strong id="seat-test-area-label">-</strong></div>
+            <div>좌석 수: <strong id="seat-test-count-label">0</strong></div>
+          </div>
+        </aside>
+      </div>
     </div>
   </div>
 </div>

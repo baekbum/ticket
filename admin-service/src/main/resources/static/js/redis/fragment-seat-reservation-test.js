@@ -263,13 +263,14 @@
     }
 
     eventId = Number(rawEventId);
-    document.getElementById('seat-test-popup-event-id').textContent = String(eventId);
+    document.getElementById('seat-test-empty').style.display = 'none';
     document.getElementById('seat-test-popup').classList.add('is-open');
     await window.refreshSeatTestAreas();
   };
 
   window.closeSeatReservationTestPopup = function () {
     document.getElementById('seat-test-popup').classList.remove('is-open');
+    document.getElementById('seat-test-empty').style.display = 'flex';
   };
 
   window.refreshSeatTestAreas = async function () {
