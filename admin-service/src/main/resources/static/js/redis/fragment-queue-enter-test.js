@@ -12,6 +12,10 @@
     return Number.isFinite(value) ? value : fallback;
   }
 
+  function bulkModeValue() {
+    return inputValue('queue-test-bulk-mode') || 'APPEND';
+  }
+
   function eventIdValue() {
     const eventId = inputValue('queue-test-event-id');
     if (!eventId) {
@@ -52,6 +56,27 @@
     });
     logs.splice(30);
     renderLogs();
+  }
+
+  async function clearEventQueue(eventId) {
+    const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      throw new Error(`clear failed: ${res.status}`);
+    }
+    return res.text();
+  }
+
+  function nextBulkStartNumber(prefix) {
+    const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`);
+    let max = 0;
+    users.forEach((_, userId) => {
+      const match = String(userId).match(pattern);
+      if (!match) return;
+      max = Math.max(max, parseInt(match[1], 10));
+    });
+    return max + 1;
   }
 
   function renderLogs() {
@@ -232,15 +257,25 @@
     const prefix = inputValue('queue-test-prefix') || 'test-user';
     const count = Math.min(Math.max(numberValue('queue-test-count', 10), 1), 500);
     const interval = Math.min(Math.max(numberValue('queue-test-interval', 100), 0), 5000);
+    const bulkMode = bulkModeValue();
 
     try {
-      for (let i = 1; i <= count; i++) {
+      if (bulkMode === 'RESET') {
+        const message = await clearEventQueue(eventId);
+        users.clear();
+        renderUsers();
+        addLog('초기화 후 N명 진입 시작', message);
+      }
+
+      const startNo = bulkMode === 'RESET' ? 1 : nextBulkStartNumber(prefix);
+      const endNo = startNo + count - 1;
+      for (let i = startNo; i <= endNo; i++) {
         await enterUser(eventId, `${prefix}-${i}`);
-        if (interval > 0 && i < count) {
+        if (interval > 0 && i < endNo) {
           await sleep(interval);
         }
       }
-      showToast(`${count}명 대기열 진입 요청이 완료되었습니다.`);
+      showToast(`${prefix}-${startNo} ~ ${prefix}-${endNo} 대기열 진입 요청이 완료되었습니다.`);
     } catch (e) {
       console.error(e);
       showToast('N명 대기열 진입 중 오류가 발생했습니다.', true);
@@ -339,23 +374,25 @@
     addLog('화면 상태 초기화');
   };
 
-  window.clearQueueTestEvent = async function () {
+  window.clearQueueTestEvent = function () {
     const eventId = eventIdValue();
     if (!eventId) return;
-    if (!window.confirm('이 이벤트의 대기열 Redis 데이터를 초기화할까요?')) return;
+    document.getElementById('queue-test-clear-confirm')?.classList.add('is-open');
+  };
 
+  window.closeQueueTestClearConfirm = function () {
+    document.getElementById('queue-test-clear-confirm')?.classList.remove('is-open');
+  };
+
+  window.confirmQueueTestEventClear = async function () {
+    const eventId = eventIdValue();
+    if (!eventId) return;
     try {
-      const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        showToast('대기열 초기화에 실패했습니다.', true);
-        return;
-      }
-      const message = await res.text();
+      const message = await clearEventQueue(eventId);
       users.clear();
       renderUsers();
       addLog('대기열 Redis 초기화', message);
+      closeQueueTestClearConfirm();
       showToast(message || '대기열이 초기화되었습니다.');
     } catch (e) {
       console.error(e);

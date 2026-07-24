@@ -128,7 +128,7 @@
     const sortedEntries = sortEntries(entries);
 
     if (!sortedEntries.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="queue-empty">No Queue Redis entries found.</td></tr>`;
+      tbody.innerHTML = '';
       if (detectChanges) previousSnapshot = new Map();
       return 0;
     }
