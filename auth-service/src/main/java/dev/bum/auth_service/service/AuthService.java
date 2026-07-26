@@ -161,6 +161,9 @@ public class AuthService {
             throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
         }
 
+        log.info("[기존 코인] : {}", refreshToken);
+        log.info("[새로운 코인] : {}", newTokens);
+
         return newTokens;
     }
 

@@ -55,4 +55,21 @@ class AdminAuthControllerTest {
 
         then(authServiceClient).should().login(info);
     }
+
+    @Test
+    @DisplayName("관리자 토큰 재발급")
+    void auth_reissue() throws Exception {
+        String refreshHeader = "Bearer refresh-token";
+        TokenResponse response = new TokenResponse("new-access-token", "new-refresh-token");
+
+        given(authServiceClient.reissue(refreshHeader)).willReturn(response);
+
+        mockMvc.perform(post("/api/v1/auth/reissue")
+                        .header("Authorization-Refresh", refreshHeader))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("new-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh-token"));
+
+        then(authServiceClient).should().reissue(refreshHeader);
+    }
 }
