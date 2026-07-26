@@ -20,6 +20,9 @@ public enum ErrorCode {
     USER_DUPLICATE("이미 존재하는 사용자입니다."),
     USER_ADDRESS_NOT_FOUND("존재하지 않는 배송지입니다."),
 
+    // Admin-service
+    FEIGN_CLIENT_ERROR("외부 서비스 통신 중 오류가 발생했습니다."),
+
     // Ticket-service
     // Event
     EVENT_NOT_FOUND("존재하지 않는 이벤트입니다."),
