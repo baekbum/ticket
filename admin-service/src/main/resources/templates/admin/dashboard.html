@@ -107,36 +107,13 @@
           </button>
         </div>
       </div>
+      <button class="menu-btn" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
+        <i class="ti ti-database"></i>Redis
+      </button>
 
-      <div class="menu-group is-open" data-menu-group="infra">
-        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
-          <span><i class="ti ti-database"></i>Redis</span>
-          <i class="ti ti-chevron-down menu-group-chevron"></i>
-        </button>
-        <div class="menu-group-items">
-          <button class="menu-btn" data-menu="seatRedis" onclick="switchMenu('seatRedis', this)">
-            <i class="ti ti-armchair"></i>Seat Redis
-          </button>
-          <button class="menu-btn" data-menu="queueRedis" onclick="switchMenu('queueRedis', this)">
-            <i class="ti ti-users-group"></i>Queue Redis
-          </button>
-        </div>
-      </div>
-
-      <div class="menu-group is-open" data-menu-group="test">
-        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
-          <span><i class="ti ti-flask"></i>테스트</span>
-          <i class="ti ti-chevron-down menu-group-chevron"></i>
-        </button>
-        <div class="menu-group-items">
-          <button class="menu-btn" data-menu="seatReservationTest" onclick="switchMenu('seatReservationTest', this)">
-            <i class="ti ti-click"></i>좌석 선점 테스트
-          </button>
-          <button class="menu-btn" data-menu="queueEnterTest" onclick="switchMenu('queueEnterTest', this)">
-            <i class="ti ti-login-2"></i>대기열 진입 테스트
-          </button>
-        </div>
-      </div>
+      <button class="menu-btn" data-menu="testHub" onclick="switchMenu('testHub', this)">
+        <i class="ti ti-flask"></i>&#53580;&#49828;&#53944;
+      </button>
     </nav>
 
     <!-- Main -->

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket Admin Embed</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" th:href="@{/css/dashboard/dashboard.css}">
+  <link rel="stylesheet" th:href="@{/css/common/toast.css}">
+  <link rel="stylesheet" th:href="@{/css/common/modal.css}">
+  <link rel="stylesheet" th:href="@{/css/common/table-common.css}">
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: auto;
+      background: var(--card-bg);
+      display: block;
+    }
+    #embed-content {
+      width: 100%;
+      min-width: var(--embed-layout-min-width, 100%);
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: auto;
+      background: var(--card-bg);
+    }
+    .embed-error {
+      padding: 2rem;
+      color: var(--red);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+<main id="embed-content"></main>
+<div class="toast" id="toast"></div>
+
+<script th:src="@{/js/common/api.js}"></script>
+<script th:src="@{/js/common/toast.js}"></script>
+<script th:src="@{/js/common/modal.js}"></script>
+<script th:inline="javascript">
+  const embedMenuName = /*[[${menuName}]]*/ '';
+
+  function embedAppBasePath() {
+    if (window.location.port === API.DEV_PORT) {
+      return `http://localhost:${API.SERVICE_PORT}/admin`;
+    }
+
+    const adminIndex = window.location.pathname.indexOf('/admin');
+    if (adminIndex >= 0) {
+      return `${window.location.origin}/admin`;
+    }
+
+    return window.location.origin;
+  }
+
+  function resolveEmbedAssetUrl(rawUrl) {
+    if (!rawUrl) return '';
+
+    const thymeleafExpression = rawUrl.match(/^@\{(.+)\}$/);
+    const url = thymeleafExpression ? thymeleafExpression[1] : rawUrl;
+
+    if (/^(https?:)?\/\//.test(url)) return url;
+    if (url.startsWith('/admin/')) return `${window.location.origin}${url}`;
+    if (url.startsWith('/')) return `${embedAppBasePath()}${url}`;
+
+    return url;
+  }
+
+  async function loadEmbedFragmentAssets(contentArea) {
+    document.querySelectorAll('script[data-fragment-script="true"]').forEach(script => script.remove());
+    document.querySelectorAll('link[data-fragment-style="true"]').forEach(link => link.remove());
+
+    const links = [...contentArea.querySelectorAll('link[rel="stylesheet"]')];
+    for (const oldLink of links) {
+      const rawHref = oldLink.getAttribute('href') || oldLink.getAttribute('th:href');
+      const href = resolveEmbedAssetUrl(rawHref);
+      oldLink.remove();
+      if (!href) continue;
+
+      const newLink = document.createElement('link');
+      newLink.rel = 'stylesheet';
+      newLink.href = href;
+      newLink.dataset.fragmentStyle = 'true';
+      document.head.appendChild(newLink);
+    }
+
+    const scripts = [...contentArea.querySelectorAll('script')];
+    for (const oldScript of scripts) {
+      const newScript = document.createElement('script');
+      const rawSrc = oldScript.getAttribute('src') || oldScript.getAttribute('th:src');
+      const src = resolveEmbedAssetUrl(rawSrc);
+
+      newScript.async = false;
+      newScript.dataset.fragmentScript = 'true';
+      oldScript.remove();
+
+      if (src) {
+        newScript.src = src;
+        document.body.appendChild(newScript);
+        await new Promise((resolve, reject) => {
+          newScript.onload = resolve;
+          newScript.onerror = () => reject(new Error(`Fragment script load failed: ${src}`));
+        });
+      } else {
+        newScript.textContent = oldScript.textContent;
+        document.body.appendChild(newScript);
+      }
+    }
+  }
+
+  async function loadEmbedFragment() {
+    const contentArea = document.getElementById('embed-content');
+    try {
+      const res = await window.Fetch(`${base()}/admin/api/${API.VERSION}/view/fragment/${embedMenuName}`, { method: 'GET' });
+      if (!res.ok) {
+        contentArea.innerHTML = `<div class="embed-error">화면을 불러오지 못했습니다. Status: ${res.status}</div>`;
+        return;
+      }
+
+      contentArea.innerHTML = await res.text();
+      await loadEmbedFragmentAssets(contentArea);
+      window.dispatchEvent(new CustomEvent('admin:fragment-loaded', {
+        detail: { menuName: embedMenuName, context: {} }
+      }));
+    } catch (e) {
+      console.error(e);
+      contentArea.innerHTML = '<div class="embed-error">화면을 불러오는 중 오류가 발생했습니다.</div>';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadEmbedFragment);
+</script>
+</body>
+</html>

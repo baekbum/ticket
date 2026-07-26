@@ -3,6 +3,7 @@ package dev.bum.admin_service.controller.view;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,12 @@ public class ViewController {
         return "admin/dashboard";
     }
 
+    @GetMapping("/embed/{menuName}")
+    public String embed(@PathVariable String menuName, Model model) {
+        model.addAttribute("menuName", menuName);
+        return "admin/embed";
+    }
+
     /**
      * content 화면
      * @param menuName
@@ -55,6 +62,10 @@ public class ViewController {
             return "fragment/fragment-coupon";
         } else if ("userCoupon".equals(menuName)) {
             return "fragment/fragment-user-coupon";
+        } else if ("redisHub".equals(menuName)) {
+            return "fragment/fragment-redis-hub";
+        } else if ("testHub".equals(menuName)) {
+            return "fragment/fragment-test-hub";
         } else if ("seatRedis".equals(menuName)) {
             return "fragment/fragment-redis";
         } else if ("queueRedis".equals(menuName)) {
