@@ -82,4 +82,16 @@ public class AuthController {
 
         return ResponseEntity.ok(tokenResponse);
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+        if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        String refreshToken = refreshHeader.substring(7);
+        authService.logout(refreshToken);
+
+        return ResponseEntity.noContent().build();
+    }
 }

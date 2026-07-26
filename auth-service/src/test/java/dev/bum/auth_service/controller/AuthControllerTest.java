@@ -142,4 +142,26 @@ class AuthControllerTest {
 
         then(authService).should(never()).reissueToken(any());
     }
+
+    @Test
+    @DisplayName("로그아웃 성공 시 204 응답")
+    void logout_success() throws Exception {
+        String refreshToken = "refresh-token";
+
+        mockMvc.perform(post("/api/" + apiVersion + "/logout")
+                        .header("Authorization-Refresh", "Bearer " + refreshToken))
+                .andExpect(status().isNoContent());
+
+        then(authService).should().logout(refreshToken);
+    }
+
+    @Test
+    @DisplayName("로그아웃 Refresh 토큰 헤더 형식이 잘못되면 400 응답")
+    void logout_with_invalid_header_format() throws Exception {
+        mockMvc.perform(post("/api/" + apiVersion + "/logout")
+                        .header("Authorization-Refresh", "refresh-token"))
+                .andExpect(status().isBadRequest());
+
+        then(authService).should(never()).logout(any());
+    }
 }
