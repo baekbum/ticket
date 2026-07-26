@@ -2,6 +2,8 @@ package dev.bum.auth_service.controller;
 
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.auth_service.service.AuthService;
+import dev.bum.common.error.ErrorCode;
+import dev.bum.common.error.ErrorResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
 import jakarta.validation.Valid;
@@ -30,12 +32,13 @@ public class AuthController {
      * (SecurityConfig에서 permitAll로 열려있고, Nginx internal;로 보호되는 경로)
      */
     @GetMapping("/validate")
-    public ResponseEntity<Void> validateToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<?> validateToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         // 1. 헤더 자체가 없거나 Bearer 형식이 아니면 즉시 인증 실패 처리
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("[Nginx Auth] Authorization 헤더가 누락되었거나 형식이 잘못되었습니다.");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); // 401 반환 -> Nginx가 튕겨냄
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ErrorResponse.of(ErrorCode.UNAUTHORIZED, "Authorization 헤더가 없거나 Bearer 형식이 아닙니다.")); // 401 반환 -> Nginx가 튕겨냄
         }
 
         String token = authHeader.substring(7);
@@ -59,12 +62,14 @@ public class AuthController {
             log.warn("[Nginx Auth] 만료된 토큰 접근 발생 -> Nginx에 401 전송");
             // 🌟 중요: 만료 시 401을 줘야 Nginx가 클라이언트에게 401을 그대로 전달하고,
             // 그걸 본 대시보드 Axios/Fetch 인터셉터가 reissue(재발급)를 요청하게 됩니다!
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ErrorResponse.of(ErrorCode.TOKEN_EXPIRED, "Access Token이 만료되었습니다."));
 
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             log.warn("[Nginx Auth] 변조되거나 잘못된 토큰 비정상 접근 발생 -> Nginx에 403 전송: {}", e.getMessage());
             // 변조된 토큰은 갱신 기회를 주지 않고 완전히 차단해야 하므로 403을 줍니다.
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ErrorResponse.of(ErrorCode.INVALID_TOKEN, "유효하지 않거나 변조된 토큰입니다."));
         }
     }
 
@@ -72,9 +77,10 @@ public class AuthController {
      * 클라이언트가 직접 호출하는 토큰 재발급(갱신) 엔드포인트
      */
     @PostMapping("/reissue")
-    public ResponseEntity<TokenResponse> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+    public ResponseEntity<?> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
         if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ErrorResponse.of(ErrorCode.REFRESH_TOKEN_REQUIRED, "Authorization-Refresh 헤더가 없거나 Bearer 형식이 아닙니다."));
         }
 
         String refreshToken = refreshHeader.substring(7);
@@ -84,9 +90,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+    public ResponseEntity<?> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
         if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ErrorResponse.of(ErrorCode.REFRESH_TOKEN_REQUIRED, "Authorization-Refresh 헤더가 없거나 Bearer 형식이 아닙니다."));
         }
 
         String refreshToken = refreshHeader.substring(7);

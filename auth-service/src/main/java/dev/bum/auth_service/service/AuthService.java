@@ -7,6 +7,7 @@ import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
+import dev.bum.common.error.ErrorCode;
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -128,7 +129,7 @@ public class AuthService {
     public TokenResponse reissueToken(String refreshToken) {
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
-            throw new RedisException("만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
         }
 
         // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
@@ -140,7 +141,7 @@ public class AuthService {
 
         // 4. Redis 토큰 탈락 확인 및 클라이언트가 보낸 토큰과 일치하는지 정합성 검증
         if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
-            throw new RedisException("토큰 정보가 일치하지 않거나 이미 로그아웃된 계정입니다.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "토큰 정보가 일치하지 않거나 이미 로그아웃된 계정입니다.");
         }
 
         // 5. 최신 권한(Role) 정보를 매핑하기 위해 DB 유저 조회
@@ -169,7 +170,7 @@ public class AuthService {
     @AuditLog(action = "LOGOUT", targetType = "AUTH")
     public void logout(String refreshToken) {
         if (!tokenProvider.validateToken(refreshToken)) {
-            throw new RedisException("유효하지 않은 Refresh Token입니다.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "유효하지 않은 Refresh Token입니다.");
         }
 
         String userId = tokenProvider.getUserId(refreshToken);
@@ -177,7 +178,7 @@ public class AuthService {
         String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
 
         if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
-            throw new RedisException("Refresh Token 정보가 일치하지 않습니다.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "Refresh Token 정보가 일치하지 않습니다.");
         }
 
         Auth auth = repository.findByUserId(userId);
