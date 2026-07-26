@@ -27,3 +27,5 @@ services:
     url: "http://localhost:8081/user"
   ticket-service:
     url: "http://localhost:8082/ticket"
+  queue-service:
+    url: "http://localhost:8083/queue"

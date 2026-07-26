@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -82,6 +83,24 @@ public class SeatService {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
         Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable).map(Seat::toDto);
+
+        return CustomPageResponse.of(
+                seatPage.getContent(),
+                seatPage.getSize(),
+                seatPage.getNumber(),
+                seatPage.getTotalElements(),
+                seatPage.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public CustomPageResponse<SeatResponse> selectByCondWithCacheStatus(SeatCondRequest cond) {
+        log.info("[SELECT-TEST] cond : {}", cond.toString());
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+
+        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable)
+                .map(Seat::toDto)
+                .map(seatCacheService::applyCachedStatus);
 
         return CustomPageResponse.of(
                 seatPage.getContent(),
@@ -172,6 +191,11 @@ public class SeatService {
         return seatCacheService.deleteAreaSeatsFromCache(areaId);
     }
 
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit, SeatRedisInspectMode mode) {
+        return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit, mode);
+    }
+
     /**
      * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
      * @param seatId
@@ -191,6 +215,11 @@ public class SeatService {
     @AuditLog(action = "SEAT_UNLOCK", targetType = "SEAT")
     public String unlockSeatCache(Long seatId) {
         return seatCacheService.unlockSeatCache(seatId);
+    }
+
+    @AuditLog(action = "SEAT_UNLOCK_EVENT", targetType = "SEAT")
+    public String unlockEventSeatCache(Long eventId) {
+        return seatCacheService.unlockEventSeatCache(eventId);
     }
 
     /**

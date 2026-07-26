@@ -4,6 +4,7 @@ import dev.bum.admin_service.feign.seat.SeatServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,11 @@ public class AdminSeatController {
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(@RequestBody SeatCondRequest cond) {
         return ResponseEntity.ok(seatServiceClient.selectByCond(cond));
+    }
+
+    @PostMapping("/test/select")
+    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCondWithCacheStatus(@RequestBody SeatCondRequest cond) {
+        return ResponseEntity.ok(seatServiceClient.selectByCondWithCacheStatus(cond));
     }
 
     @PutMapping("/update")
@@ -91,6 +97,18 @@ public class AdminSeatController {
         return ResponseEntity.ok(seatServiceClient.deleteAreaSeatCache(areaId));
     }
 
+    @GetMapping("/cache/inspect/event/{eventId}")
+    public ResponseEntity<SeatRedisInspectResponse> inspectEventSeatCache(
+            @PathVariable("eventId") Long eventId,
+            @RequestParam(value = "zone", required = false) String zone,
+            @RequestParam(value = "row", required = false) Integer row,
+            @RequestParam(value = "col", required = false) Integer col,
+            @RequestParam(value = "limit", defaultValue = "100") int limit,
+            @RequestParam(value = "mode", defaultValue = "SEAT") SeatRedisInspectMode mode
+    ) {
+        return ResponseEntity.ok(seatServiceClient.inspectEventSeatCache(eventId, zone, row, col, mode, limit));
+    }
+
     @PostMapping("/cache/seat/{seatId}/test-lock")
     public ResponseEntity<String> lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId) {
         try {
@@ -109,9 +127,19 @@ public class AdminSeatController {
         }
     }
 
+    @PostMapping("/cache/event/{eventId}/test-unlock")
+    public ResponseEntity<String> unlockEventSeatCache(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatServiceClient.unlockEventSeatCache(eventId));
+    }
+
     @PostMapping("/occupy")
-    public ResponseEntity<Void> occupySeat(@RequestBody SeatOccupyRequest request) {
-        seatServiceClient.occupySeat(request);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> occupySeat(@RequestBody SeatOccupyRequest request) {
+        try {
+            return ResponseEntity.ok(seatServiceClient.occupySeat(request));
+        } catch (FeignException.Conflict e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        } catch (FeignException.BadRequest e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        }
     }
 }

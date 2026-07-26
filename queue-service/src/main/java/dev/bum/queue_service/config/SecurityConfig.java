@@ -44,6 +44,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/v1/queue/validate").permitAll()
+                        .requestMatchers("/api/v1/manage/queue/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/queue/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().hasRole("ADMIN")
                 );

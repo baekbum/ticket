@@ -19,3 +19,5 @@ services:
     url: "http://user-service:8080"
   ticket-service:
     url: "http://ticket-service:8080"
+  queue-service:
+    url: "http://queue-service:8080"
