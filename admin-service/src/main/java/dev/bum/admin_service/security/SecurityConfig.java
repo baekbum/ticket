@@ -54,6 +54,7 @@ public class SecurityConfig {
                         // 로그인 성공 시 대시보드 화면 및 fragment 화면 허용
                         .requestMatchers("/api/*/view/home").permitAll()
                         .requestMatchers("/api/*/view/fragment/**").permitAll()
+                        .requestMatchers("/api/*/view/embed/**").permitAll()
 
                         // 정적 리소스(CSS, JS)가 시큐리티에 막혀 화면이 깨지는 것을 방지
                         .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()

@@ -19,6 +19,9 @@ public interface SeatServiceClient {
     @PostMapping("/select")
     CustomPageResponse<SeatResponse> selectByCond(@RequestBody SeatCondRequest cond);
 
+    @PostMapping("/test/select")
+    CustomPageResponse<SeatResponse> selectByCondWithCacheStatus(@RequestBody SeatCondRequest cond);
+
     @PutMapping("/update")
     void update(@RequestBody UpdateSeatRequest info);
 
@@ -61,6 +64,9 @@ public interface SeatServiceClient {
 
     @PostMapping("/cache/seat/{seatId}/test-unlock")
     String unlockSeatCache(@PathVariable("seatId") Long seatId);
+
+    @PostMapping("/cache/event/{eventId}/test-unlock")
+    String unlockEventSeatCache(@PathVariable("eventId") Long eventId);
 
     @PostMapping("/occupy")
     SeatOccupyResponse occupySeat(@RequestBody SeatOccupyRequest request);

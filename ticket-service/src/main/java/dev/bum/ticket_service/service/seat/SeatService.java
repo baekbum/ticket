@@ -93,6 +93,24 @@ public class SeatService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public CustomPageResponse<SeatResponse> selectByCondWithCacheStatus(SeatCondRequest cond) {
+        log.info("[SELECT-TEST] cond : {}", cond.toString());
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+
+        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable)
+                .map(Seat::toDto)
+                .map(seatCacheService::applyCachedStatus);
+
+        return CustomPageResponse.of(
+                seatPage.getContent(),
+                seatPage.getSize(),
+                seatPage.getNumber(),
+                seatPage.getTotalElements(),
+                seatPage.getTotalPages()
+        );
+    }
+
     /**
      * 좌석 정보 수정 메서드
      * @param info
@@ -197,6 +215,11 @@ public class SeatService {
     @AuditLog(action = "SEAT_UNLOCK", targetType = "SEAT")
     public String unlockSeatCache(Long seatId) {
         return seatCacheService.unlockSeatCache(seatId);
+    }
+
+    @AuditLog(action = "SEAT_UNLOCK_EVENT", targetType = "SEAT")
+    public String unlockEventSeatCache(Long eventId) {
+        return seatCacheService.unlockEventSeatCache(eventId);
     }
 
     /**

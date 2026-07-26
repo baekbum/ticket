@@ -225,8 +225,348 @@
     }
   }
 
+  let dashboardEmbedWindowSeq = 0;
+  let dashboardEmbedWindowZ = 2500;
+
+  function getDashboardWindowLayer() {
+    let layer = document.getElementById('dashboard-window-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'dashboard-window-layer';
+      layer.className = 'dashboard-window-layer';
+      document.body.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function getDashboardWindowTaskbar() {
+    let taskbar = document.getElementById('dashboard-window-taskbar');
+    if (!taskbar) {
+      taskbar = document.createElement('div');
+      taskbar.id = 'dashboard-window-taskbar';
+      taskbar.className = 'dashboard-window-taskbar';
+      document.body.appendChild(taskbar);
+    }
+    return taskbar;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function focusDashboardEmbedWindow(win) {
+    document.querySelectorAll('.dashboard-embed-window')
+      .forEach(item => item.classList.remove('is-focused'));
+
+    win.classList.add('is-focused');
+    win.style.zIndex = String(++dashboardEmbedWindowZ);
+  }
+
+  function getDashboardWorkspaceRect() {
+    const layout = document.querySelector('.dashboard-layout');
+    const rect = layout ? layout.getBoundingClientRect() : document.body.getBoundingClientRect();
+    return {
+      left: Math.max(12, rect.left + 12),
+      top: Math.max(12, rect.top + 12),
+      width: Math.max(720, rect.width - 24),
+      height: Math.max(520, rect.height - 24)
+    };
+  }
+
+  function placeDashboardEmbedWindow(win, placement) {
+    const rect = getDashboardWorkspaceRect();
+    const gap = 10;
+
+    if (placement === 'left' || placement === 'right') {
+      const width = Math.floor((rect.width - gap) / 2);
+      win.style.left = `${placement === 'left' ? rect.left : rect.left + width + gap}px`;
+      win.style.top = `${rect.top}px`;
+      win.style.width = `${width}px`;
+      win.style.height = `${rect.height}px`;
+      return;
+    }
+
+    if (placement === 'full') {
+      win.style.left = `${rect.left}px`;
+      win.style.top = `${rect.top}px`;
+      win.style.width = `${rect.width}px`;
+      win.style.height = `${rect.height}px`;
+      return;
+    }
+
+    win.style.left = `${rect.left}px`;
+    win.style.top = `${rect.top}px`;
+    win.style.width = `${Math.floor((rect.width - gap) / 2)}px`;
+    win.style.height = `${rect.height}px`;
+  }
+
+  function makeDashboardEmbedWindowDraggable(win, handle) {
+    let drag = null;
+
+    handle.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+
+      if (win.classList.contains('is-maximized')) {
+        toggleDashboardEmbedWindowMaximize(win);
+      }
+
+      const rect = win.getBoundingClientRect();
+      drag = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top
+      };
+
+      focusDashboardEmbedWindow(win);
+      win.classList.add('is-dragging');
+      handle.setPointerCapture(event.pointerId);
+    });
+
+    handle.addEventListener('pointermove', event => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      const rect = win.getBoundingClientRect();
+      const minVisible = 80;
+      const minTitleVisible = 34;
+      const left = Math.min(
+        Math.max(-(rect.width - minVisible), event.clientX - drag.offsetX),
+        window.innerWidth - minVisible
+      );
+      const top = Math.min(
+        Math.max(0, event.clientY - drag.offsetY),
+        window.innerHeight - minTitleVisible
+      );
+
+      win.style.left = `${left}px`;
+      win.style.top = `${top}px`;
+    });
+
+    handle.addEventListener('pointerup', event => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      drag = null;
+      win.classList.remove('is-dragging');
+      handle.releasePointerCapture(event.pointerId);
+    });
+  }
+
+  function makeDashboardEmbedWindowResizable(win, handle) {
+    let resize = null;
+
+    handle.addEventListener('pointerdown', event => {
+      win.classList.remove('is-maximized');
+
+      const rect = win.getBoundingClientRect();
+      resize = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startWidth: rect.width,
+        startHeight: rect.height
+      };
+
+      event.preventDefault();
+      focusDashboardEmbedWindow(win);
+      win.classList.add('is-resizing');
+      handle.setPointerCapture(event.pointerId);
+    });
+
+    handle.addEventListener('pointermove', event => {
+      if (!resize || resize.pointerId !== event.pointerId) return;
+
+      const minWidth = parseFloat(getComputedStyle(win).minWidth) || 520;
+      const minHeight = parseFloat(getComputedStyle(win).minHeight) || 420;
+      const width = Math.max(minWidth, resize.startWidth + event.clientX - resize.startX);
+      const height = Math.max(minHeight, resize.startHeight + event.clientY - resize.startY);
+
+      win.style.width = `${width}px`;
+      win.style.height = `${height}px`;
+      scheduleDashboardEmbedLayoutWidthLock(win);
+    });
+
+    handle.addEventListener('pointerup', event => {
+      if (!resize || resize.pointerId !== event.pointerId) return;
+      resize = null;
+      win.classList.remove('is-resizing');
+      lockDashboardEmbedLayoutWidth(win);
+      handle.releasePointerCapture(event.pointerId);
+    });
+  }
+
+  function lockDashboardEmbedLayoutWidth(win) {
+    const frame = win.querySelector('iframe');
+    if (!frame) return;
+
+    const applyWidth = () => {
+      const width = Math.ceil(frame.getBoundingClientRect().width);
+      if (!width) return;
+      const nextWidth = Math.max(Number(win.dataset.embedLayoutMinWidth || 0), width);
+      win.dataset.embedLayoutMinWidth = String(nextWidth);
+
+      try {
+        frame.contentDocument?.documentElement.style.setProperty('--embed-layout-min-width', `${nextWidth}px`);
+      } catch (e) {
+        console.warn('iframe layout width lock failed:', e);
+      }
+    };
+
+    if (frame.contentDocument?.readyState === 'complete') {
+      applyWidth();
+    } else {
+      frame.addEventListener('load', applyWidth, { once: true });
+    }
+  }
+
+  function scheduleDashboardEmbedLayoutWidthLock(win) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => lockDashboardEmbedLayoutWidth(win));
+    });
+  }
+
+  function restoreDashboardEmbedWindow(win) {
+    const task = document.querySelector(`.dashboard-window-task[data-window-id="${win.id}"]`);
+    if (task) task.remove();
+
+    win.classList.remove('is-minimized');
+    focusDashboardEmbedWindow(win);
+  }
+
+  function minimizeDashboardEmbedWindow(win, title) {
+    const taskbar = getDashboardWindowTaskbar();
+    const existingTask = taskbar.querySelector(`[data-window-id="${win.id}"]`);
+    if (existingTask) {
+      win.classList.add('is-minimized');
+      return;
+    }
+
+    const task = document.createElement('button');
+    task.className = 'dashboard-window-task';
+    task.type = 'button';
+    task.dataset.windowId = win.id;
+    task.innerHTML = `<i class="ti ti-window"></i><span>${escapeHtml(title)}</span>`;
+    task.addEventListener('click', () => restoreDashboardEmbedWindow(win));
+    taskbar.appendChild(task);
+    win.classList.add('is-minimized');
+  }
+
+  function toggleDashboardEmbedWindowMaximize(win) {
+    if (win.classList.contains('is-maximized')) {
+      win.style.left = win.dataset.restoreLeft || win.style.left;
+      win.style.top = win.dataset.restoreTop || win.style.top;
+      win.style.width = win.dataset.restoreWidth || win.style.width;
+      win.style.height = win.dataset.restoreHeight || win.style.height;
+      win.classList.remove('is-maximized');
+      return;
+    }
+
+    win.dataset.restoreLeft = win.style.left;
+    win.dataset.restoreTop = win.style.top;
+    win.dataset.restoreWidth = win.style.width;
+    win.dataset.restoreHeight = win.style.height;
+    win.classList.add('is-maximized');
+    placeDashboardEmbedWindow(win, 'full');
+  }
+
+  function openDashboardEmbedWindow(menuName, title) {
+    const layer = getDashboardWindowLayer();
+    const win = document.createElement('section');
+    const windowId = `dashboard-embed-window-${Date.now()}-${dashboardEmbedWindowSeq}`;
+    const url = `${base()}/admin/api/${API.VERSION}/view/embed/${menuName}`;
+    win.className = 'dashboard-embed-window';
+    win.id = windowId;
+    win.setAttribute('aria-label', title);
+    win.innerHTML = `
+      <div class="dashboard-browser-chrome">
+        <div class="dashboard-browser-topbar">
+          <span class="dashboard-browser-title"><i class="ti ti-circle-dot"></i>${escapeHtml(title)}</span>
+          <div class="dashboard-window-controls">
+            <button class="dashboard-window-control" type="button" data-minimize="true" title="최소화" aria-label="최소화">
+              <i class="ti ti-minus"></i>
+            </button>
+            <button class="dashboard-window-control" type="button" data-maximize="true" title="최대화" aria-label="최대화">
+              <i class="ti ti-square"></i>
+            </button>
+            <button class="dashboard-window-control close" type="button" data-close="true" title="닫기" aria-label="닫기">
+              <i class="ti ti-x"></i>
+            </button>
+          </div>
+        </div>
+        <div class="dashboard-browser-addressbar">
+          <button class="dashboard-browser-nav" type="button" data-reload="true" title="새로고침" aria-label="새로고침">
+            <i class="ti ti-refresh"></i>
+          </button>
+          <div class="dashboard-browser-url" title="${escapeHtml(url)}">
+            <i class="ti ti-lock"></i>
+            <span>${escapeHtml(url)}</span>
+          </div>
+          <div class="dashboard-browser-tools">
+            <button class="dashboard-browser-tool" type="button" data-place="left" title="왼쪽 배치" aria-label="왼쪽 배치">
+              <i class="ti ti-layout-sidebar-left-collapse"></i>
+            </button>
+            <button class="dashboard-browser-tool" type="button" data-place="right" title="오른쪽 배치" aria-label="오른쪽 배치">
+              <i class="ti ti-layout-sidebar-right-collapse"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <iframe class="dashboard-embed-frame" src="${escapeHtml(url)}" scrolling="yes"></iframe>
+      <div class="dashboard-window-resize-handle" title="크기 조절" aria-label="크기 조절"></div>
+    `;
+
+    const titlebar = win.querySelector('.dashboard-browser-topbar');
+    makeDashboardEmbedWindowDraggable(win, titlebar);
+    makeDashboardEmbedWindowResizable(win, win.querySelector('.dashboard-window-resize-handle'));
+
+    win.addEventListener('pointerdown', () => focusDashboardEmbedWindow(win));
+    win.querySelector('[data-minimize="true"]').addEventListener('click', () => minimizeDashboardEmbedWindow(win, title));
+    win.querySelector('[data-maximize="true"]').addEventListener('click', () => {
+      focusDashboardEmbedWindow(win);
+      toggleDashboardEmbedWindowMaximize(win);
+      if (win.classList.contains('is-maximized')) {
+        scheduleDashboardEmbedLayoutWidthLock(win);
+      }
+    });
+    win.querySelector('[data-reload="true"]').addEventListener('click', () => {
+      const frame = win.querySelector('iframe');
+      if (frame) frame.src = frame.src;
+    });
+    win.querySelector('[data-close="true"]').addEventListener('click', () => {
+      const frame = win.querySelector('iframe');
+      if (frame) frame.src = 'about:blank';
+      const task = document.querySelector(`.dashboard-window-task[data-window-id="${win.id}"]`);
+      if (task) task.remove();
+      win.remove();
+    });
+    win.querySelectorAll('[data-place]').forEach(button => {
+      button.addEventListener('click', () => {
+        focusDashboardEmbedWindow(win);
+        win.classList.remove('is-maximized');
+        placeDashboardEmbedWindow(win, button.dataset.place);
+        scheduleDashboardEmbedLayoutWidthLock(win);
+      });
+    });
+
+    layer.appendChild(win);
+    placeDashboardEmbedWindow(win);
+    win.dataset.restoreLeft = win.style.left;
+    win.dataset.restoreTop = win.style.top;
+    win.dataset.restoreWidth = win.style.width;
+    win.dataset.restoreHeight = win.style.height;
+    win.classList.add('is-maximized');
+    placeDashboardEmbedWindow(win, 'full');
+    win.querySelector('iframe').addEventListener('load', () => scheduleDashboardEmbedLayoutWidthLock(win));
+    scheduleDashboardEmbedLayoutWidthLock(win);
+    dashboardEmbedWindowSeq += 1;
+    focusDashboardEmbedWindow(win);
+  }
+
   window.switchMenu = switchMenu;
   window.toggleMenuGroup = toggleMenuGroup;
+  window.openDashboardEmbedWindow = openDashboardEmbedWindow;
   window.switchMenuWithContext = function (menuName, context = {}) {
     const btn = document.querySelector(`.menu-btn[data-menu="${menuName}"]`);
     return switchMenu(menuName, btn, context);

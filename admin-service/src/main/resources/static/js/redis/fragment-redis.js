@@ -4,7 +4,6 @@
   let previousSnapshot = new Map();
   let autoRefreshTimer = null;
   let autoRefreshEnabled = false;
-  let redisMode = 'SEAT';
   let redisSort = { field: 'key', direction: 'asc' };
   let lastEntries = [];
 
@@ -63,7 +62,6 @@
 
   function entrySignature(entry) {
     return JSON.stringify({
-      mode: redisMode,
       value: entry.value,
       status: entry.status,
       lockValue: entry.lockValue
@@ -73,18 +71,6 @@
   function renderTableHeader() {
     const headRow = document.getElementById('redis-table-head-row');
     if (!headRow) return;
-
-    if (redisMode === 'LOCK') {
-      headRow.innerHTML = `
-        <th>${sortableHeader('Lock Key', 'key')}</th>
-        <th>${sortableHeader('Lock Value', 'value')}</th>
-        <th>${sortableHeader('TTL', 'ttlSeconds')}</th>
-        <th>${sortableHeader('Seat Key', 'lockKey')}</th>
-        <th>${sortableHeader('Seat Value', 'lockValue')}</th>
-        <th>${sortableHeader('Seat TTL', 'lockTtlSeconds')}</th>
-      `;
-      return;
-    }
 
     headRow.innerHTML = `
       <th>${sortableHeader('Key', 'key')}</th>
@@ -146,25 +132,14 @@
       const tr = document.createElement('tr');
       if (changed) tr.classList.add('redis-row-changed');
 
-      if (redisMode === 'LOCK') {
-        tr.innerHTML = `
-          <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
-          <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
-          <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
-          <td class="redis-key" title="${escapeHtml(entry.lockKey || '')}">${escapeHtml(entry.lockKey || '-')}</td>
-          <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
-          <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
-        `;
-      } else {
-        tr.innerHTML = `
-          <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
-          <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
-          <td>${statusBadge(entry.status)}</td>
-          <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
-          <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
-          <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
-        `;
-      }
+      tr.innerHTML = `
+        <td class="redis-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
+        <td class="redis-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
+        <td>${statusBadge(entry.status)}</td>
+        <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
+        <td class="redis-value" title="${escapeHtml(entry.lockValue || '')}">${escapeHtml(entry.lockValue || '-')}</td>
+        <td>${escapeHtml(formatTtl(entry.lockTtlSeconds))}</td>
+      `;
       tbody.appendChild(tr);
     });
 
@@ -192,29 +167,6 @@
     return parts.join(' / ');
   }
 
-  function syncRedisModeToggle() {
-    document.getElementById('redis-mode-seat')?.classList.toggle('active', redisMode === 'SEAT');
-    document.getElementById('redis-mode-lock')?.classList.toggle('active', redisMode === 'LOCK');
-    document.querySelector('.redis-table')?.classList.toggle('lock-mode', redisMode === 'LOCK');
-    renderTableHeader();
-  }
-
-  function resetSummary() {
-    document.getElementById('redis-summary-scope').textContent = '-';
-    document.getElementById('redis-summary-count').textContent = '0';
-    document.getElementById('redis-summary-changed').textContent = '0';
-    document.getElementById('redis-summary-time').textContent = '-';
-  }
-
-  window.setSeatRedisMode = function (mode) {
-    redisMode = mode === 'LOCK' ? 'LOCK' : 'SEAT';
-    redisSort = { field: 'key', direction: 'asc' };
-    lastEntries = [];
-    previousSnapshot = new Map();
-    resetSummary();
-    syncRedisModeToggle();
-  };
-
   window.sortSeatRedis = function (field) {
     if (redisSort.field === field) {
       redisSort.direction = redisSort.direction === 'asc' ? 'desc' : 'asc';
@@ -241,7 +193,7 @@
 
     const params = new URLSearchParams();
     params.set('limit', limitValue());
-    params.set('mode', redisMode);
+    params.set('mode', 'SEAT');
 
     const zone = inputValue('redis-zone');
     const row = inputValue('redis-row');
@@ -303,5 +255,5 @@
   });
 
   syncAutoRefreshToggle();
-  syncRedisModeToggle();
+  renderTableHeader();
 })();

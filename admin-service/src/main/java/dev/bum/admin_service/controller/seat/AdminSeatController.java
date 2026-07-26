@@ -36,6 +36,11 @@ public class AdminSeatController {
         return ResponseEntity.ok(seatServiceClient.selectByCond(cond));
     }
 
+    @PostMapping("/test/select")
+    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCondWithCacheStatus(@RequestBody SeatCondRequest cond) {
+        return ResponseEntity.ok(seatServiceClient.selectByCondWithCacheStatus(cond));
+    }
+
     @PutMapping("/update")
     public ResponseEntity<Void> update(@Valid @RequestBody UpdateSeatRequest info) {
         seatServiceClient.update(info);
@@ -122,9 +127,19 @@ public class AdminSeatController {
         }
     }
 
+    @PostMapping("/cache/event/{eventId}/test-unlock")
+    public ResponseEntity<String> unlockEventSeatCache(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatServiceClient.unlockEventSeatCache(eventId));
+    }
+
     @PostMapping("/occupy")
-    public ResponseEntity<Void> occupySeat(@RequestBody SeatOccupyRequest request) {
-        seatServiceClient.occupySeat(request);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> occupySeat(@RequestBody SeatOccupyRequest request) {
+        try {
+            return ResponseEntity.ok(seatServiceClient.occupySeat(request));
+        } catch (FeignException.Conflict e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        } catch (FeignException.BadRequest e) {
+            return ResponseEntity.status(e.status()).body(e.contentUTF8());
+        }
     }
 }

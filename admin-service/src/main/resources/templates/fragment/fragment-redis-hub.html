@@ -1,0 +1,88 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.admin-hub {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+.admin-hub-header {
+  padding: 1.5rem 1.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.admin-hub-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.admin-hub-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 1.75rem;
+}
+.admin-hub-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  min-height: 220px;
+  font: inherit;
+  text-align: left;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.admin-hub-card:hover {
+  border-color: rgba(124,77,255,0.42);
+  box-shadow: 0 0 0 3px var(--purple-ring);
+  transform: translateY(-1px);
+}
+.admin-hub-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--purple-dim);
+  color: var(--purple);
+  font-size: 28px;
+}
+.admin-hub-card strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+.admin-hub-card span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+</style>
+
+<div class="admin-hub">
+  <div class="admin-hub-header">
+    <h2>Redis</h2>
+  </div>
+  <div class="admin-hub-grid" id="redis-hub-grid">
+    <button class="admin-hub-card" type="button" onclick="openDashboardEmbedWindow('seatRedis', 'Seat Redis')">
+      <span class="admin-hub-icon"><i class="ti ti-armchair"></i></span>
+      <strong>Seat Redis</strong>
+      <span>좌석 상태와 선점 Redis 데이터를 확인합니다.</span>
+    </button>
+    <button class="admin-hub-card" type="button" onclick="openDashboardEmbedWindow('queueRedis', 'Queue Redis')">
+      <span class="admin-hub-icon"><i class="ti ti-users-group"></i></span>
+      <strong>Queue Redis</strong>
+      <span>대기열 waiting, active, token 데이터를 확인합니다.</span>
+    </button>
+  </div>
+</div>

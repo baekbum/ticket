@@ -128,7 +128,7 @@
     const sortedEntries = sortEntries(entries);
 
     if (!sortedEntries.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="queue-empty">No Queue Redis entries found.</td></tr>`;
+      tbody.innerHTML = '';
       if (detectChanges) previousSnapshot = new Map();
       return 0;
     }
@@ -202,6 +202,7 @@
     document.getElementById('queue-event-field')?.classList.toggle('is-hidden', queueMode === 'TOKEN');
     document.getElementById('queue-token-field')?.classList.toggle('is-hidden', queueMode !== 'TOKEN');
     document.getElementById('queue-limit-field')?.classList.toggle('is-hidden', queueMode === 'TOKEN');
+    document.querySelector('.queue-table')?.classList.toggle('active-mode', queueMode === 'ACTIVE');
     renderTableHeader();
   }
 
@@ -212,12 +213,30 @@
     document.getElementById('queue-summary-time').textContent = '-';
   }
 
+  function resetTable() {
+    const tbody = document.getElementById('queue-table-body');
+    if (tbody) {
+      tbody.innerHTML = '';
+    }
+  }
+
+  function stopAutoRefresh() {
+    autoRefreshEnabled = false;
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+    syncAutoRefreshToggle();
+  }
+
   window.setQueueRedisMode = function (mode) {
     queueMode = ['WAITING', 'ACTIVE', 'TOKEN'].includes(mode) ? mode : 'WAITING';
     queueSort = defaultSortForMode(queueMode);
     lastEntries = [];
     previousSnapshot = new Map();
+    stopAutoRefresh();
     resetSummary();
+    resetTable();
     syncModeUi();
   };
 

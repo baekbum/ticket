@@ -230,6 +230,31 @@
   font-weight: 700;
 }
 
+.queue-table.active-mode th:nth-child(1),
+.queue-table.active-mode td:nth-child(1) {
+  width: 42%;
+}
+
+.queue-table.active-mode th:nth-child(2),
+.queue-table.active-mode td:nth-child(2) {
+  width: 20%;
+}
+
+.queue-table.active-mode th:nth-child(3),
+.queue-table.active-mode td:nth-child(3) {
+  width: 10%;
+}
+
+.queue-table.active-mode th:nth-child(4),
+.queue-table.active-mode td:nth-child(4) {
+  width: 12%;
+}
+
+.queue-table.active-mode th:nth-child(5),
+.queue-table.active-mode td:nth-child(5) {
+  width: 16%;
+}
+
 .queue-sort-btn {
   width: 100%;
   border: 0;
@@ -354,11 +379,7 @@
       <thead>
       <tr id="queue-table-head-row"></tr>
       </thead>
-      <tbody id="queue-table-body">
-      <tr>
-        <td colspan="5" class="queue-empty">Enter a target and search.</td>
-      </tr>
-      </tbody>
+      <tbody id="queue-table-body"></tbody>
     </table>
   </div>
 </div>
