@@ -1,7 +1,6 @@
 package dev.bum.ticket_service.controller.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
-import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
@@ -22,11 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
-
-    @PostMapping("/confirm")
-    public ResponseEntity<PaymentResponse> confirm(@Valid @RequestBody CompletePaymentRequest request) {
-        return ResponseEntity.ok(paymentService.confirm(request));
-    }
 
     @PostMapping("/card/approve")
     public ResponseEntity<PaymentResponse> approveCard(

@@ -36,4 +36,3 @@ ticket-service/docs/bruno
 - 삭제, 취소, 배송 상태 변경 요청은 실제 데이터를 변경합니다.
 - 공연 등록과 SVG 구역 등록은 multipart 요청입니다. SVG 구역 등록은 `manage-area / Insert Area Svg` 요청과 `samples/area-layout.svg` 샘플 파일을 사용할 수 있습니다.
 - `Prepare Checkout`은 좌석 상태, 쿠폰 상태, 사용자 구매 제한의 영향을 받습니다. 실패하면 먼저 좌석/쿠폰/캐시 상태를 확인하세요.
-- `Confirm Payment Legacy`는 기존 내부/테스트용 요청입니다. 사용자 결제 흐름에서는 카드 승인 또는 가상계좌 발급/입금 요청을 사용하세요.

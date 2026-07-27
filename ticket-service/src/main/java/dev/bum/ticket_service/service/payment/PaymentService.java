@@ -1,7 +1,6 @@
 package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
-import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
@@ -42,18 +41,6 @@ public class PaymentService {
     private final QueueAccessService queueAccessService;
     private final MockCardAuthorizationService mockCardAuthorizationService;
     private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
-
-    /**
-     * PG 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
-     * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정하고 커밋 후 후속 이벤트를 발행한다.
-     */
-    @AuditLog(action = "PAYMENT_CONFIRM", targetType = "PAYMENT")
-    public PaymentResponse confirm(CompletePaymentRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("해당 결제 정보가 존재하지 않습니다."));
-
-        return completePayment(payment, request.getPaidAt());
-    }
 
     @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
     public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
@@ -106,6 +93,10 @@ public class PaymentService {
         return completePayment(payment, null);
     }
 
+    /**
+     * 카드 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
+     * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
+     */
     private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();

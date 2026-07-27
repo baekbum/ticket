@@ -232,8 +232,6 @@ Content-Type: application/json
 .requestMatchers("/api/*/payments/virtual-account/deposit").hasRole("ADMIN")
 ```
 
-기존 `POST /api/v1/payments/confirm`은 프론트용 공개 API로 확장하지 않는다. 현재 보안 설정상 별도 matcher가 없으므로 관리자 권한 전용 테스트/내부 API로 남는다.
-
 ## DTO 목록
 
 ```text
