@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.payment;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -14,7 +15,6 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.ticket_service.kafka.payment.PaymentEventProducer;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,6 @@ public class PaymentService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final TicketRepository ticketRepository;
     private final SeatCacheService seatCacheService;
-    private final PaymentEventProducer paymentEventProducer;
     private final QueueAccessService queueAccessService;
     private final MockCardAuthorizationService mockCardAuthorizationService;
     private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
@@ -97,6 +96,16 @@ public class PaymentService {
         return payment.toResponse();
     }
 
+    @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT", targetType = "PAYMENT")
+    public PaymentResponse depositVirtualAccount(VirtualAccountDepositRequest request) {
+        Payment payment = paymentJpaRepository.findByAccountNumber(request.getAccountNumber())
+                .orElseThrow(() -> new IllegalArgumentException("입금 계좌 정보를 찾을 수 없습니다."));
+
+        validateVirtualAccountDeposit(payment, request);
+
+        return completePayment(payment, null);
+    }
+
     private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
@@ -120,13 +129,9 @@ public class PaymentService {
             ticket.getSeat().reserved();
         }
 
-        String paymentNo = payment.getPaymentNo();
-        Long reservationId = reservation.getReservationId();
-        String orderId = reservation.getOrderId();
-        Integer amount = payment.getAmount();
-
         seatCacheService.syncReservedSeatsAfterCommit(seats);
-        runAfterCommit(() -> paymentEventProducer.sendPaymentCompleted(paymentNo, reservationId, orderId, amount));
+        // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
+        // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.
 
         return payment.toResponse();
     }
@@ -174,6 +179,22 @@ public class PaymentService {
         }
 
         throw new IllegalStateException("가상계좌 번호를 발급하지 못했습니다.");
+    }
+
+    private void validateVirtualAccountDeposit(Payment payment, VirtualAccountDepositRequest request) {
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
+        }
+        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
+            throw new IllegalArgumentException("입금 처리할 수 없는 결제 상태입니다.");
+        }
+        if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
+            payment.expire();
+            throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
+        }
+        if (!payment.getAmount().equals(request.getAmount())) {
+            throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
+        }
     }
 
     /**

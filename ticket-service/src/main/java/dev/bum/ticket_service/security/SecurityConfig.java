@@ -62,6 +62,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/payments/virtual-account/deposit").hasRole("ADMIN")
                         .requestMatchers("/api/*/payments/virtual-account/issue").hasAnyRole("USER", "ADMIN")
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능

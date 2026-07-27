@@ -5,6 +5,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -119,11 +120,52 @@ class PaymentControllerTest {
         then(paymentService).should().issueVirtualAccount("user01", "queue-token", request);
     }
 
+    @Test
+    @DisplayName("관리자가 가상계좌 입금을 시뮬레이션한다")
+    void deposit_virtual_account() throws Exception {
+        VirtualAccountDepositRequest request = VirtualAccountDepositRequest.builder()
+                .accountNumber("1111-2222-3333-4444")
+                .amount(180000)
+                .build();
+        PaymentResponse response = PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.PAID)
+                .amount(180000)
+                .bankName("KB국민은행")
+                .accountNumber(request.getAccountNumber())
+                .depositorName("홍길동")
+                .build();
+
+        given(paymentService.depositVirtualAccount(request)).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/virtual-account/deposit")
+                        .with(authentication(adminAuthentication()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountNumber").value(request.getAccountNumber()))
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        then(paymentService).should().depositVirtualAccount(request);
+    }
+
     private UsernamePasswordAuthenticationToken userAuthentication(String userId) {
         return new UsernamePasswordAuthenticationToken(
                 userId,
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_USER"))
+        );
+    }
+
+    private UsernamePasswordAuthenticationToken adminAuthentication() {
+        return new UsernamePasswordAuthenticationToken(
+                "admin",
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
         );
     }
 }

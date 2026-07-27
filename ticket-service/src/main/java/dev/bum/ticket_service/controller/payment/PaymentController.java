@@ -3,6 +3,7 @@ package dev.bum.ticket_service.controller.payment;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import jakarta.validation.Valid;
@@ -43,5 +44,12 @@ public class PaymentController {
             @Valid @RequestBody VirtualAccountIssueRequest request
     ) {
         return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, queueToken, request));
+    }
+
+    @PostMapping("/virtual-account/deposit")
+    public ResponseEntity<PaymentResponse> depositVirtualAccount(
+            @Valid @RequestBody VirtualAccountDepositRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.depositVirtualAccount(request));
     }
 }
