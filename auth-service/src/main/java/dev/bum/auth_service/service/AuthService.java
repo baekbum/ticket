@@ -7,6 +7,7 @@ import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
+import dev.bum.common.error.ErrorCode;
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -58,7 +59,6 @@ public class AuthService {
 
         log.info("id : {}", auth.getId());
         log.info("user id : {}", auth.getUserId());
-        log.info("user password : {}", auth.getPassword());
         log.info("user role : {}", auth.getRole());
 
         // 비밀번호 검증
@@ -86,7 +86,7 @@ public class AuthService {
     private void addRefreshTokenToRedis(String userId, String refreshToken) {
         try {
             redisTemplate.opsForValue().set(
-                    "RT:" + userId,
+                    buildRefreshTokenKey(userId),
                     refreshToken,
                     Duration.ofDays(14)
             );
@@ -100,7 +100,7 @@ public class AuthService {
      * @param event
      */
     public void insertUserTopic(UserDtoForEvent event) {
-        log.info("[유저 추가] : info : {}", event.toString());
+        log.info("[유저 추가] : {}", event.toString());
         repository.insert(event);
     }
 
@@ -109,7 +109,7 @@ public class AuthService {
      * @param event
      */
     public void updateUserTopic(UserDtoForEvent event) {
-        log.info("[유저 수정] : info : {}", event.toString());
+        log.info("[유저 수정] : {}", event.toString());
         repository.update(event);
     }
 
@@ -118,7 +118,7 @@ public class AuthService {
      * @param event
      */
     public void deleteUserTopic(UserDtoForEvent event) {
-        log.info("[유저 삭제] : info : {}", event.toString());
+        log.info("[유저 삭제] : {}", event.toString());
         repository.delete(event.getUserId());
     }
 
@@ -129,19 +129,19 @@ public class AuthService {
     public TokenResponse reissueToken(String refreshToken) {
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
-            throw new RedisException("만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
         }
 
         // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
         String userId = tokenProvider.getUserId(refreshToken);
 
         // 3. Redis에서 해당 유저의 RT 조회
-        String redisKey = "RT:" + userId;
+        String redisKey = buildRefreshTokenKey(userId);
         String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
 
         // 4. Redis 토큰 탈락 확인 및 클라이언트가 보낸 토큰과 일치하는지 정합성 검증
         if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
-            throw new RedisException("토큰 정보가 일치하지 않거나 이미 로그아웃된 계정입니다.");
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "토큰 정보가 일치하지 않거나 이미 로그아웃된 계정입니다.");
         }
 
         // 5. 최신 권한(Role) 정보를 매핑하기 위해 DB 유저 조회
@@ -161,7 +161,41 @@ public class AuthService {
             throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
         }
 
+        log.info("[기존 코인] : {}", refreshToken);
+        log.info("[새로운 코인] : {}", newTokens);
+
         return newTokens;
+    }
+
+    @AuditLog(action = "LOGOUT", targetType = "AUTH")
+    public void logout(String refreshToken) {
+        if (!tokenProvider.validateToken(refreshToken)) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "유효하지 않은 Refresh Token입니다.");
+        }
+
+        String userId = tokenProvider.getUserId(refreshToken);
+        String redisKey = buildRefreshTokenKey(userId);
+        String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+
+        if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "Refresh Token 정보가 일치하지 않습니다.");
+        }
+
+        Auth auth = repository.findByUserId(userId);
+        AuditContext.setActor(auth);
+        if (auth == null) {
+            throw new UserNotExistException("존재하지 않는 사용자입니다.");
+        }
+
+        try {
+            redisTemplate.delete(redisKey);
+        } catch (DataAccessException e) {
+            throw new RedisException("Redis Refresh Token 삭제 중 오류가 발생했습니다.");
+        }
+    }
+
+    private String buildRefreshTokenKey(String userId) {
+        return "RT:" + userId;
     }
 
 }

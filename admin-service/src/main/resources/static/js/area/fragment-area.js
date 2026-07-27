@@ -284,7 +284,7 @@ window.submitAreaSvgForm = async function (force = false) {
       pendingSvgReplace = true;
       document.getElementById('area-svg-replace-modal').style.display = 'flex';
     } else {
-      showToast('SVG 구역 등록에 실패했습니다.', true);
+      await showResponseError(res, 'SVG 구역 등록에 실패했습니다.');
     }
   } catch (e) {
     showToast('SVG 구역 등록 통신 오류가 발생했습니다.', true);
@@ -339,7 +339,7 @@ window.submitAreaForm = async function () {
       closeAreaModal();
       loadAreaList(parseInt(document.getElementById('pagination-current').value, 10) - 1);
     } else {
-      showToast('구역 저장에 실패했습니다.', true);
+      await showResponseError(res, '구역 저장에 실패했습니다.');
     }
   } catch (e) {
     showToast('구역 저장 통신 오류가 발생했습니다.', true);
@@ -364,7 +364,7 @@ window.submitAreaDelete = async function () {
       closeAreaDeleteModal();
       loadAreaList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
     } else {
-      showToast('구역 삭제에 실패했습니다.', true);
+      await showResponseError(res, '구역 삭제에 실패했습니다.');
     }
   } catch (e) {
     showToast('구역 삭제 통신 오류가 발생했습니다.', true);

@@ -274,7 +274,7 @@
           showToast(message || '좌석 캐시 적재가 완료되었습니다.');
           closeCacheWarmupConfirmModal();
         } else {
-          showToast('좌석 캐시 적재에 실패했습니다.', true);
+          await showResponseError(res, '좌석 캐시 적재에 실패했습니다.');
         }
       } catch {
         showToast('서버 통신 장애', true);
@@ -298,7 +298,7 @@
           showToast(message || '좌석 캐시가 삭제되었습니다.');
           closeCacheDeleteConfirmModal();
         } else {
-          showToast('좌석 캐시 삭제에 실패했습니다.', true);
+          await showResponseError(res, '좌석 캐시 삭제에 실패했습니다.');
         }
       } catch {
         showToast('서버 통신 장애', true);
@@ -326,7 +326,7 @@
           const message = await res.text();
           showToast(message || '현재 사용자로 좌석 Redis 테스트 선점이 완료되었습니다.');
         } else {
-          showToast('좌석 Redis 테스트 선점에 실패했습니다.', true);
+          await showResponseError(res, '좌석 Redis 테스트 선점에 실패했습니다.');
         }
       } catch {
         showToast('서버 통신 장애', true);
@@ -343,7 +343,7 @@
           const message = await res.text();
           showToast(message || '좌석 Redis 테스트 선점이 취소되었습니다.');
         } else {
-          showToast('좌석 Redis 테스트 선점 취소에 실패했습니다.', true);
+          await showResponseError(res, '좌석 Redis 테스트 선점 취소에 실패했습니다.');
         }
       } catch {
         showToast('서버 통신 장애', true);
@@ -378,7 +378,7 @@
           showToast('좌석 정보가 수정되었습니다.');
           closeSeatEditModal();
           loadSeatMgmtList(parseInt(document.getElementById('sm-page-current').value,10) - 1);
-        } else { showToast('수정 처리 실패', true); }
+        } else { await showResponseError(res, '수정 처리 실패'); }
       } catch { showToast('통신 오류', true); }
     };
 
@@ -399,7 +399,7 @@
           closeSeatSingleDeleteConfirm();
           closeSeatEditModal();
           loadSeatMgmtList(Math.max(parseInt(document.getElementById('sm-page-current').value,10)-1, 0));
-        } else { showToast('삭제 실패', true); }
+        } else { await showResponseError(res, '삭제 실패'); }
       } catch { showToast('통신 오류', true); }
     };
 
@@ -465,7 +465,7 @@
           closeSeatBulkEditPanel();
           smSelectedIds.clear(); _smUpdateBulkBar();
           loadSeatMgmtList(parseInt(document.getElementById('sm-page-current').value,10)-1);
-        } else { showToast('일괄 수정 실패', true); }
+        } else { await showResponseError(res, '일괄 수정 실패'); }
       } catch { showToast('통신 오류', true); }
     };
 
@@ -888,7 +888,7 @@
       });
 
       if (!deleteRes.ok) {
-        showToast('기존 좌석 삭제에 실패했습니다.', true);
+        await showResponseError(deleteRes, '기존 좌석 삭제에 실패했습니다.');
         return false;
       }
 
@@ -941,7 +941,7 @@
           showToast(`${totalSeats.toLocaleString()}석 일괄 생성 완료!`);
           closeSeatBulkCreateModal();
           loadSeatMgmtList(0);
-        } else { showToast('좌석 생성 처리 중 오류 발생', true); }
+        } else { await showResponseError(res, '좌석 생성 처리 중 오류 발생'); }
       } catch { showToast('통신 오류', true); }
     };
 

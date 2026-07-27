@@ -28,8 +28,8 @@ public class JwtTokenProvider {
     // 생성자에서 주입받아 처리하면 final 키워드를 유지할 수 있습니다.
     public JwtTokenProvider(
             @Value("${token.secret}") String secret,
-            @Value("${token.accessTokenValidityInMilliseconds}") long accessValidity,
-            @Value("${token.refreshTokenValidityInMilliseconds}") long refreshValidity) {
+            @Value("${token.accessTokenValidityInMilliseconds:1800000}") long accessValidity,
+            @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity) {
 
         log.info("token.secret : {}", secret);
         log.info("token.validity : {}", accessValidity);

@@ -1,5 +1,7 @@
 package dev.bum.queue_service.controller;
 
+import dev.bum.common.error.ErrorCode;
+import dev.bum.common.error.ErrorResponse;
 import dev.bum.common.service.queue.dto.QueueBulkStatusRequest;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
@@ -60,7 +62,7 @@ public class QueueTestManagementController {
     }
 
     @PostMapping("/events/{eventId}/complete")
-    public ResponseEntity<String> complete(
+    public ResponseEntity<?> complete(
             @PathVariable Long eventId,
             @RequestParam String userId,
             @RequestParam String token
@@ -68,7 +70,8 @@ public class QueueTestManagementController {
         boolean completed = queueService.complete(eventId, userId, token);
         return completed
                 ? ResponseEntity.ok("대기열 active 토큰을 완료 처리했습니다.")
-                : ResponseEntity.badRequest().body("유효하지 않은 대기열 토큰입니다.");
+                : ResponseEntity.badRequest()
+                        .body(ErrorResponse.of(ErrorCode.QUEUE_TOKEN_INVALID));
     }
 
     @DeleteMapping("/events/{eventId}")

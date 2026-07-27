@@ -5,7 +5,6 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
-import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,20 +110,12 @@ public class AdminSeatController {
 
     @PostMapping("/cache/seat/{seatId}/test-lock")
     public ResponseEntity<String> lockSeatCacheForCurrentUser(@PathVariable("seatId") Long seatId) {
-        try {
-            return ResponseEntity.ok(seatServiceClient.lockSeatCacheForCurrentUser(seatId));
-        } catch (FeignException.Conflict e) {
-            return ResponseEntity.status(e.status()).body(e.contentUTF8());
-        }
+        return ResponseEntity.ok(seatServiceClient.lockSeatCacheForCurrentUser(seatId));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-unlock")
     public ResponseEntity<String> unlockSeatCache(@PathVariable("seatId") Long seatId) {
-        try {
-            return ResponseEntity.ok(seatServiceClient.unlockSeatCache(seatId));
-        } catch (FeignException.Conflict e) {
-            return ResponseEntity.status(e.status()).body(e.contentUTF8());
-        }
+        return ResponseEntity.ok(seatServiceClient.unlockSeatCache(seatId));
     }
 
     @PostMapping("/cache/event/{eventId}/test-unlock")
@@ -133,13 +124,7 @@ public class AdminSeatController {
     }
 
     @PostMapping("/occupy")
-    public ResponseEntity<?> occupySeat(@RequestBody SeatOccupyRequest request) {
-        try {
-            return ResponseEntity.ok(seatServiceClient.occupySeat(request));
-        } catch (FeignException.Conflict e) {
-            return ResponseEntity.status(e.status()).body(e.contentUTF8());
-        } catch (FeignException.BadRequest e) {
-            return ResponseEntity.status(e.status()).body(e.contentUTF8());
-        }
+    public ResponseEntity<SeatOccupyResponse> occupySeat(@RequestBody SeatOccupyRequest request) {
+        return ResponseEntity.ok(seatServiceClient.occupySeat(request));
     }
 }
