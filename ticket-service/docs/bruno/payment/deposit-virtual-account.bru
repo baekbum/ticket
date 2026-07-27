@@ -1,0 +1,26 @@
+meta {
+  name: Deposit Virtual Account
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{ticketBaseUrl}}/payments/virtual-account/deposit
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "accountNumber": "{{accountNumber}}",
+    "amount": {{depositAmount}}
+  }
+}

@@ -6,16 +6,18 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class CompletePaymentRequest {
+public class VirtualAccountIssueRequest {
 
     @NotBlank
     private String paymentNo;
 
-    private LocalDateTime paidAt;
+    @NotBlank
+    private String bankCode;
+
+    @NotBlank
+    private String depositorName;
 }
