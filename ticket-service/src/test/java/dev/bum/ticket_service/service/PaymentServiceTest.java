@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
@@ -18,6 +19,7 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.kafka.payment.PaymentEventProducer;
 import dev.bum.ticket_service.service.payment.MockCardAuthorizationService;
+import dev.bum.ticket_service.service.payment.MockVirtualAccountIssueService;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -60,6 +62,9 @@ class PaymentServiceTest {
 
     @Mock
     private MockCardAuthorizationService mockCardAuthorizationService;
+
+    @Mock
+    private MockVirtualAccountIssueService mockVirtualAccountIssueService;
 
     @InjectMocks
     private PaymentService paymentService;
@@ -130,6 +135,54 @@ class PaymentServiceTest {
         then(paymentEventProducer).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("가상계좌 발급 성공 시 결제를 입금 대기 상태로 변경한다")
+    void issue_virtual_account_success() {
+        Event event = event();
+        Reservation reservation = reservation(event, "user01");
+        Payment payment = payment(reservation, PaymentMethod.BANK_TRANSFER, PaymentStatus.READY);
+        VirtualAccountIssueRequest request = virtualAccountRequest();
+        MockVirtualAccountIssueService.VirtualAccount virtualAccount =
+                new MockVirtualAccountIssueService.VirtualAccount(
+                        "KB국민은행",
+                        "1111-2222-3333-4444",
+                        LocalDateTime.of(2026, 7, 27, 23, 59, 59)
+                );
+
+        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(mockVirtualAccountIssueService.issue("KB")).willReturn(virtualAccount);
+
+        PaymentResponse response = paymentService.issueVirtualAccount("user01", "queue-token", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getBankName()).isEqualTo("KB국민은행");
+        assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
+        assertThat(response.getDepositorName()).isEqualTo("홍길동");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+
+        then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
+        then(paymentEventProducer).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("카드 결제 건에는 가상계좌를 발급할 수 없다")
+    void issue_virtual_account_invalid_payment_method() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+        VirtualAccountIssueRequest request = virtualAccountRequest();
+
+        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.issueVirtualAccount("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("무통장 입금 결제 요청이 아닙니다.");
+
+        then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(mockVirtualAccountIssueService).shouldHaveNoInteractions();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
     private CardPaymentApproveRequest cardRequest() {
         return CardPaymentApproveRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
@@ -137,6 +190,14 @@ class PaymentServiceTest {
                 .cardNumber("1234-5678-9012-3456")
                 .cvc("123")
                 .cardPassword("12")
+                .build();
+    }
+
+    private VirtualAccountIssueRequest virtualAccountRequest() {
+        return VirtualAccountIssueRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCode("KB")
+                .depositorName("홍길동")
                 .build();
     }
 

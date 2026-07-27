@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.payment;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
@@ -33,12 +34,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PaymentService {
 
+    private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
+
     private final PaymentJpaRepository paymentJpaRepository;
     private final TicketRepository ticketRepository;
     private final SeatCacheService seatCacheService;
     private final PaymentEventProducer paymentEventProducer;
     private final QueueAccessService queueAccessService;
     private final MockCardAuthorizationService mockCardAuthorizationService;
+    private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
 
     /**
      * PG 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
@@ -67,6 +71,30 @@ public class PaymentService {
         }
 
         return completePayment(payment, null);
+    }
+
+    @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
+    public PaymentResponse issueVirtualAccount(String currentUserId, String queueToken, VirtualAccountIssueRequest request) {
+        Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+        Reservation reservation = payment.getReservation();
+
+        validatePaymentOwner(currentUserId, reservation);
+        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        validateBankTransferPaymentReady(payment);
+
+        PaymentStatus beforePaymentStatus = payment.getStatus();
+        MockVirtualAccountIssueService.VirtualAccount virtualAccount = issueUniqueVirtualAccount(request.getBankCode());
+
+        payment.waitDeposit(
+                virtualAccount.getBankName(),
+                virtualAccount.getAccountNumber(),
+                request.getDepositorName(),
+                virtualAccount.getExpiresAt()
+        );
+        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
+
+        return payment.toResponse();
     }
 
     private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
@@ -126,6 +154,26 @@ public class PaymentService {
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("카드 승인 처리할 수 없는 결제 상태입니다.");
         }
+    }
+
+    private void validateBankTransferPaymentReady(Payment payment) {
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
+        }
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalArgumentException("가상계좌를 발급할 수 없는 결제 상태입니다.");
+        }
+    }
+
+    private MockVirtualAccountIssueService.VirtualAccount issueUniqueVirtualAccount(String bankCode) {
+        for (int attempt = 0; attempt < MAX_ACCOUNT_ISSUE_ATTEMPTS; attempt++) {
+            MockVirtualAccountIssueService.VirtualAccount virtualAccount = mockVirtualAccountIssueService.issue(bankCode);
+            if (!paymentJpaRepository.existsByAccountNumber(virtualAccount.getAccountNumber())) {
+                return virtualAccount;
+            }
+        }
+
+        throw new IllegalStateException("가상계좌 번호를 발급하지 못했습니다.");
     }
 
     /**
