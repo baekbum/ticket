@@ -7,7 +7,6 @@ import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.area.dto.DeleteAreaBulkRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
-import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,16 +26,12 @@ public class AdminAreaController {
     private final AreaServiceClient areaServiceClient;
 
     @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> insertSvg(
+    public ResponseEntity<List<AreaResponse>> insertSvg(
             @RequestPart("eventId") String eventId,
             @RequestPart("svgFile") MultipartFile svgFile,
             @RequestParam(value = "force", defaultValue = "false") boolean force
     ) {
-        try {
-            return ResponseEntity.ok(areaServiceClient.insertSvg(eventId, svgFile, force));
-        } catch (FeignException.Conflict e) {
-            return ResponseEntity.status(e.status()).body(e.contentUTF8());
-        }
+        return ResponseEntity.ok(areaServiceClient.insertSvg(eventId, svgFile, force));
     }
 
     @GetMapping("/layout/event/{eventId}")
