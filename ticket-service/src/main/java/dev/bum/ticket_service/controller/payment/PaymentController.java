@@ -1,13 +1,16 @@
 package dev.bum.ticket_service.controller.payment;
 
+import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,5 +24,14 @@ public class PaymentController {
     @PostMapping("/confirm")
     public ResponseEntity<PaymentResponse> confirm(@Valid @RequestBody CompletePaymentRequest request) {
         return ResponseEntity.ok(paymentService.confirm(request));
+    }
+
+    @PostMapping("/card/approve")
+    public ResponseEntity<PaymentResponse> approveCard(
+            @AuthenticationPrincipal String currentUserId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
+            @Valid @RequestBody CardPaymentApproveRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.approveCard(currentUserId, queueToken, request));
     }
 }

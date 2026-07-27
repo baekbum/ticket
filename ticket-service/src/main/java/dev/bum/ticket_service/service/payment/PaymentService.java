@@ -1,7 +1,9 @@
 package dev.bum.ticket_service.service.payment;
 
+import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CompletePaymentRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -12,13 +14,17 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.kafka.payment.PaymentEventProducer;
+import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,6 +37,8 @@ public class PaymentService {
     private final TicketRepository ticketRepository;
     private final SeatCacheService seatCacheService;
     private final PaymentEventProducer paymentEventProducer;
+    private final QueueAccessService queueAccessService;
+    private final MockCardAuthorizationService mockCardAuthorizationService;
 
     /**
      * PG 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
@@ -41,6 +49,27 @@ public class PaymentService {
         Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("해당 결제 정보가 존재하지 않습니다."));
 
+        return completePayment(payment, request.getPaidAt());
+    }
+
+    @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
+    public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
+        Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+        Reservation reservation = payment.getReservation();
+
+        validatePaymentOwner(currentUserId, reservation);
+        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        validateCardPaymentReady(payment);
+
+        if (!mockCardAuthorizationService.approve(request)) {
+            throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
+        }
+
+        return completePayment(payment, null);
+    }
+
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -55,7 +84,7 @@ public class PaymentService {
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
 
-        payment.complete(request.getPaidAt());
+        payment.complete(paidAt);
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
         reservation.paid();
         for (Ticket ticket : tickets) {
@@ -72,6 +101,31 @@ public class PaymentService {
         runAfterCommit(() -> paymentEventProducer.sendPaymentCompleted(paymentNo, reservationId, orderId, amount));
 
         return payment.toResponse();
+    }
+
+    private void validatePaymentOwner(String currentUserId, Reservation reservation) {
+        if (!StringUtils.hasText(currentUserId)) {
+            throw new AccessDeniedException("사용자 인증 정보가 필요합니다.");
+        }
+        if (reservation == null || !currentUserId.equals(reservation.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
+        }
+    }
+
+    private Long resolveEventId(Reservation reservation) {
+        if (reservation == null || reservation.getEvent() == null || reservation.getEvent().getEventId() == null) {
+            throw new IllegalArgumentException("대기열 검증을 위한 이벤트 정보가 없습니다.");
+        }
+        return reservation.getEvent().getEventId();
+    }
+
+    private void validateCardPaymentReady(Payment payment) {
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
+            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
+        }
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalArgumentException("카드 승인 처리할 수 없는 결제 상태입니다.");
+        }
     }
 
     /**
