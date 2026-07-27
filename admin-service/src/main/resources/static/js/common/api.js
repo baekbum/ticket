@@ -88,6 +88,39 @@
     return normalized;
   }
 
+  window.readErrorResponse = async function(res, fallbackMessage = '요청 처리 중 오류가 발생했습니다.') {
+    if (!res) {
+      return { code: null, message: fallbackMessage, details: null };
+    }
+
+    try {
+      const data = await res.clone().json();
+      if (data && (data.message || data.code || data.details)) {
+        return {
+          code: data.code || null,
+          message: data.message || fallbackMessage,
+          details: data.details ?? null
+        };
+      }
+    } catch (e) {
+      try {
+        const text = await res.clone().text();
+        if (text) {
+          return { code: null, message: text, details: null };
+        }
+      } catch (ignored) {
+      }
+    }
+
+    return { code: null, message: fallbackMessage, details: null };
+  };
+
+  window.showResponseError = async function(res, fallbackMessage = '요청 처리 중 오류가 발생했습니다.') {
+    const error = await window.readErrorResponse(res, fallbackMessage);
+    showToast(error.message || fallbackMessage, true);
+    return error;
+  };
+
   window.Fetch = async function(url, options = {}) {
     const requestOptions = normalizeOptions(url, options);
     let res = await fetch(url, requestOptions);
