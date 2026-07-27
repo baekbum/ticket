@@ -16,7 +16,8 @@ ticket-service/docs/bruno
 1. `auth-service/docs/bruno`에서 `Admin Login` 또는 `User Login`을 먼저 실행합니다.
 2. 발급된 `accessToken`을 이 컬렉션의 선택한 환경에 붙여 넣습니다.
 3. `eventId`, `seatId`, `couponId`, `userCouponId` 같은 환경변수를 현재 DB 데이터에 맞게 조정합니다.
-4. 조회 요청부터 실행하고, 생성/수정/취소 요청은 body 값을 확인한 뒤 실행합니다.
+4. 대기열 통과 후 발급된 `queueToken`을 환경변수에 반영합니다.
+5. 조회 요청부터 실행하고, 생성/수정/취소 요청은 body 값을 확인한 뒤 실행합니다.
 
 주요 흐름:
 
@@ -25,11 +26,14 @@ ticket-service/docs/bruno
 3. `seat / Occupy Seat`로 좌석 점유를 확인합니다.
 4. `checkout / Prepare Checkout`으로 예매, 배송, 할인 스냅샷, 결제를 생성합니다.
 5. 응답의 `paymentNo`, `reservationId`를 환경변수에 반영합니다.
-6. `payment / Confirm Payment`로 결제 완료를 처리합니다.
-7. `manage-reservation / Select Reservation Detail`로 예매 상세를 확인합니다.
+6. 카드 결제는 `payment / Approve Card Payment`로 결제 완료를 처리합니다.
+7. 무통장은 `payment / Issue Virtual Account`로 계좌를 발급한 뒤 응답의 `accountNumber`, `amount`를 환경변수에 반영합니다.
+8. 무통장 입금 시뮬레이션은 관리자 토큰으로 `payment / Deposit Virtual Account`를 실행합니다.
+9. `manage-reservation / Select Reservation Detail`로 예매 상세를 확인합니다.
 
 주의:
 
 - 삭제, 취소, 배송 상태 변경 요청은 실제 데이터를 변경합니다.
 - 공연 등록과 SVG 구역 등록은 multipart 요청입니다. SVG 구역 등록은 `manage-area / Insert Area Svg` 요청과 `samples/area-layout.svg` 샘플 파일을 사용할 수 있습니다.
 - `Prepare Checkout`은 좌석 상태, 쿠폰 상태, 사용자 구매 제한의 영향을 받습니다. 실패하면 먼저 좌석/쿠폰/캐시 상태를 확인하세요.
+- `Confirm Payment Legacy`는 기존 내부/테스트용 요청입니다. 사용자 결제 흐름에서는 카드 승인 또는 가상계좌 발급/입금 요청을 사용하세요.

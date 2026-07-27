@@ -1,0 +1,30 @@
+meta {
+  name: Approve Card Payment
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{ticketBaseUrl}}/payments/card/approve
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  X-Queue-Token: {{queueToken}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "paymentNo": "{{paymentNo}}",
+    "cardCompany": "{{cardCompany}}",
+    "cardNumber": "{{cardNumber}}",
+    "cvc": "{{cardCvc}}",
+    "cardPassword": "{{cardPassword}}"
+  }
+}

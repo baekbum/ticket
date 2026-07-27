@@ -61,7 +61,7 @@ Content-Type: application/json
   "cardCompany": "KB",
   "cardNumber": "1234-5678-9012-3456",
   "cvc": "123",
-  "cardPassword": "12"
+  "cardPassword": "qwe123!"
 }
 ```
 
@@ -102,7 +102,7 @@ Content-Type: application/json
 ```text
 400 INVALID_REQUEST     카드 정보 불일치, 결제 상태 부적합
 403 FORBIDDEN           다른 사용자의 결제 요청
-403 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
+429 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
 404 INTERNAL_SERVER_ERROR 또는 INVALID_REQUEST 현재 결제 조회 실패 처리 기준에 맞춤
 ```
 
@@ -149,12 +149,12 @@ Content-Type: application/json
   "method": "BANK_TRANSFER",
   "status": "WAITING_DEPOSIT",
   "amount": 180000,
-  "bankName": "KB",
+  "bankName": "KB국민은행",
   "accountNumber": "1111-2222-3333-4444",
   "depositorName": "홍길동",
   "requestedAt": "2026-07-27 12:00:00",
   "paidAt": null,
-  "expiresAt": "2026-07-27 12:30:00"
+  "expiresAt": "2026-07-27 23:59:59"
 }
 ```
 
@@ -163,7 +163,7 @@ Content-Type: application/json
 ```text
 400 INVALID_REQUEST     은행 코드 불일치, 결제 상태 부적합
 403 FORBIDDEN           다른 사용자의 결제 요청
-403 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
+429 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
 ```
 
 ## 가상계좌 입금 시뮬레이션
@@ -206,12 +206,12 @@ Content-Type: application/json
   "method": "BANK_TRANSFER",
   "status": "PAID",
   "amount": 180000,
-  "bankName": "KB",
+  "bankName": "KB국민은행",
   "accountNumber": "1111-2222-3333-4444",
   "depositorName": "홍길동",
   "requestedAt": "2026-07-27 12:00:00",
   "paidAt": "2026-07-27 12:10:00",
-  "expiresAt": "2026-07-27 12:30:00"
+  "expiresAt": "2026-07-27 23:59:59"
 }
 ```
 
@@ -232,7 +232,7 @@ Content-Type: application/json
 .requestMatchers("/api/*/payments/virtual-account/deposit").hasRole("ADMIN")
 ```
 
-기존 `POST /api/v1/payments/confirm`은 프론트용 공개 API로 확장하지 않는다. 다음 단계에서 공통 완료 처리 서비스 메서드로 내리거나, 임시 테스트 API로 유지할지 결정한다.
+기존 `POST /api/v1/payments/confirm`은 프론트용 공개 API로 확장하지 않는다. 현재 보안 설정상 별도 matcher가 없으므로 관리자 권한 전용 테스트/내부 API로 남는다.
 
 ## DTO 목록
 

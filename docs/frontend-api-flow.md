@@ -353,7 +353,7 @@ Content-Type: application/json
     "detailAddress": "101동 1001호",
     "deliveryMessage": "문 앞에 놓아주세요"
   },
-  "paymentMethod": "BANK_TRANSFER",
+  "paymentMethod": "CREDIT_CARD",
   "idempotencyKey": "client-generated-unique-key",
   "depositorName": "홍길동"
 }
@@ -367,8 +367,8 @@ Content-Type: application/json
   "orderId": "...",
   "paymentId": 1,
   "paymentNo": "...",
-  "paymentMethod": "BANK_TRANSFER",
-  "paymentStatus": "WAITING_DEPOSIT",
+  "paymentMethod": "CREDIT_CARD",
+  "paymentStatus": "READY",
   "totalTicketAmount": 120000,
   "discountAmount": 10000,
   "amount": 110000
@@ -378,14 +378,18 @@ Content-Type: application/json
 프론트 처리:
 
 1. `reservationId`, `paymentNo`, 결제 금액 저장
-2. 결제 안내 화면 표시
-3. 결제 완료 시 결제 확정 API 호출
+2. 선택한 결제수단에 맞는 결제 화면 표시
+3. 카드 결제는 카드 승인 API 호출
+4. 무통장은 가상계좌 발급 API 호출 후 입금 안내 표시
 
-### 12. 결제 확정
+### 12. 결제 처리
+
+#### 12-1. 카드 결제 승인
 
 ```http
-POST /api/v1/payments/confirm
+POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
+X-Queue-Token: {queueToken}
 Content-Type: application/json
 ```
 
@@ -394,7 +398,98 @@ Content-Type: application/json
 ```json
 {
   "paymentNo": "...",
-  "paidAt": "2026-07-26T22:35:00"
+  "cardCompany": "KB",
+  "cardNumber": "1234-5678-9012-3456",
+  "cvc": "123",
+  "cardPassword": "qwe123!"
+}
+```
+
+응답:
+
+```json
+{
+  "paymentId": 1,
+  "reservationId": 1,
+  "orderId": "...",
+  "paymentNo": "...",
+  "method": "CREDIT_CARD",
+  "status": "PAID",
+  "amount": 110000,
+  "bankName": null,
+  "accountNumber": null,
+  "depositorName": null,
+  "requestedAt": "...",
+  "paidAt": "...",
+  "expiresAt": null
+}
+```
+
+프론트 처리:
+
+1. 결제 성공 화면으로 이동
+2. `reservationId` 기준으로 예약 상세 또는 티켓 조회
+3. 실패 시 alert 표시 후 카드 재시도 또는 무통장 전환 허용
+
+#### 12-2. 가상계좌 발급
+
+```http
+POST /api/v1/payments/virtual-account/issue
+Authorization: Bearer {accessToken}
+X-Queue-Token: {queueToken}
+Content-Type: application/json
+```
+
+요청:
+
+```json
+{
+  "paymentNo": "...",
+  "bankCode": "KB",
+  "depositorName": "홍길동"
+}
+```
+
+응답:
+
+```json
+{
+  "paymentId": 1,
+  "reservationId": 1,
+  "orderId": "...",
+  "paymentNo": "...",
+  "method": "BANK_TRANSFER",
+  "status": "WAITING_DEPOSIT",
+  "amount": 110000,
+  "bankName": "KB국민은행",
+  "accountNumber": "1111-2222-3333-4444",
+  "depositorName": "홍길동",
+  "requestedAt": "...",
+  "paidAt": null,
+  "expiresAt": "2026-07-27 23:59:59"
+}
+```
+
+프론트 처리:
+
+1. 은행명, 계좌번호, 입금자명, 입금 기한 표시
+2. 사용자는 입금 완료 전까지 예매 대기 상태로 본다
+3. 실제 입금 확인은 사용자 API가 아니라 은행 콜백 시뮬레이션 API로 처리한다
+
+#### 12-3. 가상계좌 입금 시뮬레이션
+
+```http
+POST /api/v1/payments/virtual-account/deposit
+Authorization: Bearer {adminAccessToken}
+Content-Type: application/json
+```
+
+요청:
+
+```json
+{
+  "accountNumber": "1111-2222-3333-4444",
+  "amount": 110000
 }
 ```
 
@@ -409,19 +504,20 @@ Content-Type: application/json
   "method": "BANK_TRANSFER",
   "status": "PAID",
   "amount": 110000,
-  "bankName": "...",
-  "accountNumber": "...",
+  "bankName": "KB국민은행",
+  "accountNumber": "1111-2222-3333-4444",
   "depositorName": "홍길동",
   "requestedAt": "...",
   "paidAt": "...",
-  "expiresAt": "..."
+  "expiresAt": "2026-07-27 23:59:59"
 }
 ```
 
-프론트 처리:
+처리 기준:
 
-1. 결제 성공 화면으로 이동
-2. `reservationId` 기준으로 예약 상세 또는 티켓 조회
+1. 계좌번호, 입금 금액, 입금 기한 검증
+2. 성공 시 결제, 예약, 티켓, 좌석 상태를 완료 처리
+3. 현재 단계에서는 Kafka 결제 완료 이벤트 발행은 비활성화되어 있다
 
 ### 13. 예약 조회
 
@@ -476,9 +572,10 @@ Authorization: Bearer {accessToken}
 8. GET  /api/v1/queue/events/{eventId}/status until READY
 9. POST /api/v1/seat/occupy with X-Queue-Token
 10. POST /api/v1/checkout/prepare with X-Queue-Token
-11. POST /api/v1/payments/confirm
-12. GET  /api/v1/reservation/select/id/{reservationId}
-13. GET  /api/v1/ticket/reservation/{reservationId}
+11. POST /api/v1/payments/card/approve 또는 POST /api/v1/payments/virtual-account/issue
+12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
+13. GET  /api/v1/reservation/select/id/{reservationId}
+14. GET  /api/v1/ticket/reservation/{reservationId}
 ```
 
 ## 아직 확정이 필요한 부분
