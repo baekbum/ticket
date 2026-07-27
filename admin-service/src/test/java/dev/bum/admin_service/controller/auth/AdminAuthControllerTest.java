@@ -72,4 +72,16 @@ class AdminAuthControllerTest {
 
         then(authServiceClient).should().reissue(refreshHeader);
     }
+
+    @Test
+    @DisplayName("관리자 로그아웃")
+    void auth_logout() throws Exception {
+        String refreshHeader = "Bearer refresh-token";
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization-Refresh", refreshHeader))
+                .andExpect(status().isNoContent());
+
+        then(authServiceClient).should().logout(refreshHeader);
+    }
 }

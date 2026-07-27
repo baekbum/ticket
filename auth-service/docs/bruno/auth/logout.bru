@@ -1,0 +1,15 @@
+meta {
+  name: Logout
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{authBaseUrl}}/logout
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization-Refresh: Bearer {{refreshToken}}
+}

@@ -34,4 +34,10 @@ public class AdminAuthController {
     public ResponseEntity<TokenResponse> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
         return ResponseEntity.ok(authServiceClient.reissue(refreshHeader));
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+        authServiceClient.logout(refreshHeader);
+        return ResponseEntity.noContent().build();
+    }
 }

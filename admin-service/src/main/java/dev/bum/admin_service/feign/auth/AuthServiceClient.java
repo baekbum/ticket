@@ -15,4 +15,7 @@ public interface AuthServiceClient {
 
     @PostMapping("/reissue")
     TokenResponse reissue(@RequestHeader("Authorization-Refresh") String refreshHeader);
+
+    @PostMapping("/logout")
+    void logout(@RequestHeader("Authorization-Refresh") String refreshHeader);
 }

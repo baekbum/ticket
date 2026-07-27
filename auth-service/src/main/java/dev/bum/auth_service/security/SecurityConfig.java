@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/*/login").permitAll()
                         .requestMatchers("/api/*/reissue").permitAll()
+                        .requestMatchers("/api/*/logout").permitAll()
                         .requestMatchers("/api/*/validate").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .anyRequest().authenticated() // 나머지는 인증 필요

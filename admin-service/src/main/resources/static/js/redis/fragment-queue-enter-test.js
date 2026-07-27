@@ -320,7 +320,7 @@
         }
       });
       if (!res.ok) {
-        showToast('토큰 검증에 실패했습니다.', true);
+        await showResponseError(res, '토큰 검증에 실패했습니다.');
         return;
       }
       const data = await res.json();
@@ -346,7 +346,7 @@
         method: 'POST'
       });
       if (!res.ok) {
-        showToast('완료 처리에 실패했습니다.', true);
+        await showResponseError(res, '완료 처리에 실패했습니다.');
         return;
       }
       const message = await res.text();

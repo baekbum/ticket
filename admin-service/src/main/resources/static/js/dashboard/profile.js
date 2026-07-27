@@ -130,7 +130,20 @@ window.openMyInfoModal = function() {
     }
   };
 
-  function logout() {
+  async function logout() {
+    const refreshToken = localStorage.getItem('refreshToken');
+
+    if (refreshToken) {
+      try {
+        await fetch(`${base()}/admin/api/${API.VERSION}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization-Refresh': `Bearer ${refreshToken}` }
+        });
+      } catch (e) {
+        console.warn('Logout request failed:', e);
+      }
+    }
+
     localStorage.clear();
     document.cookie = "accessToken=; path=/; max-age=0;";
     window.showToast('로그아웃 되었습니다.');

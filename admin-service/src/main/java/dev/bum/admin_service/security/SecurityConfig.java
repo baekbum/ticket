@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/view/login").permitAll()
                         .requestMatchers("/api/*/auth/login").permitAll()
                         .requestMatchers("/api/*/auth/reissue").permitAll()
+                        .requestMatchers("/api/*/auth/logout").permitAll()
 
                         // 로그인 성공 시 대시보드 화면 및 fragment 화면 허용
                         .requestMatchers("/api/*/view/home").permitAll()

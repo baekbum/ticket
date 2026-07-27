@@ -263,6 +263,84 @@ class AuthServiceTest {
         then(tokenProvider).should(never()).createToken(anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("로그아웃 성공 시 Redis Refresh Token 삭제")
+    void logout_success() {
+        String refreshToken = "refresh-token";
+        Auth auth = auth("user01");
+
+        given(tokenProvider.validateToken(refreshToken)).willReturn(true);
+        given(tokenProvider.getUserId(refreshToken)).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn(refreshToken);
+        given(authRepository.findByUserId("user01")).willReturn(auth);
+        given(redisTemplate.delete("RT:user01")).willReturn(true);
+
+        authService.logout(refreshToken);
+
+        then(tokenProvider).should().validateToken(refreshToken);
+        then(tokenProvider).should().getUserId(refreshToken);
+        then(valueOperations).should().get("RT:user01");
+        then(authRepository).should().findByUserId("user01");
+        then(redisTemplate).should().delete("RT:user01");
+    }
+
+    @Test
+    @DisplayName("로그아웃 시 유효하지 않은 Refresh Token이면 예외 발생")
+    void logout_fail_with_invalid_refresh_token() {
+        String refreshToken = "invalid-refresh-token";
+
+        given(tokenProvider.validateToken(refreshToken)).willReturn(false);
+
+        assertThatThrownBy(() -> authService.logout(refreshToken))
+                .isInstanceOf(RedisException.class);
+
+        then(tokenProvider).should().validateToken(refreshToken);
+        then(tokenProvider).should(never()).getUserId(anyString());
+        then(redisTemplate).should(never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("로그아웃 시 Redis의 Refresh Token과 일치하지 않으면 예외 발생")
+    void logout_fail_with_mismatch_refresh_token() {
+        String refreshToken = "refresh-token";
+
+        given(tokenProvider.validateToken(refreshToken)).willReturn(true);
+        given(tokenProvider.getUserId(refreshToken)).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn("other-refresh-token");
+
+        assertThatThrownBy(() -> authService.logout(refreshToken))
+                .isInstanceOf(RedisException.class);
+
+        then(tokenProvider).should().validateToken(refreshToken);
+        then(tokenProvider).should().getUserId(refreshToken);
+        then(valueOperations).should().get("RT:user01");
+        then(authRepository).should(never()).findByUserId(anyString());
+        then(redisTemplate).should(never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("로그아웃 중 Redis 삭제 오류 발생 시 예외 발생")
+    void logout_fail_with_redis_delete_error() {
+        String refreshToken = "refresh-token";
+        Auth auth = auth("user01");
+
+        given(tokenProvider.validateToken(refreshToken)).willReturn(true);
+        given(tokenProvider.getUserId(refreshToken)).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn(refreshToken);
+        given(authRepository.findByUserId("user01")).willReturn(auth);
+        willThrow(new DataAccessException("redis error") {})
+                .given(redisTemplate)
+                .delete("RT:user01");
+
+        assertThatThrownBy(() -> authService.logout(refreshToken))
+                .isInstanceOf(RedisException.class);
+
+        then(redisTemplate).should().delete("RT:user01");
+    }
+
     private Auth auth(String userId) {
         return Auth.builder()
                 .id(1L)
