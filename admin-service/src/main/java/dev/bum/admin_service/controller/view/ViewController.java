@@ -62,6 +62,8 @@ public class ViewController {
             return "fragment/fragment-coupon";
         } else if ("userCoupon".equals(menuName)) {
             return "fragment/fragment-user-coupon";
+        } else if ("auditLog".equals(menuName)) {
+            return "fragment/fragment-audit-log";
         } else if ("redisHub".equals(menuName)) {
             return "fragment/fragment-redis-hub";
         } else if ("testHub".equals(menuName)) {

@@ -36,3 +36,6 @@ topic:
   audit:
     log:
       name: audit-log
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
