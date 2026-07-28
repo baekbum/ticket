@@ -44,12 +44,12 @@
 
       <div class="menu-group is-open" data-menu-group="user">
         <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
-          <span><i class="ti ti-users"></i>유저</span>
+          <span><i class="ti ti-users"></i>사용자</span>
           <i class="ti ti-chevron-down menu-group-chevron"></i>
         </button>
         <div class="menu-group-items">
           <button class="menu-btn active" data-menu="user" onclick="switchMenu('user', this)">
-            <i class="ti ti-user-cog"></i>유저 관리
+            <i class="ti ti-user-cog"></i>사용자 관리
           </button>
         </div>
       </div>
@@ -78,15 +78,6 @@
           <button class="menu-btn" data-menu="reservation" onclick="switchMenu('reservation', this)">
             <i class="ti ti-calendar-stats"></i>예매 관리
           </button>
-        </div>
-      </div>
-
-      <div class="menu-group is-open" data-menu-group="delivery">
-        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
-          <span><i class="ti ti-truck-delivery"></i>배송</span>
-          <i class="ti ti-chevron-down menu-group-chevron"></i>
-        </button>
-        <div class="menu-group-items">
           <button class="menu-btn" data-menu="reservationDelivery" onclick="switchMenu('reservationDelivery', this)">
             <i class="ti ti-truck-delivery"></i>배송 관리
           </button>
@@ -103,17 +94,37 @@
             <i class="ti ti-discount-check"></i>쿠폰 관리
           </button>
           <button class="menu-btn" data-menu="userCoupon" onclick="switchMenu('userCoupon', this)">
-            <i class="ti ti-ticket-off"></i>유저 쿠폰
+            <i class="ti ti-ticket-off"></i>사용자 쿠폰
           </button>
         </div>
       </div>
-      <button class="menu-btn" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
-        <i class="ti ti-database"></i>Redis
-      </button>
 
-      <button class="menu-btn" data-menu="testHub" onclick="switchMenu('testHub', this)">
-        <i class="ti ti-flask"></i>&#53580;&#49828;&#53944;
-      </button>
+      <div class="menu-group is-open" data-menu-group="audit">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-shield-search"></i>감사/운영</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="auditLog" onclick="switchMenu('auditLog', this)">
+            <i class="ti ti-history"></i>감사 로그
+          </button>
+          <button class="menu-btn" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
+            <i class="ti ti-database"></i>Redis
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-group is-open" data-menu-group="test">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-flask"></i>개발/테스트</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="testHub" onclick="switchMenu('testHub', this)">
+            <i class="ti ti-flask"></i>테스트
+          </button>
+        </div>
+      </div>
     </nav>
 
     <!-- Main -->
