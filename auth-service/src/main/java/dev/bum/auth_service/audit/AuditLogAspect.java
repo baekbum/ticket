@@ -2,6 +2,7 @@ package dev.bum.auth_service.audit;
 
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.kafka.audit.AuditLogEvent;
+import dev.bum.common.kafka.audit.AuditLogProducer;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

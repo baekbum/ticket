@@ -1,6 +1,5 @@
-package dev.bum.auth_service.audit;
+package dev.bum.common.kafka.audit;
 
-import dev.bum.common.kafka.audit.AuditLogEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
