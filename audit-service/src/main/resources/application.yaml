@@ -26,7 +26,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "dev.bum.*"
-        spring.json.value.default.type: dev.bum.audit_service.kafka.event.AuditLogEvent
+        spring.json.value.default.type: dev.bum.common.kafka.audit.AuditLogEvent
         spring.json.use.type.headers: false
     admin:
       properties:

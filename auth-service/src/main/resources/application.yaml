@@ -22,11 +22,16 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9092
-    consumer: # 쏴주는 producer가 아니라 받는 consumer 설정!
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
       group-id: auth-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "dev.bum.*"
     admin:
@@ -40,3 +45,6 @@ token:
 
 topic:
   name: user-event
+  audit:
+    log:
+      name: audit-log

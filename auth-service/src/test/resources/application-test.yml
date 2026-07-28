@@ -1,13 +1,16 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL # PostgreSQL 모드로 동작하게 설정
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL
     driver-class-name: org.h2.Driver
     username: sa
     password:
   jpa:
     hibernate:
-      ddl-auto: create-drop # 테스트 시작할 때 테이블 만들고, 끝나면 삭제(휘발성)
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+  kafka:
+    listener:
+      auto-startup: false

@@ -2,7 +2,7 @@ package dev.bum.audit_service.kafka;
 
 import dev.bum.audit_service.audit.AuditLogEntity;
 import dev.bum.audit_service.audit.AuditLogPersistenceService;
-import dev.bum.audit_service.kafka.event.AuditLogEvent;
+import dev.bum.common.kafka.audit.AuditLogEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

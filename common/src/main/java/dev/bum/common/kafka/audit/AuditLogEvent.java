@@ -1,4 +1,4 @@
-package dev.bum.audit_service.kafka.event;
+package dev.bum.common.kafka.audit;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

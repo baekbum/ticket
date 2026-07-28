@@ -1,6 +1,6 @@
 package dev.bum.audit_service.audit;
 
-import dev.bum.audit_service.kafka.event.AuditLogEvent;
+import dev.bum.common.kafka.audit.AuditLogEvent;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
