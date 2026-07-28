@@ -1,26 +1,24 @@
 server:
-  port: 8084
+  port: 8080
   servlet:
-    context-path: /audit
+    context-path: /
 
 spring:
-  profiles:
-    default: local
   application:
     name: audit-service
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/ticket
-    username: postgres
-    password: hsck2301
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_SERVER}
     consumer:
-      group-id: audit-service-group
+      group-id: ${KAFKA_AUDIT_GROUP_ID:audit-service-group}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
@@ -33,4 +31,4 @@ spring:
 topic:
   audit:
     log:
-      name: audit-log
+      name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
