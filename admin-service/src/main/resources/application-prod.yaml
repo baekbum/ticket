@@ -19,3 +19,5 @@ services:
     url: "http://ticket-service:8080"
   queue-service:
     url: "http://queue-service:8080"
+  audit-service:
+    url: "http://audit-service:8080"
