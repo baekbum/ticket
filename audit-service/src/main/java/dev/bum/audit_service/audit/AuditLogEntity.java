@@ -1,6 +1,7 @@
 package dev.bum.audit_service.audit;
 
 import dev.bum.common.kafka.audit.AuditLogEvent;
+import dev.bum.common.service.audit.dto.AuditLogResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -144,6 +145,30 @@ public class AuditLogEntity {
                 .beforeData(event.getBeforeData())
                 .afterData(event.getAfterData())
                 .metadata(event.getMetadata())
+                .build();
+    }
+
+    public AuditLogResponse toResponse() {
+        return AuditLogResponse.builder()
+                .id(id)
+                .occurredAt(occurredAt)
+                .serviceName(serviceName)
+                .actorType(actorType)
+                .actorId(actorId)
+                .actorName(actorName)
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .result(result)
+                .reason(reason)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .requestId(requestId)
+                .traceId(traceId)
+                .beforeData(beforeData)
+                .afterData(afterData)
+                .metadata(metadata)
+                .createdAt(createdAt)
                 .build();
     }
 }
