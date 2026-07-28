@@ -17,16 +17,21 @@ spring:
     hibernate:
       ddl-auto: update
   kafka:
-    bootstrap-servers: localhost:9092  # 로컬 테스트용 (컨테이너 실행 시 kafka:29092)
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-  admin:
-    properties:
-      auto.create.topics.enable: false
+      properties:
+        spring.json.add.type.headers: false
+    admin:
+      properties:
+        auto.create.topics.enable: false
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
 
 topic:
   name: user-event
+  audit:
+    log:
+      name: audit-log

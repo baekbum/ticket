@@ -1,0 +1,116 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/audit/fragment-audit-log.css}">
+
+<div class="frag-header">
+  <h2>감사 로그</h2>
+  <p class="sub-txt">서비스 CUD 작업 이력과 처리 결과를 조회합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input audit-period-input" id="audit-search-period" onchange="applyAuditLogPeriodPreset()">
+      <option value="">기간 선택</option>
+      <option value="today">오늘</option>
+      <option value="7days">7일</option>
+      <option value="30days">30일</option>
+    </select>
+    <input type="date" class="search-input audit-date-input" id="audit-search-from">
+    <input type="date" class="search-input audit-date-input" id="audit-search-to">
+    <select class="search-input audit-service-input" id="audit-search-service-name">
+      <option value="">전체 서비스</option>
+      <option value="auth-service">권한</option>
+      <option value="user-service">유저</option>
+      <option value="ticket-service">티켓</option>
+    </select>
+    <input type="text" class="search-input" id="audit-search-actor-id" placeholder="작업자 ID">
+    <input type="text" class="search-input" id="audit-search-action" placeholder="액션">
+    <select class="search-input audit-result-input" id="audit-search-result">
+      <option value="">전체 결과</option>
+      <option value="SUCCESS">SUCCESS</option>
+      <option value="FAIL">FAIL</option>
+      <option value="FAILURE">FAILURE</option>
+    </select>
+    <button class="btn" onclick="triggerAuditLogSearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetAuditLogSearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+</div>
+
+<div class="audit-quick-filters">
+  <button class="audit-filter active" data-result="" onclick="quickAuditResult(this)">전체</button>
+  <button class="audit-filter" data-result="SUCCESS" onclick="quickAuditResult(this)">성공</button>
+  <button class="audit-filter" data-result="FAIL" onclick="quickAuditResult(this)">실패</button>
+</div>
+
+<div class="table-wrap">
+  <table class="audit-log-table">
+    <colgroup>
+      <col style="width:64px;">
+      <col style="width:86px;">
+      <col style="width:170px;">
+      <col style="width:130px;">
+      <col style="width:110px;">
+      <col style="width:130px;">
+      <col style="width:170px;">
+      <col style="width:120px;">
+      <col style="width:130px;">
+      <col style="width:92px;">
+      <col style="width:150px;">
+      <col style="width:150px;">
+      <col style="width:88px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>로그 ID</th>
+      <th>발생 일시</th>
+      <th>서비스</th>
+      <th>작업자 타입</th>
+      <th>작업자 ID</th>
+      <th>액션</th>
+      <th>대상 타입</th>
+      <th>대상 ID</th>
+      <th>결과</th>
+      <th>요청 ID</th>
+      <th>Trace ID</th>
+      <th class="actions">상세</th>
+    </tr>
+    </thead>
+    <tbody id="audit-log-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="audit-log-detail-modal">
+  <div class="f-modal-content audit-log-detail-content">
+    <p class="modal-title">감사 로그 상세</p>
+    <p class="modal-subtitle">로그 ID <strong id="audit-detail-id">-</strong>의 전체 이력을 확인합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="audit-detail-grid" id="audit-detail-grid"></div>
+
+    <div class="audit-json-section">
+      <div>
+        <p class="audit-json-title">Before Data</p>
+        <pre id="audit-before-data" class="audit-json-box"></pre>
+      </div>
+      <div>
+        <p class="audit-json-title">After Data</p>
+        <pre id="audit-after-data" class="audit-json-box"></pre>
+      </div>
+      <div>
+        <p class="audit-json-title">Metadata</p>
+        <pre id="audit-metadata" class="audit-json-box"></pre>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAuditLogDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/audit/fragment-audit-log.js}"></script>

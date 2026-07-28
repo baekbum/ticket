@@ -8,7 +8,6 @@ spring:
     name: ticket-service
   datasource:
     driver-class-name: org.postgresql.Driver
-    # 환경변수가 있으면 쓰고, 없으면 비워둠 (가독성 유지)
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
@@ -16,7 +15,7 @@ spring:
     hibernate:
       ddl-auto: update
       jdbc:
-        batch_size: 500  # 500개씩 모아서 처리
+        batch_size: 500
         order_inserts: true
         order_updates: true
   data:
@@ -31,12 +30,13 @@ spring:
     consumer:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 직렬화(S)가 아니라 역직렬화(D)!
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "dev.bum.*"
     admin:
       properties:
         auto.create.topics.enable: false
+
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
@@ -44,6 +44,9 @@ topic:
   payment:
     completed:
       name: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
+  audit:
+    log:
+      name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
 
 app:
   upload:

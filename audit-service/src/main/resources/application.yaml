@@ -1,0 +1,41 @@
+server:
+  port: 8084
+  servlet:
+    context-path: /audit
+
+spring:
+  profiles:
+    default: local
+  application:
+    name: audit-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ticket
+    username: postgres
+    password: hsck2301
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: audit-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "dev.bum.*"
+        spring.json.value.default.type: dev.bum.common.kafka.audit.AuditLogEvent
+        spring.json.use.type.headers: false
+    admin:
+      properties:
+        auto.create.topics.enable: false
+
+topic:
+  audit:
+    log:
+      name: audit-log
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random

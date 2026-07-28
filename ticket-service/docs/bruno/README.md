@@ -16,7 +16,8 @@ ticket-service/docs/bruno
 1. `auth-service/docs/bruno`에서 `Admin Login` 또는 `User Login`을 먼저 실행합니다.
 2. 발급된 `accessToken`을 이 컬렉션의 선택한 환경에 붙여 넣습니다.
 3. `eventId`, `seatId`, `couponId`, `userCouponId` 같은 환경변수를 현재 DB 데이터에 맞게 조정합니다.
-4. 조회 요청부터 실행하고, 생성/수정/취소 요청은 body 값을 확인한 뒤 실행합니다.
+4. 대기열 통과 후 발급된 `queueToken`을 환경변수에 반영합니다.
+5. 조회 요청부터 실행하고, 생성/수정/취소 요청은 body 값을 확인한 뒤 실행합니다.
 
 주요 흐름:
 
@@ -25,8 +26,10 @@ ticket-service/docs/bruno
 3. `seat / Occupy Seat`로 좌석 점유를 확인합니다.
 4. `checkout / Prepare Checkout`으로 예매, 배송, 할인 스냅샷, 결제를 생성합니다.
 5. 응답의 `paymentNo`, `reservationId`를 환경변수에 반영합니다.
-6. `payment / Confirm Payment`로 결제 완료를 처리합니다.
-7. `manage-reservation / Select Reservation Detail`로 예매 상세를 확인합니다.
+6. 카드 결제는 `payment / Approve Card Payment`로 결제 완료를 처리합니다.
+7. 무통장은 `payment / Issue Virtual Account`로 계좌를 발급한 뒤 응답의 `accountNumber`, `amount`를 환경변수에 반영합니다.
+8. 무통장 입금 시뮬레이션은 관리자 토큰으로 `payment / Deposit Virtual Account`를 실행합니다.
+9. `manage-reservation / Select Reservation Detail`로 예매 상세를 확인합니다.
 
 주의:
 

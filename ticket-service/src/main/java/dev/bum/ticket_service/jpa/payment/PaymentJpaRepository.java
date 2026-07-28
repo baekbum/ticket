@@ -12,4 +12,8 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 
     Optional<Payment> findByReservation(Reservation reservation);
+
+    boolean existsByAccountNumber(String accountNumber);
+
+    Optional<Payment> findByAccountNumber(String accountNumber);
 }

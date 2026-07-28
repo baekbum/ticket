@@ -8,7 +8,6 @@ spring:
     name: user-service
   datasource:
     driver-class-name: org.postgresql.Driver
-    # 환경변수가 있으면 쓰고, 없으면 비워둠 (가독성 유지)
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
@@ -20,6 +19,8 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     admin:
       properties:
         auto.create.topics.enable: false
@@ -28,4 +29,7 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 topic:
-  name: user-event
+  name: ${TOPIC_USER_EVENT_NAME:user-event}
+  audit:
+    log:
+      name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
