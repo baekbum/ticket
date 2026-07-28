@@ -1,5 +1,7 @@
-package dev.bum.ticket_service.audit;
+package dev.bum.audit_service.audit;
 
+import dev.bum.common.kafka.audit.AuditLogEvent;
+import dev.bum.common.service.audit.dto.AuditLogResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -24,82 +26,63 @@ public class AuditLogEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // Audit log primary key
     private Long id;
 
     @Column(nullable = false)
-    // Time when the audited event occurred
     private LocalDateTime occurredAt;
 
     @Column(nullable = false, length = 50)
-    // Service that produced this event
     private String serviceName;
 
     @Column(nullable = false, length = 30)
-    // Actor type: USER, ADMIN, SYSTEM, ANONYMOUS
     private String actorType;
 
     @Column(length = 50)
-    // Actor identifier
     private String actorId;
 
     @Column(length = 100)
-    // Actor display name
     private String actorName;
 
     @Column(nullable = false, length = 100)
-    // Action code
     private String action;
 
     @Column(length = 50)
-    // Target domain type
     private String targetType;
 
     @Column(length = 100)
-    // Target identifier
     private String targetId;
 
     @Column(nullable = false, length = 20)
-    // Result: SUCCESS, FAILURE
     private String result;
 
     @Column(length = 500)
-    // Failure or processing reason
     private String reason;
 
     @Column(length = 45)
-    // Client IP address
     private String ipAddress;
 
     @Column(length = 500)
-    // Request User-Agent
     private String userAgent;
 
     @Column(length = 100)
-    // Request correlation ID
     private String requestId;
 
     @Column(length = 100)
-    // Distributed trace ID
     private String traceId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    // Data before update
     private Map<String, Object> beforeData;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    // Data after update
     private Map<String, Object> afterData;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    // Additional context data
     private Map<String, Object> metadata;
 
     @Column(nullable = false)
-    // Record creation time
     private LocalDateTime createdAt;
 
     @Builder
@@ -141,5 +124,51 @@ public class AuditLogEntity {
         this.afterData = afterData;
         this.metadata = metadata;
         this.createdAt = now;
+    }
+
+    public static AuditLogEntity from(AuditLogEvent event) {
+        return AuditLogEntity.builder()
+                .occurredAt(event.getOccurredAt())
+                .serviceName(event.getServiceName())
+                .actorType(event.getActorType())
+                .actorId(event.getActorId())
+                .actorName(event.getActorName())
+                .action(event.getAction())
+                .targetType(event.getTargetType())
+                .targetId(event.getTargetId())
+                .result(event.getResult())
+                .reason(event.getReason())
+                .ipAddress(event.getIpAddress())
+                .userAgent(event.getUserAgent())
+                .requestId(event.getRequestId())
+                .traceId(event.getTraceId())
+                .beforeData(event.getBeforeData())
+                .afterData(event.getAfterData())
+                .metadata(event.getMetadata())
+                .build();
+    }
+
+    public AuditLogResponse toResponse() {
+        return AuditLogResponse.builder()
+                .id(id)
+                .occurredAt(occurredAt)
+                .serviceName(serviceName)
+                .actorType(actorType)
+                .actorId(actorId)
+                .actorName(actorName)
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .result(result)
+                .reason(reason)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .requestId(requestId)
+                .traceId(traceId)
+                .beforeData(beforeData)
+                .afterData(afterData)
+                .metadata(metadata)
+                .createdAt(createdAt)
+                .build();
     }
 }

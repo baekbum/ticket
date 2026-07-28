@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.audit;
 
-
+import dev.bum.common.kafka.audit.AuditLogEvent;
+import dev.bum.common.kafka.audit.AuditLogProducer;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ public class AuditLogAspect {
     private static final String RESULT_SUCCESS = "SUCCESS";
     private static final String RESULT_FAILURE = "FAILURE";
 
-    private final AuditLogPersistenceService persistenceService;
+    private final AuditLogProducer auditLogProducer;
 
     @Value("${spring.application.name:ticket-service}")
     private String serviceName;
@@ -59,7 +60,7 @@ public class AuditLogAspect {
             String actorType = findActorType(request);
             String targetId = findTargetId(joinPoint.getArgs(), actorId);
 
-            AuditLogEntity entity = AuditLogEntity.builder()
+            AuditLogEvent event = AuditLogEvent.builder()
                     .occurredAt(LocalDateTime.now())
                     .serviceName(serviceName)
                     .actorType(actorType)
@@ -78,9 +79,9 @@ public class AuditLogAspect {
                     .metadata(metadataOf(joinPoint, actorId, targetId))
                     .build();
 
-            persistenceService.save(entity);
+            auditLogProducer.send(event);
         } catch (Exception e) {
-            log.warn("Failed to save audit log. action={}", auditLog.action(), e);
+            log.warn("Failed to publish audit log. action={}", auditLog.action(), e);
         }
     }
 

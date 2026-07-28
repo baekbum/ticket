@@ -17,7 +17,7 @@ spring:
     hibernate:
       ddl-auto: update
       jdbc:
-        batch_size: 500  # 500개씩 모아서 처리
+        batch_size: 500
         order_inserts: true
         order_updates: true
   data:
@@ -25,7 +25,7 @@ spring:
       host: localhost
       port: 6380
   kafka:
-    bootstrap-servers: localhost:9092  # 로컬 테스트용 (도커 컴포즈 내부 통신 시에는 서비스명:포트 사용)
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -46,6 +46,9 @@ topic:
   payment:
     completed:
       name: payment-completed
+  audit:
+    log:
+      name: audit-log
 
 app:
   upload:
