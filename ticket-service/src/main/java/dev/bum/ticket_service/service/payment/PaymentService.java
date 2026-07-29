@@ -56,7 +56,7 @@ public class PaymentService {
             throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
         }
 
-        return completePayment(payment, null);
+        return completePayment(payment, null, currentUserId, queueToken);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
@@ -90,14 +90,14 @@ public class PaymentService {
 
         validateVirtualAccountDeposit(payment, request);
 
-        return completePayment(payment, null);
+        return completePayment(payment, null, null, null);
     }
 
     /**
      * 카드 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
      * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
      */
-    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String queueUserId, String queueToken) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -121,10 +121,19 @@ public class PaymentService {
         }
 
         seatCacheService.syncReservedSeatsAfterCommit(seats);
+        releaseQueueTokenAfterCommit(resolveEventId(reservation), queueUserId, queueToken);
         // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
         // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.
 
         return payment.toResponse();
+    }
+
+    private void releaseQueueTokenAfterCommit(Long eventId, String userId, String queueToken) {
+        if (!StringUtils.hasText(userId) || !StringUtils.hasText(queueToken)) {
+            return;
+        }
+
+        runAfterCommit(() -> queueAccessService.complete(eventId, userId, queueToken));
     }
 
     private void validatePaymentOwner(String currentUserId, Reservation reservation) {

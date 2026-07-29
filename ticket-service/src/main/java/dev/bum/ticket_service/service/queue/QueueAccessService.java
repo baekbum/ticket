@@ -1,8 +1,9 @@
 package dev.bum.ticket_service.service.queue;
 
-import dev.bum.ticket_service.config.QueueAccessProperties;
+import dev.bum.common.service.queue.dto.QueueCompleteRequest;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
+import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
 import feign.FeignException;
@@ -46,6 +47,22 @@ public class QueueAccessService {
 
         if (response == null || !response.allowed()) {
             throw new QueueAccessDeniedException("대기열을 통과한 사용자만 티켓팅을 진행할 수 있습니다.");
+        }
+    }
+
+    public void complete(Long eventId, String userId, String queueToken) {
+        if (!properties.enabled()) {
+            return;
+        }
+        if (eventId == null || !StringUtils.hasText(userId) || !StringUtils.hasText(queueToken)) {
+            log.warn("[QUEUE-COMPLETE] invalid complete request. eventId={}, userId={}", eventId, userId);
+            return;
+        }
+
+        try {
+            queueServiceClient.complete(new QueueCompleteRequest(eventId, userId, queueToken));
+        } catch (FeignException e) {
+            log.warn("[QUEUE-COMPLETE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
         }
     }
 }

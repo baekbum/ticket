@@ -1,5 +1,6 @@
 package dev.bum.queue_service.controller;
 
+import dev.bum.common.service.queue.dto.QueueCompleteRequest;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
@@ -45,5 +46,13 @@ public class QueueController {
     @PostMapping("/validate")
     public ResponseEntity<QueueValidateResponse> validate(@Valid @RequestBody QueueValidateRequest request) {
         return ResponseEntity.ok(queueService.validate(request));
+    }
+
+    @PostMapping("/complete")
+    public ResponseEntity<Void> complete(@Valid @RequestBody QueueCompleteRequest request) {
+        boolean completed = queueService.complete(request.eventId(), request.userId(), request.token());
+        return completed
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.badRequest().build();
     }
 }

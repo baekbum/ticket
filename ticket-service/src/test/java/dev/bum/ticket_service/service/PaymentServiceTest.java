@@ -89,6 +89,7 @@ class PaymentServiceTest {
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(queueAccessService).should().complete(1L, "user01", "queue-token");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
