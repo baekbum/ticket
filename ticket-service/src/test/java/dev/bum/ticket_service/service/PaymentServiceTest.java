@@ -156,6 +156,7 @@ class PaymentServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(queueAccessService).should().complete(1L, "user01", "queue-token");
         then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
     }
 

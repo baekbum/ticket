@@ -79,6 +79,7 @@ public class PaymentService {
                 virtualAccount.getExpiresAt()
         );
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
+        releaseQueueTokenAfterCommit(resolveEventId(reservation), currentUserId, queueToken);
 
         return payment.toResponse();
     }
