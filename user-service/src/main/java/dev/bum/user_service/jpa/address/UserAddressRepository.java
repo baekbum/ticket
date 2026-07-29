@@ -12,5 +12,4 @@ public interface UserAddressRepository {
     Page<UserAddress> selectByCond(UserAddressCondRequest cond, Pageable pageable);
     UserAddress update(Long addressId, UpdateUserAddressRequest info);
     UserAddress delete(Long addressId);
-    void unsetDefaultAddresses(String userId);
 }
