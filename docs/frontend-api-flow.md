@@ -590,3 +590,8 @@ Authorization: Bearer {accessToken}
 | 에러 응답 포맷 | 서비스별 문자열 응답 가능 | 공통 `{code,message}` 포맷 여부 |
 | 좌석 실시간 갱신 | 조회/점유 API 존재 | 폴링, SSE, WebSocket 중 선택 |
 | 주문 ID 생성 주체 | 프론트가 `orderId` 전달 | 생성 규칙과 중복 방지 규칙 |
+
+### Queue Token 재진입 정책
+
+- `GET /api/v1/queue/events/{eventId}/status`는 `X-Queue-Token`이 있을 때만 기존 READY 토큰을 복구한다.
+- 브라우저/탭 종료 후 재대기를 원하면 `queueToken`은 `localStorage`가 아니라 `sessionStorage` 또는 메모리에 저장한다.

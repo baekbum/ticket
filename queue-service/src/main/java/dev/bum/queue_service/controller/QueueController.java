@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,17 +27,19 @@ public class QueueController {
     @PostMapping("/events/{eventId}/enter")
     public ResponseEntity<QueueEnterResponse> enter(
             @AuthenticationPrincipal String currentUserId,
-            @PathVariable Long eventId
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken
     ) {
-        return ResponseEntity.ok(queueService.enter(eventId, currentUserId));
+        return ResponseEntity.ok(queueService.enter(eventId, currentUserId, queueToken));
     }
 
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @AuthenticationPrincipal String currentUserId,
-            @PathVariable Long eventId
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken
     ) {
-        return ResponseEntity.ok(queueService.status(eventId, currentUserId));
+        return ResponseEntity.ok(queueService.status(eventId, currentUserId, queueToken));
     }
 
     @PostMapping("/validate")
