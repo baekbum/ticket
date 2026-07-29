@@ -188,7 +188,7 @@ public class QueueService {
      */
     private String admit(Long eventId, String userId) {
         String token = UUID.randomUUID().toString();
-        long expiresAt = nowMillis() + properties.tokenTtl().toMillis();
+        long expiresAt = nowMillis() + properties.getTokenTtl().toMillis();
         String tokenValue = eventId + ":" + userId;
 
         Long admitted = redisTemplate.execute(
@@ -198,8 +198,8 @@ public class QueueService {
                 token,
                 tokenValue,
                 String.valueOf(expiresAt),
-                String.valueOf(properties.tokenTtl().toMillis()),
-                String.valueOf(properties.admissionSize())
+                String.valueOf(properties.getTokenTtl().toMillis()),
+                String.valueOf(properties.getAdmissionSize())
         );
 
         return Long.valueOf(1L).equals(admitted) ? token : null;
