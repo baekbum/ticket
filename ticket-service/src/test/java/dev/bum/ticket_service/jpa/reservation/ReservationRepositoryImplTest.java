@@ -136,7 +136,7 @@ class ReservationRepositoryImplTest {
         assertThat(response.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(tickets).hasSize(2);
         assertThat(tickets).extracting(Ticket::getStatus).containsOnly(TicketStatus.PENDING_PAYMENT);
-        assertThat(tickets).extracting(ticket -> ticket.getSeat().getStatus()).containsOnly(SeatStatus.RESERVED);
+        assertThat(tickets).extracting(ticket -> ticket.getSeat().getStatus()).containsOnly(SeatStatus.LOCKED);
     }
 
     @Test
