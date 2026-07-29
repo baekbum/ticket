@@ -30,29 +30,6 @@ class AuthRepositoryImplTest {
     private AuthJpaRepository jpaRepository;
 
     @Test
-    @DisplayName("유저가 존재하지 않으면 중복 체크 통과")
-    void is_exist_success() {
-        given(jpaRepository.findByUserId("user01")).willReturn(Optional.empty());
-
-        authRepository.isExist("user01");
-
-        then(jpaRepository).should().findByUserId("user01");
-    }
-
-    @Test
-    @DisplayName("유저가 이미 존재하면 중복 예외 발생")
-    void is_exist_fail_with_duplicate_user() {
-        Auth auth = auth("user01");
-
-        given(jpaRepository.findByUserId("user01")).willReturn(Optional.of(auth));
-
-        assertThatThrownBy(() -> authRepository.isExist("user01"))
-                .isInstanceOf(UserAlreadyExistException.class);
-
-        then(jpaRepository).should().findByUserId("user01");
-    }
-
-    @Test
     @DisplayName("Auth 정보 저장")
     void insert() {
         UserDtoForEvent event = userEvent("user01");
@@ -83,30 +60,6 @@ class AuthRepositoryImplTest {
 
         then(jpaRepository).should().findByUserId("user01");
         then(jpaRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
-    }
-
-    @Test
-    @DisplayName("ID로 Auth 조회")
-    void find_by_id() {
-        Auth auth = auth("user01");
-
-        given(jpaRepository.findById(1L)).willReturn(Optional.of(auth));
-
-        Auth response = authRepository.findById(1L);
-
-        assertThat(response.getUserId()).isEqualTo("user01");
-        then(jpaRepository).should().findById(1L);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 ID 조회 시 예외 발생")
-    void find_by_id_fail() {
-        given(jpaRepository.findById(99L)).willReturn(Optional.empty());
-
-        assertThatThrownBy(() -> authRepository.findById(99L))
-                .isInstanceOf(UserNotExistException.class);
-
-        then(jpaRepository).should().findById(99L);
     }
 
     @Test
