@@ -44,7 +44,7 @@ public class PaymentService {
 
     @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
     public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
 
@@ -61,7 +61,7 @@ public class PaymentService {
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
     public PaymentResponse issueVirtualAccount(String currentUserId, String queueToken, VirtualAccountIssueRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNo(request.getPaymentNo())
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
 
@@ -85,7 +85,7 @@ public class PaymentService {
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT", targetType = "PAYMENT")
     public PaymentResponse depositVirtualAccount(VirtualAccountDepositRequest request) {
-        Payment payment = paymentJpaRepository.findByAccountNumber(request.getAccountNumber())
+        Payment payment = paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())
                 .orElseThrow(() -> new IllegalArgumentException("입금 계좌 정보를 찾을 수 없습니다."));
 
         validateVirtualAccountDeposit(payment, request);

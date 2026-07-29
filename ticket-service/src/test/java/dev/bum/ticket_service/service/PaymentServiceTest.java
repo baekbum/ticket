@@ -76,7 +76,7 @@ class PaymentServiceTest {
         Ticket ticket = ticket(event, reservation, seat);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
         given(mockCardAuthorizationService.approve(request)).willReturn(true);
 
@@ -99,7 +99,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.approveCard("other-user", "queue-token", request))
                 .isInstanceOf(AccessDeniedException.class)
@@ -118,7 +118,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockCardAuthorizationService.approve(request)).willReturn(false);
 
         assertThatThrownBy(() -> paymentService.approveCard("user01", "queue-token", request))
@@ -143,7 +143,7 @@ class PaymentServiceTest {
                         LocalDateTime.of(2026, 7, 27, 23, 59, 59)
                 );
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockVirtualAccountIssueService.issue("KB")).willReturn(virtualAccount);
 
         PaymentResponse response = paymentService.issueVirtualAccount("user01", "queue-token", request);
@@ -165,7 +165,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         VirtualAccountIssueRequest request = virtualAccountRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.issueVirtualAccount("user01", "queue-token", request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -186,7 +186,7 @@ class PaymentServiceTest {
         Ticket ticket = ticket(event, reservation, seat);
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(180000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
         given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
 
         PaymentResponse response = paymentService.depositVirtualAccount(request);
@@ -208,7 +208,7 @@ class PaymentServiceTest {
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(170000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.depositVirtualAccount(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -225,7 +225,7 @@ class PaymentServiceTest {
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2020, 1, 1, 23, 59, 59));
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(180000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.depositVirtualAccount(request))
                 .isInstanceOf(IllegalArgumentException.class)

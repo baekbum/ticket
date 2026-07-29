@@ -49,6 +49,20 @@ class PaymentJpaRepositoryTest {
         }).isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    @DisplayName("가상계좌 번호는 결제 건마다 유일해야 한다")
+    void account_number_must_be_unique() {
+        Event event = eventJpaRepository.save(event());
+        Reservation firstReservation = reservationJpaRepository.save(reservation("order-1", "user01", event));
+        Reservation secondReservation = reservationJpaRepository.save(reservation("order-2", "user01", event));
+
+        paymentJpaRepository.save(virtualAccountPayment(firstReservation, "PAY-1", "idem-1", "1111-2222"));
+
+        assertThatThrownBy(() -> {
+            paymentJpaRepository.saveAndFlush(virtualAccountPayment(secondReservation, "PAY-2", "idem-2", "1111-2222"));
+        }).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private Event event() {
         return Event.builder()
                 .artistName("IU")
@@ -82,6 +96,22 @@ class PaymentJpaRepositoryTest {
                 .amount(180000)
                 .idempotencyKey(idempotencyKey)
                 .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
+                .build();
+    }
+
+    private Payment virtualAccountPayment(Reservation reservation, String paymentNo, String idempotencyKey, String accountNumber) {
+        return Payment.builder()
+                .reservation(reservation)
+                .paymentNo(paymentNo)
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.WAITING_DEPOSIT)
+                .amount(180000)
+                .idempotencyKey(idempotencyKey)
+                .bankName("KB")
+                .accountNumber(accountNumber)
+                .depositorName("user01")
+                .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
+                .expiresAt(LocalDateTime.of(2026, 7, 28, 12, 0))
                 .build();
     }
 }
