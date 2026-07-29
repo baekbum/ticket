@@ -1,12 +1,14 @@
 package dev.bum.queue_service.service;
 
-import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
+import dev.bum.queue_service.config.QueueProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,8 +24,35 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final String STATUS_READY = "READY"; // 통과 상태
-    private static final String STATUS_WAITING = "WAITING"; // 대기열 대기 상태
+    private static final String STATUS_READY = "READY";
+    private static final String STATUS_WAITING = "WAITING";
+    private static final RedisScript<Long> ADMIT_IF_SLOT_AVAILABLE_SCRIPT = new DefaultRedisScript<>("""
+            local waitingKey = KEYS[1]
+            local activeKey = KEYS[2]
+            local tokenKey = KEYS[3]
+            local userId = ARGV[1]
+            local token = ARGV[2]
+            local tokenValue = ARGV[3]
+            local expiresAt = tonumber(ARGV[4])
+            local tokenTtlMillis = tonumber(ARGV[5])
+            local admissionSize = tonumber(ARGV[6])
+
+            local rank = redis.call('ZRANK', waitingKey, userId)
+            if not rank then
+                return 0
+            end
+
+            local activeCount = redis.call('ZCARD', activeKey)
+            local availableSlots = admissionSize - activeCount
+            if availableSlots <= 0 or rank >= availableSlots then
+                return 0
+            end
+
+            redis.call('SET', tokenKey, tokenValue, 'PX', tokenTtlMillis)
+            redis.call('ZADD', activeKey, expiresAt, token)
+            redis.call('ZREM', waitingKey, userId)
+            return 1
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final QueueProperties properties;
@@ -57,28 +86,18 @@ public class QueueService {
             return readyStatusResponse(eventId, activeToken);
         }
 
-        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId); // 현재 내가 몇번째 순서인지 확인.
-        if (rank == null) {
-            redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
-            rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
-        }
-
-        long activeCount = activeCount(eventId); // 현재 토큰을 가지고 티켓팅 중인 인원 수
-        long availableSlots = Math.max(0L, properties.admissionSize() - activeCount); // 추가적으로 들어갈 수 있는 인원 수
-
-        if (rank != null && rank < availableSlots) {
-            String token = admit(eventId, userId);
+        ensureWaiting(eventId, userId);
+        String token = admit(eventId, userId);
+        if (token != null) {
             return readyStatusResponse(eventId, token);
         }
 
-        return new QueueStatusResponse(
-                eventId,
-                STATUS_WAITING,
-                rank == null ? null : rank + 1,
-                redisTemplate.opsForZSet().zCard(waitingKey(eventId)),
-                null,
-                null
-        );
+        activeToken = findActiveToken(eventId, userId);
+        if (activeToken != null) {
+            return readyStatusResponse(eventId, activeToken);
+        }
+
+        return waitingStatusResponse(eventId, userId);
     }
 
     public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
@@ -126,10 +145,7 @@ public class QueueService {
     private QueueStatusResponse readyStatusResponse(Long eventId, String token) {
         Double score = redisTemplate.opsForZSet().score(activeKey(eventId), token);
         Long expiresAt = score == null ? null : score.longValue();
-
-        Long expiresInSeconds = expiresAt == null
-                ? null
-                : Math.max(0L, (expiresAt - nowMillis()) / 1000);
+        Long expiresInSeconds = expiresAt == null ? null : Math.max(0L, (expiresAt - nowMillis()) / 1000);
 
         return new QueueStatusResponse(
                 eventId,
@@ -149,11 +165,18 @@ public class QueueService {
         long expiresAt = nowMillis() + properties.tokenTtl().toMillis();
         String tokenValue = eventId + ":" + userId;
 
-        redisTemplate.opsForValue().set(tokenKey(token), tokenValue, properties.tokenTtl()); // 토큰 값 저장 (만료 시간 포함)
-        redisTemplate.opsForZSet().add(activeKey(eventId), token, expiresAt); // 대기열을 통과한 Zset에 해당 유저를 추가.
-        redisTemplate.opsForZSet().remove(waitingKey(eventId), userId); // 대기열를 위한 key를 삭제.
+        Long admitted = redisTemplate.execute(
+                ADMIT_IF_SLOT_AVAILABLE_SCRIPT,
+                List.of(waitingKey(eventId), activeKey(eventId), tokenKey(token)),
+                userId,
+                token,
+                tokenValue,
+                String.valueOf(expiresAt),
+                String.valueOf(properties.tokenTtl().toMillis()),
+                String.valueOf(properties.admissionSize())
+        );
 
-        return token;
+        return Long.valueOf(1L).equals(admitted) ? token : null;
     }
 
     /**
@@ -197,20 +220,29 @@ public class QueueService {
     }
 
     private QueueStatusResponse statusWithoutPrune(Long eventId, String userId) {
-        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
-        if (rank == null) {
-            redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
-            rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
-        }
-
-        long activeCount = activeCount(eventId);
-        long availableSlots = Math.max(0L, properties.admissionSize() - activeCount);
-
-        if (rank != null && rank < availableSlots) {
-            String token = admit(eventId, userId);
+        ensureWaiting(eventId, userId);
+        String token = admit(eventId, userId);
+        if (token != null) {
             return readyStatusResponse(eventId, token);
         }
 
+        String activeToken = findActiveToken(eventId, userId);
+        if (activeToken != null) {
+            return readyStatusResponse(eventId, activeToken);
+        }
+
+        return waitingStatusResponse(eventId, userId);
+    }
+
+    private void ensureWaiting(Long eventId, String userId) {
+        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
+        if (rank == null) {
+            redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
+        }
+    }
+
+    private QueueStatusResponse waitingStatusResponse(Long eventId, String userId) {
+        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
         return new QueueStatusResponse(
                 eventId,
                 STATUS_WAITING,
@@ -238,17 +270,6 @@ public class QueueService {
         }
     }
 
-    /**
-     * 현재 입장 토큰을 발급받은 사용자 수를 조회한다.
-     */
-    private long activeCount(Long eventId) {
-        Long count = redisTemplate.opsForZSet().zCard(activeKey(eventId));
-        return count == null ? 0 : count;
-    }
-
-    /**
-     * 인증 필터에서 전달된 사용자 ID가 있는지 검증한다.
-     */
     private void validateUserId(String userId) {
         if (!StringUtils.hasText(userId)) {
             throw new IllegalArgumentException("인증 정보가 올바르지 않습니다.");
