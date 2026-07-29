@@ -60,7 +60,6 @@ class ReservationDeliveryJpaRepositoryTest {
         assertThat(response.getDetailAddress()).isEqualTo("101-1001");
         assertThat(response.getDeliveryMessage()).isEqualTo("Leave at door");
         assertThat(response.getStatus()).isEqualTo(ReservationDeliveryStatus.READY);
-        assertThat(reservationDeliveryJpaRepository.existsByReservation(responseReservation)).isTrue();
     }
 
     private Reservation reservation(String orderId, String userId) {

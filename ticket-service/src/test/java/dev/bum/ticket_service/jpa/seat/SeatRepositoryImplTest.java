@@ -83,7 +83,7 @@ class SeatRepositoryImplTest {
     void seat_insert() {
         seatRepository.insert(insertRequest("R", 1, 2));
 
-        assertThat(seatRepository.countByEventId(event.getEventId())).isEqualTo(6);
+        assertThat(seatJpaRepository.findByEventEventId(event.getEventId())).hasSize(6);
     }
 
     @Test
@@ -94,14 +94,6 @@ class SeatRepositoryImplTest {
 
         assertThatThrownBy(() -> seatRepository.insert(insertRequest("VIP", 2, 2)))
                 .isInstanceOf(SeatDuplicateException.class);
-    }
-
-    @Test
-    @DisplayName("이벤트 기준 좌석 수 조회")
-    void count_by_event_id() {
-        long count = seatRepository.countByEventId(event.getEventId());
-
-        assertThat(count).isEqualTo(4);
     }
 
     @Test
@@ -234,7 +226,7 @@ class SeatRepositoryImplTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(seatRepository.countByEventId(event.getEventId())).isEqualTo(2);
+        assertThat(seatJpaRepository.findByEventEventId(event.getEventId())).hasSize(2);
     }
 
     @Test

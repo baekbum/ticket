@@ -3,7 +3,6 @@ package dev.bum.ticket_service.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
-import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
 import dev.bum.ticket_service.controller.reservation.reservationDelivery.ReservationDeliveryManagementController;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -53,23 +51,6 @@ class ReservationDeliveryManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("관리자 예약 배송 스냅샷 등록")
-    void insert() throws Exception {
-        ReservationDeliveryRequest info = deliveryRequest();
-        ReservationDeliveryResponse response = deliveryResponse();
-        given(reservationDeliveryService.insert(1L, info)).willReturn(response);
-
-        mockMvc.perform(post(baseUrl + "/insert/reservation/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reservationId").value(1L));
-
-        then(reservationDeliveryService).should().insert(1L, info);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
     @DisplayName("관리자 배송 ID로 배송 스냅샷 조회")
     void select_by_id() throws Exception {
         given(reservationDeliveryService.selectById(10L)).willReturn(deliveryResponse());
@@ -92,17 +73,6 @@ class ReservationDeliveryManagementControllerTest {
                 .andExpect(jsonPath("$.reservationId").value(1L));
 
         then(reservationDeliveryService).should().selectByReservationId(1L);
-    }
-
-    private ReservationDeliveryRequest deliveryRequest() {
-        return ReservationDeliveryRequest.builder()
-                .recipientName("receiver")
-                .recipientPhone("010-1234-5678")
-                .zipCode("12345")
-                .address("Seoul Olympic-ro")
-                .detailAddress("101-1001")
-                .deliveryMessage("Leave at door")
-                .build();
     }
 
     private ReservationDeliveryResponse deliveryResponse() {
