@@ -67,6 +67,34 @@ Password: admin
 
 기본 대시보드 이름은 `Ticket Spring Services Overview`입니다.
 
+## 로그 확인
+
+최초 실행 시 Grafana 내부 DB를 초기화하면서 `logger=migrator` 로그가 많이 출력됩니다.
+
+예시:
+
+```text
+logger=migrator level=info msg="Executing migration"
+logger=migrator level=info msg="Migration successfully executed"
+```
+
+이 로그는 정상입니다. Grafana가 처음 시작될 때 dashboard, user, alert, datasource 관련 테이블과 인덱스를 생성하거나 변경합니다.
+
+정상 기동 여부는 아래 명령으로 확인합니다.
+
+```bash
+docker ps -a --filter "name=grafana"
+```
+
+컨테이너 상태가 `Up`이고 마지막 로그에 `HTTP Server Listen` 또는 `server is listening` 계열 메시지가 보이면 정상입니다.
+
+아래 상황이면 문제로 봐야 합니다.
+
+- 컨테이너 상태가 계속 `Restarting`으로 바뀐다.
+- 동일한 migration 로그가 처음부터 반복된다.
+- `level=error`, `failed`, `panic` 로그가 반복된다.
+- `http://localhost:3001`에 접속되지 않는다.
+
 ## Admin Service iframe 연동 참고
 
 Grafana embed를 위해 compose에 아래 설정을 넣어두었습니다.
