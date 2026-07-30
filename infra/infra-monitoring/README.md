@@ -78,6 +78,14 @@ Password: admin
 
 기본 대시보드 이름은 `Ticket Spring Services Overview`입니다.
 
+대시보드 상단에는 아래 변수를 제공합니다.
+
+- `Service`: `auth-service`, `ticket-service` 같은 서비스 단위 필터
+- `Job`: Prometheus scrape job 필터
+- `Instance`: 실제 target 주소 필터
+
+각 변수는 `All`과 다중 선택을 지원합니다.
+
 ## 로그 확인
 
 Grafana 최초 실행 시 내부 DB를 초기화하면서 `logger=migrator` 로그가 많이 출력될 수 있습니다.
@@ -104,15 +112,15 @@ docker ps -a --filter "name=grafana"
 - `level=error`, `failed`, `panic` 로그가 반복된다.
 - `http://localhost:3001`에 접속되지 않는다.
 
-## Admin Service iframe 연동 참고
+## Admin Service 연동 참고
 
-Grafana embed를 위해 compose에 아래 설정을 넣어두었습니다.
+Grafana를 새 창 또는 embed 방식으로 열 수 있도록 compose에 아래 설정을 넣어두었습니다.
 
 - `GF_SECURITY_ALLOW_EMBEDDING=true`
 - `GF_AUTH_ANONYMOUS_ENABLED=true`
 - `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer`
 
-`admin-service`의 Monitoring 메뉴는 Grafana dashboard URL을 iframe으로 표시합니다.
+`admin-service`의 모니터링 메뉴는 Grafana dashboard URL을 새 창으로 엽니다.
 
 `admin-service`는 아래 설정값으로 iframe URL을 결정합니다.
 

@@ -13,11 +13,28 @@ scrape_configs:
     static_configs:
       - targets:
           - auth-service:8080
+        labels:
+          application: auth-service
+          group: application
+      - targets:
           - user-service:8080
+        labels:
+          application: user-service
+          group: application
+      - targets:
           - ticket-service:8080
+        labels:
+          application: ticket-service
+          group: application
+      - targets:
           - queue-service:8080
+        labels:
+          application: queue-service
+          group: application
+      - targets:
           - audit-service:8080
         labels:
+          application: audit-service
           group: application
 
   - job_name: admin-service
@@ -26,6 +43,7 @@ scrape_configs:
       - targets:
           - admin-service:8999
         labels:
+          application: admin-service
           group: application
 
   - job_name: view-service
@@ -34,4 +52,5 @@ scrape_configs:
       - targets:
           - view-service:3000
         labels:
+          application: view-service
           group: frontend
