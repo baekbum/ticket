@@ -1,0 +1,25 @@
+<link rel="stylesheet" th:href="@{/css/monitoring/fragment-monitoring.css}">
+
+<section class="monitoring-page">
+  <div class="monitoring-message-card">
+    <div class="monitoring-icon">
+      <i class="ti ti-chart-line"></i>
+    </div>
+    <p class="monitoring-kicker">Observability</p>
+    <h2>새 창에서 모니터링이 실행 중입니다.</h2>
+    <p>브라우저 팝업 차단으로 새 창이 열리지 않았다면 아래 버튼을 눌러 Grafana 대시보드를 여세요.</p>
+    <a class="monitoring-open-link" id="monitoring-open-link" th:href="${grafanaDashboardUrl}" target="_blank" rel="noopener noreferrer">
+      <i class="ti ti-external-link"></i>
+      모니터링 새 창 열기
+    </a>
+  </div>
+</section>
+
+<script th:inline="javascript">
+  (() => {
+    const grafanaDashboardUrl = /*[[${grafanaDashboardUrl}]]*/ '';
+    if (grafanaDashboardUrl) {
+      window.open(grafanaDashboardUrl, '_blank', 'noopener,noreferrer');
+    }
+  })();
+</script>

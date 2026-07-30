@@ -2,6 +2,7 @@ package dev.bum.admin_service.controller.view;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/api/v1/view")
 @RequiredArgsConstructor
 public class ViewController {
+
+    @Value("${app.monitoring.grafana-dashboard-url}")
+    private String grafanaDashboardUrl;
 
     /**
      * 로그인 및 화원가입 화면
@@ -44,7 +48,7 @@ public class ViewController {
      * @return
      */
     @GetMapping("/fragment/{menuName}")
-    public String getAdminFragment(@PathVariable String menuName) {
+    public String getAdminFragment(@PathVariable String menuName, Model model) {
         // 요청된 메뉴 이름에 맞춰 templates 폴더 안의 조각 HTML 파일명을 리턴합니다.
         if ("user".equals(menuName)) {
             return "fragment/fragment-user";
@@ -76,6 +80,9 @@ public class ViewController {
             return "fragment/fragment-seat-reservation-test";
         } else if ("queueEnterTest".equals(menuName)) {
             return "fragment/fragment-queue-enter-test";
+        } else if ("monitoring".equals(menuName)) {
+            model.addAttribute("grafanaDashboardUrl", grafanaDashboardUrl);
+            return "fragment/fragment-monitoring";
         }
 
         return "error/404";

@@ -30,6 +30,10 @@ services:
   audit-service:
     url: "http://localhost:8084/audit"
 
+app:
+  monitoring:
+    grafana-dashboard-url: "${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}"
+
 management:
   endpoints:
     web:

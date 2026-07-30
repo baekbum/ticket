@@ -112,4 +112,12 @@ Grafana embed를 위해 compose에 아래 설정을 넣어두었습니다.
 - `GF_AUTH_ANONYMOUS_ENABLED=true`
 - `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer`
 
-다음 단계에서 `admin-service` 화면에 Grafana dashboard URL을 iframe으로 연결하면 됩니다.
+`admin-service`의 Monitoring 메뉴는 Grafana dashboard URL을 iframe으로 표시합니다.
+
+`admin-service`는 아래 설정값으로 iframe URL을 결정합니다.
+
+```yaml
+app:
+  monitoring:
+    grafana-dashboard-url: ${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}
+```
