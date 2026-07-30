@@ -25,6 +25,7 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -106,6 +107,49 @@ class CheckoutServiceTest {
         then(reservationRepository).shouldHaveNoInteractions();
         then(reservationDeliveryJpaRepository).shouldHaveNoInteractions();
         then(paymentJpaRepository).should(never()).save(org.mockito.ArgumentMatchers.any(Payment.class));
+    }
+
+    @Test
+    @DisplayName("checkout 최초 준비 요청은 좌석 선점 검증 후 예매, 배송, 결제, 구매 제한을 생성한다")
+    void prepare_creates_reservation_delivery_payment_and_purchase_limit() {
+        Event event = event();
+        Reservation reservation = reservation(event, "user01");
+        Seat seat = seat(event);
+        new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
+        CheckoutPrepareRequest request = checkoutRequest("  idem-1  ");
+
+        given(paymentJpaRepository.findByIdempotencyKey("idem-1")).willReturn(Optional.empty());
+        given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+        given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        CheckoutPrepareResponse response = checkoutService.prepare("user01", request);
+
+        assertThat(response.getReservationId()).isEqualTo(1L);
+        assertThat(response.getOrderId()).isEqualTo("order-1");
+        assertThat(response.getPaymentStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(response.getAmount()).isEqualTo(180000);
+
+        ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
+        then(seatCacheService).should().validateOccupiedSeat(org.mockito.ArgumentMatchers.argThat(info ->
+                info.getOrderId().equals("order-1")
+                        && info.getUserId().equals("user01")
+                        && info.getEventId().equals(1L)
+                        && info.getSeats().size() == 1
+        ));
+        then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.any());
+        then(reservationDeliveryJpaRepository).should().save(org.mockito.ArgumentMatchers.any());
+        then(paymentJpaRepository).should().save(paymentCaptor.capture());
+        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 1, "PLUS");
+
+        Payment savedPayment = paymentCaptor.getValue();
+        assertThat(savedPayment.getReservation()).isEqualTo(reservation);
+        assertThat(savedPayment.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+        assertThat(savedPayment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(savedPayment.getAmount()).isEqualTo(180000);
+        assertThat(savedPayment.getIdempotencyKey()).isEqualTo("idem-1");
+        assertThat(savedPayment.getPaymentNo()).startsWith("PAY-");
     }
 
     private CheckoutPrepareRequest checkoutRequest(String idempotencyKey) {

@@ -14,14 +14,19 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class QueueServiceTest {
@@ -44,8 +49,8 @@ class QueueServiceTest {
         properties.setTokenTtl(Duration.ofMinutes(10));
         queueService = new QueueService(redisTemplate, properties);
 
-        given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
-        given(zSetOperations.rangeByScore(eq("queue:event:1:active"), eq(0.0), any(Double.class))).willReturn(Set.of());
+        lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        lenient().when(zSetOperations.rangeByScore(eq("queue:event:1:active"), eq(0.0), any(Double.class))).thenReturn(Set.of());
     }
 
     @Test
@@ -91,5 +96,52 @@ class QueueServiceTest {
         assertThat(response.status()).isEqualTo("READY");
         assertThat(response.token()).isEqualTo("token-1");
         assertThat(response.expiresInSeconds()).isPositive();
+    }
+
+    @Test
+    @DisplayName("유효한 active 토큰 완료 시 active ZSet, token key, active-user key를 함께 정리한다")
+    void complete_removes_active_token_and_user_mapping() {
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("queue:token:token-1")).willReturn("1:user01");
+        given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
+
+        boolean completed = queueService.complete(1L, "user01", "token-1");
+
+        assertThat(completed).isTrue();
+        then(zSetOperations).should().remove("queue:event:1:active", "token-1");
+        then(redisTemplate).should().delete(List.of("queue:token:token-1", "queue:active-user:1:user01"));
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 토큰 완료 요청은 Redis 상태를 변경하지 않는다")
+    void complete_returns_false_without_cleanup_when_token_is_invalid() {
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("queue:token:token-1")).willReturn("1:other-user");
+
+        boolean completed = queueService.complete(1L, "user01", "token-1");
+
+        assertThat(completed).isFalse();
+        then(zSetOperations).should(never()).remove(anyString(), anyString());
+        then(redisTemplate).should(never()).delete(anyList());
+    }
+
+    @Test
+    @DisplayName("bulk 상태 조회는 기존 active-user 매핑이 유효하면 READY를 유지하고 재입장시키지 않는다")
+    void statuses_reuses_valid_active_user_mapping() {
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("queue:active-user:1:user01")).willReturn("token-1");
+        given(valueOperations.get("queue:token:token-1")).willReturn("1:user01");
+        given(valueOperations.get("queue:active-user:1:user02")).willReturn(null);
+        given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
+        given(zSetOperations.rank("queue:event:1:waiting", "user02")).willReturn(0L);
+        given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
+        doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        List<QueueStatusResponse> responses = queueService.statuses(1L, List.of("user01", "user02"));
+
+        assertThat(responses).extracting(QueueStatusResponse::status)
+                .containsExactly("READY", "WAITING");
+        assertThat(responses.get(0).token()).isEqualTo("token-1");
+        assertThat(responses.get(1).rank()).isEqualTo(1L);
     }
 }
