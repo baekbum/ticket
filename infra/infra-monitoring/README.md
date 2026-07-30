@@ -114,18 +114,25 @@ docker ps -a --filter "name=grafana"
 
 ## Admin Service 연동 참고
 
-Grafana를 새 창 또는 embed 방식으로 열 수 있도록 compose에 아래 설정을 넣어두었습니다.
+Grafana를 새 창으로 열 수 있도록 compose에 아래 설정을 넣어두었습니다.
 
-- `GF_SECURITY_ALLOW_EMBEDDING=true`
 - `GF_AUTH_ANONYMOUS_ENABLED=true`
 - `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer`
 
-`admin-service`의 모니터링 메뉴는 Grafana dashboard URL을 새 창으로 엽니다.
+`admin-service`의 모니터링 메뉴는 카드형 허브 화면을 표시합니다.
 
-`admin-service`는 아래 설정값으로 iframe URL을 결정합니다.
+카드를 클릭하면 각 Grafana 대시보드 URL이 새 창으로 열립니다. Spring Boot / JVM은 현재 기본 대시보드인 `Ticket Spring Services Overview`로 연결됩니다.
+
+PostgreSQL, Redis, Docker/cAdvisor, Nginx 카드는 기본적으로 Grafana 대시보드 검색 화면으로 연결됩니다. 실제 데이터 대시보드로 바로 열려면 exporter와 dashboard JSON을 추가한 뒤 아래 환경변수로 URL을 지정합니다.
 
 ```yaml
 app:
   monitoring:
     grafana-dashboard-url: ${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}
+    dashboards:
+      spring-boot-jvm-url: ${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}
+      postgresql-url: ${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/dashboards?query=PostgreSQL}
+      redis-url: ${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/dashboards?query=Redis}
+      docker-url: ${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/dashboards?query=cAdvisor}
+      nginx-url: ${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}
 ```

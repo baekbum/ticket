@@ -1,25 +1,42 @@
 <link rel="stylesheet" th:href="@{/css/monitoring/fragment-monitoring.css}">
 
 <section class="monitoring-page">
-  <div class="monitoring-message-card">
-    <div class="monitoring-icon">
-      <i class="ti ti-chart-line"></i>
+  <div class="monitoring-header">
+    <div>
+      <p class="monitoring-kicker">Grafana Dashboard</p>
+      <h2>모니터링</h2>
+      <p>카드를 선택하면 Grafana 대시보드가 새 창으로 열립니다.</p>
     </div>
-    <p class="monitoring-kicker">Observability</p>
-    <h2>새 창에서 모니터링이 실행 중입니다.</h2>
-    <p>브라우저 팝업 차단으로 새 창이 열리지 않았다면 아래 버튼을 눌러 Grafana 대시보드를 여세요.</p>
-    <a class="monitoring-open-link" id="monitoring-open-link" th:href="${grafanaDashboardUrl}" target="_blank" rel="noopener noreferrer">
-      <i class="ti ti-external-link"></i>
-      모니터링 새 창 열기
-    </a>
+  </div>
+
+  <div class="monitoring-grid">
+    <button
+        class="monitoring-card"
+        th:each="card : ${monitoringDashboardCards}"
+        th:data-url="${card.url}"
+        th:aria-label="${card.title + ' 대시보드 새 창 열기'}"
+        type="button"
+        onclick="openMonitoringDashboard(this)">
+      <span class="monitoring-icon">
+        <i th:class="${card.icon}"></i>
+      </span>
+      <span class="monitoring-card-content">
+        <strong th:text="${card.title}">Java/JVM</strong>
+        <em th:text="${card.subtitle}">JVM Micrometer, JVM Overview</em>
+        <span th:text="${card.description}">메트릭 설명</span>
+      </span>
+      <span class="monitoring-card-action">
+        <i class="ti ti-external-link"></i>
+      </span>
+    </button>
   </div>
 </section>
 
-<script th:inline="javascript">
-  (() => {
-    const grafanaDashboardUrl = /*[[${grafanaDashboardUrl}]]*/ '';
-    if (grafanaDashboardUrl) {
-      window.open(grafanaDashboardUrl, '_blank', 'noopener,noreferrer');
-    }
-  })();
+<script>
+  function openMonitoringDashboard(button) {
+    const dashboardUrl = button?.dataset?.url;
+    if (!dashboardUrl) return;
+
+    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
+  }
 </script>
