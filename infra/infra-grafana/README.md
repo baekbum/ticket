@@ -80,6 +80,8 @@ logger=migrator level=info msg="Migration successfully executed"
 
 이 로그는 정상입니다. Grafana가 처음 시작될 때 dashboard, user, alert, datasource 관련 테이블과 인덱스를 생성하거나 변경합니다.
 
+최초 실행은 환경에 따라 몇 분 걸릴 수 있습니다. 이번 구성에서는 Grafana `11.4.0` 기준 약 600개 이상의 migration이 실행될 수 있습니다.
+
 정상 기동 여부는 아래 명령으로 확인합니다.
 
 ```bash
@@ -87,6 +89,14 @@ docker ps -a --filter "name=grafana"
 ```
 
 컨테이너 상태가 `Up`이고 마지막 로그에 `HTTP Server Listen` 또는 `server is listening` 계열 메시지가 보이면 정상입니다.
+
+아래 로그도 최초 기동 중 일시적으로 보일 수 있습니다.
+
+```text
+logger=sqlstore.transactions level=info msg="Database locked, sleeping then retrying"
+```
+
+Grafana 기본 내장 DB인 SQLite에 migration/provisioning 작업이 동시에 접근하면서 생기는 재시도 로그입니다. 이후 `finished to provision dashboards`가 나오고 UI 접속이 되면 정상입니다.
 
 아래 상황이면 문제로 봐야 합니다.
 
