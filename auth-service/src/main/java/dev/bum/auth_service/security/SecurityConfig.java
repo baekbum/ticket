@@ -42,6 +42,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/logout").permitAll()
                         .requestMatchers("/api/*/validate").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .anyRequest().authenticated() // 나머지는 인증 필요
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())); // H2 콘솔 프레임 허용
