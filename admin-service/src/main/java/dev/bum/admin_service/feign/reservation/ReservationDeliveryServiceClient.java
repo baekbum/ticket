@@ -2,7 +2,6 @@ package dev.bum.admin_service.feign.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryCondRequest;
-import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationDeliveryTrackingRequest;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -14,9 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(name = "reservation-delivery-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/reservation/delivery")
 public interface ReservationDeliveryServiceClient {
-
-    @PostMapping("/insert/reservation/{reservationId}")
-    ReservationDeliveryResponse insert(@PathVariable("reservationId") Long reservationId, @RequestBody ReservationDeliveryRequest request);
 
     @GetMapping("/select/id/{reservationDeliveryId}")
     ReservationDeliveryResponse selectById(@PathVariable("reservationDeliveryId") Long reservationDeliveryId);

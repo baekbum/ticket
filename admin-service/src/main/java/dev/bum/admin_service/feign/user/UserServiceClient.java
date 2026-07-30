@@ -17,9 +17,6 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(name = "user-service", url = "${services.user-service.url}", path = "/api/v1/manage")
 public interface UserServiceClient {
 
-    @GetMapping("/check/duplication/{userId}")
-    void isDuplicated(@PathVariable("userId") String userId);
-
     @PostMapping("/insert")
     UserResponse insert(@RequestBody InsertUserRequest info);
 

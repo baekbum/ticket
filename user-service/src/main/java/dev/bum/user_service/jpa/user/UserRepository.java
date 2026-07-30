@@ -9,7 +9,6 @@ import org.springframework.data.domain.Pageable;
 public interface UserRepository {
     User insert(InsertUserRequest info);
     void isExist(String userId);
-    Page<User> selectAll(Pageable pageable);
     User selectById(String userId);
     Page<User> selectByCond(UserCondRequest cond, Pageable pageable);
     User update(String userId, UpdateUserRequest info);

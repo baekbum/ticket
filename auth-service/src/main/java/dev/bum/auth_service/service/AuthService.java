@@ -33,18 +33,6 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
 
-    @Transactional(readOnly = true)
-    public Auth findByUserId(String userId) {
-        return repository.findByUserId(userId);
-    }
-
-    @Transactional(readOnly = true)
-    public void validateInfo(LoginRequest info) {
-        Auth auth = findByUserId(info.getUserId());
-
-        comparePassword(info, auth);
-    }
-
     /**
      * 토큰을 발급하는 메서드.
      * @param info
@@ -75,6 +63,10 @@ public class AuthService {
         if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
             throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
         }
+    }
+
+    private Auth findByUserId(String userId) {
+        return repository.findByUserId(userId);
     }
 
 

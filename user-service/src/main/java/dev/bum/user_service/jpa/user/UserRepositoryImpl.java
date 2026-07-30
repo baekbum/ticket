@@ -65,16 +65,6 @@ public class UserRepositoryImpl implements UserRepository {
 
 
     /**
-     * 전체 유저 검색
-     * @param pageable
-     * @return
-     */
-    @Override
-    public Page<User> selectAll(Pageable pageable) {
-        return jpaRepository.findAll(pageable);
-    }
-
-    /**
      * ID로 유저 검색
      * @param userId
      * @return

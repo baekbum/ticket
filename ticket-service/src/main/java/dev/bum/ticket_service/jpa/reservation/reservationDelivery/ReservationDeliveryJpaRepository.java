@@ -9,6 +9,4 @@ import java.util.Optional;
 public interface ReservationDeliveryJpaRepository extends JpaRepository<ReservationDelivery, Long>, JpaSpecificationExecutor<ReservationDelivery> {
 
     Optional<ReservationDelivery> findByReservation(Reservation reservation);
-
-    boolean existsByReservation(Reservation reservation);
 }

@@ -52,16 +52,6 @@ public class SeatService {
     }
 
     /**
-     * 공연 ID 기준 좌석 개수 조회 메서드
-     * @param eventId
-     * @return
-     */
-    public long countByEventId(Long eventId) {
-        log.info("[COUNT] EventId : {}", eventId);
-        return repository.countByEventId(eventId);
-    }
-
-    /**
      * ID를 통해 좌석 정보 조회 메서드
      * @param id
      * @return

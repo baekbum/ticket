@@ -53,50 +53,6 @@ class AuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    @DisplayName("userId로 Auth 조회")
-    void find_by_user_id() {
-        Auth auth = auth("user01");
-
-        given(authRepository.findByUserId("user01")).willReturn(auth);
-
-        Auth response = authService.findByUserId("user01");
-
-        assertThat(response.getUserId()).isEqualTo("user01");
-        then(authRepository).should().findByUserId("user01");
-    }
-
-    @Test
-    @DisplayName("비밀번호 검증 성공")
-    void validate_info_success() {
-        LoginRequest info = new LoginRequest("user01", "plain-password");
-        Auth auth = auth("user01");
-
-        given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
-
-        authService.validateInfo(info);
-
-        then(authRepository).should().findByUserId("user01");
-        then(passwordEncoder).should().matches("plain-password", "encoded-password");
-    }
-
-    @Test
-    @DisplayName("비밀번호 검증 실패")
-    void validate_info_fail_with_wrong_password() {
-        LoginRequest info = new LoginRequest("user01", "wrong-password");
-        Auth auth = auth("user01");
-
-        given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("wrong-password", "encoded-password")).willReturn(false);
-
-        assertThatThrownBy(() -> authService.validateInfo(info))
-                .isInstanceOf(PasswordIncorrectException.class);
-
-        then(authRepository).should().findByUserId("user01");
-        then(passwordEncoder).should().matches("wrong-password", "encoded-password");
-    }
-
-    @Test
     @DisplayName("로그인 성공 시 토큰 생성 및 Refresh Token 저장")
     void login_success_and_return_tokens() {
         LoginRequest info = new LoginRequest("user01", "plain-password");

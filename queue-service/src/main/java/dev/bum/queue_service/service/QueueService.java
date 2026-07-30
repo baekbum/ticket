@@ -1,12 +1,14 @@
 package dev.bum.queue_service.service;
 
-import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
+import dev.bum.queue_service.config.QueueProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,68 +24,80 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final String STATUS_READY = "READY"; // 통과 상태
-    private static final String STATUS_WAITING = "WAITING"; // 대기열 대기 상태
+    private static final String STATUS_READY = "READY";
+    private static final String STATUS_WAITING = "WAITING";
+    private static final RedisScript<Long> ADMIT_IF_SLOT_AVAILABLE_SCRIPT = new DefaultRedisScript<>("""
+            local waitingKey = KEYS[1]
+            local activeKey = KEYS[2]
+            local tokenKey = KEYS[3]
+            local activeUserKey = KEYS[4]
+            local userId = ARGV[1]
+            local token = ARGV[2]
+            local tokenValue = ARGV[3]
+            local expiresAt = tonumber(ARGV[4])
+            local tokenTtlMillis = tonumber(ARGV[5])
+            local admissionSize = tonumber(ARGV[6])
+
+            local rank = redis.call('ZRANK', waitingKey, userId)
+            if not rank then
+                return 0
+            end
+
+            local activeCount = redis.call('ZCARD', activeKey)
+            local availableSlots = admissionSize - activeCount
+            if availableSlots <= 0 or rank >= availableSlots then
+                return 0
+            end
+
+            redis.call('SET', tokenKey, tokenValue, 'PX', tokenTtlMillis)
+            redis.call('SET', activeUserKey, token, 'PX', tokenTtlMillis)
+            redis.call('ZADD', activeKey, expiresAt, token)
+            redis.call('ZREM', waitingKey, userId)
+            return 1
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final QueueProperties properties;
 
     /**
-     * 사용자가 예매 대기열에 처음 진입할 때 호출한다.
+     * 사용자의 대기열 최초 진입 요청을 처리한다.
+     * 유효한 큐 토큰이 있으면 READY를 복구하고, 없으면 대기열에 등록한 뒤 입장 가능 여부를 확인한다.
      */
-    public QueueEnterResponse enter(Long eventId, String userId) {
+    public QueueEnterResponse enter(Long eventId, String userId, String queueToken) {
         validateUserId(userId);
         pruneExpiredActiveTokens(eventId);
 
-        String activeToken = findActiveToken(eventId, userId);
-        if (activeToken != null) {
-            return readyStatusResponse(eventId, activeToken).toEnterResponse();
+        QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
+        if (readyResponse != null) {
+            return readyResponse.toEnterResponse();
         }
 
-        redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
-        return status(eventId, userId).toEnterResponse();
+        return waitOrAdmitWithoutPrune(eventId, userId).toEnterResponse();
     }
 
     /**
-     * 현재 사용자의 대기열 상태를 조회한다.
-     * 입장 가능한 슬롯 안에 들어오면 새 대기열 토큰을 발급한다.
+     * 사용자의 현재 대기열 상태를 조회한다.
+     * 유효한 큐 토큰이 있으면 READY를 반환하고, 없으면 대기열 기준으로 입장을 다시 시도한다.
      */
-    public QueueStatusResponse status(Long eventId, String userId) {
+    public QueueStatusResponse status(Long eventId, String userId, String queueToken) {
         validateUserId(userId);
         pruneExpiredActiveTokens(eventId);
 
-        String activeToken = findActiveToken(eventId, userId);
-        if (activeToken != null) {
-            return readyStatusResponse(eventId, activeToken);
+        QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
+        if (readyResponse != null) {
+            return readyResponse;
         }
 
-        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId); // 현재 내가 몇번째 순서인지 확인.
-        if (rank == null) {
-            redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
-            rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
-        }
-
-        long activeCount = activeCount(eventId); // 현재 토큰을 가지고 티켓팅 중인 인원 수
-        long availableSlots = Math.max(0L, properties.admissionSize() - activeCount); // 추가적으로 들어갈 수 있는 인원 수
-
-        if (rank != null && rank < availableSlots) {
-            String token = admit(eventId, userId);
-            return readyStatusResponse(eventId, token);
-        }
-
-        return new QueueStatusResponse(
-                eventId,
-                STATUS_WAITING,
-                rank == null ? null : rank + 1,
-                redisTemplate.opsForZSet().zCard(waitingKey(eventId)),
-                null,
-                null
-        );
+        return waitOrAdmitWithoutPrune(eventId, userId);
     }
 
+    /**
+     * 여러 사용자의 대기열 상태를 한 번에 조회한다.
+     * active-user 역방향 키를 먼저 확인하고, READY가 아니면 사용자별로 입장을 시도한다.
+     */
     public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
         pruneExpiredActiveTokens(eventId);
-        Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId);
+        Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId, userIds);
         List<QueueStatusResponse> responses = new ArrayList<>();
 
         for (String userId : userIds) {
@@ -95,41 +109,68 @@ public class QueueService {
                 continue;
             }
 
-            responses.add(statusWithoutPrune(eventId, userId));
+            responses.add(waitOrAdmitWithoutPrune(eventId, userId));
         }
 
         return responses;
     }
 
     /**
-     * 대기열 토큰이 요청한 이벤트와 사용자에게 발급된 값인지 검증한다.
+     * ticket-service가 전달한 큐 토큰이 해당 이벤트와 사용자에 대해 유효한 active token인지 검증한다.
      */
     public QueueValidateResponse validate(QueueValidateRequest request) {
-        boolean valid = isTokenValid(request.eventId(), request.userId(), request.token());
+        boolean valid = isActiveTokenValid(request.eventId(), request.userId(), request.token());
         return new QueueValidateResponse(valid, valid ? "OK" : "INVALID_QUEUE_TOKEN");
     }
 
+    /**
+     * 예매 또는 결제 흐름이 끝난 사용자의 active token을 회수한다.
+     * active ZSet, token key, active-user 역방향 키를 함께 제거해 다음 사용자가 입장할 수 있게 한다.
+     */
     public boolean complete(Long eventId, String userId, String token) {
         validateUserId(userId);
-        if (!StringUtils.hasText(token) || !isTokenValid(eventId, userId, token)) {
+        if (!isActiveTokenValid(eventId, userId, token)) {
             return false;
         }
 
         redisTemplate.opsForZSet().remove(activeKey(eventId), token);
-        redisTemplate.delete(tokenKey(token));
+        redisTemplate.delete(List.of(tokenKey(token), activeUserKey(eventId, userId)));
         return true;
     }
 
     /**
-     * READY 응답을 만들고 active ZSet의 score 값으로 토큰의 남은 유효 시간을 계산한다.
+     * 클라이언트가 제시한 큐 토큰이 유효하면 READY 응답을 만든다.
+     * 토큰이 없거나 만료/불일치하면 null을 반환해 일반 대기열 흐름으로 넘긴다.
+     */
+    private QueueStatusResponse readyStatusIfValidToken(Long eventId, String userId, String queueToken) {
+        if (!isActiveTokenValid(eventId, userId, queueToken)) {
+            return null;
+        }
+
+        return readyStatusResponse(eventId, queueToken);
+    }
+
+    /**
+     * 만료 토큰 정리가 이미 끝난 상태에서 사용자를 대기열에 보장 등록하고 입장을 시도한다.
+     * 입장 성공 시 READY, 실패 시 WAITING 응답을 반환한다.
+     */
+    private QueueStatusResponse waitOrAdmitWithoutPrune(Long eventId, String userId) {
+        ensureWaiting(eventId, userId);
+        String token = admit(eventId, userId);
+        if (token != null) {
+            return readyStatusResponse(eventId, token);
+        }
+
+        return waitingStatusResponse(eventId, userId);
+    }
+
+    /**
+     * active token의 만료 시각을 기준으로 READY 응답 DTO를 만든다.
      */
     private QueueStatusResponse readyStatusResponse(Long eventId, String token) {
         Double score = redisTemplate.opsForZSet().score(activeKey(eventId), token);
         Long expiresAt = score == null ? null : score.longValue();
-
-        Long expiresInSeconds = expiresAt == null
-                ? null
-                : Math.max(0L, (expiresAt - nowMillis()) / 1000);
+        Long expiresInSeconds = expiresAt == null ? null : Math.max(0L, (expiresAt - nowMillis()) / 1000);
 
         return new QueueStatusResponse(
                 eventId,
@@ -142,75 +183,75 @@ public class QueueService {
     }
 
     /**
-     * 대기 중인 사용자에게 새 토큰을 발급하고 waiting ZSet에서 제거해 READY 상태로 전환한다.
+     * waiting queue에 등록된 사용자가 active slot에 들어갈 수 있는지 확인하고 가능하면 토큰을 발급한다.
+     * Redis Lua script로 rank 확인, active slot 확인, token 저장, waiting 제거를 원자적으로 처리한다.
      */
     private String admit(Long eventId, String userId) {
         String token = UUID.randomUUID().toString();
-        long expiresAt = nowMillis() + properties.tokenTtl().toMillis();
+        long expiresAt = nowMillis() + properties.getTokenTtl().toMillis();
         String tokenValue = eventId + ":" + userId;
 
-        redisTemplate.opsForValue().set(tokenKey(token), tokenValue, properties.tokenTtl()); // 토큰 값 저장 (만료 시간 포함)
-        redisTemplate.opsForZSet().add(activeKey(eventId), token, expiresAt); // 대기열을 통과한 Zset에 해당 유저를 추가.
-        redisTemplate.opsForZSet().remove(waitingKey(eventId), userId); // 대기열를 위한 key를 삭제.
+        Long admitted = redisTemplate.execute(
+                ADMIT_IF_SLOT_AVAILABLE_SCRIPT,
+                List.of(waitingKey(eventId), activeKey(eventId), tokenKey(token), activeUserKey(eventId, userId)),
+                userId,
+                token,
+                tokenValue,
+                String.valueOf(expiresAt),
+                String.valueOf(properties.getTokenTtl().toMillis()),
+                String.valueOf(properties.getAdmissionSize())
+        );
 
-        return token;
+        return Long.valueOf(1L).equals(admitted) ? token : null;
     }
 
     /**
-     * 토큰이 요청한 이벤트와 사용자에게 속한 값인지 확인한다.
+     * token key 값과 active ZSet 존재 여부를 함께 확인해 큐 토큰의 유효성을 검증한다.
      */
-    private boolean isTokenValid(Long eventId, String userId, String token) {
+    private boolean isActiveTokenValid(Long eventId, String userId, String token) {
+        if (!StringUtils.hasText(token)) {
+            return false;
+        }
+
         String tokenValue = redisTemplate.opsForValue().get(tokenKey(token));
-        return (eventId + ":" + userId).equals(tokenValue);
-    }
-
-    private String findActiveToken(Long eventId, String userId) {
-        Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey(eventId), 0, -1);
-        if (activeTokens == null || activeTokens.isEmpty()) {
-            return null;
+        if (!(eventId + ":" + userId).equals(tokenValue)) {
+            return false;
         }
 
-        String expectedValue = eventId + ":" + userId;
-        for (String token : activeTokens) {
-            if (expectedValue.equals(redisTemplate.opsForValue().get(tokenKey(token)))) {
-                return token;
-            }
-        }
-        return null;
+        return redisTemplate.opsForZSet().score(activeKey(eventId), token) != null;
     }
 
-    private Map<String, String> activeTokenByUserId(Long eventId) {
-        Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey(eventId), 0, -1);
+    /**
+     * 사용자별 active-user 역방향 키로 active token을 조회한다.
+     * 조회된 토큰은 실제 active ZSet에도 남아 있는지 다시 검증한다.
+     */
+    private Map<String, String> activeTokenByUserId(Long eventId, List<String> userIds) {
         Map<String, String> tokenByUserId = new HashMap<>();
-        if (activeTokens == null || activeTokens.isEmpty()) {
-            return tokenByUserId;
-        }
-
-        String prefix = eventId + ":";
-        for (String token : activeTokens) {
-            String value = redisTemplate.opsForValue().get(tokenKey(token));
-            if (value != null && value.startsWith(prefix)) {
-                tokenByUserId.put(value.substring(prefix.length()), token);
+        for (String userId : userIds) {
+            String token = redisTemplate.opsForValue().get(activeUserKey(eventId, userId));
+            if (isActiveTokenValid(eventId, userId, token)) {
+                tokenByUserId.put(userId, token);
             }
         }
         return tokenByUserId;
     }
 
-    private QueueStatusResponse statusWithoutPrune(Long eventId, String userId) {
+    /**
+     * 사용자가 waiting queue에 없으면 현재 시각 score로 등록한다.
+     * 이미 대기 중이면 기존 rank를 유지하기 위해 score를 갱신하지 않는다.
+     */
+    private void ensureWaiting(Long eventId, String userId) {
         Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
         if (rank == null) {
             redisTemplate.opsForZSet().add(waitingKey(eventId), userId, nowMillis());
-            rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
         }
+    }
 
-        long activeCount = activeCount(eventId);
-        long availableSlots = Math.max(0L, properties.admissionSize() - activeCount);
-
-        if (rank != null && rank < availableSlots) {
-            String token = admit(eventId, userId);
-            return readyStatusResponse(eventId, token);
-        }
-
+    /**
+     * waiting queue의 현재 rank와 전체 대기 수를 기준으로 WAITING 응답 DTO를 만든다.
+     */
+    private QueueStatusResponse waitingStatusResponse(Long eventId, String userId) {
+        Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), userId);
         return new QueueStatusResponse(
                 eventId,
                 STATUS_WAITING,
@@ -223,7 +264,7 @@ public class QueueService {
 
     /**
      * active ZSet에 남아 있는 만료 토큰을 제거한다.
-     * 토큰 key 자체는 TTL로 사라지지만, ZSet 멤버는 별도로 제거해야 한다.
+     * token key와 active-user 역방향 키도 함께 정리한다.
      */
     private void pruneExpiredActiveTokens(Long eventId) {
         String key = activeKey(eventId);
@@ -234,52 +275,69 @@ public class QueueService {
 
         redisTemplate.opsForZSet().removeRangeByScore(key, 0, nowMillis());
         for (String token : expiredTokens) {
+            String tokenValue = redisTemplate.opsForValue().get(tokenKey(token));
             redisTemplate.delete(tokenKey(token));
+            deleteActiveUserKey(tokenValue);
         }
     }
 
     /**
-     * 현재 입장 토큰을 발급받은 사용자 수를 조회한다.
+     * token value(eventId:userId)를 파싱해 active-user 역방향 키를 제거한다.
      */
-    private long activeCount(Long eventId) {
-        Long count = redisTemplate.opsForZSet().zCard(activeKey(eventId));
-        return count == null ? 0 : count;
+    private void deleteActiveUserKey(String tokenValue) {
+        if (!StringUtils.hasText(tokenValue)) {
+            return;
+        }
+
+        String[] parts = tokenValue.split(":", 2);
+        if (parts.length != 2) {
+            return;
+        }
+
+        redisTemplate.delete(activeUserKey(Long.valueOf(parts[0]), parts[1]));
     }
 
     /**
-     * 인증 필터에서 전달된 사용자 ID가 있는지 검증한다.
+     * 인증 필터에서 전달된 사용자 ID가 비어 있지 않은지 확인한다.
      */
     private void validateUserId(String userId) {
         if (!StringUtils.hasText(userId)) {
-            throw new IllegalArgumentException("인증 정보가 올바르지 않습니다.");
+            throw new IllegalArgumentException("Invalid user id.");
         }
     }
 
     /**
-     * Redis sorted set score에 사용할 현재 시각을 millisecond로 반환한다.
+     * Redis ZSet score와 token 만료 계산에 사용할 현재 epoch millisecond를 반환한다.
      */
     private long nowMillis() {
         return Instant.now().toEpochMilli();
     }
 
     /**
-     * 공연별 대기 사용자 sorted set key. score는 대기열 진입 시각이다.
+     * 이벤트별 waiting queue ZSet key를 만든다.
      */
     private String waitingKey(Long eventId) {
         return "queue:event:" + eventId + ":waiting";
     }
 
     /**
-     * 공연별 입장 토큰 sorted set key. score는 토큰 만료 시각이다.
+     * 이벤트별 active token ZSet key를 만든다.
      */
     private String activeKey(Long eventId) {
         return "queue:event:" + eventId + ":active";
     }
 
     /**
-     * 토큰 문자열로 eventId:userId 값을 찾는 key.
+     * token 문자열로 token value(eventId:userId)를 찾는 key를 만든다.
      */
     private String tokenKey(String token) {
         return "queue:token:" + token;
+    }
+
+    /**
+     * 이벤트와 사용자 기준으로 active token을 직접 조회하는 역방향 key를 만든다.
+     */
+    private String activeUserKey(Long eventId, String userId) {
+        return "queue:active-user:" + eventId + ":" + userId;
     }
 }

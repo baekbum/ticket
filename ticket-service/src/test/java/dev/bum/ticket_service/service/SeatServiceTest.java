@@ -62,17 +62,6 @@ class SeatServiceTest {
     }
 
     @Test
-    @DisplayName("이벤트 기준 좌석 수 조회")
-    void count_by_event_id() {
-        given(repository.countByEventId(1L)).willReturn(4L);
-
-        long count = seatService.countByEventId(1L);
-
-        assertThat(count).isEqualTo(4L);
-        then(repository).should().countByEventId(1L);
-    }
-
-    @Test
     @DisplayName("ID로 좌석 조회")
     void select_by_id() {
         Seat seat = seat(1L, "VIP", 1, 1);

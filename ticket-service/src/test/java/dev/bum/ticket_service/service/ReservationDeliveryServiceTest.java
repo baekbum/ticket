@@ -41,63 +41,6 @@ class ReservationDeliveryServiceTest {
     private ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
 
     @Test
-    @DisplayName("관리자는 예약 배송 스냅샷을 등록한다")
-    void insert() {
-        Reservation reservation = reservation(1L, "user01");
-        ReservationDeliveryRequest info = deliveryRequest();
-        given(reservationRepository.selectById(1L)).willReturn(reservation);
-        given(reservationDeliveryJpaRepository.existsByReservation(reservation)).willReturn(false);
-        given(reservationDeliveryJpaRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-
-        ReservationDeliveryResponse response = reservationDeliveryService.insert(1L, info);
-
-        assertThat(response.getReservationId()).isEqualTo(1L);
-        assertThat(response.getRecipientName()).isEqualTo("receiver");
-        assertThat(response.getStatus()).isEqualTo(ReservationDeliveryStatus.READY);
-        then(reservationDeliveryJpaRepository).should().save(any(ReservationDelivery.class));
-    }
-
-    @Test
-    @DisplayName("사용자는 본인 예약 배송 스냅샷을 등록한다")
-    void insert_my_delivery() {
-        Reservation reservation = reservation(1L, "user01");
-        ReservationDeliveryRequest info = deliveryRequest();
-        given(reservationRepository.selectById(1L)).willReturn(reservation);
-        given(reservationDeliveryJpaRepository.existsByReservation(reservation)).willReturn(false);
-        given(reservationDeliveryJpaRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-
-        ReservationDeliveryResponse response = reservationDeliveryService.insertMyDelivery("user01", 1L, info);
-
-        assertThat(response.getRecipientName()).isEqualTo("receiver");
-        then(reservationDeliveryJpaRepository).should().save(any(ReservationDelivery.class));
-    }
-
-    @Test
-    @DisplayName("다른 사용자 예약 배송 스냅샷은 등록할 수 없다")
-    void insert_my_delivery_forbidden() {
-        Reservation reservation = reservation(1L, "other-user");
-        given(reservationRepository.selectById(1L)).willReturn(reservation);
-
-        assertThatThrownBy(() -> reservationDeliveryService.insertMyDelivery("user01", 1L, deliveryRequest()))
-                .isInstanceOf(AccessDeniedException.class);
-
-        then(reservationDeliveryJpaRepository).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("이미 등록된 예약 배송 스냅샷은 중복 등록할 수 없다")
-    void insert_duplicate_fail() {
-        Reservation reservation = reservation(1L, "user01");
-        given(reservationRepository.selectById(1L)).willReturn(reservation);
-        given(reservationDeliveryJpaRepository.existsByReservation(reservation)).willReturn(true);
-
-        assertThatThrownBy(() -> reservationDeliveryService.insert(1L, deliveryRequest()))
-                .isInstanceOf(IllegalArgumentException.class);
-
-        then(reservationDeliveryJpaRepository).should().existsByReservation(reservation);
-    }
-
-    @Test
     @DisplayName("배송 ID로 배송 스냅샷을 조회한다")
     void select_by_id() {
         ReservationDelivery delivery = new ReservationDelivery(reservation(1L, "user01"), deliveryRequest());

@@ -127,41 +127,6 @@ class UserRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("유저 전체 조회")
-    void select_all() throws Exception {
-        InsertUserRequest user01 = InsertUserRequest.builder()
-                .userId("user01")
-                .password("user1234!")
-                .name("유저01")
-                .phoneNumber("010-2222-1111")
-                .email("user01@test.com")
-                .birthDate(LocalDate.of(2000, 1, 1))
-                .address("주소 없음")
-                .build();
-
-        InsertUserRequest user02 = InsertUserRequest.builder()
-                .userId("user02")
-                .password("user1234!")
-                .name("유저02")
-                .phoneNumber("010-3333-1111")
-                .email("user02@test.com")
-                .birthDate(LocalDate.of(2000, 1, 1))
-                .address("주소 없음")
-                .build();
-
-        userRepository.insert(user01);
-        userRepository.insert(user02);
-
-        UserCondRequest cond = UserCondRequest.builder().build();
-
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize());
-
-        Page<User> response = userRepository.selectAll(pageable);
-
-        assertThat(response.getTotalElements()).isEqualTo(4);
-    }
-
-    @Test
     @DisplayName("ID로 유저 검색")
     void select_by_id() throws Exception {
         String userId = "IU";

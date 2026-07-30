@@ -177,21 +177,6 @@ class UserAddressRepositoryImplTest {
         assertThat(response.getDefaultAddress()).isFalse();
     }
 
-    @Test
-    @DisplayName("사용자의 기본 배송지 해제")
-    void unset_default_addresses() {
-        UserAddress saved = userAddressRepository.insert("user01", insertRequest("home", true));
-        entityManager.flush();
-        entityManager.clear();
-
-        userAddressRepository.unsetDefaultAddresses("user01");
-        entityManager.flush();
-        entityManager.clear();
-
-        UserAddress response = userAddressRepository.selectById(saved.getAddressId());
-        assertThat(response.getDefaultAddress()).isFalse();
-    }
-
     private InsertUserAddressRequest insertRequest(String alias, Boolean defaultAddress) {
         return InsertUserAddressRequest.builder()
                 .alias(alias)

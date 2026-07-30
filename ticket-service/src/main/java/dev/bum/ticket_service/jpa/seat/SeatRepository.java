@@ -12,7 +12,6 @@ import java.util.List;
 public interface SeatRepository {
     void insert(InsertSeatRequest info);
     void isExist(SeatCondRequest cond);
-    long countByEventId(Long eventId);
     Seat selectById(Long id);
     List<Seat> selectByEventId(Long eventId);
     List<Seat> selectByAreaId(Long areaId);
