@@ -30,6 +30,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -235,6 +237,37 @@ class PaymentServiceTest {
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         then(ticketRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("카드 결제 승인 후 큐 토큰 회수는 트랜잭션 커밋 이후에 실행된다")
+    void approve_card_payment_releases_queue_token_after_commit() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            Event event = event();
+            Reservation reservation = reservation(event, "user01");
+            Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+            Seat seat = seat(event);
+            Ticket ticket = ticket(event, reservation, seat);
+            CardPaymentApproveRequest request = cardRequest();
+
+            given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+            given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
+            given(mockCardAuthorizationService.approve(request)).willReturn(true);
+
+            paymentService.approveCard("user01", "queue-token", request);
+
+            then(queueAccessService).should().validate(1L, "user01", "queue-token");
+            then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
+
+            List<TransactionSynchronization> synchronizations =
+                    TransactionSynchronizationManager.getSynchronizations();
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+            then(queueAccessService).should().complete(1L, "user01", "queue-token");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private CardPaymentApproveRequest cardRequest() {
