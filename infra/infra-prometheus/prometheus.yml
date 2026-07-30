@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: ticket-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - auth-service:8080
+          - user-service:8080
+          - ticket-service:8080
+          - queue-service:8080
+          - audit-service:8080
+        labels:
+          group: application
+
+  - job_name: admin-service
+    metrics_path: /admin/actuator/prometheus
+    static_configs:
+      - targets:
+          - admin-service:8999
+        labels:
+          group: application
+
+  - job_name: view-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - view-service:3000
+        labels:
+          group: frontend
