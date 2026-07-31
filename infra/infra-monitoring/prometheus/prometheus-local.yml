@@ -56,13 +56,13 @@ scrape_configs:
         labels:
           application: admin-service
 
-  - job_name: local-view-service
-    metrics_path: /actuator/prometheus
+  - job_name: local-client-service
+    metrics_path: /health
     static_configs:
       - targets:
           - host.docker.internal:3000
         labels:
-          application: view-service
+          application: client-service
 
   - job_name: local-postgresql
     static_configs:
