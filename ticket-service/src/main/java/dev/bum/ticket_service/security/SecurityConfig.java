@@ -50,6 +50,7 @@ public class SecurityConfig {
                         // 1. 공통 인프라 통로 개방
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
 
                         // 2. 관리자용 통로
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")

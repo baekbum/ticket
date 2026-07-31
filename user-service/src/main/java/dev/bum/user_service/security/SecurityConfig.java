@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. 공통 인프라 통로 개방
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
 
                         // 2. 비로그인 유저(전체) 허용: 로그인, 회원가입, 중복 검사
                         .requestMatchers("/api/*/check/duplication/**").permitAll()

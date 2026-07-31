@@ -60,6 +60,7 @@ public class SecurityConfig {
 
                         // 정적 리소스(CSS, JS)가 시큐리티에 막혀 화면이 깨지는 것을 방지
                         .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

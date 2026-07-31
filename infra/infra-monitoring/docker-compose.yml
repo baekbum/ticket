@@ -1,0 +1,116 @@
+name: ticket-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    depends_on:
+      - auth-postgres-exporter
+      - user-postgres-exporter
+      - ticket-postgres-exporter
+      - refresh-redis-exporter
+      - seat-redis-exporter
+      - queue-redis-exporter
+      - cadvisor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  auth-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://auth_user:auth_pass@auth-db:5432/auth_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  user-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://user_user:user_pass@user-db:5432/user_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  ticket-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://ticket_user:ticket_pass@ticket-db:5432/ticket_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  refresh-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://refresh-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  seat-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://seat-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  queue-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://queue-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    ports:
+      - "8088:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    depends_on:
+      - prometheus
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - PROMETHEUS_URL=http://prometheus:9090
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+networks:
+  ticket-network:
+    external: true
+
+volumes:
+  prometheus_data:
+  grafana_data:
