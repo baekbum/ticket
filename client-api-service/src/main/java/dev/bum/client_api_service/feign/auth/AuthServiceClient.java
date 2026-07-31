@@ -1,0 +1,21 @@
+package dev.bum.client_api_service.feign.auth;
+
+import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.service.auth.dto.LoginRequest;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+
+@FeignClient(name = "client-auth-service", url = "${services.auth-service.url}", path = "/api/v1")
+public interface AuthServiceClient {
+
+    @PostMapping("/login")
+    TokenResponse login(@RequestBody LoginRequest request);
+
+    @PostMapping("/reissue")
+    TokenResponse reissue(@RequestHeader("Authorization-Refresh") String refreshHeader);
+
+    @PostMapping("/logout")
+    void logout(@RequestHeader("Authorization-Refresh") String refreshHeader);
+}
