@@ -21,6 +21,8 @@ public class InsertEventRequest {
     @NotBlank
     private String title;
 
+    private String eventGroupCode;
+
     private String description;
 
     @NotBlank

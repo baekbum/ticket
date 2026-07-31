@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class UpdateEventRequest {
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String description;
     private String venue;
     private String venueAddress;

@@ -19,6 +19,7 @@ public class EventCondRequest {
     private Long eventId;
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String venue;
     private String venueAddress;
     private String posterUrl;
@@ -64,6 +65,7 @@ public class EventCondRequest {
         if (eventId != null) sj.add("eventId=" + eventId);
         if (artistName != null) sj.add("artistName='" + artistName + "'");
         if (title != null) sj.add("title='" + title + "'");
+        if (eventGroupCode != null) sj.add("eventGroupCode='" + eventGroupCode + "'");
         if (venue != null) sj.add("venue='" + venue + "'");
         if (venueAddress != null) sj.add("venueAddress='" + venueAddress + "'");
         if (posterUrl != null) sj.add("posterUrl='" + posterUrl + "'");

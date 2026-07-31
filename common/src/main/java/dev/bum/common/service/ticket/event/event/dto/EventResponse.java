@@ -18,6 +18,7 @@ public class EventResponse {
     private Long eventId;
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String description;
     private String venue;
     private String venueAddress;

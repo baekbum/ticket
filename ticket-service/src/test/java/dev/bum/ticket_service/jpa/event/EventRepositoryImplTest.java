@@ -169,6 +169,22 @@ class EventRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("洹몃９ 肄붾뱶濡?媛숈? 怨듭뿰 ?뚯감 議고쉶")
+    void event_select_by_group_code() {
+        Event saved = jpaRepository.save(event("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 19, 17, 0)));
+        EventCondRequest cond = EventCondRequest.builder()
+                .eventGroupCode(saved.getEventGroupCode())
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getContent())
+                .extracting(Event::getEventGroupCode)
+                .containsOnly(saved.getEventGroupCode());
+    }
+
+    @Test
     @DisplayName("이벤트 정보 수정")
     void event_update() {
         Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
@@ -205,6 +221,7 @@ class EventRepositoryImplTest {
         return Event.builder()
                 .artistName(artistName)
                 .title(title)
+                .eventGroupCode("GROUP-" + artistName + "-" + title + "-" + venue)
                 .description(title + " description")
                 .venue(venue)
                 .venueAddress("Seoul")
@@ -228,6 +245,7 @@ class EventRepositoryImplTest {
         return InsertEventRequest.builder()
                 .artistName(artistName)
                 .title(title)
+                .eventGroupCode("GROUP-" + artistName + "-" + title + "-" + venue)
                 .description(title + " description")
                 .venue(venue)
                 .venueAddress("Seoul")

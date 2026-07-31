@@ -149,6 +149,10 @@ public class EventRepositoryImpl implements EventRepository {
         return StringUtils.hasText(title) ? event.title.like("%" + title + "%") : null;
     }
 
+    private BooleanExpression eventGroupCodeEq(String eventGroupCode) {
+        return StringUtils.hasText(eventGroupCode) ? event.eventGroupCode.eq(eventGroupCode) : null;
+    }
+
     private BooleanExpression venueLike(String venue) {
         return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
     }
@@ -261,6 +265,7 @@ public class EventRepositoryImpl implements EventRepository {
                 eventIdEq(cond.getEventId()),
                 artistNameLike(cond.getArtistName()),
                 titleLike(cond.getTitle()),
+                eventGroupCodeEq(cond.getEventGroupCode()),
                 venueLike(cond.getVenue()),
                 venueAddressLike(cond.getVenueAddress()),
                 posterUrlLike(cond.getPosterUrl()),

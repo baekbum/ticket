@@ -36,6 +36,8 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final DateTimePath<java.time.LocalDateTime> eventDateTime = createDateTime("eventDateTime", java.time.LocalDateTime.class);
 
+    public final StringPath eventGroupCode = createString("eventGroupCode");
+
     public final NumberPath<Long> eventId = createNumber("eventId", Long.class);
 
     public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventGenre> genre = createEnum("genre", dev.bum.common.service.ticket.event.event.enums.EventGenre.class);

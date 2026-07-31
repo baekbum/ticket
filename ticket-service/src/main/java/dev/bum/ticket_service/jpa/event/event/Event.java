@@ -42,6 +42,10 @@ public class Event {
     @Column(nullable = false, length = 100)
     private String title;
 
+    @Column(nullable = false, length = 100)
+    @Builder.Default
+    private String eventGroupCode = "DEFAULT_EVENT_GROUP";
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -116,6 +120,7 @@ public class Event {
                 .eventId(this.eventId)
                 .artistName(this.artistName)
                 .title(this.title)
+                .eventGroupCode(this.eventGroupCode)
                 .description(this.description)
                 .venue(this.venue)
                 .venueAddress(this.venueAddress)
@@ -140,6 +145,9 @@ public class Event {
     public Event(InsertEventRequest info) {
         this.artistName = info.getArtistName();
         this.title = info.getTitle();
+        this.eventGroupCode = StringUtils.hasText(info.getEventGroupCode())
+                ? info.getEventGroupCode()
+                : createDefaultEventGroupCode(info);
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         this.venue = info.getVenue();
         if (StringUtils.hasText(info.getVenueAddress())) this.venueAddress = info.getVenueAddress();
@@ -165,6 +173,7 @@ public class Event {
     public void update(UpdateEventRequest info) {
         if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName();
         if (StringUtils.hasText(info.getTitle())) this.title = info.getTitle();
+        if (StringUtils.hasText(info.getEventGroupCode())) this.eventGroupCode = info.getEventGroupCode();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         if (StringUtils.hasText(info.getVenue())) this.venue = info.getVenue();
         if (StringUtils.hasText(info.getVenueAddress())) this.venueAddress = info.getVenueAddress();
@@ -186,5 +195,10 @@ public class Event {
 
     public void updatePosterUrl(String posterUrl) {
         if (StringUtils.hasText(posterUrl)) this.posterUrl = posterUrl;
+    }
+
+    private String createDefaultEventGroupCode(InsertEventRequest info) {
+        String source = String.join("|", info.getArtistName(), info.getTitle(), info.getVenue());
+        return "EVENT-" + Integer.toHexString(source.hashCode()).toUpperCase();
     }
 }
