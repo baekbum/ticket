@@ -63,3 +63,30 @@ scrape_configs:
           - host.docker.internal:3000
         labels:
           application: view-service
+
+  - job_name: local-postgresql
+    static_configs:
+      - targets:
+          - local-postgres-exporter:9187
+        labels:
+          database: local-postgres
+
+  - job_name: local-redis
+    static_configs:
+      - targets:
+          - refresh-redis-exporter:9121
+        labels:
+          redis: refresh-redis
+      - targets:
+          - seat-redis-exporter:9121
+        labels:
+          redis: seat-redis
+      - targets:
+          - queue-redis-exporter:9121
+        labels:
+          redis: queue-redis
+
+  - job_name: local-cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080

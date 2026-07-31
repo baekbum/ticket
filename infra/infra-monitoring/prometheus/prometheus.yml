@@ -54,3 +54,38 @@ scrape_configs:
         labels:
           application: view-service
           group: frontend
+
+  - job_name: postgresql
+    static_configs:
+      - targets:
+          - auth-postgres-exporter:9187
+        labels:
+          database: auth-db
+      - targets:
+          - user-postgres-exporter:9187
+        labels:
+          database: user-db
+      - targets:
+          - ticket-postgres-exporter:9187
+        labels:
+          database: ticket-db
+
+  - job_name: redis
+    static_configs:
+      - targets:
+          - refresh-redis-exporter:9121
+        labels:
+          redis: refresh-redis
+      - targets:
+          - seat-redis-exporter:9121
+        labels:
+          redis: seat-redis
+      - targets:
+          - queue-redis-exporter:9121
+        labels:
+          redis: queue-redis
+
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080

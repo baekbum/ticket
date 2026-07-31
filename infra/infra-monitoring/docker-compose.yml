@@ -3,6 +3,14 @@ name: ticket-monitoring
 services:
   prometheus:
     image: prom/prometheus:v2.55.1
+    depends_on:
+      - auth-postgres-exporter
+      - user-postgres-exporter
+      - ticket-postgres-exporter
+      - refresh-redis-exporter
+      - seat-redis-exporter
+      - queue-redis-exporter
+      - cadvisor
     ports:
       - "9090:9090"
     volumes:
@@ -12,6 +20,67 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  auth-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://auth_user:auth_pass@auth-db:5432/auth_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  user-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://user_user:user_pass@user-db:5432/user_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  ticket-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_NAME=postgresql://ticket_user:ticket_pass@ticket-db:5432/ticket_db?sslmode=disable
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  refresh-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://refresh-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  seat-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://seat-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  queue-redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    command:
+      - --redis.addr=redis://queue-redis:6379
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    ports:
+      - "8088:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - ticket-network
     restart: unless-stopped

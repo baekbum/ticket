@@ -26,6 +26,22 @@ Prometheus는 Docker 컨테이너로 실행되지만, 수집 대상은 호스트
 - `audit-service`: `host.docker.internal:8084/audit/actuator/prometheus`
 - `admin-service`: `host.docker.internal:8999/admin/actuator/prometheus`
 - `view-service`: `host.docker.internal:3000/actuator/prometheus`
+- `local-postgres`: `host.docker.internal:5432` 대상 `local-postgres-exporter`
+- `refresh-redis`: `host.docker.internal:6379` 대상 `refresh-redis-exporter`
+- `seat-redis`: `host.docker.internal:6380` 대상 `seat-redis-exporter`
+- `queue-redis`: `host.docker.internal:6381` 대상 `queue-redis-exporter`
+- `Docker`: `cadvisor:8080`
+
+로컬 PostgreSQL은 기본적으로 단일 DB 컨테이너를 사용합니다.
+
+```yaml
+LOCAL_POSTGRES_USER: postgres
+LOCAL_POSTGRES_PASSWORD: hsck2301
+LOCAL_POSTGRES_PORT: 5432
+LOCAL_POSTGRES_DB: msa
+```
+
+서버/컨테이너 모드는 서비스별 DB를 분리해서 수집합니다.
 
 ## Docker 컨테이너 서비스 모드
 
@@ -52,6 +68,13 @@ Prometheus는 `ticket-network` 내부 서비스명으로 수집합니다.
 - `audit-service:8080/actuator/prometheus`
 - `admin-service:8999/admin/actuator/prometheus`
 - `view-service:3000/actuator/prometheus`
+- `auth-db:5432` 대상 `auth-postgres-exporter`
+- `user-db:5432` 대상 `user-postgres-exporter`
+- `ticket-db:5432` 대상 `ticket-postgres-exporter`
+- `refresh-redis:6379` 대상 `refresh-redis-exporter`
+- `seat-redis:6379` 대상 `seat-redis-exporter`
+- `queue-redis:6379` 대상 `queue-redis-exporter`
+- `Docker`: `cadvisor:8080`
 
 ## 접속 정보
 
@@ -74,9 +97,17 @@ Password: admin
 
 - Prometheus datasource: `grafana/provisioning/datasources/prometheus.yml`
 - Dashboard provider: `grafana/provisioning/dashboards/dashboards.yml`
-- 기본 대시보드: `grafana/dashboards/spring-services-overview.json`
+- Spring Boot / JVM 대시보드: `grafana/dashboards/spring-services-overview.json`
+- PostgreSQL 대시보드: `grafana/dashboards/postgresql-overview.json`
+- Redis 대시보드: `grafana/dashboards/redis-overview.json`
+- Docker/cAdvisor 대시보드: `grafana/dashboards/docker-cadvisor-overview.json`
 
-기본 대시보드 이름은 `Ticket Spring Services Overview`입니다.
+기본 대시보드 이름은 아래와 같습니다.
+
+- `Ticket Spring Services Overview`
+- `Ticket PostgreSQL Overview`
+- `Ticket Redis Overview`
+- `Ticket Docker cAdvisor Overview`
 
 대시보드 상단에는 아래 변수를 제공합니다.
 
@@ -123,7 +154,9 @@ Grafana를 새 창으로 열 수 있도록 compose에 아래 설정을 넣어두
 
 카드를 클릭하면 각 Grafana 대시보드 URL이 새 창으로 열립니다. Spring Boot / JVM은 현재 기본 대시보드인 `Ticket Spring Services Overview`로 연결됩니다.
 
-PostgreSQL, Redis, Docker/cAdvisor, Nginx 카드는 기본적으로 Grafana 대시보드 검색 화면으로 연결됩니다. 실제 데이터 대시보드로 바로 열려면 exporter와 dashboard JSON을 추가한 뒤 아래 환경변수로 URL을 지정합니다.
+PostgreSQL, Redis, Docker/cAdvisor 카드는 이 패키지에서 provisioning하는 대시보드로 바로 연결됩니다.
+
+Nginx 카드는 아직 Nginx exporter와 대시보드가 없으므로 Grafana 검색 화면으로 연결됩니다. 실제 데이터 대시보드로 바로 열려면 Nginx exporter와 dashboard JSON을 추가한 뒤 `APP_MONITORING_NGINX_DASHBOARD_URL`을 지정합니다.
 
 ```yaml
 app:
@@ -131,8 +164,8 @@ app:
     grafana-dashboard-url: ${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}
     dashboards:
       spring-boot-jvm-url: ${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}
-      postgresql-url: ${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/dashboards?query=PostgreSQL}
-      redis-url: ${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/dashboards?query=Redis}
-      docker-url: ${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/dashboards?query=cAdvisor}
+      postgresql-url: ${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk}
+      redis-url: ${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk}
+      docker-url: ${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/d/ticket-docker-cadvisor-overview/ticket-docker-cadvisor-overview?orgId=1&refresh=10s&kiosk}
       nginx-url: ${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}
 ```
