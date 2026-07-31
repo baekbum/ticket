@@ -1,0 +1,14 @@
+services:
+  client-service:
+    build:
+      context: ..
+      dockerfile: client-service/Dockerfile
+    container_name: client-service
+    ports:
+      - "3000:3000"
+    networks:
+      - ticket-network
+
+networks:
+  ticket-network:
+    external: true

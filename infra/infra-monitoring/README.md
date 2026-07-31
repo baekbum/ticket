@@ -5,7 +5,7 @@ Prometheus와 Grafana를 함께 실행하는 모니터링 패키지입니다.
 - Prometheus: 각 서비스의 `/actuator/prometheus` 메트릭 수집
 - Grafana: Prometheus를 datasource로 사용해 대시보드 표시
 
-`view-service`가 로컬 `3000` 포트를 사용하므로 Grafana는 호스트 `3001` 포트로 엽니다.
+`client-service`가 로컬 `3000` 포트를 사용하므로 Grafana는 호스트 `3001` 포트로 엽니다.
 
 ## 로컬 서비스 모드
 
@@ -25,7 +25,7 @@ Prometheus는 Docker 컨테이너로 실행되지만, 수집 대상은 호스트
 - `queue-service`: `host.docker.internal:8083/queue/actuator/prometheus`
 - `audit-service`: `host.docker.internal:8084/audit/actuator/prometheus`
 - `admin-service`: `host.docker.internal:8999/admin/actuator/prometheus`
-- `view-service`: `host.docker.internal:3000/actuator/prometheus`
+- `client-service`: `host.docker.internal:3000/health`
 - `local-postgres`: `host.docker.internal:5432` 대상 `local-postgres-exporter`
 - `refresh-redis`: `host.docker.internal:6379` 대상 `refresh-redis-exporter`
 - `seat-redis`: `host.docker.internal:6380` 대상 `seat-redis-exporter`
@@ -67,7 +67,7 @@ Prometheus는 `ticket-network` 내부 서비스명으로 수집합니다.
 - `queue-service:8080/actuator/prometheus`
 - `audit-service:8080/actuator/prometheus`
 - `admin-service:8999/admin/actuator/prometheus`
-- `view-service:3000/actuator/prometheus`
+- `client-service:3000/health`
 - `auth-db:5432` 대상 `auth-postgres-exporter`
 - `user-db:5432` 대상 `user-postgres-exporter`
 - `ticket-db:5432` 대상 `ticket-postgres-exporter`

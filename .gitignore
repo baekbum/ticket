@@ -45,6 +45,3 @@ ticket-service/uploads/
 ### Temporary files ###
 tmp/
 output/
-
-### Local modules ###
-view-service/
