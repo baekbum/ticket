@@ -14,7 +14,10 @@ INSERT INTO events (
     total_seats,
     available_seats,
     status,
-    max_tickets_per_person
+    max_tickets_per_person,
+    genre,
+    region,
+    theme
 ) VALUES (
     '아이유',
     '2026 IU CONCERT - HEREH WORLD TOUR ENCORE',
@@ -31,5 +34,8 @@ INSERT INTO events (
     15000,
     15000,
     'ON_SALE',
-    1
+    1,
+    'CONCERT',
+    'SEOUL',
+    'IDOL'
 );

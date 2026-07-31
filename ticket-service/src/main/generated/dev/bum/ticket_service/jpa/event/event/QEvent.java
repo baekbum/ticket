@@ -38,9 +38,13 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final NumberPath<Long> eventId = createNumber("eventId", Long.class);
 
+    public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventGenre> genre = createEnum("genre", dev.bum.common.service.ticket.event.event.enums.EventGenre.class);
+
     public final NumberPath<Integer> maxTicketsPerPerson = createNumber("maxTicketsPerPerson", Integer.class);
 
     public final StringPath posterUrl = createString("posterUrl");
+
+    public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventRegion> region = createEnum("region", dev.bum.common.service.ticket.event.event.enums.EventRegion.class);
 
     public final NumberPath<Integer> runningMinutes = createNumber("runningMinutes", Integer.class);
 
@@ -51,6 +55,8 @@ public class QEvent extends EntityPathBase<Event> {
     public final ListPath<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat> seats = this.<dev.bum.ticket_service.jpa.seat.Seat, dev.bum.ticket_service.jpa.seat.QSeat>createList("seats", dev.bum.ticket_service.jpa.seat.Seat.class, dev.bum.ticket_service.jpa.seat.QSeat.class, PathInits.DIRECT2);
 
     public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventStatus> status = createEnum("status", dev.bum.common.service.ticket.event.event.enums.EventStatus.class);
+
+    public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventTheme> theme = createEnum("theme", dev.bum.common.service.ticket.event.event.enums.EventTheme.class);
 
     public final StringPath title = createString("title");
 

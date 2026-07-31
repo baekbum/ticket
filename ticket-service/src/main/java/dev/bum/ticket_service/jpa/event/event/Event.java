@@ -1,7 +1,10 @@
 package dev.bum.ticket_service.jpa.event.event;
 
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
@@ -76,6 +79,21 @@ public class Event {
     @Column(nullable = false)
     private Integer maxTicketsPerPerson;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventGenre genre = EventGenre.CONCERT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventRegion region = EventRegion.SEOUL;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventTheme theme = EventTheme.IDOL;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -112,6 +130,9 @@ public class Event {
                 .availableSeats(this.availableSeats)
                 .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
                 .maxTicketsPerPerson(this.maxTicketsPerPerson)
+                .genre(this.genre)
+                .region(this.region)
+                .theme(this.theme)
                 .build();
     }
 
@@ -133,6 +154,9 @@ public class Event {
         this.availableSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
+        this.genre = info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT;
+        this.region = info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL;
+        this.theme = info.getTheme() != null ? info.getTheme() : EventTheme.IDOL;
         this.seats = new ArrayList<>();
         this.areas = new ArrayList<>();
     }
@@ -155,6 +179,9 @@ public class Event {
         if (info.getAvailableSeats() != null) this.availableSeats = info.getAvailableSeats();
         if (info.getStatus() != null) this.status = info.getStatus();
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
+        if (info.getGenre() != null) this.genre = info.getGenre();
+        if (info.getRegion() != null) this.region = info.getRegion();
+        if (info.getTheme() != null) this.theme = info.getTheme();
     }
 
     public void updatePosterUrl(String posterUrl) {

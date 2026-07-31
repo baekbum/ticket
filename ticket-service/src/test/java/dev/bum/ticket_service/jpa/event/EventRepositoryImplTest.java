@@ -3,7 +3,10 @@ package dev.bum.ticket_service.jpa.event;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
@@ -149,6 +152,23 @@ class EventRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("遺꾨쪟 議곌굔?쇰줈 ?대깽??議고쉶")
+    void event_select_by_category_cond() {
+        EventCondRequest cond = EventCondRequest.builder()
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getContent())
+                .extracting(Event::getGenre)
+                .containsOnly(EventGenre.CONCERT);
+    }
+
+    @Test
     @DisplayName("이벤트 정보 수정")
     void event_update() {
         Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
@@ -198,6 +218,9 @@ class EventRepositoryImplTest {
                 .availableSeats(30000)
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 
@@ -216,6 +239,9 @@ class EventRepositoryImplTest {
                 .ageLimit(12)
                 .totalSeats(30000)
                 .maxTicketsPerPerson(4)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 }
