@@ -82,7 +82,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         int totalTicketAmount = calculateTotalTicketAmount(seats);
         DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, reservation, totalTicketAmount);
 
-        // 5. 검증이 끝난 좌석들의 상태를 RESERVED로 변경하고 티켓 생성
+        // 5. 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 결제 대기 티켓 생성
         for (Seat seat : seats) {
             seat.lock();
 

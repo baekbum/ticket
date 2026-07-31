@@ -30,6 +30,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -76,7 +78,7 @@ class PaymentServiceTest {
         Ticket ticket = ticket(event, reservation, seat);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
         given(mockCardAuthorizationService.approve(request)).willReturn(true);
 
@@ -89,6 +91,7 @@ class PaymentServiceTest {
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(queueAccessService).should().complete(1L, "user01", "queue-token");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
@@ -99,7 +102,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.approveCard("other-user", "queue-token", request))
                 .isInstanceOf(AccessDeniedException.class)
@@ -118,7 +121,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         CardPaymentApproveRequest request = cardRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockCardAuthorizationService.approve(request)).willReturn(false);
 
         assertThatThrownBy(() -> paymentService.approveCard("user01", "queue-token", request))
@@ -143,7 +146,7 @@ class PaymentServiceTest {
                         LocalDateTime.of(2026, 7, 27, 23, 59, 59)
                 );
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockVirtualAccountIssueService.issue("KB")).willReturn(virtualAccount);
 
         PaymentResponse response = paymentService.issueVirtualAccount("user01", "queue-token", request);
@@ -155,6 +158,7 @@ class PaymentServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(queueAccessService).should().complete(1L, "user01", "queue-token");
         then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
     }
 
@@ -165,7 +169,7 @@ class PaymentServiceTest {
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         VirtualAccountIssueRequest request = virtualAccountRequest();
 
-        given(paymentJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.issueVirtualAccount("user01", "queue-token", request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -186,7 +190,7 @@ class PaymentServiceTest {
         Ticket ticket = ticket(event, reservation, seat);
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(180000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
         given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
 
         PaymentResponse response = paymentService.depositVirtualAccount(request);
@@ -208,7 +212,7 @@ class PaymentServiceTest {
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(170000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.depositVirtualAccount(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -225,7 +229,7 @@ class PaymentServiceTest {
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2020, 1, 1, 23, 59, 59));
         VirtualAccountDepositRequest request = virtualAccountDepositRequest(180000);
 
-        given(paymentJpaRepository.findByAccountNumber(request.getAccountNumber())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())).willReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.depositVirtualAccount(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -233,6 +237,37 @@ class PaymentServiceTest {
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         then(ticketRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("카드 결제 승인 후 큐 토큰 회수는 트랜잭션 커밋 이후에 실행된다")
+    void approve_card_payment_releases_queue_token_after_commit() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            Event event = event();
+            Reservation reservation = reservation(event, "user01");
+            Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+            Seat seat = seat(event);
+            Ticket ticket = ticket(event, reservation, seat);
+            CardPaymentApproveRequest request = cardRequest();
+
+            given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+            given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
+            given(mockCardAuthorizationService.approve(request)).willReturn(true);
+
+            paymentService.approveCard("user01", "queue-token", request);
+
+            then(queueAccessService).should().validate(1L, "user01", "queue-token");
+            then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
+
+            List<TransactionSynchronization> synchronizations =
+                    TransactionSynchronizationManager.getSynchronizations();
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+            then(queueAccessService).should().complete(1L, "user01", "queue-token");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private CardPaymentApproveRequest cardRequest() {

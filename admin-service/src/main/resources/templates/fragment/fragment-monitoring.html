@@ -1,0 +1,42 @@
+<link rel="stylesheet" th:href="@{/css/monitoring/fragment-monitoring.css}">
+
+<section class="monitoring-page">
+  <div class="monitoring-header">
+    <div>
+      <p class="monitoring-kicker">Grafana Dashboard</p>
+      <h2>모니터링</h2>
+      <p>카드를 선택하면 Grafana 대시보드가 새 창으로 열립니다.</p>
+    </div>
+  </div>
+
+  <div class="monitoring-grid">
+    <button
+        class="monitoring-card"
+        th:each="card : ${monitoringDashboardCards}"
+        th:data-url="${card.url}"
+        th:aria-label="${card.title + ' 대시보드 새 창 열기'}"
+        type="button"
+        onclick="openMonitoringDashboard(this)">
+      <span class="monitoring-icon">
+        <i th:class="${card.icon}"></i>
+      </span>
+      <span class="monitoring-card-content">
+        <strong th:text="${card.title}">Java/JVM</strong>
+        <em th:text="${card.subtitle}">JVM Micrometer, JVM Overview</em>
+        <span th:text="${card.description}">메트릭 설명</span>
+      </span>
+      <span class="monitoring-card-action">
+        <i class="ti ti-external-link"></i>
+      </span>
+    </button>
+  </div>
+</section>
+
+<script>
+  function openMonitoringDashboard(button) {
+    const dashboardUrl = button?.dataset?.url;
+    if (!dashboardUrl) return;
+
+    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
+  }
+</script>

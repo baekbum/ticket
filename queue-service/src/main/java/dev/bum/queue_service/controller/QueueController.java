@@ -1,5 +1,6 @@
 package dev.bum.queue_service.controller;
 
+import dev.bum.common.service.queue.dto.QueueCompleteRequest;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,21 +28,31 @@ public class QueueController {
     @PostMapping("/events/{eventId}/enter")
     public ResponseEntity<QueueEnterResponse> enter(
             @AuthenticationPrincipal String currentUserId,
-            @PathVariable Long eventId
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken
     ) {
-        return ResponseEntity.ok(queueService.enter(eventId, currentUserId));
+        return ResponseEntity.ok(queueService.enter(eventId, currentUserId, queueToken));
     }
 
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @AuthenticationPrincipal String currentUserId,
-            @PathVariable Long eventId
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken
     ) {
-        return ResponseEntity.ok(queueService.status(eventId, currentUserId));
+        return ResponseEntity.ok(queueService.status(eventId, currentUserId, queueToken));
     }
 
     @PostMapping("/validate")
     public ResponseEntity<QueueValidateResponse> validate(@Valid @RequestBody QueueValidateRequest request) {
         return ResponseEntity.ok(queueService.validate(request));
+    }
+
+    @PostMapping("/complete")
+    public ResponseEntity<Void> complete(@Valid @RequestBody QueueCompleteRequest request) {
+        boolean completed = queueService.complete(request.eventId(), request.userId(), request.token());
+        return completed
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.badRequest().build();
     }
 }

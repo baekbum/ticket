@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.feign.queue;
 
+import dev.bum.common.service.queue.dto.QueueCompleteRequest;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -11,4 +12,7 @@ public interface QueueServiceClient {
 
     @PostMapping("/api/v1/queue/validate")
     QueueValidateResponse validate(@RequestBody QueueValidateRequest request);
+
+    @PostMapping("/api/v1/queue/complete")
+    void complete(@RequestBody QueueCompleteRequest request);
 }

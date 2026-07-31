@@ -56,24 +56,6 @@ class ReservationDeliveryControllerTest {
     }
 
     @Test
-    @DisplayName("본인 예약 배송 스냅샷 등록")
-    void insert() throws Exception {
-        ReservationDeliveryRequest info = deliveryRequest();
-        ReservationDeliveryResponse response = deliveryResponse();
-        given(reservationDeliveryService.insertMyDelivery("user01", 1L, info)).willReturn(response);
-
-        mockMvc.perform(post(baseUrl + "/insert/reservation/1")
-                        .with(authentication(userAuthentication("user01")))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reservationId").value(1L))
-                .andExpect(jsonPath("$.recipientName").value("receiver"));
-
-        then(reservationDeliveryService).should().insertMyDelivery("user01", 1L, info);
-    }
-
-    @Test
     @DisplayName("배송 ID로 본인 예약 배송 스냅샷 조회")
     void select_by_id() throws Exception {
         given(reservationDeliveryService.selectMyById("user01", 10L)).willReturn(deliveryResponse());

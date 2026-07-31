@@ -30,11 +30,4 @@ public class QueueProperties {
         }
     }
 
-    public int admissionSize() {
-        return admissionSize;
-    }
-
-    public Duration tokenTtl() {
-        return tokenTtl;
-    }
 }

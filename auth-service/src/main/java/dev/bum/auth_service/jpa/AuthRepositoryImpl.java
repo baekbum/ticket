@@ -14,8 +14,7 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     private final AuthJpaRepository jpaRepository;
 
-    @Override
-    public void isExist(String userId) {
+    private void throwIfUserExists(String userId) {
         if (jpaRepository.findByUserId(userId).isPresent()) {
             throw new UserAlreadyExistException("이미 해당 유저가 존재합니다.");
         }
@@ -23,15 +22,9 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     @Override
     public void insert(UserDtoForEvent event) {
-        isExist(event.getUserId());
+        throwIfUserExists(event.getUserId());
 
         jpaRepository.save(new Auth(event));
-    }
-
-    @Override
-    public Auth findById(Long id) {
-        return jpaRepository.findById(id)
-                .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
     }
 
     @Override

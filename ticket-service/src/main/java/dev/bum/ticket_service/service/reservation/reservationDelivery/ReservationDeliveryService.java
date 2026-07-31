@@ -35,29 +35,6 @@ public class ReservationDeliveryService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
 
     /**
-     * 관리자 기준으로 예매에 배송 스냅샷을 등록한다.
-     */
-    @AuditLog(action = "RESERVATION_DELIVERY_CREATE", targetType = "RESERVATION_DELIVERY")
-    public ReservationDeliveryResponse insert(long reservationId, ReservationDeliveryRequest info) {
-        Reservation reservation = reservationRepository.selectById(reservationId);
-        validateNotExists(reservation);
-
-        return reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, info)).toResponse();
-    }
-
-    /**
-     * 로그인 사용자가 본인 예매에 배송 스냅샷을 등록한다.
-     */
-    @AuditLog(action = "RESERVATION_DELIVERY_CREATE", targetType = "RESERVATION_DELIVERY")
-    public ReservationDeliveryResponse insertMyDelivery(String currentUserId, long reservationId, ReservationDeliveryRequest info) {
-        Reservation reservation = reservationRepository.selectById(reservationId);
-        validateOwner(currentUserId, reservation);
-        validateNotExists(reservation);
-
-        return reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, info)).toResponse();
-    }
-
-    /**
      * 배송 ID로 배송 스냅샷을 조회한다.
      */
     @Transactional(readOnly = true)
@@ -214,15 +191,6 @@ public class ReservationDeliveryService {
     private ReservationDelivery selectEntityById(long id) {
         return reservationDeliveryJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 배송 정보가 존재하지 않습니다."));
-    }
-
-    /**
-     * 예매에 배송 스냅샷이 이미 등록되어 있는지 검증한다.
-     */
-    private void validateNotExists(Reservation reservation) {
-        if (reservationDeliveryJpaRepository.existsByReservation(reservation)) {
-            throw new IllegalArgumentException("이미 등록된 예약 배송 정보가 존재합니다.");
-        }
     }
 
     /**

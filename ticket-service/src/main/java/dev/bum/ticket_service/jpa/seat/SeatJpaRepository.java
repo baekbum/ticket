@@ -12,9 +12,6 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
-    // Seat -> event(필드) -> eventId(필드) 순서로 매칭
-    long countByEventEventId(long eventId);
-
     List<Seat> findByEventEventId(long eventId);
 
     List<Seat> findByAreaAreaId(long areaId);

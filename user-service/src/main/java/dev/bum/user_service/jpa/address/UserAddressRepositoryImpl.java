@@ -123,8 +123,7 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
         return address;
     }
 
-    @Override
-    public void unsetDefaultAddresses(String userId) {
+    private void unsetDefaultAddresses(String userId) {
         jpaRepository.findByUserUserIdAndDefaultAddressTrueAndStatus(userId, AddressStatus.ACTIVE)
                 .forEach(address -> address.markDefault(false));
         jpaRepository.flush();

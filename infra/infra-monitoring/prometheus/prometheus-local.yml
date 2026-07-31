@@ -1,0 +1,92 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: local-auth-service
+    metrics_path: /auth/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8080
+        labels:
+          application: auth-service
+
+  - job_name: local-user-service
+    metrics_path: /user/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8081
+        labels:
+          application: user-service
+
+  - job_name: local-ticket-service
+    metrics_path: /ticket/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8082
+        labels:
+          application: ticket-service
+
+  - job_name: local-queue-service
+    metrics_path: /queue/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8083
+        labels:
+          application: queue-service
+
+  - job_name: local-audit-service
+    metrics_path: /audit/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8084
+        labels:
+          application: audit-service
+
+  - job_name: local-admin-service
+    metrics_path: /admin/actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8999
+        labels:
+          application: admin-service
+
+  - job_name: local-view-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:3000
+        labels:
+          application: view-service
+
+  - job_name: local-postgresql
+    static_configs:
+      - targets:
+          - local-postgres-exporter:9187
+        labels:
+          database: local-postgres
+
+  - job_name: local-redis
+    static_configs:
+      - targets:
+          - refresh-redis-exporter:9121
+        labels:
+          redis: refresh-redis
+      - targets:
+          - seat-redis-exporter:9121
+        labels:
+          redis: seat-redis
+      - targets:
+          - queue-redis-exporter:9121
+        labels:
+          redis: queue-redis
+
+  - job_name: local-cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080

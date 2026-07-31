@@ -35,17 +35,19 @@ public class QueueTestManagementController {
     @PostMapping("/events/{eventId}/enter")
     public ResponseEntity<QueueEnterResponse> enter(
             @PathVariable Long eventId,
-            @RequestParam String userId
+            @RequestParam String userId,
+            @RequestParam(required = false) String token
     ) {
-        return ResponseEntity.ok(queueService.enter(eventId, userId));
+        return ResponseEntity.ok(queueService.enter(eventId, userId, token));
     }
 
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @PathVariable Long eventId,
-            @RequestParam String userId
+            @RequestParam String userId,
+            @RequestParam(required = false) String token
     ) {
-        return ResponseEntity.ok(queueService.status(eventId, userId));
+        return ResponseEntity.ok(queueService.status(eventId, userId, token));
     }
 
     @PostMapping("/events/{eventId}/statuses")
@@ -84,9 +86,17 @@ public class QueueTestManagementController {
 
         Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey, 0, -1);
         if (activeTokens != null) {
-            activeTokens.stream()
-                    .map(this::tokenKey)
-                    .forEach(keys::add);
+            for (String token : activeTokens) {
+                String tokenKey = tokenKey(token);
+                String tokenValue = redisTemplate.opsForValue().get(tokenKey);
+                keys.add(tokenKey);
+                if (tokenValue != null) {
+                    String activeUserKey = activeUserKey(tokenValue);
+                    if (activeUserKey != null) {
+                        keys.add(activeUserKey);
+                    }
+                }
+            }
         }
 
         Long deleted = redisTemplate.delete(keys);
@@ -103,5 +113,13 @@ public class QueueTestManagementController {
 
     private String tokenKey(String token) {
         return "queue:token:" + token;
+    }
+
+    private String activeUserKey(String tokenValue) {
+        String[] parts = tokenValue.split(":", 2);
+        if (parts.length != 2) {
+            return null;
+        }
+        return "queue:active-user:" + parts[0] + ":" + parts[1];
     }
 }

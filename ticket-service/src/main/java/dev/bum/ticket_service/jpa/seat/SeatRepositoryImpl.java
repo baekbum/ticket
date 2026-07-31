@@ -168,11 +168,6 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
-    public long countByEventId(Long eventId) {
-        return jpaRepository.countByEventEventId(eventId);
-    }
-
-    @Override
     public Seat selectById(Long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new SeatNotExistException("해당 좌석 정보는 존재하지 않습니다."));

@@ -18,3 +18,15 @@ app:
   queue:
     admission-size: ${APP_QUEUE_ADMISSION_SIZE:100}
     token-ttl: ${APP_QUEUE_TOKEN_TTL:20m}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}

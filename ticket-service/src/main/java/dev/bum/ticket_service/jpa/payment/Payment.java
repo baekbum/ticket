@@ -30,7 +30,9 @@ import java.time.LocalDateTime;
         name = "payments",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_payments_reservation_id", columnNames = "reservation_id"),
-                @UniqueConstraint(name = "uk_payments_payment_no", columnNames = "payment_no")
+                @UniqueConstraint(name = "uk_payments_payment_no", columnNames = "payment_no"),
+                @UniqueConstraint(name = "uk_payments_idempotency_key", columnNames = "idempotency_key"),
+                @UniqueConstraint(name = "uk_payments_account_number", columnNames = "account_number")
         }
 )
 @Getter

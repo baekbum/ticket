@@ -42,8 +42,9 @@ public class SecurityConfig {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/v1/queue/validate").permitAll()
+                        .requestMatchers("/api/v1/queue/complete").permitAll()
                         .requestMatchers("/api/v1/manage/queue/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/queue/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().hasRole("ADMIN")
