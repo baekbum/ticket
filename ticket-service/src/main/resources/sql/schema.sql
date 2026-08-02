@@ -20,6 +20,7 @@ CREATE TABLE events (
     available_seats INTEGER,
     status VARCHAR(30) NOT NULL,
     max_tickets_per_person INTEGER NOT NULL,
+    ticket_limit_scope VARCHAR(30) NOT NULL DEFAULT 'PER_EVENT',
     genre VARCHAR(50) NOT NULL,
     region VARCHAR(50) NOT NULL,
     theme VARCHAR(50) NOT NULL,

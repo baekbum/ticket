@@ -141,7 +141,7 @@ class CheckoutServiceTest {
         then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.any());
         then(reservationDeliveryJpaRepository).should().save(org.mockito.ArgumentMatchers.any());
         then(paymentJpaRepository).should().save(paymentCaptor.capture());
-        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 1, "PLUS");
+        then(seatCacheService).should().updateUserPurchaseLimit(reservation.getEvent(), "user01", 1, "PLUS");
 
         Payment savedPayment = paymentCaptor.getValue();
         assertThat(savedPayment.getReservation()).isEqualTo(reservation);

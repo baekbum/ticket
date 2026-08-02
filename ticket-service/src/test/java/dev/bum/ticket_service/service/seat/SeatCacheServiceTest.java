@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,12 +38,15 @@ class SeatCacheServiceTest {
 
     private static final String USER_ID = "user01";
     private static final Long EVENT_ID = 1L;
-    private static final String PURCHASE_LIMIT_KEY = "user:purchase:limit:1:user01";
+    private static final String PURCHASE_LIMIT_KEY = "user:purchase:limit:event:1:user01";
     private static final String FIRST_SEAT_KEY = "event:1:seat:VIP:1:1";
     private static final String SECOND_SEAT_KEY = "event:1:seat:VIP:1:2";
 
     @Mock
     private SeatRepository repository;
+
+    @Mock
+    private EventRepository eventRepository;
 
     @Mock
     private StringRedisTemplate seatRedisTemplate;
@@ -54,7 +58,7 @@ class SeatCacheServiceTest {
 
     @BeforeEach
     void setUp() {
-        seatCacheService = new SeatCacheService(repository, seatRedisTemplate);
+        seatCacheService = new SeatCacheService(repository, eventRepository, seatRedisTemplate);
         given(seatRedisTemplate.opsForValue()).willReturn(valueOperations);
     }
 
@@ -71,6 +75,7 @@ class SeatCacheServiceTest {
                 ))
                 .build();
 
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event());
         given(valueOperations.get(PURCHASE_LIMIT_KEY)).willReturn(null);
         given(valueOperations.get(FIRST_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
         given(valueOperations.get(SECOND_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
@@ -107,8 +112,8 @@ class SeatCacheServiceTest {
         }
     }
 
-    private Seat seat(Long seatId, String zone, Integer row, Integer col) {
-        Event event = Event.builder()
+    private Event event() {
+        return Event.builder()
                 .eventId(EVENT_ID)
                 .artistName("IU")
                 .title("IU Concert")
@@ -120,10 +125,12 @@ class SeatCacheServiceTest {
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)
                 .build();
+    }
 
+    private Seat seat(Long seatId, String zone, Integer row, Integer col) {
         return Seat.builder()
                 .seatId(seatId)
-                .event(event)
+                .event(event())
                 .zone(zone)
                 .seatRow(row)
                 .seatCol(col)

@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -248,6 +249,10 @@ public class EventRepositoryImpl implements EventRepository {
         return status != null ? event.status.eq(status) : null;
     }
 
+    private BooleanExpression ticketLimitScopeEq(TicketLimitScope ticketLimitScope) {
+        return ticketLimitScope != null ? event.ticketLimitScope.eq(ticketLimitScope) : null;
+    }
+
     private BooleanExpression genreEq(EventGenre genre) {
         return genre != null ? event.genre.eq(genre) : null;
     }
@@ -282,6 +287,7 @@ public class EventRepositoryImpl implements EventRepository {
                 totalSeatsEq(cond.getTotalSeats()),
                 availableSeatsEq(cond.getAvailableSeats()),
                 statusEq(cond.getStatus()),
+                ticketLimitScopeEq(cond.getTicketLimitScope()),
                 genreEq(cond.getGenre()),
                 regionEq(cond.getRegion()),
                 themeEq(cond.getTheme())

@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -40,6 +41,7 @@ public class EventCondRequest {
     private Integer totalSeats;
     private Integer availableSeats;
     private EventStatus status;
+    private TicketLimitScope ticketLimitScope;
     private EventGenre genre;
     private EventRegion region;
     private EventTheme theme;
@@ -86,6 +88,7 @@ public class EventCondRequest {
         if (totalSeats != null) sj.add("totalSeats=" + totalSeats);
         if (availableSeats != null) sj.add("availableSeats=" + availableSeats);
         if (status != null) sj.add("status=" + status);
+        if (ticketLimitScope != null) sj.add("ticketLimitScope=" + ticketLimitScope);
 
         // 정렬 조건 필드 검증 (List 포맷팅 적용)
         if (sort != null && !sort.isEmpty()) {

@@ -9,6 +9,7 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
@@ -388,8 +389,12 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             );
         }
 
+        boolean withinPurchaseLimit = event.getTicketLimitScope() == TicketLimitScope.PER_GROUP
+                ? ticketRepository.isWithinGroupPurchaseLimit(userId, event, selectedSeatCnt)
+                : ticketRepository.isWithinPurchaseLimit(userId, event, selectedSeatCnt);
+
         // 매수 제한은 4매인데, 이미 2좌석을 선택했고 3좌석 이상을 추가적으로 티켓팅 하는 경우
-        if (!ticketRepository.isWithinPurchaseLimit(userId, event, selectedSeatCnt)) {
+        if (!withinPurchaseLimit) {
             throw new TicketLimitExceededException(
                     String.format("이미 기존 예매 내역이 존재하여, 추가로 %d매를 초과하여 예매할 수 없습니다.", event.getMaxTicketsPerPerson())
             );

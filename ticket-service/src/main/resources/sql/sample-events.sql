@@ -16,6 +16,7 @@ INSERT INTO events (
     available_seats,
     status,
     max_tickets_per_person,
+    ticket_limit_scope,
     genre,
     region,
     theme
@@ -37,6 +38,7 @@ INSERT INTO events (
     15000,
     'ON_SALE',
     1,
+    'PER_EVENT',
     'CONCERT',
     'SEOUL',
     'IDOL'
