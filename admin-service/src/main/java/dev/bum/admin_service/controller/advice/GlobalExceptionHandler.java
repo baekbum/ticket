@@ -25,7 +25,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<ErrorResponse> handleFeignException(FeignException e) {
-        log.error("[Feign 통신 에러] 상태코드: {}, 메시지: {}", e.status(), e.getMessage());
+        if (e.status() >= 400 && e.status() < 500) {
+            log.warn("[Feign 클라이언트 에러] 상태코드: {}, 메시지: {}", e.status(), e.getMessage());
+        } else {
+            log.error("[Feign 통신 에러] 상태코드: {}, 메시지: {}", e.status(), e.getMessage());
+        }
 
         return ResponseEntity
                 .status(resolveFeignStatus(e))
