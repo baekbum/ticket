@@ -1,6 +1,7 @@
 INSERT INTO events (
     artist_name,
     title,
+    event_group_code,
     description,
     venue,
     venue_address,
@@ -14,10 +15,14 @@ INSERT INTO events (
     total_seats,
     available_seats,
     status,
-    max_tickets_per_person
+    max_tickets_per_person,
+    genre,
+    region,
+    theme
 ) VALUES (
     '아이유',
     '2026 IU CONCERT - HEREH WORLD TOUR ENCORE',
+    'IU_2026_ENCORE',
     '아이유 단독 콘서트 예매 이벤트입니다.',
     'KSPO DOME',
     '서울특별시 송파구 올림픽로 424 올림픽공원 KSPO DOME',
@@ -31,5 +36,8 @@ INSERT INTO events (
     15000,
     15000,
     'ON_SALE',
-    1
+    1,
+    'CONCERT',
+    'SEOUL',
+    'IDOL'
 );

@@ -906,6 +906,21 @@
     color: var(--text-muted);
     cursor: not-allowed;
   }
+  .group-code-control {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .group-code-control input {
+    flex: 1;
+    min-width: 0;
+  }
+  .group-code-copy-btn {
+    flex: 0 0 72px;
+    justify-content: center;
+    padding: 9px 10px;
+    white-space: nowrap;
+  }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 
   #event-modal {

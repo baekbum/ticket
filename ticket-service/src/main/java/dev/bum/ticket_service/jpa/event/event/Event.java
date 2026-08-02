@@ -1,7 +1,10 @@
 package dev.bum.ticket_service.jpa.event.event;
 
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
@@ -38,6 +41,10 @@ public class Event {
 
     @Column(nullable = false, length = 100)
     private String title;
+
+    @Column(nullable = false, length = 100)
+    @Builder.Default
+    private String eventGroupCode = "DEFAULT_EVENT_GROUP";
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -76,6 +83,21 @@ public class Event {
     @Column(nullable = false)
     private Integer maxTicketsPerPerson;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventGenre genre = EventGenre.CONCERT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventRegion region = EventRegion.SEOUL;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventTheme theme = EventTheme.IDOL;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -98,6 +120,7 @@ public class Event {
                 .eventId(this.eventId)
                 .artistName(this.artistName)
                 .title(this.title)
+                .eventGroupCode(this.eventGroupCode)
                 .description(this.description)
                 .venue(this.venue)
                 .venueAddress(this.venueAddress)
@@ -112,6 +135,9 @@ public class Event {
                 .availableSeats(this.availableSeats)
                 .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
                 .maxTicketsPerPerson(this.maxTicketsPerPerson)
+                .genre(this.genre)
+                .region(this.region)
+                .theme(this.theme)
                 .build();
     }
 
@@ -119,6 +145,9 @@ public class Event {
     public Event(InsertEventRequest info) {
         this.artistName = info.getArtistName();
         this.title = info.getTitle();
+        this.eventGroupCode = StringUtils.hasText(info.getEventGroupCode())
+                ? info.getEventGroupCode()
+                : createDefaultEventGroupCode(info);
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         this.venue = info.getVenue();
         if (StringUtils.hasText(info.getVenueAddress())) this.venueAddress = info.getVenueAddress();
@@ -133,6 +162,9 @@ public class Event {
         this.availableSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
+        this.genre = info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT;
+        this.region = info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL;
+        this.theme = info.getTheme() != null ? info.getTheme() : EventTheme.IDOL;
         this.seats = new ArrayList<>();
         this.areas = new ArrayList<>();
     }
@@ -141,6 +173,7 @@ public class Event {
     public void update(UpdateEventRequest info) {
         if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName();
         if (StringUtils.hasText(info.getTitle())) this.title = info.getTitle();
+        if (StringUtils.hasText(info.getEventGroupCode())) this.eventGroupCode = info.getEventGroupCode();
         if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
         if (StringUtils.hasText(info.getVenue())) this.venue = info.getVenue();
         if (StringUtils.hasText(info.getVenueAddress())) this.venueAddress = info.getVenueAddress();
@@ -155,9 +188,17 @@ public class Event {
         if (info.getAvailableSeats() != null) this.availableSeats = info.getAvailableSeats();
         if (info.getStatus() != null) this.status = info.getStatus();
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
+        if (info.getGenre() != null) this.genre = info.getGenre();
+        if (info.getRegion() != null) this.region = info.getRegion();
+        if (info.getTheme() != null) this.theme = info.getTheme();
     }
 
     public void updatePosterUrl(String posterUrl) {
         if (StringUtils.hasText(posterUrl)) this.posterUrl = posterUrl;
+    }
+
+    private String createDefaultEventGroupCode(InsertEventRequest info) {
+        String source = String.join("|", info.getArtistName(), info.getTitle(), info.getVenue());
+        return "EVENT-" + Integer.toHexString(source.hashCode()).toUpperCase();
     }
 }

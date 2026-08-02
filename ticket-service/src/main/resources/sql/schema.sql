@@ -5,6 +5,7 @@ CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
     artist_name VARCHAR(100) NOT NULL,
     title VARCHAR(100) NOT NULL,
+    event_group_code VARCHAR(100) NOT NULL,
     description TEXT,
     venue VARCHAR(100) NOT NULL,
     venue_address VARCHAR(255),
@@ -19,12 +20,17 @@ CREATE TABLE events (
     available_seats INTEGER,
     status VARCHAR(30) NOT NULL,
     max_tickets_per_person INTEGER NOT NULL,
+    genre VARCHAR(50) NOT NULL,
+    region VARCHAR(50) NOT NULL,
+    theme VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
+CREATE INDEX idx_event_group_code ON events(event_group_code);
+CREATE INDEX idx_event_category ON events(genre, region, theme);
 
 -- ==========================================
 -- 2. Areas 테이블

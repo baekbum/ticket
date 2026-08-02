@@ -6,7 +6,10 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -146,6 +149,10 @@ public class EventRepositoryImpl implements EventRepository {
         return StringUtils.hasText(title) ? event.title.like("%" + title + "%") : null;
     }
 
+    private BooleanExpression eventGroupCodeEq(String eventGroupCode) {
+        return StringUtils.hasText(eventGroupCode) ? event.eventGroupCode.eq(eventGroupCode) : null;
+    }
+
     private BooleanExpression venueLike(String venue) {
         return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
     }
@@ -241,11 +248,24 @@ public class EventRepositoryImpl implements EventRepository {
         return status != null ? event.status.eq(status) : null;
     }
 
+    private BooleanExpression genreEq(EventGenre genre) {
+        return genre != null ? event.genre.eq(genre) : null;
+    }
+
+    private BooleanExpression regionEq(EventRegion region) {
+        return region != null ? event.region.eq(region) : null;
+    }
+
+    private BooleanExpression themeEq(EventTheme theme) {
+        return theme != null ? event.theme.eq(theme) : null;
+    }
+
     private BooleanExpression[] searchConditions(EventCondRequest cond) {
         return new BooleanExpression[]{
                 eventIdEq(cond.getEventId()),
                 artistNameLike(cond.getArtistName()),
                 titleLike(cond.getTitle()),
+                eventGroupCodeEq(cond.getEventGroupCode()),
                 venueLike(cond.getVenue()),
                 venueAddressLike(cond.getVenueAddress()),
                 posterUrlLike(cond.getPosterUrl()),
@@ -261,7 +281,10 @@ public class EventRepositoryImpl implements EventRepository {
                 ageLimitEq(cond.getAgeLimit()),
                 totalSeatsEq(cond.getTotalSeats()),
                 availableSeatsEq(cond.getAvailableSeats()),
-                statusEq(cond.getStatus())
+                statusEq(cond.getStatus()),
+                genreEq(cond.getGenre()),
+                regionEq(cond.getRegion()),
+                themeEq(cond.getTheme())
         };
     }
 }
