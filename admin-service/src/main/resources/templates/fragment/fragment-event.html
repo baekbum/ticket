@@ -354,36 +354,45 @@
       <label>포스터 URL</label>
       <input type="text" id="m-poster-url" placeholder="서버 저장 후 자동 입력">
     </div>
-    <div class="form-row">
+    <div class="form-row" id="m-single-schedule-date-row">
       <div class="form-group">
         <label>공연 일정</label>
         <input type="datetime-local" id="m-event-date-time">
       </div>
       <div class="form-group">
-        <label>전체 배정 좌석 수</label>
-        <input type="text" id="m-total-seats" placeholder="예: 15,000" inputmode="numeric">
+        <label>취소 마감</label>
+        <input type="datetime-local" id="m-cancel-deadline-at">
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="m-single-schedule-sale-row">
       <div class="form-group">
         <label>판매 시작</label>
         <input type="datetime-local" id="m-sale-start-at">
       </div>
       <div class="form-group">
-        <label>판매 종료</label>
+        <label>판매 마감</label>
         <input type="datetime-local" id="m-sale-end-at">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>취소 마감</label>
-        <input type="datetime-local" id="m-cancel-deadline-at">
+        <label>전체 배정 좌석 수</label>
+        <input type="text" id="m-total-seats" placeholder="예: 15,000" inputmode="numeric">
       </div>
       <div class="form-group">
         <label>잔여석</label>
         <input type="text" id="m-available-seats" placeholder="자동 계산" inputmode="numeric">
       </div>
     </div>
+    <div class="form-row" id="m-schedule-action-row">
+      <div class="form-group">
+        <label>공연 일정</label>
+        <button type="button" class="btn btn-outline" onclick="addEventScheduleRow()">
+          <i class="ti ti-plus"></i>공연 일정 추가
+        </button>
+      </div>
+    </div>
+    <div id="m-additional-schedules"></div>
     <div class="form-row">
       <div class="form-group">
         <label>공연 시간(분)</label>
@@ -410,6 +419,15 @@
           <option value="2" selected>2매 제한</option>
           <option value="3">3매 제한</option>
           <option value="4">4매 제한</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>예매 제한 범위</label>
+        <select id="m-ticket-limit-scope">
+          <option value="PER_EVENT">공연별 제한</option>
+          <option value="PER_GROUP">그룹 전체 제한</option>
         </select>
       </div>
     </div>
