@@ -11,7 +11,10 @@ import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -188,6 +191,9 @@ class AdminEventControllerTest {
                 .ageLimit(12)
                 .totalSeats(1000)
                 .maxTicketsPerPerson(4)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 
@@ -198,6 +204,9 @@ class AdminEventControllerTest {
                 .title("IU Concert")
                 .venue("KSPO Dome")
                 .status(EventStatus.ON_SALE)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 }

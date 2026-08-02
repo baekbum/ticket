@@ -9,11 +9,12 @@ const headers   = { 'Content-Type': 'application/json', 'Authorization': `Bearer
 
 let currentEventList    = [];
 let currentSearchFilters = {
-eventId: null, title: null, artistName: null, venue: null, venueAddress: null, posterUrl: null,
+eventId: null, title: null, eventGroupCode: null, artistName: null, venue: null, venueAddress: null, posterUrl: null,
 eventDate: null, saleStartDate: null, saleEndDate: null, cancelDeadlineDate: null,
 eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
 saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
-runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null,
+genre: null, region: null, theme: null
 };
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
@@ -59,6 +60,35 @@ function resolvePosterUrl(url) {
 if (!url) return '';
 if (/^https?:\/\//i.test(url)) return url;
 return `${TICKET_PUBLIC_BASE_URL}${url}`;
+}
+
+const EVENT_GENRE_LABELS = {
+CONCERT: '콘서트',
+MUSICAL_PLAY: '뮤지컬/연극',
+FANCLUB_FANMEETING: '팬클럽/팬미팅',
+CLASSIC: '클래식',
+EXHIBITION_EVENT: '전시/행사'
+};
+
+const EVENT_REGION_LABELS = {
+SEOUL: '서울',
+GYEONGGI_INCHEON: '경기/인천',
+DAEJEON_CHUNGCHEONG_GANGWON: '대전/충청/강원',
+BUSAN_DAEGU_GYEONGSANG: '부산/대구/경상',
+GWANGJU_JEOLLA_JEJU: '광주/전라/제주'
+};
+
+const EVENT_THEME_LABELS = {
+OVERSEAS_PERFORMANCE: '내한공연',
+SMALL_THEATER: '홍대/소극장',
+IDOL: '아이돌',
+FILIAL_CONCERT: '효 콘서트',
+FESTIVAL: '페스티벌/콜라보',
+KIDS_FAMILY: '키즈/패밀리'
+};
+
+function eventCategoryLabel(labels, value) {
+return value ? (labels[value] || value) : '';
 }
 
 function authOnlyHeaders() {
@@ -162,6 +192,7 @@ return acc;
 const cond = { page: pageZeroIndexed, size: pageSize, sort: sortArray.length ? sortArray : ['eventId-desc'] };
 if (currentSearchFilters.eventId    !== null) cond.eventId    = currentSearchFilters.eventId;
 if (currentSearchFilters.title      !== null) cond.title      = currentSearchFilters.title;
+if (currentSearchFilters.eventGroupCode !== null) cond.eventGroupCode = currentSearchFilters.eventGroupCode;
 if (currentSearchFilters.artistName !== null) cond.artistName = currentSearchFilters.artistName;
 if (currentSearchFilters.venue      !== null) cond.venue      = currentSearchFilters.venue;
 if (currentSearchFilters.venueAddress !== null) cond.venueAddress = currentSearchFilters.venueAddress;
@@ -183,6 +214,9 @@ if (currentSearchFilters.ageLimit !== null) cond.ageLimit = currentSearchFilters
 if (currentSearchFilters.totalSeats !== null) cond.totalSeats = currentSearchFilters.totalSeats;
 if (currentSearchFilters.availableSeats !== null) cond.availableSeats = currentSearchFilters.availableSeats;
 if (currentSearchFilters.status     !== null) cond.status     = currentSearchFilters.status;
+if (currentSearchFilters.genre      !== null) cond.genre      = currentSearchFilters.genre;
+if (currentSearchFilters.region     !== null) cond.region     = currentSearchFilters.region;
+if (currentSearchFilters.theme      !== null) cond.theme      = currentSearchFilters.theme;
 
 try {
 const res = await Fetch(`${EVENT_URL}/select`, { method: 'POST', headers, body: JSON.stringify(cond) });
@@ -223,8 +257,12 @@ tr.innerHTML = `
 <td style="text-align:center; color:var(--text-muted); font-size:12px;">${rowOrder}</td>
 <td onclick="event.stopPropagation()">${ev.posterUrl ? `<button type="button" class="event-poster-thumb-button" onclick="event.stopPropagation(); openPosterPreviewModal(${ev.eventId})" title="포스터 크게 보기"><span class="event-poster-thumb" style="background-image:url('${resolvePosterUrl(ev.posterUrl)}');"></span></button>` : ''}</td>
 <td><strong style="color:var(--text-primary);">${ev.eventId}</strong></td>
+<td title="${ev.eventGroupCode || ''}">${ev.eventGroupCode || ''}</td>
 <td>${ev.artistName}</td>
 <td style="color:var(--text-primary); font-weight:500;">${ev.title}</td>
+<td>${eventCategoryLabel(EVENT_GENRE_LABELS, ev.genre)}</td>
+<td>${eventCategoryLabel(EVENT_REGION_LABELS, ev.region)}</td>
+<td>${eventCategoryLabel(EVENT_THEME_LABELS, ev.theme)}</td>
 <td>${ev.venue || ''}</td>
 <td title="${ev.venueAddress || ''}">${ev.venueAddress || ''}</td>
 <td style="color:var(--text-secondary); font-size:12px;">${ev.eventDateTime || ''}</td>
@@ -282,6 +320,7 @@ _set('m-target-id',        ev.eventId);
 _set('m-event-id',         ev.eventId);
 _set('m-artist-name',      ev.artistName);
 _set('m-title',            ev.title);
+_set('m-event-group-code', ev.eventGroupCode);
 _set('m-venue',            ev.venue);
 _set('m-venue-address',    ev.venueAddress);
 _set('m-poster-url',       ev.posterUrl);
@@ -291,6 +330,9 @@ _set('m-available-seats',  ev.availableSeats);
 formatDigitInput(document.getElementById('m-available-seats'));
 _set('m-status',           ev.status || 'ON_SALE');
 _set('m-max-tickets',      String(ev.maxTicketsPerPerson || 2));
+_set('m-genre',            ev.genre || 'CONCERT');
+_set('m-region',           ev.region || 'SEOUL');
+_set('m-theme',            ev.theme || 'IDOL');
 _set('m-description-text', ev.description);
 _set('m-event-date-time',  formatToDatetimeLocal(ev.eventDateTime));
 _set('m-sale-start-at',    formatToDatetimeLocal(ev.saleStartAt));
@@ -344,6 +386,7 @@ const cancelDeadlineAt = formatToDatetimeLocal(ev.cancelDeadlineAt);
 return {
 artistName: ev.artistName,
 title: ev.title,
+eventGroupCode: ev.eventGroupCode,
 venue: ev.venue,
 venueAddress: ev.venueAddress,
 posterUrl: posterUrlOverride !== undefined ? posterUrlOverride : (ev.posterUrl || null),
@@ -357,7 +400,10 @@ totalSeats: ev.totalSeats,
 availableSeats: ev.availableSeats,
 maxTicketsPerPerson: ev.maxTicketsPerPerson,
 description: ev.description,
-status: ev.status
+status: ev.status,
+genre: ev.genre,
+region: ev.region,
+theme: ev.theme
 };
 }
 
@@ -504,12 +550,15 @@ _setAllInputsState(false);
 [
 'm-target-id','m-artist-name','m-title','m-venue','m-venue-address','m-poster-url','m-event-date-time',
 'm-sale-start-at','m-sale-end-at','m-cancel-deadline-at','m-total-seats','m-available-seats',
-'m-running-minutes','m-age-limit','m-description-text'
+'m-running-minutes','m-age-limit','m-description-text','m-event-group-code'
 ].forEach(id => _set(id, ''));
 const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
 _set('m-max-tickets', '2');
+_set('m-genre',       'CONCERT');
+_set('m-region',      'SEOUL');
+_set('m-theme',       'IDOL');
 _set('m-event-id',    '자동 발급');
 formatDigitInput(document.getElementById('m-total-seats'));
 _setFieldDisabled('m-event-id');
@@ -536,6 +585,7 @@ window.submitEventForm = async function () {
 const mode         = document.getElementById('m-modal-mode').value;
 const artistVal    = document.getElementById('m-artist-name').value.trim();
 const titleVal     = document.getElementById('m-title').value.trim();
+const eventGroupCodeVal = document.getElementById('m-event-group-code').value.trim();
 const venueVal     = document.getElementById('m-venue').value.trim();
 const venueAddressVal = document.getElementById('m-venue-address').value.trim();
 const posterUrlVal = document.getElementById('m-poster-url').value.trim();
@@ -548,6 +598,9 @@ const availableSeatsVal = parseDigitInputValue('m-available-seats');
 const runningMinutesVal = parseInt(document.getElementById('m-running-minutes').value, 10);
 const ageLimitVal = parseInt(document.getElementById('m-age-limit').value, 10);
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
+const genreVal     = document.getElementById('m-genre').value;
+const regionVal    = document.getElementById('m-region').value;
+const themeVal     = document.getElementById('m-theme').value;
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 const missingFields = [];
@@ -559,6 +612,9 @@ if (!datetimeInput) missingFields.push('공연 일정');
 if (!saleStartInput) missingFields.push('판매 시작');
 if (!saleEndInput) missingFields.push('판매 종료');
 if (!cancelDeadlineInput) missingFields.push('취소 마감');
+if (!genreVal) missingFields.push('장르');
+if (!regionVal) missingFields.push('지역');
+if (!themeVal) missingFields.push('테마');
 if (mode === 'CREATE' && !posterFile) missingFields.push('?ъ뒪???대?吏');
 
 if (missingFields.length > 0) {
@@ -577,6 +633,7 @@ showToast('공연 시간과 관람 연령을 확인해주세요.', true); return
 
 const body = {
 artistName: artistVal, title: titleVal, venue: venueVal, venueAddress: venueAddressVal,
+eventGroupCode: eventGroupCodeVal || null,
 posterUrl: posterUrlVal || null,
 eventDateTime: datetimeInput + ':00',
 saleStartAt: saleStartInput + ':00',
@@ -585,7 +642,10 @@ cancelDeadlineAt: cancelDeadlineInput + ':00',
 runningMinutes: runningMinutesVal,
 ageLimit: ageLimitVal,
 totalSeats: seatsVal, maxTicketsPerPerson: maxTicketsVal,
-description: descVal
+description: descVal,
+genre: genreVal,
+region: regionVal,
+theme: themeVal
 };
 
 const url    = mode === 'CREATE' ? `${EVENT_URL}/insert` : `${EVENT_URL}/update/id/${document.getElementById('m-target-id').value}`;
@@ -649,11 +709,12 @@ else         { showToast('웜업 실패: 백엔드 처리 중 오류가 발생�
 /* Search */
 window.triggerNormalSearch = function () {
 currentSearchFilters = {
-eventId: null, title: document.getElementById('search-id').value.trim() || null, artistName: null,
+eventId: null, title: document.getElementById('search-id').value.trim() || null, eventGroupCode: null, artistName: null,
 venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
 cancelDeadlineDate: null, eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
 saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
-runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null,
+genre: null, region: null, theme: null
 };
 loadEventList(0);
 };
@@ -664,11 +725,12 @@ window.resetEventSearch = function () {
 document.getElementById('search-id').value = '';
 resetDetailedSearchForm();
 currentSearchFilters = {
-eventId: null, title: null, artistName: null,
+eventId: null, title: null, eventGroupCode: null, artistName: null,
 venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
 cancelDeadlineDate: null, eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
 saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
-runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null,
+genre: null, region: null, theme: null
 };
 loadEventList(0);
 };
@@ -1227,6 +1289,7 @@ const cancelDeadlineDateSearch = readDateSearch('cond-cancelDeadlineDate');
 currentSearchFilters = {
 eventId:    eventIdRaw ? parseInt(eventIdRaw, 10) : null,
 title:      document.getElementById('cond-title').value.trim()      || null,
+eventGroupCode: document.getElementById('cond-eventGroupCode').value.trim() || null,
 artistName: document.getElementById('cond-artistName').value.trim() || null,
 venue:      document.getElementById('cond-venue').value.trim()      || null,
 venueAddress: document.getElementById('cond-venueAddress').value.trim() || null,
@@ -1248,6 +1311,9 @@ ageLimit: nullableNumber('cond-ageLimit'),
 totalSeats: nullableNumber('cond-totalSeats'),
 availableSeats: nullableNumber('cond-availableSeats'),
 status:     document.getElementById('cond-status').value            || null,
+genre:      document.getElementById('cond-genre').value             || null,
+region:     document.getElementById('cond-region').value            || null,
+theme:      document.getElementById('cond-theme').value             || null,
 };
 loadEventList(0);
 closeSearchModal();

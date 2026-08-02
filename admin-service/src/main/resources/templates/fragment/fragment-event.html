@@ -37,8 +37,12 @@
       <col style="width:60px;">
       <col style="width:90px;">
       <col style="width:90px;">
+      <col style="width:140px;">
       <col style="width:120px;">
       <col style="width:220px;">
+      <col style="width:110px;">
+      <col style="width:150px;">
+      <col style="width:130px;">
       <col style="width:120px;">
       <col style="width:220px;">
       <col style="width:150px;">
@@ -60,8 +64,12 @@
       <th>순서</th>
       <th>포스터</th>
       <th class="sortable" data-sort-field="eventId" onclick="handleSortClick(this, event)">이벤트 ID <i class="sort-icon">-</i></th>
+      <th>그룹 코드</th>
       <th>아티스트</th>
       <th class="sortable" data-sort-field="title" onclick="handleSortClick(this, event)">공연 제목 <i class="sort-icon">-</i></th>
+      <th>장르</th>
+      <th>지역</th>
+      <th>테마</th>
       <th>장소</th>
       <th>주소</th>
       <th>공연 일시</th>
@@ -96,6 +104,48 @@
       <div class="form-group">
         <label>공연 제목</label>
         <input type="text" id="cond-title" placeholder="공연명 입력">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>그룹 코드</label>
+        <input type="text" id="cond-eventGroupCode" placeholder="ex) IU_2026_HEREH_ENCORE">
+      </div>
+      <div class="form-group">
+        <label>장르</label>
+        <select id="cond-genre">
+          <option value="">전체 장르</option>
+          <option value="CONCERT">콘서트</option>
+          <option value="MUSICAL_PLAY">뮤지컬/연극</option>
+          <option value="FANCLUB_FANMEETING">팬클럽/팬미팅</option>
+          <option value="CLASSIC">클래식</option>
+          <option value="EXHIBITION_EVENT">전시/행사</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>지역</label>
+        <select id="cond-region">
+          <option value="">전체 지역</option>
+          <option value="SEOUL">서울</option>
+          <option value="GYEONGGI_INCHEON">경기/인천</option>
+          <option value="DAEJEON_CHUNGCHEONG_GANGWON">대전/충청/강원</option>
+          <option value="BUSAN_DAEGU_GYEONGSANG">부산/대구/경상</option>
+          <option value="GWANGJU_JEOLLA_JEJU">광주/전라/제주</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>테마</label>
+        <select id="cond-theme">
+          <option value="">전체 테마</option>
+          <option value="OVERSEAS_PERFORMANCE">내한공연</option>
+          <option value="SMALL_THEATER">홍대/소극장</option>
+          <option value="IDOL">아이돌</option>
+          <option value="FILIAL_CONCERT">효 콘서트</option>
+          <option value="FESTIVAL">페스티벌/콜라보</option>
+          <option value="KIDS_FAMILY">키즈/패밀리</option>
+        </select>
       </div>
     </div>
     <div class="form-row">
@@ -137,7 +187,7 @@
           <option value="">전체 상태</option>
           <option value="ON_SALE">ON_SALE (판매중)</option>
           <option value="SOLD_OUT">SOLD_OUT (매진)</option>
-          <option value="CLOSED">CLOSED (종료)</option>
+          <option value="CANCELLED">CANCELLED (취소)</option>
         </select>
       </div>
     </div>
@@ -242,6 +292,45 @@
     </div>
     <div class="form-row">
       <div class="form-group">
+        <label>그룹 코드</label>
+        <input type="text" id="m-event-group-code" placeholder="같은 공연 회차는 동일 코드 사용">
+      </div>
+      <div class="form-group">
+        <label>장르</label>
+        <select id="m-genre">
+          <option value="CONCERT">콘서트</option>
+          <option value="MUSICAL_PLAY">뮤지컬/연극</option>
+          <option value="FANCLUB_FANMEETING">팬클럽/팬미팅</option>
+          <option value="CLASSIC">클래식</option>
+          <option value="EXHIBITION_EVENT">전시/행사</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>지역</label>
+        <select id="m-region">
+          <option value="SEOUL">서울</option>
+          <option value="GYEONGGI_INCHEON">경기/인천</option>
+          <option value="DAEJEON_CHUNGCHEONG_GANGWON">대전/충청/강원</option>
+          <option value="BUSAN_DAEGU_GYEONGSANG">부산/대구/경상</option>
+          <option value="GWANGJU_JEOLLA_JEJU">광주/전라/제주</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>테마</label>
+        <select id="m-theme">
+          <option value="OVERSEAS_PERFORMANCE">내한공연</option>
+          <option value="SMALL_THEATER">홍대/소극장</option>
+          <option value="IDOL">아이돌</option>
+          <option value="FILIAL_CONCERT">효 콘서트</option>
+          <option value="FESTIVAL">페스티벌/콜라보</option>
+          <option value="KIDS_FAMILY">키즈/패밀리</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>공연장 주소</label>
         <input type="text" id="m-venue-address" placeholder="예: 서울특별시 송파구 올림픽로 424">
       </div>
@@ -306,7 +395,7 @@
         <select id="m-status">
           <option value="ON_SALE">ON_SALE (판매중)</option>
           <option value="SOLD_OUT">SOLD_OUT (매진)</option>
-          <option value="CLOSED">CLOSED (종료)</option>
+          <option value="CANCELLED">CANCELLED (취소)</option>
         </select>
       </div>
       <div class="form-group">
