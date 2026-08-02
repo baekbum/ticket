@@ -368,6 +368,30 @@ el.style.color      = 'var(--text-muted)';
 el.style.cursor     = 'not-allowed';
 }
 
+function setGroupCodeCopyVisible(visible) {
+const button = document.querySelector('.group-code-copy-btn');
+if (button) button.style.display = visible ? 'inline-flex' : 'none';
+}
+
+window.copyEventGroupCode = async function () {
+const groupCode = document.getElementById('m-event-group-code')?.value?.trim();
+if (!groupCode) {
+showToast('복사할 그룹 코드가 없습니다.', true);
+return;
+}
+
+try {
+await navigator.clipboard.writeText(groupCode);
+showToast('그룹 코드가 복사되었습니다.');
+} catch {
+const input = document.getElementById('m-event-group-code');
+input?.focus();
+input?.select();
+const copied = document.execCommand('copy');
+showToast(copied ? '그룹 코드가 복사되었습니다.' : '그룹 코드 복사에 실패했습니다.', !copied);
+}
+};
+
 function _setPosterFileName() {
 const fileInput = document.getElementById('m-poster-image');
 const fileName = document.getElementById('m-poster-file-name');
@@ -500,6 +524,7 @@ document.getElementById('modal-subtitle').textContent = '읽기 전용 모드입
 
 _setAllInputsState(true);
 _bindEventToModal(ev);
+setGroupCodeCopyVisible(true);
 
 document.getElementById('btn-modal-submit').style.display     = 'none';
 
@@ -525,6 +550,7 @@ document.getElementById('modal-subtitle').textContent = '정보를 수정한 뒤
 _setAllInputsState(false);
 _setFieldDisabled('m-event-id');
 _bindEventToModal(ev);
+setGroupCodeCopyVisible(false);
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -546,6 +572,7 @@ document.getElementById('modal-title').textContent    = '신규 공연 등록';
 document.getElementById('modal-subtitle').textContent = '새 공연 일정을 등록합니다.';
 
 _setAllInputsState(false);
+setGroupCodeCopyVisible(false);
 
 [
 'm-target-id','m-artist-name','m-title','m-venue','m-venue-address','m-poster-url','m-event-date-time',

@@ -293,7 +293,12 @@
     <div class="form-row">
       <div class="form-group">
         <label>그룹 코드</label>
-        <input type="text" id="m-event-group-code" placeholder="같은 공연 회차는 동일 코드 사용">
+        <div class="group-code-control">
+          <input type="text" id="m-event-group-code" placeholder="같은 공연 회차는 동일 코드 사용">
+          <button type="button" class="btn btn-outline group-code-copy-btn" onclick="copyEventGroupCode()">
+            <i class="ti ti-copy"></i>복사
+          </button>
+        </div>
       </div>
       <div class="form-group">
         <label>장르</label>
