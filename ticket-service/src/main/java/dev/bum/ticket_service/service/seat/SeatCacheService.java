@@ -13,10 +13,12 @@ import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
 import dev.bum.ticket_service.exception.seat.SeatCacheNotFoundException;
 import dev.bum.ticket_service.exception.seat.SeatOccupationFailedException;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -55,6 +57,7 @@ public class SeatCacheService {
 
     private final SeatRepository repository;
     private final EventRepository eventRepository;
+    private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
 
     /**
@@ -422,6 +425,7 @@ public class SeatCacheService {
      */
     private void validateUserPurchaseLimit(SeatOccupyRequest request) {
         Event event = eventRepository.selectById(request.getEventId());
+        validateUserPurchaseLimitFromDatabase(request, event);
         String purchaseKey = createPurchaseLimitKey(event, request.getUserId());
         String purchaseStr = seatRedisTemplate.opsForValue().get(purchaseKey);
         int purchaseCount = (purchaseStr == null) ? 0 : Integer.parseInt(purchaseStr);
@@ -430,6 +434,22 @@ public class SeatCacheService {
 
         if (purchaseCount + request.getSeats().size() > limitMax) {
             throw new SeatOccupationFailedException(createPurchaseLimitExceededMessage(event, limitMax));
+        }
+    }
+
+    private void validateUserPurchaseLimitFromDatabase(SeatOccupyRequest request, Event event) {
+        int selectedSeatCount = request.getSeats().size();
+
+        if (event.getMaxTicketsPerPerson() < selectedSeatCount) {
+            throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
+        }
+
+        boolean withinPurchaseLimit = event.getTicketLimitScope() == PER_GROUP
+                ? ticketRepository.isWithinGroupPurchaseLimit(request.getUserId(), event, selectedSeatCount)
+                : ticketRepository.isWithinPurchaseLimit(request.getUserId(), event, selectedSeatCount);
+
+        if (!withinPurchaseLimit) {
+            throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
         }
     }
 
