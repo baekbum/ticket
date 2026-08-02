@@ -404,6 +404,18 @@ if (!list) return;
 
 scheduleRowSeq += 1;
 const rowId = scheduleRowSeq;
+const actionButtons = rowId === 1
+? ''
+: `
+    <div class="form-group">
+      <label>1번 일정 복사</label>
+      <button type="button" class="btn btn-outline" onclick="copyFirstEventScheduleToRow(${rowId})">복사</button>
+    </div>
+    <div class="form-group">
+      <label>회차 삭제</label>
+      <button type="button" class="btn btn-danger" onclick="removeEventScheduleRow(${rowId})">삭제</button>
+    </div>
+`;
 const wrapper = document.createElement('div');
 wrapper.className = 'event-schedule-row';
 wrapper.dataset.scheduleRowId = String(rowId);
@@ -425,14 +437,7 @@ wrapper.innerHTML = `
       <label>판매 마감 #${rowId}</label>
       <input type="datetime-local" class="m-extra-sale-end-at">
     </div>
-    <div class="form-group">
-      <label>1번 일정 복사</label>
-      <button type="button" class="btn btn-outline" onclick="copyFirstEventScheduleToRow(${rowId})">복사</button>
-    </div>
-    <div class="form-group">
-      <label>회차 삭제</label>
-      <button type="button" class="btn btn-danger" onclick="removeEventScheduleRow(${rowId})">삭제</button>
-    </div>
+    ${actionButtons}
   </div>
 `;
 list.appendChild(wrapper);
