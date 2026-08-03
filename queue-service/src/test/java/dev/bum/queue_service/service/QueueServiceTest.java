@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -123,6 +125,17 @@ class QueueServiceTest {
         assertThat(completed).isFalse();
         then(zSetOperations).should(never()).remove(anyString(), anyString());
         then(redisTemplate).should(never()).delete(anyList());
+    }
+
+    @Test
+    @DisplayName("Redis 장애는 대기열 경계에서 로깅 후 전파한다")
+    void status_propagates_redis_error_after_context_logging() {
+        given(zSetOperations.rangeByScore(eq("queue:event:1:active"), eq(0.0), any(Double.class)))
+                .willThrow(new DataAccessException("redis error") {});
+
+        assertThatThrownBy(() -> queueService.status(1L, "user01", null))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessage("redis error");
     }
 
     @Test

@@ -6,6 +6,8 @@ import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.queue_service.config.QueueProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -19,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QueueService {
@@ -64,15 +68,17 @@ public class QueueService {
      * 유효한 큐 토큰이 있으면 READY를 복구하고, 없으면 대기열에 등록한 뒤 입장 가능 여부를 확인한다.
      */
     public QueueEnterResponse enter(Long eventId, String userId, String queueToken) {
-        validateUserId(userId);
-        pruneExpiredActiveTokens(eventId);
+        return executeWithRedisLogging("enter", eventId, userId, queueToken, () -> {
+            validateUserId(userId);
+            pruneExpiredActiveTokens(eventId);
 
-        QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
-        if (readyResponse != null) {
-            return readyResponse.toEnterResponse();
-        }
+            QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
+            if (readyResponse != null) {
+                return readyResponse.toEnterResponse();
+            }
 
-        return waitOrAdmitWithoutPrune(eventId, userId).toEnterResponse();
+            return waitOrAdmitWithoutPrune(eventId, userId).toEnterResponse();
+        });
     }
 
     /**
@@ -80,15 +86,17 @@ public class QueueService {
      * 유효한 큐 토큰이 있으면 READY를 반환하고, 없으면 대기열 기준으로 입장을 다시 시도한다.
      */
     public QueueStatusResponse status(Long eventId, String userId, String queueToken) {
-        validateUserId(userId);
-        pruneExpiredActiveTokens(eventId);
+        return executeWithRedisLogging("status", eventId, userId, queueToken, () -> {
+            validateUserId(userId);
+            pruneExpiredActiveTokens(eventId);
 
-        QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
-        if (readyResponse != null) {
-            return readyResponse;
-        }
+            QueueStatusResponse readyResponse = readyStatusIfValidToken(eventId, userId, queueToken);
+            if (readyResponse != null) {
+                return readyResponse;
+            }
 
-        return waitOrAdmitWithoutPrune(eventId, userId);
+            return waitOrAdmitWithoutPrune(eventId, userId);
+        });
     }
 
     /**
@@ -96,31 +104,35 @@ public class QueueService {
      * active-user 역방향 키를 먼저 확인하고, READY가 아니면 사용자별로 입장을 시도한다.
      */
     public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
-        pruneExpiredActiveTokens(eventId);
-        Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId, userIds);
-        List<QueueStatusResponse> responses = new ArrayList<>();
+        return executeWithRedisLogging("statuses", eventId, String.join(",", userIds), null, () -> {
+            pruneExpiredActiveTokens(eventId);
+            Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId, userIds);
+            List<QueueStatusResponse> responses = new ArrayList<>();
 
-        for (String userId : userIds) {
-            validateUserId(userId);
+            for (String userId : userIds) {
+                validateUserId(userId);
 
-            String activeToken = activeTokenByUserId.get(userId);
-            if (activeToken != null) {
-                responses.add(readyStatusResponse(eventId, activeToken));
-                continue;
+                String activeToken = activeTokenByUserId.get(userId);
+                if (activeToken != null) {
+                    responses.add(readyStatusResponse(eventId, activeToken));
+                    continue;
+                }
+
+                responses.add(waitOrAdmitWithoutPrune(eventId, userId));
             }
 
-            responses.add(waitOrAdmitWithoutPrune(eventId, userId));
-        }
-
-        return responses;
+            return responses;
+        });
     }
 
     /**
      * ticket-service가 전달한 큐 토큰이 해당 이벤트와 사용자에 대해 유효한 active token인지 검증한다.
      */
     public QueueValidateResponse validate(QueueValidateRequest request) {
-        boolean valid = isActiveTokenValid(request.eventId(), request.userId(), request.token());
-        return new QueueValidateResponse(valid, valid ? "OK" : "INVALID_QUEUE_TOKEN");
+        return executeWithRedisLogging("validate", request.eventId(), request.userId(), request.token(), () -> {
+            boolean valid = isActiveTokenValid(request.eventId(), request.userId(), request.token());
+            return new QueueValidateResponse(valid, valid ? "OK" : "INVALID_QUEUE_TOKEN");
+        });
     }
 
     /**
@@ -128,14 +140,32 @@ public class QueueService {
      * active ZSet, token key, active-user 역방향 키를 함께 제거해 다음 사용자가 입장할 수 있게 한다.
      */
     public boolean complete(Long eventId, String userId, String token) {
-        validateUserId(userId);
-        if (!isActiveTokenValid(eventId, userId, token)) {
-            return false;
-        }
+        return executeWithRedisLogging("complete", eventId, userId, token, () -> {
+            validateUserId(userId);
+            if (!isActiveTokenValid(eventId, userId, token)) {
+                return false;
+            }
 
-        redisTemplate.opsForZSet().remove(activeKey(eventId), token);
-        redisTemplate.delete(List.of(tokenKey(token), activeUserKey(eventId, userId)));
-        return true;
+            redisTemplate.opsForZSet().remove(activeKey(eventId), token);
+            redisTemplate.delete(List.of(tokenKey(token), activeUserKey(eventId, userId)));
+            return true;
+        });
+    }
+
+    private <T> T executeWithRedisLogging(
+            String operation,
+            Long eventId,
+            String userId,
+            String token,
+            Supplier<T> supplier
+    ) {
+        try {
+            return supplier.get();
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Queue Redis 처리 실패. operation={}, keyPrefix=queue, eventId={}, userId={}, token={}",
+                    operation, eventId, userId, token, e);
+            throw e;
+        }
     }
 
     /**

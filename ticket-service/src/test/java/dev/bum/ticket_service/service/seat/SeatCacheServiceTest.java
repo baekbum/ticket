@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -146,6 +147,30 @@ class SeatCacheServiceTest {
                 .hasMessage("이 공연은 모든 공연을 포함해서 1인당 최대 1매까지만 예매 가능합니다.");
 
         then(valueOperations).should(never()).get(GROUP_PURCHASE_LIMIT_KEY);
+        then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("좌석 선점 중 Redis 장애는 복구 단서 로깅 후 선점 실패로 변환한다")
+    void occupy_seat_wraps_redis_error() {
+        SeatOccupyRequest request = SeatOccupyRequest.builder()
+                .eventId(EVENT_ID)
+                .userId(USER_ID)
+                .seats(List.of(
+                        SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build()
+                ))
+                .build();
+        Event event = event();
+
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+        given(ticketRepository.isWithinPurchaseLimit(USER_ID, event, 1)).willReturn(true);
+        given(valueOperations.get(PURCHASE_LIMIT_KEY)).willThrow(new DataAccessException("redis error") {});
+
+        assertThatThrownBy(() -> seatCacheService.occupySeat(request))
+                .isInstanceOf(SeatOccupationFailedException.class)
+                .hasMessage("잠시 후 다시 시도해주세요.");
+
+        then(valueOperations).should().get(PURCHASE_LIMIT_KEY);
         then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
     }
 
