@@ -9,7 +9,6 @@ import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
-import dev.bum.ticket_service.exception.area.AreaDuplicateException;
 import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -57,46 +56,6 @@ public class AreaService {
     private final EventRepository eventRepository;
     private final EventLayoutJpaRepository layoutJpaRepository;
     private final SeatJpaRepository seatJpaRepository;
-    /**
-     * SVG 배치도 파일을 저장하고 SVG 안의 구역 path/rect 정보를 구역 데이터로 등록한다.
-     */
-    @AuditLog(action = "AREA_CREATE_SVG", targetType = "AREA")
-    public List<AreaResponse> insertSvg(Long eventId, MultipartFile svgFile, boolean force) {
-        if (eventId == null) {
-            throw new IllegalArgumentException("이벤트 ID를 입력해주세요.");
-        }
-        if (svgFile == null || svgFile.isEmpty()) {
-            throw new IllegalArgumentException("SVG 파일을 업로드해주세요.");
-        }
-        if (hasAreaLayout(eventId)) {
-            if (!force) {
-                throw new AreaLayoutAlreadyExistsException("해당 구역 배치도가 이미 존재합니다. 새로 등록하시겠습니까?");
-            }
-            deleteAreaLayout(eventId);
-        }
-
-        String svgText = normalizeSvgFile(svgFile);
-        saveEventLayout(eventId, svgFile.getOriginalFilename(), svgText);
-
-        List<InsertAreaRequest> areas = parseSvgAreas(eventId, svgText);
-        if (areas.isEmpty()) {
-            throw new IllegalArgumentException("SVG 파일에서 등록 가능한 구역 path를 찾지 못했습니다.");
-        }
-
-        log.info("[AREA SVG INSERT] eventId : {}, count : {}", eventId, areas.size());
-        return areas.stream()
-                .map(area -> {
-                    try {
-                        return repository.insert(area).toResponse();
-                    } catch (AreaDuplicateException e) {
-                        log.info("[AREA SVG INSERT SKIP DUPLICATE] eventId : {}, areaName : {}", eventId, area.getAreaName());
-                        return null;
-                    }
-                })
-                .filter(response -> response != null)
-                .toList();
-    }
-
     /**
      * 이벤트 그룹 코드에 속한 모든 이벤트에 동일한 SVG 구역 배치도를 등록한다.
      */

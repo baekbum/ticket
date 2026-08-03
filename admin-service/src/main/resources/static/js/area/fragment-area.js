@@ -270,8 +270,8 @@ window.submitAreaSvgForm = async function (force = false) {
   const eventGroupCode = inputValue('area-svg-event-group-code');
   const file = document.getElementById('area-svg-file')?.files?.[0];
 
-  if (!eventId && !eventGroupCode) {
-    showToast('이벤트 ID 또는 이벤트 그룹 코드를 입력해주세요.', true);
+  if (!eventGroupCode) {
+    showToast('이벤트 그룹 코드를 입력해주세요.', true);
     return;
   }
   if (!file) {
@@ -280,13 +280,11 @@ window.submitAreaSvgForm = async function (force = false) {
   }
 
   const formData = new FormData();
-  if (eventGroupCode) formData.append('eventGroupCode', eventGroupCode);
-  else formData.append('eventId', eventId);
+  formData.append('eventGroupCode', eventGroupCode);
   formData.append('svgFile', file);
 
   try {
-    const uploadUrl = eventGroupCode ? `${AREA_URL}/insert/svg/group?force=${force}` : `${AREA_URL}/insert/svg?force=${force}`;
-    const res = await Fetch(uploadUrl, {
+    const res = await Fetch(`${AREA_URL}/insert/svg/group?force=${force}`, {
       method: 'POST',
       headers: authHeaders,
       body: formData

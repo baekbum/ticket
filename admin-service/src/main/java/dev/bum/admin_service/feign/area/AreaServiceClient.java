@@ -17,13 +17,6 @@ import java.util.List;
 @FeignClient(name = "area-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/area")
 public interface AreaServiceClient {
 
-    @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    List<AreaResponse> insertSvg(
-            @RequestPart("eventId") String eventId,
-            @RequestPart("svgFile") MultipartFile svgFile,
-            @RequestParam(value = "force", defaultValue = "false") boolean force
-    );
-
     @PostMapping(value = "/insert/svg/group", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     List<AreaResponse> insertSvgByGroup(
             @RequestPart("eventGroupCode") String eventGroupCode,

@@ -164,14 +164,14 @@ Browser
 | 중복 구역 존재 | `AreaRepositoryImpl.isExist(...)` | `400 Bad Request` |
 | 관리자 권한 없음 | Spring Security | `403 Forbidden` |
 
-## 구역 SVG 등록
+## 그룹 구역 SVG 등록
 
-관리자가 좌석 배치 SVG 파일을 업로드해서 이벤트 구역과 배치 원본을 함께 등록하는 시나리오입니다.
+관리자가 좌석 배치 SVG 파일을 업로드해서 같은 이벤트 그룹의 모든 회차에 구역과 배치 원본을 함께 등록하는 시나리오입니다.
 
 ### 요청
 
 ```text
-POST /ticket/api/v1/area/insert/svg?force=false
+POST /ticket/api/v1/area/insert/svg/group?force=false
 Content-Type: multipart/form-data
 권한: ADMIN
 ```
@@ -180,7 +180,7 @@ Content-Type: multipart/form-data
 
 | 이름 | 위치 | 설명 |
 | --- | --- | --- |
-| `eventId` | request part | 이벤트 ID 문자열 |
+| `eventGroupCode` | request part | 이벤트 그룹 코드 |
 | `svgFile` | request part | 업로드할 SVG 파일 |
 | `force` | query param | 기존 배치가 있을 때 교체할지 여부, 기본값 `false` |
 
@@ -188,8 +188,9 @@ Content-Type: multipart/form-data
 
 ```text
 Browser
-  -> AreaController.insertSvg(...)
-  -> AreaService.insertSvg(...)
+  -> AreaController.insertSvgByGroup(...)
+  -> AreaService.insertSvgByEventGroupCode(...)
+  -> EventRepositoryImpl.selectByEventGroupCode(...)
   -> AreaService.hasAreaLayout(...)
   -> AreaService.deleteAreaLayout(...) optional
   -> AreaService.normalizeSvgFile(...)
@@ -202,14 +203,15 @@ Browser
 
 ### 단계별 설명
 
-1. `AreaController.insertSvg(...)`
-   - `eventId` 파트를 문자열로 받고 `Long.parseLong(eventId)`로 변환합니다.
+1. `AreaController.insertSvgByGroup(...)`
+   - `eventGroupCode` 파트를 문자열로 받습니다.
    - `svgFile` 파트를 `MultipartFile`로 받습니다.
-   - `force` query parameter를 받아 `areaService.insertSvg(...)`를 호출합니다.
+   - `force` query parameter를 받아 `areaService.insertSvgByEventGroupCode(...)`를 호출합니다.
 
-2. `AreaService.insertSvg(...)`
-   - `eventId`와 `svgFile`이 유효한지 확인합니다.
-   - `hasAreaLayout(eventId)`로 기존 배치 또는 구역이 있는지 확인합니다.
+2. `AreaService.insertSvgByEventGroupCode(...)`
+   - `eventGroupCode`와 `svgFile`이 유효한지 확인합니다.
+   - 그룹 코드에 속한 이벤트 목록을 조회합니다.
+   - 각 이벤트마다 `hasAreaLayout(eventId)`로 기존 배치 또는 구역이 있는지 확인합니다.
    - 기존 배치가 있고 `force=false`이면 `AreaLayoutAlreadyExistsException`을 발생시킵니다.
    - 기존 배치가 있고 `force=true`이면 `deleteAreaLayout(eventId)`로 기존 좌석, 구역, 레이아웃을 삭제합니다.
 
@@ -236,17 +238,17 @@ Browser
 
 ### 응답
 
-정상 처리되면 SVG에서 파싱되어 새로 저장된 `List<AreaResponse>`를 `200 OK`로 반환합니다.
+정상 처리되면 그룹 전체 회차에 대해 SVG에서 파싱되어 새로 저장된 `List<AreaResponse>`를 `200 OK`로 반환합니다.
 
 ### 주요 실패 케이스
 
 | 상황 | 위치 | 결과 |
 | --- | --- | --- |
-| `eventId` 누락 | `AreaService.insertSvg(...)` | `400 Bad Request` |
-| SVG 파일 누락 | `AreaService.insertSvg(...)` | `400 Bad Request` |
-| 기존 배치가 있고 `force=false` | `AreaService.insertSvg(...)` | `409 Conflict` |
+| `eventGroupCode` 누락 | `AreaService.insertSvgByEventGroupCode(...)` | `400 Bad Request` |
+| SVG 파일 누락 | `AreaService.insertSvgByEventGroupCode(...)` | `400 Bad Request` |
+| 기존 배치가 있고 `force=false` | `AreaService.insertSvgByEventGroupCode(...)` | `409 Conflict` |
 | SVG 읽기 또는 파싱 실패 | `normalizeSvgFile(...)`, `parseSvgAreas(...)` | `400 Bad Request` |
-| SVG에서 등록 가능한 구역 없음 | `AreaService.insertSvg(...)` | `400 Bad Request` |
+| SVG에서 등록 가능한 구역 없음 | `AreaService.insertSvgByEventGroupCode(...)` | `400 Bad Request` |
 | 관리자 권한 없음 | Spring Security | `403 Forbidden` |
 
 ## 이벤트 배치 조회
