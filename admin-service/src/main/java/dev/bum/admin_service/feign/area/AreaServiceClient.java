@@ -24,6 +24,13 @@ public interface AreaServiceClient {
             @RequestParam(value = "force", defaultValue = "false") boolean force
     );
 
+    @PostMapping(value = "/insert/svg/group", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    List<AreaResponse> insertSvgByGroup(
+            @RequestPart("eventGroupCode") String eventGroupCode,
+            @RequestPart("svgFile") MultipartFile svgFile,
+            @RequestParam(value = "force", defaultValue = "false") boolean force
+    );
+
     @GetMapping("/layout/event/{eventId}")
     EventLayoutResponse selectLayout(@PathVariable("eventId") Long eventId);
 

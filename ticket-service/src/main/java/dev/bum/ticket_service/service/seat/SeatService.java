@@ -6,6 +6,11 @@ import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.exception.area.AreaNotExistException;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +32,8 @@ import java.util.List;
 public class SeatService {
 
     private final SeatRepository repository;
+    private final EventRepository eventRepository;
+    private final AreaJpaRepository areaJpaRepository;
     private final SeatCacheService seatCacheService;
 
     /**
@@ -49,6 +56,27 @@ public class SeatService {
         }
 
         repository.insert(info);
+    }
+
+    /**
+     * 같은 이벤트 그룹의 모든 회차에 동일한 좌석 구조를 생성한다.
+     */
+    @AuditLog(action = "SEAT_CREATE_GROUP", targetType = "SEAT")
+    public void insertByEventGroupCode(InsertSeatGroupRequest info) {
+        List<Event> events = eventRepository.selectByEventGroupCode(info.getEventGroupCode());
+
+        for (Event event : events) {
+            Area area = areaJpaRepository.findByEvent_EventIdAndLayoutKey(event.getEventId(), info.getAreaLayoutKey())
+                    .orElseThrow(() -> new AreaNotExistException("같은 구역 배치 키를 가진 구역 정보가 존재하지 않습니다."));
+
+            InsertSeatRequest request = InsertSeatRequest.builder()
+                    .eventId(event.getEventId())
+                    .areaId(area.getAreaId())
+                    .insertSeatAreaConfigs(info.getInsertSeatAreaConfigs())
+                    .build();
+
+            insert(request);
+        }
     }
 
     /**

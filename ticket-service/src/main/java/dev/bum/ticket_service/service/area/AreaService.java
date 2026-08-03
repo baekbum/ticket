@@ -98,6 +98,45 @@ public class AreaService {
     }
 
     /**
+     * 이벤트 그룹 코드에 속한 모든 이벤트에 동일한 SVG 구역 배치도를 등록한다.
+     */
+    @AuditLog(action = "AREA_CREATE_SVG_GROUP", targetType = "AREA")
+    public List<AreaResponse> insertSvgByEventGroupCode(String eventGroupCode, MultipartFile svgFile, boolean force) {
+        if (!StringUtils.hasText(eventGroupCode)) {
+            throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
+        }
+        if (svgFile == null || svgFile.isEmpty()) {
+            throw new IllegalArgumentException("SVG 파일을 업로드해주세요.");
+        }
+
+        List<Event> events = eventRepository.selectByEventGroupCode(eventGroupCode);
+        String svgText = normalizeSvgFile(svgFile);
+        List<AreaResponse> responses = new ArrayList<>();
+
+        for (Event event : events) {
+            Long eventId = event.getEventId();
+            if (hasAreaLayout(eventId)) {
+                if (!force) {
+                    throw new AreaLayoutAlreadyExistsException("해당 이벤트 그룹에 이미 구역 배치도가 존재합니다. 새로 등록하시겠습니까?");
+                }
+                deleteAreaLayout(eventId);
+            }
+
+            saveEventLayout(eventId, svgFile.getOriginalFilename(), svgText);
+            List<InsertAreaRequest> areas = parseSvgAreas(eventId, svgText);
+            if (areas.isEmpty()) {
+                throw new IllegalArgumentException("SVG 파일에서 등록 가능한 구역 path를 찾지 못했습니다.");
+            }
+
+            areas.forEach(area -> responses.add(repository.insert(area).toResponse()));
+        }
+
+        log.info("[AREA SVG GROUP INSERT] eventGroupCode : {}, eventCount : {}, areaCount : {}",
+                eventGroupCode, events.size(), responses.size());
+        return responses;
+    }
+
+    /**
      * 이벤트에 기존 구역 배치도 또는 구역 데이터가 존재하는지 확인한다.
      */
     private boolean hasAreaLayout(Long eventId) {

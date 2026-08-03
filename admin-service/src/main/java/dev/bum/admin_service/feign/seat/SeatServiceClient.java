@@ -13,6 +13,9 @@ public interface SeatServiceClient {
     @PostMapping("/insert")
     void insert(@RequestBody InsertSeatRequest info);
 
+    @PostMapping("/insert/group")
+    void insertByGroup(@RequestBody InsertSeatGroupRequest info);
+
     @GetMapping("/select/id/{seatId}")
     SeatResponse selectById(@PathVariable("seatId") Long seatId);
 

@@ -43,6 +43,15 @@ public class AreaManagementController {
         return ResponseEntity.ok(areaService.insertSvg(Long.parseLong(eventId), svgFile, force));
     }
 
+    @PostMapping(value = "/insert/svg/group", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<List<AreaResponse>> insertSvgByGroup(
+            @RequestPart("eventGroupCode") String eventGroupCode,
+            @RequestPart("svgFile") MultipartFile svgFile,
+            @RequestParam(value = "force", defaultValue = "false") boolean force
+    ) {
+        return ResponseEntity.ok(areaService.insertSvgByEventGroupCode(eventGroupCode, svgFile, force));
+    }
+
     @GetMapping("/layout/event/{eventId}")
     public ResponseEntity<EventLayoutResponse> selectLayout(@PathVariable("eventId") Long eventId) {
         EventLayoutResponse response = areaService.selectLayout(eventId);

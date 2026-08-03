@@ -2,6 +2,7 @@
 const API = { VERSION: 'v1', LOCAL_PORT: '8999' };
 const BASE_URL = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
 const AREA_URL = `${BASE_URL}/api/${API.VERSION}/area`;
+const EVENT_URL = `${BASE_URL}/api/${API.VERSION}/event`;
 const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
 
@@ -11,6 +12,7 @@ let serverTotalPages = 1;
 let initialized = false;
 let selectedAreaIds = new Set();
 let pendingSvgReplace = false;
+let currentAreaEventGroupCode = null;
 
 function inputValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
@@ -52,6 +54,18 @@ window.getCurrentAreaEventId = function () {
   const inputEventId = inputValue('area-search-event-id');
   return inputEventId ? parseInt(inputEventId, 10) : null;
 };
+
+async function fetchEventGroupCode(eventId) {
+  if (!eventId) return null;
+  try {
+    const res = await Fetch(`${EVENT_URL}/select/id/${eventId}`, { method: 'GET', headers });
+    if (!res.ok) return null;
+    const event = await res.json();
+    return event.eventGroupCode || null;
+  } catch {
+    return null;
+  }
+}
 
 function updateAreaBulkBar() {
   const bar = document.getElementById('area-bulk-action-bar');
@@ -225,8 +239,11 @@ window.resetAreaSearch = function () {
   loadAreaList(0);
 };
 
-window.openAreaSvgModal = function () {
-  setValue('area-svg-event-id', currentAreaFilters.eventId || inputValue('area-search-event-id') || '');
+window.openAreaSvgModal = async function () {
+  const eventId = currentAreaFilters.eventId || inputValue('area-search-event-id') || '';
+  setValue('area-svg-event-id', eventId);
+  currentAreaEventGroupCode = await fetchEventGroupCode(eventId);
+  setValue('area-svg-event-group-code', currentAreaEventGroupCode || '');
   const fileInput = document.getElementById('area-svg-file');
   if (fileInput) fileInput.value = '';
   const fileName = document.getElementById('area-svg-file-name');
@@ -250,10 +267,11 @@ window.confirmAreaSvgReplace = function () {
 
 window.submitAreaSvgForm = async function (force = false) {
   const eventId = inputValue('area-svg-event-id');
+  const eventGroupCode = inputValue('area-svg-event-group-code');
   const file = document.getElementById('area-svg-file')?.files?.[0];
 
-  if (!eventId) {
-    showToast('이벤트 ID를 입력해주세요.', true);
+  if (!eventId && !eventGroupCode) {
+    showToast('이벤트 ID 또는 이벤트 그룹 코드를 입력해주세요.', true);
     return;
   }
   if (!file) {
@@ -262,11 +280,13 @@ window.submitAreaSvgForm = async function (force = false) {
   }
 
   const formData = new FormData();
-  formData.append('eventId', eventId);
+  if (eventGroupCode) formData.append('eventGroupCode', eventGroupCode);
+  else formData.append('eventId', eventId);
   formData.append('svgFile', file);
 
   try {
-    const res = await Fetch(`${AREA_URL}/insert/svg?force=${force}`, {
+    const uploadUrl = eventGroupCode ? `${AREA_URL}/insert/svg/group?force=${force}` : `${AREA_URL}/insert/svg?force=${force}`;
+    const res = await Fetch(uploadUrl, {
       method: 'POST',
       headers: authHeaders,
       body: formData
@@ -277,8 +297,10 @@ window.submitAreaSvgForm = async function (force = false) {
       showToast(`${inserted.length}개 구역을 SVG에서 등록했습니다.`);
       pendingSvgReplace = false;
       closeAreaSvgModal();
-      currentAreaFilters.eventId = parseInt(eventId, 10);
-      setValue('area-search-event-id', eventId);
+      if (eventId) {
+        currentAreaFilters.eventId = parseInt(eventId, 10);
+        setValue('area-search-event-id', eventId);
+      }
       loadAreaList(0);
     } else if (res.status === 409 && !force) {
       pendingSvgReplace = true;
@@ -371,7 +393,7 @@ window.submitAreaDelete = async function () {
   }
 };
 
-window.openAreaSeatModal = function (areaId) {
+window.openAreaSeatModal = async function (areaId) {
   const area = currentAreaList.find(item => item.areaId === areaId);
   if (!area) { showToast('구역 정보를 찾을 수 없습니다.', true); return; }
   if (typeof window.openSeatModal !== 'function') {
@@ -379,7 +401,8 @@ window.openAreaSeatModal = function (areaId) {
     return;
   }
 
-  window.openSeatModal(area.eventId, area.eventTitle || `Event ${area.eventId}`, '', area.areaId, area.areaName, area.grade, area.price);
+  const eventGroupCode = currentAreaEventGroupCode || await fetchEventGroupCode(area.eventId);
+  window.openSeatModal(area.eventId, area.eventTitle || `Event ${area.eventId}`, '', area.areaId, area.areaName, area.grade, area.price, area.layoutKey, eventGroupCode);
 };
 
 function initAreaFragment(context = {}) {

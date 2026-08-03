@@ -26,17 +26,21 @@
     let smAreaName   = null;
     let smAreaGrade  = null;
     let smAreaPrice  = null;
+    let smAreaLayoutKey = null;
+    let smEventGroupCode = null;
     let smTotalPages = 1;
     let smSelectedIds = new Set();
     let smDetailFilters = { seatRow: null, seatCol: null, status: null };
 
     /* ── 좌석 관리 모달 열기 ── */
-    window.openSeatModal = function (eventId, title, artist, areaId = null, areaName = null, areaGrade = null, areaPrice = null) {
+    window.openSeatModal = function (eventId, title, artist, areaId = null, areaName = null, areaGrade = null, areaPrice = null, areaLayoutKey = null, eventGroupCode = null) {
       smEventId = parseInt(eventId, 10);
       smAreaId = areaId ? parseInt(areaId, 10) : null;
       smAreaName = areaName || null;
       smAreaGrade = areaGrade || null;
       smAreaPrice = areaPrice ?? null;
+      smAreaLayoutKey = areaLayoutKey || null;
+      smEventGroupCode = eventGroupCode || null;
       smSelectedIds.clear();
       smDetailFilters = { seatRow: null, seatCol: null, status: null };
       document.getElementById('sm-event-title').textContent  = smAreaName ? `${smAreaName} — ${title}` : `${title} — ${artist}`;
@@ -933,12 +937,15 @@
         const canProceed = await _sbcConfirmReplaceExistingSeats();
         if (!canProceed) return;
 
-        const res = await Fetch(`${SEAT_API}/insert`, {
+        const isGroupInsert = smEventGroupCode && smAreaLayoutKey;
+        const res = await Fetch(`${SEAT_API}${isGroupInsert ? '/insert/group' : '/insert'}`, {
           method: 'POST', headers: authHeader(),
-          body: JSON.stringify({ eventId: smEventId, areaId: smAreaId, insertSeatAreaConfigs: configs })
+          body: JSON.stringify(isGroupInsert
+            ? { eventGroupCode: smEventGroupCode, areaLayoutKey: smAreaLayoutKey, insertSeatAreaConfigs: configs }
+            : { eventId: smEventId, areaId: smAreaId, insertSeatAreaConfigs: configs })
         });
         if (res.ok) {
-          showToast(`${totalSeats.toLocaleString()}석 일괄 생성 완료!`);
+          showToast(isGroupInsert ? `그룹 전체 회차에 좌석 일괄 생성 완료!` : `${totalSeats.toLocaleString()}석 일괄 생성 완료!`);
           closeSeatBulkCreateModal();
           loadSeatMgmtList(0);
         } else { await showResponseError(res, '좌석 생성 처리 중 오류 발생'); }

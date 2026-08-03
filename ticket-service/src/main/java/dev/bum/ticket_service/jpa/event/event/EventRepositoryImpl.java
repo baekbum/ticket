@@ -84,6 +84,20 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
+    public List<Event> selectByEventGroupCode(String eventGroupCode) {
+        if (!StringUtils.hasText(eventGroupCode)) {
+            throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
+        }
+
+        List<Event> events = jpaRepository.findByEventGroupCode(eventGroupCode.trim());
+        if (events.isEmpty()) {
+            throw new EventNotExistException("해당 이벤트 그룹 코드의 이벤트 정보가 존재하지 않습니다.");
+        }
+
+        return events;
+    }
+
+    @Override
     public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
         event = QEvent.event;
 
