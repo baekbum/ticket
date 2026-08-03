@@ -19,8 +19,8 @@ spring:
       client:
         config:
           default:
-            connectTimeout: 1000
-            readTimeout: 3000
+            connectTimeout: 3000
+            readTimeout: 9000
             loggerLevel: basic
 
 token:
