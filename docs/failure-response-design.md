@@ -297,3 +297,34 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 4. DLQ 재처리 이력 저장
 5. Outbox 패턴 도입
 
+## 좌석 배치도 실시간 상태 TODO
+
+현재 사용자 좌석 조회는 DB 상태만 기준으로 응답한다.
+따라서 다른 사용자가 Redis에서 임시 선점한 좌석도 DB가 아직 `AVAILABLE`이면 포도알로 보일 수 있다.
+실제 선점 API에서는 Redis lock을 다시 검증하므로, 클릭 시 “이미 선점된 좌석입니다”가 발생할 수 있다.
+
+차후 실시간 티켓팅 UX를 개선하려면 아래 순서로 작업한다.
+
+1. 사용자 좌석 조회 API가 DB 상태와 Redis 임시 선점 상태를 합쳐 응답하도록 변경한다.
+2. 현재 관리자 테스트용 `selectByCondWithCacheStatus` 흐름을 사용자 API에 적용 가능한 형태로 분리한다.
+3. Redis 값이 `LOCKED:{userId}:{orderId}`이면 응답 상태를 `LOCKED`로 내려 포도알을 비활성화한다.
+4. Redis 값이 `RESERVED`, `AVAILABLE` 같은 `SeatStatus` 값이면 DB 응답 상태를 Redis 상태로 보정한다.
+5. Redis key가 없으면 DB 상태를 그대로 사용하되, 필요하면 좌석 캐시 warm-up 대상에 포함한다.
+6. Redis 장애 시 좌석 조회 정책을 결정한다.
+   - 보수적 정책: 좌석 조회 실패 또는 “잠시 후 다시 시도” 응답
+   - 완화 정책: DB 기준 조회는 허용하되 선점 API에서 Redis 검증은 반드시 수행
+7. 좌석 선점 성공/취소/결제 완료/예약 취소 후 프론트 갱신 방식을 정한다.
+   - 1차: 짧은 주기 polling
+   - 2차: SSE 또는 WebSocket 좌석 상태 이벤트
+8. 프론트는 선점 실패 응답을 받으면 해당 좌석을 즉시 비활성화하고 좌석 목록을 재조회한다.
+9. DB 커밋 후 Redis 동기화 실패 이력(`seat_cache_sync_failures`)을 주기적으로 재처리하는 보정 job을 추가한다.
+10. 보정 job은 DB 상태를 진실 원천으로 삼아 Redis seat key와 lock key를 다시 맞춘다.
+
+최종 목표 상태:
+
+```text
+좌석 배치도 표시 = DB 확정 상태 + Redis 임시 선점 상태
+좌석 선점 확정 = Redis lock 성공 + DB 상태 검증
+장애 복구 기준 = DB 상태
+실시간 UX 개선 = polling 또는 SSE/WebSocket
+```
