@@ -1,4 +1,4 @@
-package dev.bum.audit_service.config;
+package dev.bum.auth_service.config;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,21 +11,13 @@ public class KafkaTopicConfig {
 
     private static final String DLT_SUFFIX = ".DLT";
 
-    @Value("${topic.audit.log.name}")
-    private String auditLogTopicName;
+    @Value("${topic.name}")
+    private String userEventTopicName;
 
     @Bean
-    public NewTopic auditLogTopic() {
-        return TopicBuilder.name(auditLogTopicName)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    public NewTopic auditLogDltTopic() {
-        return TopicBuilder.name(auditLogTopicName + DLT_SUFFIX)
-                .partitions(3)
+    public NewTopic userEventDltTopic() {
+        return TopicBuilder.name(userEventTopicName + DLT_SUFFIX)
+                .partitions(1)
                 .replicas(1)
                 .build();
     }
