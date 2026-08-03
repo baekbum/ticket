@@ -38,22 +38,6 @@ public class EventService {
     private final FileStorageService fileStorageService;
 
     /**
-     * 공연 정보 등록
-     * @param info
-     * @return
-     */
-    @AuditLog(action = "EVENT_CREATE", targetType = "EVENT")
-    public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
-        log.info("[INSERT WITH POSTER] Info : {}", info.toString());
-
-        Event event = repository.insert(info);
-        String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
-        event.updatePosterUrl(posterUrl);
-
-        return event.toResponse();
-    }
-
-    /**
      * 공통 공연 정보와 다중 회차 정보를 받아 여러 이벤트를 하나의 트랜잭션으로 등록한다.
      */
     @AuditLog(action = "EVENT_CREATE_BULK", targetType = "EVENT")

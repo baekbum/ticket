@@ -54,24 +54,6 @@ class EventServiceTest {
     private FileStorageService fileStorageService;
 
     @Test
-    @DisplayName("이벤트 등록 시 포스터 저장 후 URL 반영")
-    void insert() {
-        InsertEventRequest info = insertRequest();
-        MultipartFile posterImage = posterImage();
-        Event event = event(1L, "IU Concert");
-
-        given(repository.insert(info)).willReturn(event);
-        given(fileStorageService.saveEventPoster(1L, posterImage)).willReturn("/ticket/uploads/events/posters/1/poster.png");
-
-        EventResponse response = eventService.insert(info, posterImage);
-
-        assertThat(response.getEventId()).isEqualTo(1L);
-        assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/poster.png");
-        then(repository).should().insert(info);
-        then(fileStorageService).should().saveEventPoster(1L, posterImage);
-    }
-
-    @Test
     @DisplayName("다회차 이벤트 등록 시 공통 정보와 회차별 일정으로 여러 이벤트 생성")
     void insert_bulk() {
         InsertEventBulkRequest info = bulkInsertRequest();
@@ -286,24 +268,6 @@ class EventServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         then(repository).should(never()).delete(org.mockito.ArgumentMatchers.any());
-    }
-
-    private InsertEventRequest insertRequest() {
-        return InsertEventRequest.builder()
-                .artistName("IU")
-                .title("IU Concert")
-                .description("Concert description")
-                .venue("KSPO Dome")
-                .venueAddress("Seoul")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
-                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
-                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
-                .runningMinutes(120)
-                .ageLimit(12)
-                .totalSeats(14500)
-                .maxTicketsPerPerson(4)
-                .build();
     }
 
     private InsertEventBulkRequest bulkInsertRequest() {
