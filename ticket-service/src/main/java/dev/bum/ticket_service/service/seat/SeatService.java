@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
+import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
@@ -12,6 +13,7 @@ import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.exception.seat.SeatLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,91 @@ public class SeatService {
      */
     @AuditLog(action = "SEAT_CREATE", targetType = "SEAT")
     public void insert(InsertSeatRequest info) {
+        SeatInsertTarget target = resolveSingleTarget(info);
+        SeatInsertMode mode = resolveMode(info.getMode());
+
+        validateExistingSeats(List.of(target), mode);
+        deleteExistingSeatsIfNeeded(List.of(target), mode);
+        insertSeats(info, mode);
+    }
+
+    /**
+     * 같은 이벤트 그룹의 모든 회차에 동일한 좌석 구조를 생성한다.
+     */
+    @AuditLog(action = "SEAT_CREATE_GROUP", targetType = "SEAT")
+    public void insertByEventGroupCode(InsertSeatGroupRequest info) {
+        SeatInsertMode mode = resolveMode(info.getMode());
+        List<Event> events = eventRepository.selectByEventGroupCode(info.getEventGroupCode());
+        List<SeatInsertTarget> targets = events.stream()
+                .map(event -> resolveGroupTarget(event, info.getAreaLayoutKey()))
+                .toList();
+
+        validateExistingSeats(targets, mode);
+        deleteExistingSeatsIfNeeded(targets, mode);
+
+        for (SeatInsertTarget target : targets) {
+            InsertSeatRequest request = InsertSeatRequest.builder()
+                    .eventId(target.eventId)
+                    .areaId(target.areaId)
+                    .mode(mode)
+                    .insertSeatAreaConfigs(info.getInsertSeatAreaConfigs())
+                    .build();
+
+            insertSeats(request, mode);
+        }
+    }
+
+    private SeatInsertTarget resolveSingleTarget(InsertSeatRequest info) {
+        Area area = info.getAreaId() != null
+                ? areaJpaRepository.findById(info.getAreaId())
+                .orElseThrow(() -> new AreaNotExistException("해당 구역 정보는 존재하지 않습니다."))
+                : null;
+
+        return SeatInsertTarget.builder()
+                .eventId(info.getEventId())
+                .areaId(info.getAreaId())
+                .areaName(area != null ? area.getAreaName() : "전체")
+                .build();
+    }
+
+    private SeatInsertTarget resolveGroupTarget(Event event, String areaLayoutKey) {
+        Area area = areaJpaRepository.findByEvent_EventIdAndLayoutKey(event.getEventId(), areaLayoutKey)
+                .orElseThrow(() -> new AreaNotExistException("같은 구역 배치 키를 가진 구역 정보가 존재하지 않습니다."));
+
+        return SeatInsertTarget.builder()
+                .eventId(event.getEventId())
+                .areaId(area.getAreaId())
+                .areaName(area.getAreaName())
+                .build();
+    }
+
+    private void validateExistingSeats(List<SeatInsertTarget> targets, SeatInsertMode mode) {
+        if (mode != SeatInsertMode.FAIL_IF_EXISTS) return;
+
+        targets.stream()
+                .filter(target -> target.areaId != null)
+                .filter(target -> seatCountByAreaId(target.areaId) > 0)
+                .findFirst()
+                .ifPresent(target -> {
+                    throw new SeatLayoutAlreadyExistsException(
+                            target.eventId + "번 이벤트의 [" + target.areaName + "] 구역에는 이미 좌석이 존재합니다."
+                    );
+                });
+    }
+
+    private void deleteExistingSeatsIfNeeded(List<SeatInsertTarget> targets, SeatInsertMode mode) {
+        if (mode != SeatInsertMode.REPLACE) return;
+
+        targets.stream()
+                .filter(target -> target.areaId != null)
+                .forEach(target -> repository.deleteByAreaId(target.areaId));
+    }
+
+    private long seatCountByAreaId(Long areaId) {
+        return repository.countByAreaId(areaId);
+    }
+
+    private void insertSeats(InsertSeatRequest info, SeatInsertMode mode) {
         if (!info.getInsertSeatAreaConfigs().isEmpty()) {
             for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
                 log.info("[INSERT] EventId : {}, Zone : {}, Rows : {}, Cols : {}, Price : {}, Grade : {}",
@@ -55,28 +142,22 @@ public class SeatService {
             }
         }
 
-        repository.insert(info);
+        if (mode == SeatInsertMode.APPEND || info.getAreaId() != null) {
+            repository.insertAppend(info);
+        } else {
+            repository.insert(info);
+        }
     }
 
-    /**
-     * 같은 이벤트 그룹의 모든 회차에 동일한 좌석 구조를 생성한다.
-     */
-    @AuditLog(action = "SEAT_CREATE_GROUP", targetType = "SEAT")
-    public void insertByEventGroupCode(InsertSeatGroupRequest info) {
-        List<Event> events = eventRepository.selectByEventGroupCode(info.getEventGroupCode());
+    private SeatInsertMode resolveMode(SeatInsertMode mode) {
+        return mode != null ? mode : SeatInsertMode.FAIL_IF_EXISTS;
+    }
 
-        for (Event event : events) {
-            Area area = areaJpaRepository.findByEvent_EventIdAndLayoutKey(event.getEventId(), info.getAreaLayoutKey())
-                    .orElseThrow(() -> new AreaNotExistException("같은 구역 배치 키를 가진 구역 정보가 존재하지 않습니다."));
-
-            InsertSeatRequest request = InsertSeatRequest.builder()
-                    .eventId(event.getEventId())
-                    .areaId(area.getAreaId())
-                    .insertSeatAreaConfigs(info.getInsertSeatAreaConfigs())
-                    .build();
-
-            insert(request);
-        }
+    @lombok.Builder
+    private static class SeatInsertTarget {
+        private Long eventId;
+        private Long areaId;
+        private String areaName;
     }
 
     /**

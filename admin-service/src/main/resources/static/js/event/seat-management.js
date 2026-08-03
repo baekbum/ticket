@@ -854,6 +854,15 @@
       document.getElementById('sbc-price-label').textContent = smAreaPrice !== null && smAreaPrice !== undefined && smAreaPrice !== ''
         ? `${Number(smAreaPrice).toLocaleString()}원`
         : '-';
+      setSeatCreateScope('CURRENT');
+      const groupScope = document.querySelector('.seat-scope-card[data-scope="GROUP"]');
+      if (groupScope) groupScope.disabled = !(smEventGroupCode && smAreaLayoutKey);
+      const groupScopeLabel = document.getElementById('sbc-group-scope-label');
+      if (groupScopeLabel) {
+        groupScopeLabel.textContent = smEventGroupCode
+          ? `${smEventGroupCode} 그룹의 모든 회차에 생성합니다.`
+          : '이벤트 그룹 코드가 없으면 사용할 수 없습니다.';
+      }
       const wrapper = document.getElementById('sbc-zone-wrapper');
       wrapper.innerHTML = '';
       sbcBlocks = [];
@@ -865,41 +874,23 @@
       document.getElementById('seat-bulk-create-modal').style.display = 'none';
     };
 
-    async function _sbcConfirmReplaceExistingSeats() {
-      if (!smAreaId) return true;
+    window.closeSeatBulkExistsModal = function () {
+      document.getElementById('seat-bulk-exists-modal').style.display = 'none';
+    };
 
-      const checkRes = await Fetch(`${SEAT_API}/select`, {
-        method: 'POST',
-        headers: authHeader(),
-        body: JSON.stringify({ eventId: smEventId, areaId: smAreaId, page: 0, size: 1, sort: ['seatId-desc'] })
+    window.setSeatCreateScope = function (scope) {
+      document.querySelectorAll('.seat-scope-card[data-scope]').forEach(card => {
+        const selected = card.dataset.scope === scope;
+        card.classList.toggle('is-selected', selected);
+        card.setAttribute('aria-pressed', selected ? 'true' : 'false');
       });
+    };
 
-      if (!checkRes.ok) {
-        showToast('기존 좌석 정보를 확인하지 못했습니다.', true);
-        return false;
-      }
-
-      const paged = await checkRes.json();
-      const total = paged.page?.totalElements ?? paged.totalElements ?? 0;
-      if (total <= 0) return true;
-
-      const confirmed = window.confirm(`현재 구역에 이미 ${Number(total).toLocaleString()}개의 좌석이 있습니다.\n기존 좌석을 삭제하고 새로 등록할까요?`);
-      if (!confirmed) return false;
-
-      const deleteRes = await Fetch(`${SEAT_API}/delete/area/${smAreaId}`, {
-        method: 'DELETE',
-        headers: authHeader()
-      });
-
-      if (!deleteRes.ok) {
-        await showResponseError(deleteRes, '기존 좌석 삭제에 실패했습니다.');
-        return false;
-      }
-
-      return true;
+    function _sbcCreateScope() {
+      return document.querySelector('.seat-scope-card.is-selected[data-scope]')?.dataset.scope || 'CURRENT';
     }
 
-    window.submitSeatBulkCreate = async function () {
+    window.submitSeatBulkCreate = async function (mode = 'FAIL_IF_EXISTS') {
       const cards = document.querySelectorAll('#sbc-zone-wrapper .zone-card');
       if (cards.length === 0) { showToast('구역을 최소 1개 추가해주세요.', true); return; }
       const configs = []; let valid = true;
@@ -934,20 +925,26 @@
       if (!valid) { showToast('모든 구역 항목을 빠짐없이 입력해주세요.', true); return; }
       const totalSeats = configs.reduce((s,c) => s + c.rows*c.cols, 0);
       try {
-        const canProceed = await _sbcConfirmReplaceExistingSeats();
-        if (!canProceed) return;
-
-        const isGroupInsert = smEventGroupCode && smAreaLayoutKey;
+        const isGroupInsert = _sbcCreateScope() === 'GROUP' && smEventGroupCode && smAreaLayoutKey;
         const res = await Fetch(`${SEAT_API}${isGroupInsert ? '/insert/group' : '/insert'}`, {
           method: 'POST', headers: authHeader(),
           body: JSON.stringify(isGroupInsert
-            ? { eventGroupCode: smEventGroupCode, areaLayoutKey: smAreaLayoutKey, insertSeatAreaConfigs: configs }
-            : { eventId: smEventId, areaId: smAreaId, insertSeatAreaConfigs: configs })
+            ? { eventGroupCode: smEventGroupCode, areaLayoutKey: smAreaLayoutKey, mode, insertSeatAreaConfigs: configs }
+            : { eventId: smEventId, areaId: smAreaId, mode, insertSeatAreaConfigs: configs })
         });
         if (res.ok) {
+          closeSeatBulkExistsModal();
           showToast(isGroupInsert ? `그룹 전체 회차에 좌석 일괄 생성 완료!` : `${totalSeats.toLocaleString()}석 일괄 생성 완료!`);
           closeSeatBulkCreateModal();
           loadSeatMgmtList(0);
+        } else if (res.status === 409 && mode === 'FAIL_IF_EXISTS') {
+          let message = '해당 구역에는 이미 좌석이 존재합니다.';
+          try {
+            const error = await res.json();
+            message = error.message || message;
+          } catch {}
+          document.getElementById('sbc-exists-message').textContent = message;
+          document.getElementById('seat-bulk-exists-modal').style.display = 'flex';
         } else { await showResponseError(res, '좌석 생성 처리 중 오류 발생'); }
       } catch { showToast('통신 오류', true); }
     };

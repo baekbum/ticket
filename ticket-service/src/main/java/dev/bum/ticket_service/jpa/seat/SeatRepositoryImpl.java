@@ -52,18 +52,29 @@ public class SeatRepositoryImpl implements SeatRepository {
 
     @Override
     public void insert(InsertSeatRequest info) {
+        insertInternal(info, true);
+    }
+
+    @Override
+    public void insertAppend(InsertSeatRequest info) {
+        insertInternal(info, false);
+    }
+
+    private void insertInternal(InsertSeatRequest info, boolean validateExistingUnavailableSeat) {
         Long eventId = info.getEventId();
 
         // 공연 정보가 존재하는 지 확인.
         Event event = eventRepository.selectById(eventId);
         Area area = info.getAreaId() != null ? areaRepository.selectById(info.getAreaId()) : null;
 
-        // 해당 공연 정보가 이미 등록되어있는지 확인.
-        SeatCondRequest cond = SeatCondRequest.builder()
-                .eventId(info.getEventId())
-                .build();
+        if (validateExistingUnavailableSeat) {
+            // 해당 공연 정보가 이미 등록되어있는지 확인.
+            SeatCondRequest cond = SeatCondRequest.builder()
+                    .eventId(info.getEventId())
+                    .build();
 
-        isExist(cond);
+            isExist(cond);
+        }
 
         // 데이터를 구역 별로 벌크 처리
         int batchSize = 500; // 500개 단위로 끊어서 처리
@@ -189,6 +200,11 @@ public class SeatRepositoryImpl implements SeatRepository {
         if (seats.isEmpty()) throw new SeatNotExistException("해당 구역의 좌석 정보는 존재하지 않습니다.");
 
         return seats;
+    }
+
+    @Override
+    public long countByAreaId(Long areaId) {
+        return jpaRepository.countByAreaAreaId(areaId);
     }
 
     @Override

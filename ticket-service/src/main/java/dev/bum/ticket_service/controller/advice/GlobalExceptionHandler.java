@@ -65,6 +65,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(ErrorCode.AREA_LAYOUT_ALREADY_EXISTS, ex.getMessage()));
     }
 
+    @ExceptionHandler(SeatLayoutAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleSeatLayoutAlreadyExistsException(SeatLayoutAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(ErrorCode.SEAT_LAYOUT_ALREADY_EXISTS, ex.getMessage()));
+    }
+
     // ==========================================
     // Seat 관련 예외 처리
     // ==========================================

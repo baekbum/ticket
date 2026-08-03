@@ -1,6 +1,7 @@
 package dev.bum.common.service.ticket.seat.dto;
 
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
+import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,8 @@ public class InsertSeatGroupRequest {
 
     @NotBlank
     private String areaLayoutKey;
+
+    private SeatInsertMode mode;
 
     @NotNull
     private List<InsertSeatAreaConfig> insertSeatAreaConfigs;

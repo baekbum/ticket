@@ -16,6 +16,8 @@ public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
 
     List<Seat> findByAreaAreaId(long areaId);
 
+    long countByAreaAreaId(Long areaId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")})
     @Query("select s from Seat s where s.event.eventId = :eventId and s.seatId in :seatIdList and s.status = :status")
