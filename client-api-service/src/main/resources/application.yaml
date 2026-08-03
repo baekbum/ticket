@@ -8,6 +8,14 @@ spring:
     default: local
   application:
     name: client-api-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: basic
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
