@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -80,6 +81,20 @@ public class EventRepositoryImpl implements EventRepository {
     public Event selectById(Long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
+    }
+
+    @Override
+    public List<Event> selectByEventGroupCode(String eventGroupCode) {
+        if (!StringUtils.hasText(eventGroupCode)) {
+            throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
+        }
+
+        List<Event> events = jpaRepository.findByEventGroupCode(eventGroupCode.trim());
+        if (events.isEmpty()) {
+            throw new EventNotExistException("해당 이벤트 그룹 코드의 이벤트 정보가 존재하지 않습니다.");
+        }
+
+        return events;
     }
 
     @Override
@@ -248,6 +263,10 @@ public class EventRepositoryImpl implements EventRepository {
         return status != null ? event.status.eq(status) : null;
     }
 
+    private BooleanExpression ticketLimitScopeEq(TicketLimitScope ticketLimitScope) {
+        return ticketLimitScope != null ? event.ticketLimitScope.eq(ticketLimitScope) : null;
+    }
+
     private BooleanExpression genreEq(EventGenre genre) {
         return genre != null ? event.genre.eq(genre) : null;
     }
@@ -282,6 +301,7 @@ public class EventRepositoryImpl implements EventRepository {
                 totalSeatsEq(cond.getTotalSeats()),
                 availableSeatsEq(cond.getAvailableSeats()),
                 statusEq(cond.getStatus()),
+                ticketLimitScopeEq(cond.getTicketLimitScope()),
                 genreEq(cond.getGenre()),
                 regionEq(cond.getRegion()),
                 themeEq(cond.getTheme())

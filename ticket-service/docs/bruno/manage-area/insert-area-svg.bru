@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{ticketBaseUrl}}/manage/area/insert/svg
+  url: {{ticketBaseUrl}}/manage/area/insert/svg/group
   body: multipartForm
   auth: bearer
 }
@@ -19,6 +19,6 @@ auth:bearer {
 }
 
 body:multipart-form {
-  eventId: {{eventId}}
+  eventGroupCode: {{eventGroupCode}}
   svgFile: @file(samples/area-layout.svg)
 }

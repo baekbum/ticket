@@ -7,9 +7,15 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
-import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.controller.event.EventManagementController;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.event.event.EventService;
@@ -67,10 +73,13 @@ class EventManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("이벤트 등록")
-    void event_insert() throws Exception {
-        InsertEventRequest info = insertRequest();
-        EventResponse response = eventResponse(1L, "IU Concert");
+    @DisplayName("다회차 이벤트 등록")
+    void event_insert_bulk() throws Exception {
+        InsertEventBulkRequest info = insertBulkRequest();
+        List<EventResponse> response = List.of(
+                eventResponse(1L, "IU Concert"),
+                eventResponse(2L, "IU Concert")
+        );
         MockMultipartFile eventPart = jsonPart("event", info);
         MockMultipartFile posterPart = new MockMultipartFile(
                 "posterImage",
@@ -79,17 +88,17 @@ class EventManagementControllerTest {
                 "image".getBytes()
         );
 
-        given(eventService.insert(any(), any())).willReturn(response);
+        given(eventService.insertBulk(any(), any())).willReturn(response);
 
-        mockMvc.perform(multipart(baseUrl + "/insert")
+        mockMvc.perform(multipart(baseUrl + "/insert/bulk")
                         .file(eventPart)
                         .file(posterPart))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.eventId").value(1L))
-                .andExpect(jsonPath("$.title").value("IU Concert"))
-                .andExpect(jsonPath("$.status").value("ON_SALE"));
+                .andExpect(jsonPath("$[0].eventId").value(1L))
+                .andExpect(jsonPath("$[1].eventId").value(2L))
+                .andExpect(jsonPath("$[0].title").value("IU Concert"));
 
-        then(eventService).should().insert(eq(info), eq(posterPart));
+        then(eventService).should().insertBulk(eq(info), eq(posterPart));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -223,21 +232,38 @@ class EventManagementControllerTest {
         );
     }
 
-    private InsertEventRequest insertRequest() {
-        return InsertEventRequest.builder()
-                .artistName("IU")
-                .title("IU Concert")
-                .description("Concert description")
-                .venue("KSPO Dome")
-                .venueAddress("Seoul")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
-                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
-                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
-                .runningMinutes(120)
-                .ageLimit(12)
-                .totalSeats(14500)
-                .maxTicketsPerPerson(4)
+    private InsertEventBulkRequest insertBulkRequest() {
+        return InsertEventBulkRequest.builder()
+                .common(InsertEventCommonRequest.builder()
+                        .artistName("IU")
+                        .title("IU Concert")
+                        .eventGroupCode("IU_2026_ENCORE")
+                        .description("Concert description")
+                        .venue("KSPO Dome")
+                        .venueAddress("Seoul")
+                        .runningMinutes(120)
+                        .ageLimit(12)
+                        .totalSeats(14500)
+                        .maxTicketsPerPerson(1)
+                        .ticketLimitScope(TicketLimitScope.PER_GROUP)
+                        .genre(EventGenre.CONCERT)
+                        .region(EventRegion.SEOUL)
+                        .theme(EventTheme.IDOL)
+                        .build())
+                .schedules(List.of(
+                        InsertEventScheduleRequest.builder()
+                                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
+                                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
+                                .build(),
+                        InsertEventScheduleRequest.builder()
+                                .eventDateTime(LocalDateTime.of(2026, 9, 19, 18, 0))
+                                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                                .saleEndAt(LocalDateTime.of(2026, 9, 18, 23, 59))
+                                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 18, 17, 0))
+                                .build()
+                ))
                 .build();
     }
 

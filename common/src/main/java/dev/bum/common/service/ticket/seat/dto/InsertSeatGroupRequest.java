@@ -2,8 +2,12 @@ package dev.bum.common.service.ticket.seat.dto;
 
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -11,12 +15,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class InsertSeatRequest {
+public class InsertSeatGroupRequest {
 
-    @NotNull
-    private Long eventId;
+    @NotBlank
+    private String eventGroupCode;
 
-    private Long areaId;
+    @NotBlank
+    private String areaLayoutKey;
 
     private SeatInsertMode mode;
 

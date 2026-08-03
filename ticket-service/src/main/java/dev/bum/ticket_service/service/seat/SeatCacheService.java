@@ -13,8 +13,12 @@ import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
 import dev.bum.ticket_service.exception.seat.SeatCacheNotFoundException;
 import dev.bum.ticket_service.exception.seat.SeatOccupationFailedException;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -40,6 +44,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static dev.bum.common.service.ticket.event.event.enums.TicketLimitScope.PER_GROUP;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -50,6 +56,8 @@ public class SeatCacheService {
     private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final SeatRepository repository;
+    private final EventRepository eventRepository;
+    private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
 
     /**
@@ -180,7 +188,7 @@ public class SeatCacheService {
 
     /**
      * Redis를 이용한 다중 좌석 선점 메서드
-     * @param request
+     * @param eventId
      */
     public String unlockEventSeatCache(Long eventId) {
         log.info("[REDIS-TEST-UNLOCK-EVENT] EventId : {}", eventId);
@@ -376,13 +384,13 @@ public class SeatCacheService {
 
     /**
      * Redis에 공연별 사용자 예매 매수를 반영하는 메서드
-     * @param eventId
+     * @param event
      * @param userId
      * @param purchaseCnt
      * @param type
      */
-    public void updateUserPurchaseLimit(long eventId, String userId, int purchaseCnt, String type) {
-        String purchaseKey = "user:purchase:limit:" + eventId + ":" + userId;
+    public void updateUserPurchaseLimit(Event event, String userId, int purchaseCnt, String type) {
+        String purchaseKey = createPurchaseLimitKey(event, userId);
 
         int amount = type.equals("PLUS") ? purchaseCnt : -purchaseCnt;
         Long currentCount = seatRedisTemplate.opsForValue().increment(purchaseKey, amount);
@@ -416,15 +424,49 @@ public class SeatCacheService {
      * @param request
      */
     private void validateUserPurchaseLimit(SeatOccupyRequest request) {
-        String purchaseKey = "user:purchase:limit:" + request.getEventId() + ":" + request.getUserId();
+        Event event = eventRepository.selectById(request.getEventId());
+        validateUserPurchaseLimitFromDatabase(request, event);
+        String purchaseKey = createPurchaseLimitKey(event, request.getUserId());
         String purchaseStr = seatRedisTemplate.opsForValue().get(purchaseKey);
         int purchaseCount = (purchaseStr == null) ? 0 : Integer.parseInt(purchaseStr);
 
-        int limitMax = request.getMaxTicketsPerPerson();
+        int limitMax = event.getMaxTicketsPerPerson();
 
         if (purchaseCount + request.getSeats().size() > limitMax) {
-            throw new SeatOccupationFailedException("이 공연은 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.");
+            throw new SeatOccupationFailedException(createPurchaseLimitExceededMessage(event, limitMax));
         }
+    }
+
+    private void validateUserPurchaseLimitFromDatabase(SeatOccupyRequest request, Event event) {
+        int selectedSeatCount = request.getSeats().size();
+
+        if (event.getMaxTicketsPerPerson() < selectedSeatCount) {
+            throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
+        }
+
+        boolean withinPurchaseLimit = event.getTicketLimitScope() == PER_GROUP
+                ? ticketRepository.isWithinGroupPurchaseLimit(request.getUserId(), event, selectedSeatCount)
+                : ticketRepository.isWithinPurchaseLimit(request.getUserId(), event, selectedSeatCount);
+
+        if (!withinPurchaseLimit) {
+            throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
+        }
+    }
+
+    private String createPurchaseLimitExceededMessage(Event event, int limitMax) {
+        if (event.getTicketLimitScope() == PER_GROUP) {
+            return "이 공연은 모든 공연을 포함해서 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";
+        }
+
+        return "이 공연은 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";
+    }
+
+    private String createPurchaseLimitKey(Event event, String userId) {
+        if (event.getTicketLimitScope() == PER_GROUP) {
+            return "user:purchase:limit:group:" + event.getEventGroupCode() + ":" + userId;
+        }
+
+        return "user:purchase:limit:event:" + event.getEventId() + ":" + userId;
     }
 
     /**

@@ -1,5 +1,6 @@
 package dev.bum.common.service.ticket.seat.dto;
 
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import lombok.*;
 
@@ -15,4 +16,6 @@ public class SeatOccupyRequest {
     private String userId;
     private List<SeatInfo> seats;
     private Integer maxTicketsPerPerson;
+    private String eventGroupCode;
+    private TicketLimitScope ticketLimitScope;
 }

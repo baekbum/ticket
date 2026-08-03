@@ -35,6 +35,7 @@ let layoutZoom = 1;
 let layoutDragState = null;
 let layoutDragged = false;
 let posterPreviewObjectUrl = null;
+let scheduleRowSeq = 0;
 
 function formatDigitInput(input) {
 if (!input) return;
@@ -330,6 +331,7 @@ _set('m-available-seats',  ev.availableSeats);
 formatDigitInput(document.getElementById('m-available-seats'));
 _set('m-status',           ev.status || 'ON_SALE');
 _set('m-max-tickets',      String(ev.maxTicketsPerPerson || 2));
+_set('m-ticket-limit-scope', ev.ticketLimitScope || 'PER_EVENT');
 _set('m-genre',            ev.genre || 'CONCERT');
 _set('m-region',           ev.region || 'SEOUL');
 _set('m-theme',            ev.theme || 'IDOL');
@@ -371,6 +373,120 @@ el.style.cursor     = 'not-allowed';
 function setGroupCodeCopyVisible(visible) {
 const button = document.querySelector('.group-code-copy-btn');
 if (button) button.style.display = visible ? 'inline-flex' : 'none';
+}
+
+function setScheduleBulkControlsVisible(visible) {
+const row = document.getElementById('m-schedule-action-row');
+const list = document.getElementById('m-additional-schedules');
+if (row) row.style.display = visible ? 'grid' : 'none';
+if (list) list.style.display = visible ? 'block' : 'none';
+}
+
+function setSingleScheduleControlsVisible(visible) {
+[
+'m-single-schedule-date-row',
+'m-single-schedule-sale-row'
+].forEach(id => {
+const row = document.getElementById(id);
+if (row) row.style.display = visible ? 'grid' : 'none';
+});
+}
+
+function clearAdditionalSchedules() {
+const list = document.getElementById('m-additional-schedules');
+if (list) list.innerHTML = '';
+scheduleRowSeq = 0;
+}
+
+window.addEventScheduleRow = function () {
+const list = document.getElementById('m-additional-schedules');
+if (!list) return;
+
+scheduleRowSeq += 1;
+const rowId = scheduleRowSeq;
+const actionButtons = rowId === 1
+? ''
+: `
+    <div class="form-group">
+      <label>1번 일정 복사</label>
+      <button type="button" class="btn btn-outline" onclick="copyFirstEventScheduleToRow(${rowId})">복사</button>
+    </div>
+    <div class="form-group">
+      <label>회차 삭제</label>
+      <button type="button" class="btn btn-danger" onclick="removeEventScheduleRow(${rowId})">삭제</button>
+    </div>
+`;
+const wrapper = document.createElement('div');
+wrapper.className = 'event-schedule-row';
+wrapper.dataset.scheduleRowId = String(rowId);
+wrapper.innerHTML = `
+  <div class="form-row" style="border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:10px;">
+    <div class="form-group">
+      <label>공연 일정 #${rowId}</label>
+      <input type="datetime-local" class="m-extra-event-date-time">
+    </div>
+    <div class="form-group">
+      <label>취소 마감 #${rowId}</label>
+      <input type="datetime-local" class="m-extra-cancel-deadline-at">
+    </div>
+    <div class="form-group">
+      <label>판매 시작 #${rowId}</label>
+      <input type="datetime-local" class="m-extra-sale-start-at">
+    </div>
+    <div class="form-group">
+      <label>판매 마감 #${rowId}</label>
+      <input type="datetime-local" class="m-extra-sale-end-at">
+    </div>
+    ${actionButtons}
+  </div>
+`;
+list.appendChild(wrapper);
+};
+
+window.removeEventScheduleRow = function (rowId) {
+document.querySelector(`[data-schedule-row-id="${rowId}"]`)?.remove();
+};
+
+window.copyFirstEventScheduleToRow = function (rowId) {
+const rows = [...document.querySelectorAll('#m-additional-schedules .event-schedule-row')];
+const firstRow = rows[0];
+const targetRow = document.querySelector(`[data-schedule-row-id="${rowId}"]`);
+if (!firstRow || !targetRow) return;
+if (firstRow === targetRow) {
+showToast('1번 공연 일정입니다.');
+return;
+}
+
+[
+['.m-extra-event-date-time', '.m-extra-event-date-time'],
+['.m-extra-cancel-deadline-at', '.m-extra-cancel-deadline-at'],
+['.m-extra-sale-start-at', '.m-extra-sale-start-at'],
+['.m-extra-sale-end-at', '.m-extra-sale-end-at']
+].forEach(([sourceSelector, targetSelector]) => {
+const source = firstRow.querySelector(sourceSelector);
+const target = targetRow.querySelector(targetSelector);
+if (source && target) target.value = source.value;
+});
+showToast('1번 공연 일정이 복사되었습니다.');
+};
+
+function collectEventSchedules() {
+const bulkRows = [...document.querySelectorAll('#m-additional-schedules .event-schedule-row')];
+if (bulkRows.length > 0) {
+return bulkRows.map(row => ({
+eventDateTime: row.querySelector('.m-extra-event-date-time')?.value || '',
+saleStartAt: row.querySelector('.m-extra-sale-start-at')?.value || '',
+saleEndAt: row.querySelector('.m-extra-sale-end-at')?.value || '',
+cancelDeadlineAt: row.querySelector('.m-extra-cancel-deadline-at')?.value || ''
+}));
+}
+
+return [{
+eventDateTime: document.getElementById('m-event-date-time').value,
+saleStartAt: document.getElementById('m-sale-start-at').value,
+saleEndAt: document.getElementById('m-sale-end-at').value,
+cancelDeadlineAt: document.getElementById('m-cancel-deadline-at').value
+}];
 }
 
 window.copyEventGroupCode = async function () {
@@ -423,6 +539,7 @@ ageLimit: ev.ageLimit,
 totalSeats: ev.totalSeats,
 availableSeats: ev.availableSeats,
 maxTicketsPerPerson: ev.maxTicketsPerPerson,
+ticketLimitScope: ev.ticketLimitScope,
 description: ev.description,
 status: ev.status,
 genre: ev.genre,
@@ -525,6 +642,9 @@ document.getElementById('modal-subtitle').textContent = '읽기 전용 모드입
 _setAllInputsState(true);
 _bindEventToModal(ev);
 setGroupCodeCopyVisible(true);
+setSingleScheduleControlsVisible(true);
+setScheduleBulkControlsVisible(false);
+clearAdditionalSchedules();
 
 document.getElementById('btn-modal-submit').style.display     = 'none';
 
@@ -551,6 +671,9 @@ _setAllInputsState(false);
 _setFieldDisabled('m-event-id');
 _bindEventToModal(ev);
 setGroupCodeCopyVisible(false);
+setSingleScheduleControlsVisible(true);
+setScheduleBulkControlsVisible(false);
+clearAdditionalSchedules();
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -579,10 +702,12 @@ setGroupCodeCopyVisible(false);
 'm-sale-start-at','m-sale-end-at','m-cancel-deadline-at','m-total-seats','m-available-seats',
 'm-running-minutes','m-age-limit','m-description-text','m-event-group-code'
 ].forEach(id => _set(id, ''));
+clearAdditionalSchedules();
 const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
 _set('m-max-tickets', '2');
+_set('m-ticket-limit-scope', 'PER_EVENT');
 _set('m-genre',       'CONCERT');
 _set('m-region',      'SEOUL');
 _set('m-theme',       'IDOL');
@@ -591,6 +716,9 @@ formatDigitInput(document.getElementById('m-total-seats'));
 _setFieldDisabled('m-event-id');
 _setFieldDisabled('m-poster-url');
 _setFieldDisabled('m-available-seats');
+setSingleScheduleControlsVisible(false);
+setScheduleBulkControlsVisible(true);
+addEventScheduleRow();
 
 const actionRow = document.getElementById('modal-action-row');
 actionRow.style.display             = 'grid';
@@ -625,30 +753,43 @@ const availableSeatsVal = parseDigitInputValue('m-available-seats');
 const runningMinutesVal = parseInt(document.getElementById('m-running-minutes').value, 10);
 const ageLimitVal = parseInt(document.getElementById('m-age-limit').value, 10);
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
+const ticketLimitScopeVal = document.getElementById('m-ticket-limit-scope').value;
 const genreVal     = document.getElementById('m-genre').value;
 const regionVal    = document.getElementById('m-region').value;
 const themeVal     = document.getElementById('m-theme').value;
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
+const schedules = collectEventSchedules();
 const missingFields = [];
-if (!artistVal) missingFields.push('?꾪떚?ㅽ듃');
+if (!artistVal) missingFields.push('아티스트');
 if (!titleVal) missingFields.push('공연 제목');
 if (!venueVal) missingFields.push('개최 장소');
 if (!venueAddressVal) missingFields.push('공연장 주소');
+if (mode !== 'CREATE') {
 if (!datetimeInput) missingFields.push('공연 일정');
 if (!saleStartInput) missingFields.push('판매 시작');
 if (!saleEndInput) missingFields.push('판매 종료');
 if (!cancelDeadlineInput) missingFields.push('취소 마감');
+}
+if (mode === 'CREATE') {
+schedules.forEach((schedule, index) => {
+const scheduleNo = index + 1;
+if (!schedule.eventDateTime) missingFields.push(`공연 일정 #${scheduleNo}`);
+if (!schedule.saleStartAt) missingFields.push(`판매 시작 #${scheduleNo}`);
+if (!schedule.saleEndAt) missingFields.push(`판매 종료 #${scheduleNo}`);
+if (!schedule.cancelDeadlineAt) missingFields.push(`취소 마감 #${scheduleNo}`);
+});
+}
 if (!genreVal) missingFields.push('장르');
 if (!regionVal) missingFields.push('지역');
 if (!themeVal) missingFields.push('테마');
-if (mode === 'CREATE' && !posterFile) missingFields.push('?ъ뒪???대?吏');
+if (mode === 'CREATE' && !posterFile) missingFields.push('포스터 이미지');
 
 if (missingFields.length > 0) {
 showToast(`필수 항목을 입력해주세요: ${missingFields.join(', ')}`, true); return;
 }
 
-if (!artistVal || !titleVal || !venueVal || !venueAddressVal || !datetimeInput || !saleStartInput || !saleEndInput || !cancelDeadlineInput) {
+if (!artistVal || !titleVal || !venueVal || !venueAddressVal || (mode !== 'CREATE' && (!datetimeInput || !saleStartInput || !saleEndInput || !cancelDeadlineInput))) {
 showToast('필수 항목을 모두 입력해주세요.', true); return;
 }
 if (!seatsVal || seatsVal <= 0) {
@@ -669,13 +810,42 @@ cancelDeadlineAt: cancelDeadlineInput + ':00',
 runningMinutes: runningMinutesVal,
 ageLimit: ageLimitVal,
 totalSeats: seatsVal, maxTicketsPerPerson: maxTicketsVal,
+ticketLimitScope: ticketLimitScopeVal,
 description: descVal,
 genre: genreVal,
 region: regionVal,
 theme: themeVal
 };
 
-const url    = mode === 'CREATE' ? `${EVENT_URL}/insert` : `${EVENT_URL}/update/id/${document.getElementById('m-target-id').value}`;
+const requestBody = mode === 'CREATE'
+? {
+common: {
+artistName: artistVal,
+title: titleVal,
+eventGroupCode: eventGroupCodeVal || null,
+description: descVal,
+venue: venueVal,
+venueAddress: venueAddressVal,
+posterUrl: posterUrlVal || null,
+runningMinutes: runningMinutesVal,
+ageLimit: ageLimitVal,
+totalSeats: seatsVal,
+maxTicketsPerPerson: maxTicketsVal,
+ticketLimitScope: ticketLimitScopeVal,
+genre: genreVal,
+region: regionVal,
+theme: themeVal
+},
+schedules: schedules.map(schedule => ({
+eventDateTime: schedule.eventDateTime + ':00',
+saleStartAt: schedule.saleStartAt + ':00',
+saleEndAt: schedule.saleEndAt + ':00',
+cancelDeadlineAt: schedule.cancelDeadlineAt + ':00'
+}))
+}
+: body;
+
+const url    = mode === 'CREATE' ? `${EVENT_URL}/insert/bulk` : `${EVENT_URL}/update/id/${document.getElementById('m-target-id').value}`;
 const method = mode === 'CREATE' ? 'POST' : 'PUT';
 if (mode !== 'CREATE') {
 body.status = document.getElementById('m-status').value;
@@ -686,11 +856,11 @@ try {
 let requestOptions;
 if (mode === 'CREATE' || posterFile) {
 const formData = new FormData();
-formData.append('event', new Blob([JSON.stringify(body)], { type: 'application/json' }));
+formData.append('event', new Blob([JSON.stringify(requestBody)], { type: 'application/json' }));
 if (posterFile) formData.append('posterImage', posterFile);
 requestOptions = { method, headers: authOnlyHeaders(), body: formData };
 } else {
-requestOptions = { method, headers, body: JSON.stringify(body) };
+requestOptions = { method, headers, body: JSON.stringify(requestBody) };
 }
 const res = await Fetch(url, requestOptions);
 if (res.ok) {

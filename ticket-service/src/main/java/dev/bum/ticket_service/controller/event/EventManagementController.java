@@ -6,7 +6,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
-import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.ticket_service.service.event.event.EventService;
 import jakarta.validation.Valid;
@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @Slf4j
 @RequestMapping("/api/v1/manage/event")
 @RestController
@@ -34,12 +36,12 @@ public class EventManagementController {
     private final EventService eventService;
     private final ObjectMapper objectMapper;
 
-    @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<EventResponse> insert(
+    @PostMapping(value = "/insert/bulk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<List<EventResponse>> insertBulk(
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventService.insert(readEvent(event, InsertEventRequest.class), posterImage));
+        return ResponseEntity.ok(eventService.insertBulk(readEvent(event, InsertEventBulkRequest.class), posterImage));
     }
 
     @GetMapping("/select/id/{eventId}")

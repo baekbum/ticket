@@ -156,7 +156,7 @@ class ReservationServiceTest {
 
         then(repository).should().cancel(1L, info);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
-        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 1, "SUB");
+        then(seatCacheService).should().updateUserPurchaseLimit(cancelledSeats.get(0).getEvent(), "user01", 1, "SUB");
     }
 
     @Test
@@ -179,7 +179,7 @@ class ReservationServiceTest {
         then(repository).should().selectById(1L);
         then(repository).should().cancel(1L, info);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
-        then(seatCacheService).should().updateUserPurchaseLimit(1L, "user01", 1, "SUB");
+        then(seatCacheService).should().updateUserPurchaseLimit(cancelledSeats.get(0).getEvent(), "user01", 1, "SUB");
     }
 
     @Test

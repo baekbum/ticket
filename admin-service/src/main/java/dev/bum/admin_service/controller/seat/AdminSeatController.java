@@ -25,6 +25,12 @@ public class AdminSeatController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/insert/group")
+    public ResponseEntity<Void> insertByGroup(@Valid @RequestBody InsertSeatGroupRequest info) {
+        seatServiceClient.insertByGroup(info);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/select/id/{seatId}")
     public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
         return ResponseEntity.ok(seatServiceClient.selectById(id));

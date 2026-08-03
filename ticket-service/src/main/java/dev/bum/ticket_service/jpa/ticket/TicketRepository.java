@@ -11,4 +11,5 @@ public interface TicketRepository {
     List<Ticket> selectByIdList(List<Long> idList);
     List<Ticket> selectByReservation(Reservation reservation);
     boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt);
+    boolean isWithinGroupPurchaseLimit(String userId, Event event, int selectedSeatCnt);
 }

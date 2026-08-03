@@ -4,9 +4,16 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
@@ -47,21 +54,36 @@ class EventServiceTest {
     private FileStorageService fileStorageService;
 
     @Test
-    @DisplayName("이벤트 등록 시 포스터 저장 후 URL 반영")
-    void insert() {
-        InsertEventRequest info = insertRequest();
+    @DisplayName("다회차 이벤트 등록 시 공통 정보와 회차별 일정으로 여러 이벤트 생성")
+    void insert_bulk() {
+        InsertEventBulkRequest info = bulkInsertRequest();
         MultipartFile posterImage = posterImage();
-        Event event = event(1L, "IU Concert");
+        Event firstEvent = event(1L, "IU Concert");
+        Event secondEvent = event(2L, "IU Concert");
 
-        given(repository.insert(info)).willReturn(event);
+        given(repository.insert(argThat(request ->
+                request != null
+                        && "IU".equals(request.getArtistName())
+                        && request.getEventDateTime().equals(LocalDateTime.of(2026, 9, 18, 18, 0))
+                        && request.getTicketLimitScope() == TicketLimitScope.PER_GROUP
+        ))).willReturn(firstEvent);
+        given(repository.insert(argThat(request ->
+                request != null
+                        && "IU".equals(request.getArtistName())
+                        && request.getEventDateTime().equals(LocalDateTime.of(2026, 9, 19, 18, 0))
+                        && request.getTicketLimitScope() == TicketLimitScope.PER_GROUP
+        ))).willReturn(secondEvent);
         given(fileStorageService.saveEventPoster(1L, posterImage)).willReturn("/ticket/uploads/events/posters/1/poster.png");
+        given(fileStorageService.saveEventPoster(2L, posterImage)).willReturn("/ticket/uploads/events/posters/2/poster.png");
 
-        EventResponse response = eventService.insert(info, posterImage);
+        List<EventResponse> response = eventService.insertBulk(info, posterImage);
 
-        assertThat(response.getEventId()).isEqualTo(1L);
-        assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/poster.png");
-        then(repository).should().insert(info);
+        assertThat(response).hasSize(2);
+        assertThat(response).extracting(EventResponse::getEventId).containsExactly(1L, 2L);
+        assertThat(response).extracting(EventResponse::getPosterUrl)
+                .containsExactly("/ticket/uploads/events/posters/1/poster.png", "/ticket/uploads/events/posters/2/poster.png");
         then(fileStorageService).should().saveEventPoster(1L, posterImage);
+        then(fileStorageService).should().saveEventPoster(2L, posterImage);
     }
 
     @Test
@@ -248,21 +270,38 @@ class EventServiceTest {
         then(repository).should(never()).delete(org.mockito.ArgumentMatchers.any());
     }
 
-    private InsertEventRequest insertRequest() {
-        return InsertEventRequest.builder()
-                .artistName("IU")
-                .title("IU Concert")
-                .description("Concert description")
-                .venue("KSPO Dome")
-                .venueAddress("Seoul")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
-                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
-                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
-                .runningMinutes(120)
-                .ageLimit(12)
-                .totalSeats(14500)
-                .maxTicketsPerPerson(4)
+    private InsertEventBulkRequest bulkInsertRequest() {
+        return InsertEventBulkRequest.builder()
+                .common(InsertEventCommonRequest.builder()
+                        .artistName("IU")
+                        .title("IU Concert")
+                        .eventGroupCode("IU_2026_ENCORE")
+                        .description("Concert description")
+                        .venue("KSPO Dome")
+                        .venueAddress("Seoul")
+                        .runningMinutes(120)
+                        .ageLimit(12)
+                        .totalSeats(14500)
+                        .maxTicketsPerPerson(1)
+                        .ticketLimitScope(TicketLimitScope.PER_GROUP)
+                        .genre(EventGenre.CONCERT)
+                        .region(EventRegion.SEOUL)
+                        .theme(EventTheme.IDOL)
+                        .build())
+                .schedules(List.of(
+                        InsertEventScheduleRequest.builder()
+                                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
+                                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
+                                .build(),
+                        InsertEventScheduleRequest.builder()
+                                .eventDateTime(LocalDateTime.of(2026, 9, 19, 18, 0))
+                                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                                .saleEndAt(LocalDateTime.of(2026, 9, 18, 23, 59))
+                                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 18, 17, 0))
+                                .build()
+                ))
                 .build();
     }
 

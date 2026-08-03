@@ -2,6 +2,9 @@ package dev.bum.ticket_service.jpa.event.event;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface EventJpaRepository extends JpaRepository<Event, Long> {
 
+    List<Event> findByEventGroupCode(String eventGroupCode);
 }

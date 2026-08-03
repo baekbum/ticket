@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
@@ -84,6 +85,11 @@ public class Event {
     private Integer maxTicketsPerPerson;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private TicketLimitScope ticketLimitScope = TicketLimitScope.PER_EVENT;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     @Builder.Default
     private EventGenre genre = EventGenre.CONCERT;
@@ -135,6 +141,7 @@ public class Event {
                 .availableSeats(this.availableSeats)
                 .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
                 .maxTicketsPerPerson(this.maxTicketsPerPerson)
+                .ticketLimitScope(this.ticketLimitScope)
                 .genre(this.genre)
                 .region(this.region)
                 .theme(this.theme)
@@ -162,6 +169,7 @@ public class Event {
         this.availableSeats = info.getTotalSeats();
         this.status = EventStatus.ON_SALE;
         this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
+        this.ticketLimitScope = info.getTicketLimitScope() != null ? info.getTicketLimitScope() : TicketLimitScope.PER_EVENT;
         this.genre = info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT;
         this.region = info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL;
         this.theme = info.getTheme() != null ? info.getTheme() : EventTheme.IDOL;
@@ -188,6 +196,7 @@ public class Event {
         if (info.getAvailableSeats() != null) this.availableSeats = info.getAvailableSeats();
         if (info.getStatus() != null) this.status = info.getStatus();
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
+        if (info.getTicketLimitScope() != null) this.ticketLimitScope = info.getTicketLimitScope();
         if (info.getGenre() != null) this.genre = info.getGenre();
         if (info.getRegion() != null) this.region = info.getRegion();
         if (info.getTheme() != null) this.theme = info.getTheme();

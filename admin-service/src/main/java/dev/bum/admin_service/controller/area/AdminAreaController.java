@@ -25,13 +25,13 @@ public class AdminAreaController {
 
     private final AreaServiceClient areaServiceClient;
 
-    @PostMapping(value = "/insert/svg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<List<AreaResponse>> insertSvg(
-            @RequestPart("eventId") String eventId,
+    @PostMapping(value = "/insert/svg/group", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<List<AreaResponse>> insertSvgByGroup(
+            @RequestPart("eventGroupCode") String eventGroupCode,
             @RequestPart("svgFile") MultipartFile svgFile,
             @RequestParam(value = "force", defaultValue = "false") boolean force
     ) {
-        return ResponseEntity.ok(areaServiceClient.insertSvg(eventId, svgFile, force));
+        return ResponseEntity.ok(areaServiceClient.insertSvgByGroup(eventGroupCode, svgFile, force));
     }
 
     @GetMapping("/layout/event/{eventId}")

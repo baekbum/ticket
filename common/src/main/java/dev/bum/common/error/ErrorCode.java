@@ -39,6 +39,7 @@ public enum ErrorCode {
     // Seat
     SEAT_NOT_FOUND("존재하지 않는 좌석입니다."),
     SEAT_DUPLICATE("이미 존재하는 좌석입니다."),
+    SEAT_LAYOUT_ALREADY_EXISTS("이미 등록된 좌석 배치입니다."),
     SEAT_CACHE_NOT_FOUND("좌석 캐시 정보가 존재하지 않습니다."),
     SEAT_ALREADY_OCCUPIED("이미 선택되었거나 예매 완료된 좌석입니다."),
     SEAT_OCCUPATION_FAILED("좌석 선점 처리 중 오류가 발생했습니다."),

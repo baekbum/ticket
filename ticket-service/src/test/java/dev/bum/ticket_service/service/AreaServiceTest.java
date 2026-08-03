@@ -65,11 +65,12 @@ class AreaServiceTest {
     private SeatJpaRepository seatJpaRepository;
 
     @Test
-    @DisplayName("SVG 파일로 구역 등록")
+    @DisplayName("SVG 파일로 이벤트 그룹 구역 등록")
     void insert_svg() {
         MockMultipartFile svgFile = svgFile();
         Event event = event();
 
+        given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event));
         given(layoutJpaRepository.existsByEvent_EventId(1L)).willReturn(false);
         given(areaJpaRepository.existsByEvent_EventId(1L)).willReturn(false);
         given(eventRepository.selectById(1L)).willReturn(event);
@@ -78,7 +79,7 @@ class AreaServiceTest {
         given(repository.insert(argThat(area -> area != null && "VIP".equals(area.getAreaName())))).willReturn(area(1L, "VIP", "vip-main"));
         given(repository.insert(argThat(area -> area != null && "R".equals(area.getAreaName())))).willReturn(area(2L, "R", "R"));
 
-        List<AreaResponse> response = areaService.insertSvg(1L, svgFile, false);
+        List<AreaResponse> response = areaService.insertSvgByEventGroupCode("IU_2026", svgFile, false);
 
         assertThat(response).hasSize(2);
         assertThat(response).extracting(AreaResponse::getAreaName).containsExactly("VIP", "R");
@@ -96,29 +97,31 @@ class AreaServiceTest {
     }
 
     @Test
-    @DisplayName("기존 레이아웃이 있고 force가 false면 예외 발생")
+    @DisplayName("기존 그룹 레이아웃이 있고 force가 false면 예외 발생")
     void insert_svg_fail_when_layout_exists() {
+        given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event()));
         given(layoutJpaRepository.existsByEvent_EventId(1L)).willReturn(true);
 
-        assertThatThrownBy(() -> areaService.insertSvg(1L, svgFile(), false))
+        assertThatThrownBy(() -> areaService.insertSvgByEventGroupCode("IU_2026", svgFile(), false))
                 .isInstanceOf(AreaLayoutAlreadyExistsException.class);
 
         then(repository).should(never()).insert(any());
     }
 
     @Test
-    @DisplayName("force가 true면 기존 레이아웃 삭제 후 SVG 등록")
+    @DisplayName("force가 true면 기존 그룹 레이아웃 삭제 후 SVG 등록")
     void insert_svg_with_force() {
         MockMultipartFile svgFile = svgFile();
         Event event = event();
 
+        given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event));
         given(layoutJpaRepository.existsByEvent_EventId(1L)).willReturn(true);
         given(eventRepository.selectById(1L)).willReturn(event);
         given(layoutJpaRepository.findByEvent_EventId(1L)).willReturn(Optional.empty());
         given(layoutJpaRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
         given(repository.insert(any())).willReturn(area(1L, "VIP"));
 
-        areaService.insertSvg(1L, svgFile, true);
+        areaService.insertSvgByEventGroupCode("IU_2026", svgFile, true);
 
         then(seatJpaRepository).should().deleteByEventEventId(1L);
         then(areaJpaRepository).should().deleteByEvent_EventId(1L);

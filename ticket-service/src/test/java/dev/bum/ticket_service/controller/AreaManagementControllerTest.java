@@ -66,21 +66,21 @@ class AreaManagementControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("SVG 파일로 구역 등록")
+    @DisplayName("SVG 파일로 이벤트 그룹 구역 등록")
     void area_insert_svg() throws Exception {
-        MockMultipartFile eventIdPart = new MockMultipartFile("eventId", "", "text/plain", "1".getBytes());
+        MockMultipartFile eventGroupCodePart = new MockMultipartFile("eventGroupCode", "", "text/plain", "IU_2026".getBytes());
         MockMultipartFile svgFile = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml", "<svg/>".getBytes());
-        given(areaService.insertSvg(eq(1L), any(), eq(true))).willReturn(List.of(areaResponse(1L, "VIP")));
+        given(areaService.insertSvgByEventGroupCode(eq("IU_2026"), any(), eq(true))).willReturn(List.of(areaResponse(1L, "VIP")));
 
-        mockMvc.perform(multipart(baseUrl + "/insert/svg")
-                        .file(eventIdPart)
+        mockMvc.perform(multipart(baseUrl + "/insert/svg/group")
+                        .file(eventGroupCodePart)
                         .file(svgFile)
                         .param("force", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].areaName").value("VIP"))
                 .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
-        then(areaService).should().insertSvg(eq(1L), eq(svgFile), eq(true));
+        then(areaService).should().insertSvgByEventGroupCode(eq("IU_2026"), eq(svgFile), eq(true));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})

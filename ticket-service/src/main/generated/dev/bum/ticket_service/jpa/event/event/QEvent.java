@@ -60,6 +60,8 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventTheme> theme = createEnum("theme", dev.bum.common.service.ticket.event.event.enums.EventTheme.class);
 
+    public final EnumPath<dev.bum.common.service.ticket.event.event.enums.TicketLimitScope> ticketLimitScope = createEnum("ticketLimitScope", dev.bum.common.service.ticket.event.event.enums.TicketLimitScope.class);
+
     public final StringPath title = createString("title");
 
     public final NumberPath<Integer> totalSeats = createNumber("totalSeats", Integer.class);

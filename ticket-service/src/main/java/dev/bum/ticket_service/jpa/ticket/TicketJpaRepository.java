@@ -13,4 +13,7 @@ public interface TicketJpaRepository extends JpaRepository<Ticket, Long> {
 
     // 특정 유저가 특정 공연에 대해 '지정한 상태들'로 가지고 있는 티켓의 총 개수를 구함
     long countByUserIdAndEventAndStatusIn(String userId, Event event, List<TicketStatus> statuses);
+
+    // 특정 유저가 같은 공연 그룹에 대해 '지정한 상태들'로 가지고 있는 티켓의 총 개수를 구함
+    long countByUserIdAndEvent_EventGroupCodeAndStatusIn(String userId, String eventGroupCode, List<TicketStatus> statuses);
 }

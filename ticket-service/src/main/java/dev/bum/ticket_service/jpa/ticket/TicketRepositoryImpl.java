@@ -50,6 +50,26 @@ public class TicketRepositoryImpl implements TicketRepository {
 
     @Override
     public boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
+        long currentReservedCount = countActiveTicketsByEvent(userId, event);
+        return isWithinLimit(event, selectedSeatCnt, currentReservedCount);
+    }
+
+    @Override
+    public boolean isWithinGroupPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
+        long currentReservedCount = countActiveTicketsByEventGroup(userId, event.getEventGroupCode());
+        return isWithinLimit(event, selectedSeatCnt, currentReservedCount);
+    }
+
+    private boolean isWithinLimit(Event event, int selectedSeatCnt, long currentReservedCount) {
+        if (event.getMaxTicketsPerPerson() == currentReservedCount) {
+            return false;
+        }
+
+        int result = (int) (event.getMaxTicketsPerPerson() - (currentReservedCount + selectedSeatCnt));
+        return -1 < result;
+    }
+
+    private long countActiveTicketsByEvent(String userId, Event event) {
         // 취소(CANCELLED)된 티켓을 제외하고, 유저가 수량을 점유하고 있는 모든 티켓 상태 정의
         List<TicketStatus> activeStatuses = List.of(
                 TicketStatus.PENDING_PAYMENT,
@@ -57,16 +77,15 @@ public class TicketRepositoryImpl implements TicketRepository {
         );
 
         // 현재 유저가 '선점 중 + 입금 대기 중 + 결제 완료한' 티켓의 총합을 구함
-        long currentReservedCount = jpaRepository.countByUserIdAndEventAndStatusIn(userId, event, activeStatuses);
+        return jpaRepository.countByUserIdAndEventAndStatusIn(userId, event, activeStatuses);
+    }
 
-        // 이미 최대치로 예매가 된 상태면 false 반환
-        if (event.getMaxTicketsPerPerson() == currentReservedCount) {
-            return false;
-        }
+    private long countActiveTicketsByEventGroup(String userId, String eventGroupCode) {
+        List<TicketStatus> activeStatuses = List.of(
+                TicketStatus.PENDING_PAYMENT,
+                TicketStatus.PAID
+        );
 
-        // 기존 예매 수량 + 현재 예매하려는 수량이
-        // 공연의 인당 최대 예매 가능 수량을 넘지 않는지 검증
-        int result = (int) (event.getMaxTicketsPerPerson() - (currentReservedCount + selectedSeatCnt));
-        return -1 < result;
+        return jpaRepository.countByUserIdAndEvent_EventGroupCodeAndStatusIn(userId, eventGroupCode, activeStatuses);
     }
 }

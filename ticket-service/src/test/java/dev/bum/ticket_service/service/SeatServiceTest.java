@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.DeleteSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatGroupRequest;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
@@ -10,11 +11,16 @@ import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
+import dev.bum.ticket_service.exception.seat.SeatLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -31,8 +37,10 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
@@ -49,16 +57,84 @@ class SeatServiceTest {
     private SeatRepository repository;
 
     @Mock
+    private EventRepository eventRepository;
+
+    @Mock
+    private AreaJpaRepository areaJpaRepository;
+
+    @Mock
     private SeatCacheService seatCacheService;
 
     @Test
     @DisplayName("좌석 등록")
     void insert() {
         InsertSeatRequest info = insertRequest();
+        Area area = Area.builder().areaId(1L).areaName("VIP").build();
+
+        given(areaJpaRepository.findById(1L)).willReturn(Optional.of(area));
 
         seatService.insert(info);
 
-        then(repository).should().insert(info);
+        then(repository).should().countByAreaId(1L);
+        then(repository).should().insertAppend(info);
+    }
+
+    @Test
+    @DisplayName("기존 좌석이 있으면 좌석 등록 충돌 예외 발생")
+    void insert_fail_when_area_seats_exist() {
+        InsertSeatRequest info = insertRequest();
+        Area area = Area.builder().areaId(1L).areaName("A구역").build();
+
+        given(areaJpaRepository.findById(1L)).willReturn(Optional.of(area));
+        given(repository.countByAreaId(1L)).willReturn(10L);
+
+        assertThatThrownBy(() -> seatService.insert(info))
+                .isInstanceOf(SeatLayoutAlreadyExistsException.class)
+                .hasMessageContaining("1번 이벤트의 [A구역] 구역에는 이미 좌석이 존재합니다.");
+
+        then(repository).should(never()).insertAppend(any());
+    }
+
+    @Test
+    @DisplayName("REPLACE 모드는 기존 구역 좌석 삭제 후 등록")
+    void insert_replace() {
+        InsertSeatRequest info = InsertSeatRequest.builder()
+                .eventId(1L)
+                .areaId(1L)
+                .mode(SeatInsertMode.REPLACE)
+                .insertSeatAreaConfigs(insertRequest().getInsertSeatAreaConfigs())
+                .build();
+        Area area = Area.builder().areaId(1L).areaName("A구역").build();
+
+        given(areaJpaRepository.findById(1L)).willReturn(Optional.of(area));
+
+        seatService.insert(info);
+
+        then(repository).should().deleteByAreaId(1L);
+        then(repository).should().insertAppend(info);
+    }
+
+    @Test
+    @DisplayName("그룹 좌석 등록은 같은 layoutKey 구역에 각각 등록")
+    void insert_by_event_group_code() {
+        InsertSeatGroupRequest info = InsertSeatGroupRequest.builder()
+                .eventGroupCode("IU_2026")
+                .areaLayoutKey("area-a")
+                .insertSeatAreaConfigs(insertRequest().getInsertSeatAreaConfigs())
+                .build();
+        Event event1 = Event.builder().eventId(1L).build();
+        Event event2 = Event.builder().eventId(2L).build();
+
+        given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event1, event2));
+        given(areaJpaRepository.findByEvent_EventIdAndLayoutKey(1L, "area-a"))
+                .willReturn(Optional.of(Area.builder().areaId(11L).areaName("A구역").build()));
+        given(areaJpaRepository.findByEvent_EventIdAndLayoutKey(2L, "area-a"))
+                .willReturn(Optional.of(Area.builder().areaId(22L).areaName("A구역").build()));
+
+        seatService.insertByEventGroupCode(info);
+
+        then(repository).should().insertAppend(argThat(request -> request.getEventId().equals(1L) && request.getAreaId().equals(11L)));
+        then(repository).should().insertAppend(argThat(request -> request.getEventId().equals(2L) && request.getAreaId().equals(22L)));
     }
 
     @Test

@@ -2,6 +2,7 @@ package dev.bum.ticket_service.controller.seat;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.DeleteSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.InsertSeatGroupRequest;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
@@ -38,6 +39,12 @@ public class SeatManagementController {
     @PostMapping("/insert")
     public ResponseEntity<Void> insert(@Valid @RequestBody InsertSeatRequest info) {
         seatService.insert(info);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/insert/group")
+    public ResponseEntity<Void> insertByGroup(@Valid @RequestBody InsertSeatGroupRequest info) {
+        seatService.insertByEventGroupCode(info);
         return ResponseEntity.ok().build();
     }
 
