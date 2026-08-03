@@ -258,3 +258,22 @@ CREATE INDEX idx_ticket_user_id ON tickets(user_id);
 CREATE INDEX idx_ticket_seat_id ON tickets(seat_id);
 CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
 
+
+-- ==========================================
+-- 12. Seat cache sync failures
+-- ==========================================
+CREATE TABLE seat_cache_sync_failures (
+    id BIGSERIAL PRIMARY KEY,
+    operation VARCHAR(100) NOT NULL,
+    key_prefix VARCHAR(50) NOT NULL,
+    redis_keys TEXT NOT NULL,
+    target_value VARCHAR(50) NOT NULL,
+    failure_message TEXT,
+    status VARCHAR(20) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    last_failed_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_seat_cache_sync_failure_status ON seat_cache_sync_failures(status);
+CREATE INDEX idx_seat_cache_sync_failure_status_created_at ON seat_cache_sync_failures(status, created_at);

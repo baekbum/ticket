@@ -59,6 +59,7 @@ public class SeatCacheService {
     private final EventRepository eventRepository;
     private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
+    private final SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     /**
      * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
@@ -427,7 +428,18 @@ public class SeatCacheService {
 
             log.error("[REDIS-ERROR] DB 커밋 후 좌석 Redis 동기화 실패. operation={}, keyPrefix=event:{eventId}:seat, redisKeys={}, values={}",
                     operation, redisKeys, values, e);
-            throw e;
+            try {
+                seatCacheSyncFailureService.recordFailure(
+                        operation,
+                        "event:{eventId}:seat",
+                        redisKeys,
+                        values,
+                        e
+                );
+            } catch (Exception recordException) {
+                log.error("[REDIS-ERROR] 좌석 Redis 동기화 실패 이력 저장 실패. operation={}, redisKeys={}",
+                        operation, redisKeys, recordException);
+            }
         }
     }
 
