@@ -119,15 +119,12 @@
           </button>
           <!--
             TODO: Kafka DLQ 운영 콘솔
-            1. DLT topic 목록을 조회한다. 대상: user-event.DLT, audit-log.DLT, payment-completed.DLT.
-            2. DLT 메시지 목록 화면에 topic, partition, offset, key, payload, 실패 원인 header, 발생 시각, 처리 상태를 표시한다.
-            3. DLT 메시지 상세 화면에서 payload와 header를 확인할 수 있게 한다.
-            4. 상세 화면에 원본 topic 재발행 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/replay.
-            5. 상세 화면에 폐기 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/discard.
-            6. replay/discard 요청에는 dltTopic, partition, offset, operator, reason을 반드시 포함한다.
-            7. replay/discard 처리 이력을 DB에 저장한다.
-            8. 이미 처리된 DLT offset은 중복 replay/discard 하지 못하도록 차단한다.
-            9. payload 보정 후 재발행이 필요하면 별도 승인/검증 흐름을 추가한다.
+            1. 상세 화면에 원본 topic 재발행 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/replay.
+            2. 상세 화면에 폐기 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/discard.
+            3. replay/discard 요청에는 dltTopic, partition, offset, operator, reason을 반드시 포함한다.
+            4. replay/discard 처리 이력을 DB에 저장한다.
+            5. 이미 처리된 DLT offset은 중복 replay/discard 하지 못하도록 차단한다.
+            6. payload 보정 후 재발행이 필요하면 별도 승인/검증 흐름을 추가한다.
           -->
         </div>
       </div>

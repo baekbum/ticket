@@ -53,9 +53,9 @@ class KafkaDlqReplayServiceTest {
 
         DlqMessageHandleResponse response = service.replay(request());
 
-        assertThat(response.result()).isEqualTo("REPLAYED");
-        assertThat(response.targetTopic()).isEqualTo("user-event");
-        assertThat(response.messageKey()).isEqualTo("user01");
+        assertThat(response.getResult()).isEqualTo("REPLAYED");
+        assertThat(response.getTargetTopic()).isEqualTo("user-event");
+        assertThat(response.getMessageKey()).isEqualTo("user01");
         then(consumer).should().assign(List.of(new TopicPartition("user-event.DLT", 0)));
         then(consumer).should().seek(new TopicPartition("user-event.DLT", 0), 10L);
 
@@ -76,8 +76,8 @@ class KafkaDlqReplayServiceTest {
 
         DlqMessageHandleResponse response = service.discard(request());
 
-        assertThat(response.result()).isEqualTo("DISCARDED");
-        assertThat(response.targetTopic()).isNull();
+        assertThat(response.getResult()).isEqualTo("DISCARDED");
+        assertThat(response.getTargetTopic()).isNull();
         then(kafkaTemplate).should(never()).send(any(ProducerRecord.class));
     }
 

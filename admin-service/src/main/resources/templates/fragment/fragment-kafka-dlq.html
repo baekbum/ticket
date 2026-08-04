@@ -1,92 +1,94 @@
 <head>
   <meta charset="UTF-8">
 </head>
-<style>
-.dlq-placeholder {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  color: var(--text-primary);
-}
-.dlq-placeholder-header {
-  padding: 1.5rem 1.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-.dlq-placeholder-kicker {
-  margin: 0 0 0.4rem;
-  color: var(--purple);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.dlq-placeholder-header h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-}
-.dlq-placeholder-header p {
-  margin: 0.55rem 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.dlq-placeholder-body {
-  padding: 1.75rem;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-}
-.dlq-placeholder-card {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card-bg);
-  padding: 22px;
-}
-.dlq-placeholder-card h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-}
-.dlq-placeholder-card ul {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.8;
-}
-.dlq-placeholder-api {
-  margin: 0.8rem 0 0;
-  padding: 12px;
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-family: Consolas, monospace;
-  font-size: 12px;
-}
-</style>
+<link rel="stylesheet" th:href="@{/css/kafka/fragment-kafka-dlq.css}">
 
-<section class="dlq-placeholder">
-  <div class="dlq-placeholder-header">
-    <p class="dlq-placeholder-kicker">Kafka Operations</p>
-    <h2>DLQ 관리</h2>
-    <p>DLT 메시지 조회, 원본 topic 재발행, 폐기 처리를 위한 운영 화면입니다.</p>
+<div class="frag-header">
+  <h2>DLQ 관리</h2>
+  <p class="sub-txt">Kafka DLT 메시지를 조회하고 상세 payload/header를 확인합니다.</p>
+</div>
+
+<div class="dlq-topic-grid" id="dlq-topic-grid"></div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input dlq-topic-select" id="dlq-topic-select" onchange="loadDlqMessages()">
+      <option value="">DLT topic 선택</option>
+    </select>
+    <input type="number" class="search-input dlq-partition-input" id="dlq-partition-input" placeholder="partition">
+    <input type="number" class="search-input dlq-offset-input" id="dlq-from-offset-input" placeholder="from offset">
+    <select class="search-input dlq-size-input" id="dlq-size-input">
+      <option value="20">20건</option>
+      <option value="50">50건</option>
+      <option value="100">100건</option>
+    </select>
+    <button class="btn" onclick="loadDlqMessages()"><i class="ti ti-search"></i>조회</button>
+    <button class="btn btn-outline" onclick="resetDlqSearch()"><i class="ti ti-refresh"></i>초기화</button>
   </div>
-
-  <div class="dlq-placeholder-body">
-    <article class="dlq-placeholder-card">
-      <h3>지원 예정 기능</h3>
-      <ul>
-        <li>DLT topic 목록 조회</li>
-        <li>DLT 메시지 목록/상세 조회</li>
-        <li>payload와 실패 header 확인</li>
-        <li>처리 이력과 중복 처리 차단</li>
-      </ul>
-    </article>
-
-    <article class="dlq-placeholder-card">
-      <h3>현재 사용 가능한 운영 API</h3>
-      <div class="dlq-placeholder-api">POST /api/v1/manage/kafka-dlq/replay</div>
-      <div class="dlq-placeholder-api">POST /api/v1/manage/kafka-dlq/discard</div>
-    </article>
+  <div class="toolbar-right">
+    <span class="dlq-help-text">처리 상태는 이력 DB 연동 전까지 UNKNOWN으로 표시됩니다.</span>
   </div>
-</section>
+</div>
+
+<div class="table-wrap dlq-table-wrap">
+  <table class="dlq-table">
+    <colgroup>
+      <col style="width:210px;">
+      <col style="width:86px;">
+      <col style="width:110px;">
+      <col style="width:180px;">
+      <col style="width:170px;">
+      <col style="width:110px;">
+      <col style="width:110px;">
+      <col>
+      <col style="width:92px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>DLT Topic</th>
+      <th>Partition</th>
+      <th>Offset</th>
+      <th>Key</th>
+      <th>발생 시각</th>
+      <th>Header</th>
+      <th>처리 상태</th>
+      <th>Payload Preview</th>
+      <th class="actions">상세</th>
+    </tr>
+    </thead>
+    <tbody id="dlq-message-table-body">
+    <tr>
+      <td colspan="9" class="dlq-empty-cell">DLT topic을 선택하고 조회하세요.</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="f-modal" id="dlq-message-detail-modal">
+  <div class="f-modal-content dlq-detail-content">
+    <p class="modal-title">DLT 메시지 상세</p>
+    <p class="modal-subtitle">
+      <strong id="dlq-detail-location">-</strong>
+    </p>
+    <div class="modal-divider"></div>
+
+    <div class="dlq-detail-grid" id="dlq-detail-grid"></div>
+
+    <div class="dlq-detail-section">
+      <div>
+        <p class="dlq-json-title">Payload</p>
+        <pre id="dlq-detail-payload" class="dlq-json-box"></pre>
+      </div>
+      <div>
+        <p class="dlq-json-title">Headers</p>
+        <pre id="dlq-detail-headers" class="dlq-json-box"></pre>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeDlqMessageDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/kafka/fragment-kafka-dlq.js}"></script>

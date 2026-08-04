@@ -29,23 +29,23 @@ public class KafkaDlqReplayService {
     private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
 
     public DlqMessageHandleResponse replay(DlqMessageHandleRequest request) {
-        String targetTopic = resolveTargetTopic(request.dltTopic());
-        ConsumerRecord<byte[], byte[]> record = readRecord(request.dltTopic(), request.partition(), request.offset());
+        String targetTopic = resolveTargetTopic(request.getDltTopic());
+        ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
 
         kafkaTemplate.send(new ProducerRecord<>(targetTopic, record.partition(), record.key(), record.value())).join();
 
         log.info("[DLQ-REPLAY] DLT 메시지 재발행 완료. dltTopic={}, partition={}, offset={}, targetTopic={}, operator={}, reason={}",
-                request.dltTopic(), request.partition(), request.offset(), targetTopic, request.operator(), request.reason());
+                request.getDltTopic(), request.getPartition(), request.getOffset(), targetTopic, request.getOperator(), request.getReason());
 
         return response("REPLAYED", request, targetTopic, messageKeyOf(record));
     }
 
     public DlqMessageHandleResponse discard(DlqMessageHandleRequest request) {
-        resolveTargetTopic(request.dltTopic());
-        ConsumerRecord<byte[], byte[]> record = readRecord(request.dltTopic(), request.partition(), request.offset());
+        resolveTargetTopic(request.getDltTopic());
+        ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
 
         log.info("[DLQ-DISCARD] DLT 메시지 폐기 처리. dltTopic={}, partition={}, offset={}, operator={}, reason={}",
-                request.dltTopic(), request.partition(), request.offset(), request.operator(), request.reason());
+                request.getDltTopic(), request.getPartition(), request.getOffset(), request.getOperator(), request.getReason());
 
         return response("DISCARDED", request, null, messageKeyOf(record));
     }
@@ -85,13 +85,13 @@ public class KafkaDlqReplayService {
     ) {
         return new DlqMessageHandleResponse(
                 result,
-                request.dltTopic(),
-                request.partition(),
-                request.offset(),
+                request.getDltTopic(),
+                request.getPartition(),
+                request.getOffset(),
                 targetTopic,
                 messageKey,
-                request.operator(),
-                request.reason()
+                request.getOperator(),
+                request.getReason()
         );
     }
 
