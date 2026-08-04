@@ -1,5 +1,6 @@
 package dev.bum.admin_service.kafka.dlq;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.config.KafkaDlqProperties;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -40,7 +41,7 @@ class KafkaDlqReplayServiceTest {
     void setUp() {
         KafkaDlqProperties properties = new KafkaDlqProperties();
         properties.setMappings(Map.of("user-event.DLT", "user-event"));
-        service = new KafkaDlqReplayService(properties, consumerFactory, kafkaTemplate, historyRepository);
+        service = new KafkaDlqReplayService(properties, consumerFactory, kafkaTemplate, historyRepository, new ObjectMapper());
     }
 
     @Test
@@ -83,6 +84,72 @@ class KafkaDlqReplayServiceTest {
         assertThat(history.getStatus()).isEqualTo(DlqMessageHandleStatus.SUCCESS);
         assertThat(history.getOperator()).isEqualTo("admin");
         assertThat(history.getReason()).isEqualTo("일시 장애 복구");
+        assertThat(history.getOriginalPayload()).isEqualTo("{\"userId\":\"user01\"}");
+        assertThat(history.getModifiedPayload()).isNull();
+        assertThat(history.isPayloadModified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("DLT 메시지 payload를 보정해서 원본 topic으로 재발행")
+    void replay_modified_payload_to_target_topic() {
+        byte[] key = "user01".getBytes();
+        byte[] value = "{\"userId\":\"user01\",\"eventId\":null}".getBytes();
+        DlqMessageModifiedReplayRequest request = new DlqMessageModifiedReplayRequest(
+                "user-event.DLT",
+                0,
+                10L,
+                "admin",
+                "누락 eventId 보정",
+                "{\"userId\":\"user01\",\"eventId\":100}"
+        );
+        given(consumerFactory.createConsumer()).willReturn(consumer);
+        given(consumer.poll(any())).willReturn(records("user-event.DLT", 0, 10L, key, value));
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        given(historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                "user-event.DLT", 0, 10L, DlqMessageHandleStatus.SUCCESS
+        )).willReturn(false);
+
+        DlqMessageHandleResponse response = service.replayModified(request);
+
+        assertThat(response.getResult()).isEqualTo("MODIFIED_REPLAYED");
+
+        var producerCaptor = forClass(ProducerRecord.class);
+        then(kafkaTemplate).should().send(producerCaptor.capture());
+        ProducerRecord<byte[], byte[]> producerRecord = producerCaptor.getValue();
+        assertThat(producerRecord.topic()).isEqualTo("user-event");
+        assertThat(new String(producerRecord.value())).isEqualTo("{\"userId\":\"user01\",\"eventId\":100}");
+
+        var historyCaptor = forClass(DlqMessageHandleHistory.class);
+        then(historyRepository).should().save(historyCaptor.capture());
+        DlqMessageHandleHistory history = historyCaptor.getValue();
+        assertThat(history.getAction()).isEqualTo(DlqMessageHandleAction.MODIFIED_REPLAY);
+        assertThat(history.getStatus()).isEqualTo(DlqMessageHandleStatus.SUCCESS);
+        assertThat(history.getOriginalPayload()).isEqualTo("{\"userId\":\"user01\",\"eventId\":null}");
+        assertThat(history.getModifiedPayload()).isEqualTo("{\"userId\":\"user01\",\"eventId\":100}");
+        assertThat(history.isPayloadModified()).isTrue();
+    }
+
+    @Test
+    @DisplayName("수정 payload가 JSON 형식이 아니면 보정 재발행을 거부")
+    void reject_invalid_modified_payload() {
+        DlqMessageModifiedReplayRequest request = new DlqMessageModifiedReplayRequest(
+                "user-event.DLT",
+                0,
+                10L,
+                "admin",
+                "payload 보정",
+                "not-json"
+        );
+        given(historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                "user-event.DLT", 0, 10L, DlqMessageHandleStatus.SUCCESS
+        )).willReturn(false);
+
+        assertThatThrownBy(() -> service.replayModified(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("수정 payload는 유효한 JSON 형식이어야 합니다.");
+
+        then(consumerFactory).should(never()).createConsumer();
+        then(kafkaTemplate).should(never()).send(any(ProducerRecord.class));
     }
 
     @Test
@@ -106,6 +173,9 @@ class KafkaDlqReplayServiceTest {
         assertThat(history.getAction()).isEqualTo(DlqMessageHandleAction.DISCARD);
         assertThat(history.getStatus()).isEqualTo(DlqMessageHandleStatus.SUCCESS);
         assertThat(history.getTargetTopic()).isNull();
+        assertThat(history.getOriginalPayload()).isEqualTo("{}");
+        assertThat(history.getModifiedPayload()).isNull();
+        assertThat(history.isPayloadModified()).isFalse();
     }
 
     @Test

@@ -57,6 +57,15 @@ public class DlqMessageHandleHistory {
     @Column(columnDefinition = "text")
     private String errorMessage;
 
+    @Column(columnDefinition = "text")
+    private String originalPayload;
+
+    @Column(columnDefinition = "text")
+    private String modifiedPayload;
+
+    @Column(nullable = false)
+    private boolean payloadModified;
+
     @Column(nullable = false)
     private LocalDateTime handledAt;
 
@@ -71,7 +80,10 @@ public class DlqMessageHandleHistory {
             DlqMessageHandleStatus status,
             String operator,
             String reason,
-            String errorMessage
+            String errorMessage,
+            String originalPayload,
+            String modifiedPayload,
+            boolean payloadModified
     ) {
         this.dltTopic = dltTopic;
         this.partitionNo = partitionNo;
@@ -83,6 +95,9 @@ public class DlqMessageHandleHistory {
         this.operator = operator;
         this.reason = reason;
         this.errorMessage = errorMessage;
+        this.originalPayload = originalPayload;
+        this.modifiedPayload = modifiedPayload;
+        this.payloadModified = payloadModified;
         this.handledAt = LocalDateTime.now();
     }
 }

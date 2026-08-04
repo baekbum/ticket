@@ -118,7 +118,10 @@ public class KafkaDlqQueryService {
                 handleHistory.map(DlqMessageHandleHistory::getOperator).orElse(null),
                 handleHistory.map(DlqMessageHandleHistory::getReason).orElse(null),
                 handleHistory.map(DlqMessageHandleHistory::getErrorMessage).orElse(null),
-                handleHistory.map(DlqMessageHandleHistory::getHandledAt).orElse(null)
+                handleHistory.map(DlqMessageHandleHistory::getHandledAt).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::isPayloadModified).orElse(false),
+                handleHistory.map(DlqMessageHandleHistory::getOriginalPayload).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::getModifiedPayload).orElse(null)
         );
     }
 
@@ -240,6 +243,10 @@ public class KafkaDlqQueryService {
 
         if (history.getAction() == DlqMessageHandleAction.REPLAY) {
             return "REPLAYED";
+        }
+
+        if (history.getAction() == DlqMessageHandleAction.MODIFIED_REPLAY) {
+            return "MODIFIED_REPLAYED";
         }
 
         if (history.getAction() == DlqMessageHandleAction.DISCARD) {

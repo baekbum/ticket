@@ -165,7 +165,41 @@ class KafkaDlqQueryServiceTest {
         assertThat(detail.getHandleStatus()).isEqualTo("SUCCESS");
         assertThat(detail.getHandledOperator()).isEqualTo("admin");
         assertThat(detail.getHandleReason()).isEqualTo("중복 이벤트");
+        assertThat(detail.isPayloadModified()).isFalse();
         assertThat(detail.getHandledAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("DLT 메시지 상세는 payload 보정 재발행 이력을 반환")
+    void detail_returns_modified_payload_history() {
+        TopicPartition topicPartition = new TopicPartition("user-event.DLT", 0);
+        ConsumerRecord<byte[], byte[]> record = record("user-event.DLT", 0, 10L);
+        DlqMessageHandleHistory history = DlqMessageHandleHistory.builder()
+                .dltTopic("user-event.DLT")
+                .partitionNo(0)
+                .messageOffset(10L)
+                .messageKey("user01")
+                .targetTopic("user-event")
+                .action(DlqMessageHandleAction.MODIFIED_REPLAY)
+                .status(DlqMessageHandleStatus.SUCCESS)
+                .operator("admin")
+                .reason("payload 보정")
+                .originalPayload("{\"userId\":\"user01\",\"eventId\":null}")
+                .modifiedPayload("{\"userId\":\"user01\",\"eventId\":100}")
+                .payloadModified(true)
+                .build();
+
+        given(consumerFactory.createConsumer()).willReturn(consumer);
+        given(consumer.poll(any())).willReturn(new ConsumerRecords<>(Map.of(topicPartition, List.of(record))));
+        given(historyRepository.findTopByDltTopicAndPartitionNoAndMessageOffsetOrderByHandledAtDesc("user-event.DLT", 0, 10L))
+                .willReturn(Optional.of(history));
+
+        DlqMessageDetailResponse detail = service.detail("user-event.DLT", 0, 10L);
+
+        assertThat(detail.getProcessingStatus()).isEqualTo("MODIFIED_REPLAYED");
+        assertThat(detail.isPayloadModified()).isTrue();
+        assertThat(detail.getOriginalPayload()).isEqualTo("{\"userId\":\"user01\",\"eventId\":null}");
+        assertThat(detail.getModifiedPayload()).isEqualTo("{\"userId\":\"user01\",\"eventId\":100}");
     }
 
     private ConsumerRecord<byte[], byte[]> record(String topic, int partition, long offset) {

@@ -44,7 +44,7 @@
   }
 
   function isHandledStatus(status) {
-    return ['REPLAYED', 'DISCARDED'].includes(String(status || '').toUpperCase());
+    return ['REPLAYED', 'MODIFIED_REPLAYED', 'DISCARDED'].includes(String(status || '').toUpperCase());
   }
 
   function defaultOperator() {
@@ -72,23 +72,30 @@
     const detailGrid = document.getElementById('dlq-detail-grid');
     const detailSection = document.querySelector('.dlq-detail-section');
     const handlePanel = document.getElementById('dlq-handle-panel');
+    const payloadEditPanel = document.getElementById('dlq-payload-edit-panel');
     const modalActions = document.querySelector('#dlq-message-detail-modal .modal-actions');
 
     loading?.classList.toggle('active', isLoading);
     if (detailGrid) detailGrid.style.display = isLoading ? 'none' : 'grid';
     if (detailSection) detailSection.style.display = isLoading ? 'none' : 'grid';
+    if (payloadEditPanel) payloadEditPanel.style.display = isLoading ? 'none' : 'block';
     if (handlePanel) handlePanel.style.display = isLoading ? 'none' : 'grid';
     if (modalActions) modalActions.style.display = isLoading ? 'none' : 'flex';
   }
 
   function setHandleLoading(isLoading) {
     const replayButton = document.getElementById('dlq-replay-btn');
+    const modifiedReplayButton = document.getElementById('dlq-modified-replay-btn');
     const discardButton = document.getElementById('dlq-discard-btn');
-    const disabled = isLoading || isHandledStatus(currentDetail?.processingStatus);
+    const disabled = isLoading;
 
     if (replayButton) {
       replayButton.disabled = disabled;
       replayButton.textContent = isLoading ? '처리 중' : '원본 topic 재발행';
+    }
+    if (modifiedReplayButton) {
+      modifiedReplayButton.disabled = disabled;
+      modifiedReplayButton.textContent = isLoading ? '처리 중' : '수정 payload 재발행';
     }
     if (discardButton) {
       discardButton.disabled = disabled;
@@ -99,9 +106,12 @@
   function refreshHandleControls() {
     const notice = document.getElementById('dlq-handle-notice');
     const replayButton = document.getElementById('dlq-replay-btn');
+    const modifiedReplayButton = document.getElementById('dlq-modified-replay-btn');
     const discardButton = document.getElementById('dlq-discard-btn');
+    const resetPayloadButton = document.getElementById('dlq-reset-payload-btn');
     const operatorInput = document.getElementById('dlq-handle-operator');
     const reasonInput = document.getElementById('dlq-handle-reason');
+    const modifiedPayloadInput = document.getElementById('dlq-modified-payload');
     const alreadyHandled = isHandledStatus(currentDetail?.processingStatus);
 
     if (notice) {
@@ -109,18 +119,26 @@
         ? `이미 ${formatDateTime(currentDetail?.handledAt)}에 처리된 DLT 메시지입니다.`
         : '';
     }
-    if (replayButton) replayButton.disabled = alreadyHandled;
-    if (discardButton) discardButton.disabled = alreadyHandled;
+    if (replayButton) replayButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
+    if (modifiedReplayButton) modifiedReplayButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
+    if (discardButton) discardButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
+    if (resetPayloadButton) resetPayloadButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
     if (operatorInput) operatorInput.disabled = alreadyHandled;
     if (reasonInput) reasonInput.disabled = alreadyHandled;
+    if (modifiedPayloadInput) modifiedPayloadInput.disabled = alreadyHandled;
   }
 
   function openDlqConfirm(action, body) {
     const isReplay = action === 'replay';
-    document.getElementById('dlq-confirm-title').textContent = isReplay ? '원본 topic 재발행 확인' : 'DLT 메시지 폐기 확인';
-    document.getElementById('dlq-confirm-message').textContent = isReplay
-      ? '선택한 DLT 메시지를 원본 topic으로 다시 발행합니다.'
-      : '선택한 DLT 메시지를 운영상 폐기 처리합니다. Kafka 메시지는 retention 전까지 남아 있습니다.';
+    const isModifiedReplay = action === 'replay/modified';
+    document.getElementById('dlq-confirm-title').textContent = isModifiedReplay
+      ? '수정 payload 재발행 확인'
+      : isReplay ? '원본 topic 재발행 확인' : 'DLT 메시지 폐기 확인';
+    document.getElementById('dlq-confirm-message').textContent = isModifiedReplay
+      ? '운영자가 수정한 payload를 원본 topic으로 다시 발행합니다.'
+      : isReplay
+        ? '선택한 DLT 메시지를 원본 topic으로 다시 발행합니다.'
+        : '선택한 DLT 메시지를 운영상 폐기 처리합니다. Kafka 메시지는 retention 전까지 남아 있습니다.';
     document.getElementById('dlq-confirm-summary').innerHTML = `
       <div>DLT Topic: <strong>${escapeHtml(body.dltTopic)}</strong></div>
       <div>Partition / Offset: <strong>${escapeHtml(body.partition)} / ${escapeHtml(body.offset)}</strong></div>
@@ -128,8 +146,8 @@
       <div>사유: <strong>${escapeHtml(body.reason)}</strong></div>
     `;
     const submitButton = document.getElementById('dlq-confirm-submit-btn');
-    submitButton.className = isReplay ? 'btn' : 'btn btn-danger';
-    submitButton.textContent = isReplay ? '재발행' : '폐기';
+    submitButton.className = isModifiedReplay ? 'btn btn-warning' : isReplay ? 'btn' : 'btn btn-danger';
+    submitButton.textContent = isModifiedReplay ? '수정 재발행' : isReplay ? '재발행' : '폐기';
     document.getElementById('dlq-confirm-modal').style.display = 'flex';
 
     return new Promise(resolve => {
@@ -270,6 +288,7 @@
     currentDetail = null;
     document.getElementById('dlq-detail-payload').textContent = '';
     document.getElementById('dlq-detail-headers').textContent = '';
+    setValue('dlq-modified-payload', '');
     setValue('dlq-handle-operator', defaultOperator());
     setValue('dlq-handle-reason', '');
     document.getElementById('dlq-handle-notice').textContent = '';
@@ -312,6 +331,7 @@
       ['처리 사유', detail.handleReason],
       ['처리 시각', formatDateTime(detail.handledAt)],
       ['처리 오류', detail.handleErrorMessage],
+      ['Payload 수정 여부', detail.payloadModified ? 'Y' : 'N'],
       ['Payload Base64', detail.payloadBase64]
     ].map(([label, value]) => `
       <div class="dlq-detail-item">
@@ -322,6 +342,7 @@
 
     document.getElementById('dlq-detail-payload').textContent = formatJsonText(detail.payload);
     document.getElementById('dlq-detail-headers').textContent = JSON.stringify(detail.headers || [], null, 2);
+    setValue('dlq-modified-payload', detail.payloadModified ? formatJsonText(detail.modifiedPayload) : formatJsonText(detail.payload));
     setValue('dlq-handle-operator', alreadyHandled ? detail.handledOperator : defaultOperator());
     setValue('dlq-handle-reason', alreadyHandled ? detail.handleReason : '');
     refreshHandleControls();
@@ -349,6 +370,21 @@
     }
 
     const isReplay = action === 'replay';
+    const isModifiedReplay = action === 'replay/modified';
+    const modifiedPayload = inputValue('dlq-modified-payload');
+    if (isModifiedReplay) {
+      if (!modifiedPayload) {
+        showToast('수정 payload를 입력하세요.', true);
+        return;
+      }
+      try {
+        JSON.parse(modifiedPayload);
+      } catch (e) {
+        showToast('수정 payload는 유효한 JSON이어야 합니다.', true);
+        return;
+      }
+    }
+
     const confirmed = await openDlqConfirm(action, {
       dltTopic: currentDetail.dltTopic,
       partition: currentDetail.partition,
@@ -367,6 +403,9 @@
       operator,
       reason
     };
+    if (isModifiedReplay) {
+      body.modifiedPayload = modifiedPayload;
+    }
 
     try {
       setHandleLoading(true);
@@ -375,14 +414,14 @@
         body
       });
       if (!res.ok) {
-        await showResponseError(res, isReplay ? 'DLT 메시지 재발행에 실패했습니다.' : 'DLT 메시지 폐기에 실패했습니다.');
+        await showResponseError(res, isReplay || isModifiedReplay ? 'DLT 메시지 재발행에 실패했습니다.' : 'DLT 메시지 폐기에 실패했습니다.');
         return;
       }
 
       const result = await res.json();
       currentDetail.processingStatus = result.result;
       refreshHandleControls();
-      showToast(isReplay ? 'DLT 메시지를 재발행했습니다.' : 'DLT 메시지를 폐기 처리했습니다.');
+      showToast(isReplay || isModifiedReplay ? 'DLT 메시지를 재발행했습니다.' : 'DLT 메시지를 폐기 처리했습니다.');
       await loadDlqMessages();
     } catch (e) {
       console.error('DLT message handle failed', e);
@@ -390,6 +429,14 @@
     } finally {
       setHandleLoading(false);
     }
+  };
+
+  window.resetModifiedPayload = function () {
+    if (!currentDetail) {
+      showToast('DLT 메시지 상세 정보를 먼저 조회하세요.', true);
+      return;
+    }
+    setValue('dlq-modified-payload', formatJsonText(currentDetail.payload));
   };
 
   window.closeDlqMessageDetailModal = function () {

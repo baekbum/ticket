@@ -43,7 +43,7 @@
       <col style="width:180px;">
       <col style="width:170px;">
       <col style="width:110px;">
-      <col style="width:110px;">
+      <col style="width:160px;">
       <col>
       <col style="width:92px;">
     </colgroup>
@@ -93,6 +93,14 @@
       </div>
     </div>
 
+    <div class="dlq-payload-edit-panel" id="dlq-payload-edit-panel">
+      <div class="dlq-payload-edit-header">
+        <p class="dlq-json-title">수정 Payload</p>
+        <button class="btn btn-sm btn-outline" id="dlq-reset-payload-btn" onclick="resetModifiedPayload()">원본으로 되돌리기</button>
+      </div>
+      <textarea id="dlq-modified-payload" class="dlq-payload-editor" placeholder="수정 후 재발행할 JSON payload"></textarea>
+    </div>
+
     <div class="dlq-handle-panel" id="dlq-handle-panel">
       <div class="dlq-handle-field">
         <label for="dlq-handle-operator">처리자</label>
@@ -107,6 +115,7 @@
 
     <div class="modal-actions">
       <button class="btn" id="dlq-replay-btn" onclick="handleDlqMessage('replay')">원본 topic 재발행</button>
+      <button class="btn btn-warning" id="dlq-modified-replay-btn" onclick="handleDlqMessage('replay/modified')">수정 payload 재발행</button>
       <button class="btn btn-danger" id="dlq-discard-btn" onclick="handleDlqMessage('discard')">폐기</button>
       <button class="btn btn-secondary" onclick="closeDlqMessageDetailModal()">닫기</button>
     </div>

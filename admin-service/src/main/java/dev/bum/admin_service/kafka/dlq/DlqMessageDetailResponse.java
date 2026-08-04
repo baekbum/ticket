@@ -24,6 +24,9 @@ public class DlqMessageDetailResponse {
     private final String handleReason;
     private final String handleErrorMessage;
     private final LocalDateTime handledAt;
+    private final boolean payloadModified;
+    private final String originalPayload;
+    private final String modifiedPayload;
 
     public DlqMessageDetailResponse(
             String dltTopic,
@@ -41,7 +44,10 @@ public class DlqMessageDetailResponse {
             String handledOperator,
             String handleReason,
             String handleErrorMessage,
-            LocalDateTime handledAt
+            LocalDateTime handledAt,
+            boolean payloadModified,
+            String originalPayload,
+            String modifiedPayload
     ) {
         this.dltTopic = dltTopic;
         this.partition = partition;
@@ -59,5 +65,8 @@ public class DlqMessageDetailResponse {
         this.handleReason = handleReason;
         this.handleErrorMessage = handleErrorMessage;
         this.handledAt = handledAt;
+        this.payloadModified = payloadModified;
+        this.originalPayload = originalPayload;
+        this.modifiedPayload = modifiedPayload;
     }
 }

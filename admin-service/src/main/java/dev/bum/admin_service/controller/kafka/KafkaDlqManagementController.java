@@ -3,6 +3,7 @@ package dev.bum.admin_service.controller.kafka;
 import dev.bum.admin_service.kafka.dlq.DlqMessageHandleRequest;
 import dev.bum.admin_service.kafka.dlq.DlqMessageHandleResponse;
 import dev.bum.admin_service.kafka.dlq.DlqMessageDetailResponse;
+import dev.bum.admin_service.kafka.dlq.DlqMessageModifiedReplayRequest;
 import dev.bum.admin_service.kafka.dlq.DlqMessageSummaryResponse;
 import dev.bum.admin_service.kafka.dlq.DlqTopicResponse;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqQueryService;
@@ -54,6 +55,11 @@ public class KafkaDlqManagementController {
     @PostMapping("/replay")
     public ResponseEntity<DlqMessageHandleResponse> replay(@Valid @RequestBody DlqMessageHandleRequest request) {
         return ResponseEntity.ok(kafkaDlqReplayService.replay(request));
+    }
+
+    @PostMapping("/replay/modified")
+    public ResponseEntity<DlqMessageHandleResponse> replayModified(@Valid @RequestBody DlqMessageModifiedReplayRequest request) {
+        return ResponseEntity.ok(kafkaDlqReplayService.replayModified(request));
     }
 
     @PostMapping("/discard")

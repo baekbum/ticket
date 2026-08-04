@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS dlq_message_handle_histories (
     operator VARCHAR(100) NOT NULL,
     reason VARCHAR(500),
     error_message TEXT,
+    original_payload TEXT,
+    modified_payload TEXT,
+    payload_modified BOOLEAN NOT NULL DEFAULT FALSE,
     handled_at TIMESTAMP NOT NULL
 );
 
