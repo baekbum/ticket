@@ -1,0 +1,92 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.dlq-placeholder {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+.dlq-placeholder-header {
+  padding: 1.5rem 1.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.dlq-placeholder-kicker {
+  margin: 0 0 0.4rem;
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dlq-placeholder-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.dlq-placeholder-header p {
+  margin: 0.55rem 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.dlq-placeholder-body {
+  padding: 1.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.dlq-placeholder-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 22px;
+}
+.dlq-placeholder-card h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.dlq-placeholder-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.dlq-placeholder-api {
+  margin: 0.8rem 0 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+</style>
+
+<section class="dlq-placeholder">
+  <div class="dlq-placeholder-header">
+    <p class="dlq-placeholder-kicker">Kafka Operations</p>
+    <h2>DLQ 관리</h2>
+    <p>DLT 메시지 조회, 원본 topic 재발행, 폐기 처리를 위한 운영 화면입니다.</p>
+  </div>
+
+  <div class="dlq-placeholder-body">
+    <article class="dlq-placeholder-card">
+      <h3>지원 예정 기능</h3>
+      <ul>
+        <li>DLT topic 목록 조회</li>
+        <li>DLT 메시지 목록/상세 조회</li>
+        <li>payload와 실패 header 확인</li>
+        <li>처리 이력과 중복 처리 차단</li>
+      </ul>
+    </article>
+
+    <article class="dlq-placeholder-card">
+      <h3>현재 사용 가능한 운영 API</h3>
+      <div class="dlq-placeholder-api">POST /api/v1/manage/kafka-dlq/replay</div>
+      <div class="dlq-placeholder-api">POST /api/v1/manage/kafka-dlq/discard</div>
+    </article>
+  </div>
+</section>
