@@ -11,4 +11,11 @@ public interface DlqMessageHandleHistoryJpaRepository extends JpaRepository<DlqM
             int partitionNo,
             long messageOffset
     );
+
+    boolean existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+            String dltTopic,
+            int partitionNo,
+            long messageOffset,
+            DlqMessageHandleStatus status
+    );
 }

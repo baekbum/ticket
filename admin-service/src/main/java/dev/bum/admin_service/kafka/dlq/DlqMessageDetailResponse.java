@@ -18,6 +18,12 @@ public class DlqMessageDetailResponse {
     private final List<DlqHeaderResponse> headers;
     private final LocalDateTime occurredAt;
     private final String processingStatus;
+    private final String handleAction;
+    private final String handleStatus;
+    private final String handledOperator;
+    private final String handleReason;
+    private final String handleErrorMessage;
+    private final LocalDateTime handledAt;
 
     public DlqMessageDetailResponse(
             String dltTopic,
@@ -29,7 +35,13 @@ public class DlqMessageDetailResponse {
             String payloadBase64,
             List<DlqHeaderResponse> headers,
             LocalDateTime occurredAt,
-            String processingStatus
+            String processingStatus,
+            String handleAction,
+            String handleStatus,
+            String handledOperator,
+            String handleReason,
+            String handleErrorMessage,
+            LocalDateTime handledAt
     ) {
         this.dltTopic = dltTopic;
         this.partition = partition;
@@ -41,5 +53,11 @@ public class DlqMessageDetailResponse {
         this.headers = headers;
         this.occurredAt = occurredAt;
         this.processingStatus = processingStatus;
+        this.handleAction = handleAction;
+        this.handleStatus = handleStatus;
+        this.handledOperator = handledOperator;
+        this.handleReason = handleReason;
+        this.handleErrorMessage = handleErrorMessage;
+        this.handledAt = handledAt;
     }
 }

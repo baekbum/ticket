@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +35,7 @@ public class KafkaDlqQueryService {
 
     private final KafkaDlqProperties properties;
     private final ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory;
+    private final DlqMessageHandleHistoryJpaRepository historyRepository;
 
     /**
      * 관리자 화면에서 조회 가능한 DLT topic 목록을 반환한다.
@@ -97,6 +99,8 @@ public class KafkaDlqQueryService {
     public DlqMessageDetailResponse detail(String dltTopic, int partition, long offset) {
         String targetTopic = resolveTargetTopic(dltTopic);
         ConsumerRecord<byte[], byte[]> record = readRecord(dltTopic, partition, offset);
+        Optional<DlqMessageHandleHistory> handleHistory =
+                historyRepository.findTopByDltTopicAndPartitionNoAndMessageOffsetOrderByHandledAtDesc(dltTopic, partition, offset);
 
         return new DlqMessageDetailResponse(
                 dltTopic,
@@ -108,7 +112,13 @@ public class KafkaDlqQueryService {
                 base64(record.value()),
                 headersOf(record),
                 occurredAt(record),
-                PROCESSING_STATUS_UNKNOWN
+                handleHistory.map(this::processingStatusOf).orElse(PROCESSING_STATUS_UNKNOWN),
+                handleHistory.map(history -> history.getAction().name()).orElse(null),
+                handleHistory.map(history -> history.getStatus().name()).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::getOperator).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::getReason).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::getErrorMessage).orElse(null),
+                handleHistory.map(DlqMessageHandleHistory::getHandledAt).orElse(null)
         );
     }
 
@@ -213,8 +223,30 @@ public class KafkaDlqQueryService {
                 preview(record.value()),
                 headersOf(record),
                 occurredAt(record),
-                PROCESSING_STATUS_UNKNOWN
+                processingStatusOf(record.topic(), record.partition(), record.offset())
         );
+    }
+
+    private String processingStatusOf(String dltTopic, int partition, long offset) {
+        return historyRepository.findTopByDltTopicAndPartitionNoAndMessageOffsetOrderByHandledAtDesc(dltTopic, partition, offset)
+                .map(this::processingStatusOf)
+                .orElse(PROCESSING_STATUS_UNKNOWN);
+    }
+
+    private String processingStatusOf(DlqMessageHandleHistory history) {
+        if (history.getStatus() == DlqMessageHandleStatus.FAILED) {
+            return "FAILED";
+        }
+
+        if (history.getAction() == DlqMessageHandleAction.REPLAY) {
+            return "REPLAYED";
+        }
+
+        if (history.getAction() == DlqMessageHandleAction.DISCARD) {
+            return "DISCARDED";
+        }
+
+        return PROCESSING_STATUS_UNKNOWN;
     }
 
     /**

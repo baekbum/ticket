@@ -26,7 +26,7 @@
     <button class="btn btn-outline" onclick="resetDlqSearch()"><i class="ti ti-refresh"></i>초기화</button>
   </div>
   <div class="toolbar-right">
-    <span class="dlq-help-text">처리 상태는 이력 DB 연동 전까지 UNKNOWN으로 표시됩니다.</span>
+    <span class="dlq-help-text">처리 완료된 DLT 메시지는 중복 재발행/폐기할 수 없습니다.</span>
   </div>
 </div>
 
@@ -93,8 +93,34 @@
       </div>
     </div>
 
+    <div class="dlq-handle-panel" id="dlq-handle-panel">
+      <div class="dlq-handle-field">
+        <label for="dlq-handle-operator">처리자</label>
+        <input type="text" class="search-input" id="dlq-handle-operator" placeholder="예: admin">
+      </div>
+      <div class="dlq-handle-field dlq-handle-reason-field">
+        <label for="dlq-handle-reason">처리 사유</label>
+        <input type="text" class="search-input" id="dlq-handle-reason" placeholder="예: 일시 장애 복구 후 재처리">
+      </div>
+      <p class="dlq-handle-notice" id="dlq-handle-notice"></p>
+    </div>
+
     <div class="modal-actions">
+      <button class="btn" id="dlq-replay-btn" onclick="handleDlqMessage('replay')">원본 topic 재발행</button>
+      <button class="btn btn-danger" id="dlq-discard-btn" onclick="handleDlqMessage('discard')">폐기</button>
       <button class="btn btn-secondary" onclick="closeDlqMessageDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal dlq-confirm-modal" id="dlq-confirm-modal">
+  <div class="f-modal-content dlq-confirm-content">
+    <p class="modal-title" id="dlq-confirm-title">DLT 메시지 처리 확인</p>
+    <p class="modal-subtitle" id="dlq-confirm-message">처리를 진행할까요?</p>
+    <div class="dlq-confirm-summary" id="dlq-confirm-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelDlqConfirm()">취소</button>
+      <button class="btn" id="dlq-confirm-submit-btn" onclick="submitDlqConfirm()">확인</button>
     </div>
   </div>
 </div>

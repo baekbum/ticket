@@ -3,6 +3,8 @@
 
   let currentTopics = [];
   let currentMessages = [];
+  let currentDetail = null;
+  let dlqConfirmResolver = null;
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -37,7 +39,19 @@
   }
 
   function statusBadge(status) {
-    return `<span class="dlq-status-badge">${escapeHtml(status || 'UNKNOWN')}</span>`;
+    const normalizedStatus = String(status || 'UNKNOWN').toUpperCase();
+    return `<span class="dlq-status-badge status-${escapeHtml(normalizedStatus.toLowerCase())}">${escapeHtml(normalizedStatus)}</span>`;
+  }
+
+  function isHandledStatus(status) {
+    return ['REPLAYED', 'DISCARDED'].includes(String(status || '').toUpperCase());
+  }
+
+  function defaultOperator() {
+    if (typeof loggedInUserRawData !== 'undefined' && loggedInUserRawData) {
+      return loggedInUserRawData.userId || loggedInUserRawData.name || '';
+    }
+    return '';
   }
 
   function setListLoading(isLoading) {
@@ -57,10 +71,70 @@
     const loading = document.getElementById('dlq-detail-loading');
     const detailGrid = document.getElementById('dlq-detail-grid');
     const detailSection = document.querySelector('.dlq-detail-section');
+    const handlePanel = document.getElementById('dlq-handle-panel');
+    const modalActions = document.querySelector('#dlq-message-detail-modal .modal-actions');
 
     loading?.classList.toggle('active', isLoading);
     if (detailGrid) detailGrid.style.display = isLoading ? 'none' : 'grid';
     if (detailSection) detailSection.style.display = isLoading ? 'none' : 'grid';
+    if (handlePanel) handlePanel.style.display = isLoading ? 'none' : 'grid';
+    if (modalActions) modalActions.style.display = isLoading ? 'none' : 'flex';
+  }
+
+  function setHandleLoading(isLoading) {
+    const replayButton = document.getElementById('dlq-replay-btn');
+    const discardButton = document.getElementById('dlq-discard-btn');
+    const disabled = isLoading || isHandledStatus(currentDetail?.processingStatus);
+
+    if (replayButton) {
+      replayButton.disabled = disabled;
+      replayButton.textContent = isLoading ? '처리 중' : '원본 topic 재발행';
+    }
+    if (discardButton) {
+      discardButton.disabled = disabled;
+      discardButton.textContent = isLoading ? '처리 중' : '폐기';
+    }
+  }
+
+  function refreshHandleControls() {
+    const notice = document.getElementById('dlq-handle-notice');
+    const replayButton = document.getElementById('dlq-replay-btn');
+    const discardButton = document.getElementById('dlq-discard-btn');
+    const operatorInput = document.getElementById('dlq-handle-operator');
+    const reasonInput = document.getElementById('dlq-handle-reason');
+    const alreadyHandled = isHandledStatus(currentDetail?.processingStatus);
+
+    if (notice) {
+      notice.textContent = alreadyHandled
+        ? `이미 ${formatDateTime(currentDetail?.handledAt)}에 처리된 DLT 메시지입니다.`
+        : '';
+    }
+    if (replayButton) replayButton.disabled = alreadyHandled;
+    if (discardButton) discardButton.disabled = alreadyHandled;
+    if (operatorInput) operatorInput.disabled = alreadyHandled;
+    if (reasonInput) reasonInput.disabled = alreadyHandled;
+  }
+
+  function openDlqConfirm(action, body) {
+    const isReplay = action === 'replay';
+    document.getElementById('dlq-confirm-title').textContent = isReplay ? '원본 topic 재발행 확인' : 'DLT 메시지 폐기 확인';
+    document.getElementById('dlq-confirm-message').textContent = isReplay
+      ? '선택한 DLT 메시지를 원본 topic으로 다시 발행합니다.'
+      : '선택한 DLT 메시지를 운영상 폐기 처리합니다. Kafka 메시지는 retention 전까지 남아 있습니다.';
+    document.getElementById('dlq-confirm-summary').innerHTML = `
+      <div>DLT Topic: <strong>${escapeHtml(body.dltTopic)}</strong></div>
+      <div>Partition / Offset: <strong>${escapeHtml(body.partition)} / ${escapeHtml(body.offset)}</strong></div>
+      <div>처리자: <strong>${escapeHtml(body.operator)}</strong></div>
+      <div>사유: <strong>${escapeHtml(body.reason)}</strong></div>
+    `;
+    const submitButton = document.getElementById('dlq-confirm-submit-btn');
+    submitButton.className = isReplay ? 'btn' : 'btn btn-danger';
+    submitButton.textContent = isReplay ? '재발행' : '폐기';
+    document.getElementById('dlq-confirm-modal').style.display = 'flex';
+
+    return new Promise(resolve => {
+      dlqConfirmResolver = resolve;
+    });
   }
 
   function renderTopics() {
@@ -193,8 +267,12 @@
     const params = new URLSearchParams({ dltTopic, partition, offset });
     document.getElementById('dlq-detail-location').textContent =
       `${dltTopic} / partition ${partition} / offset ${offset}`;
+    currentDetail = null;
     document.getElementById('dlq-detail-payload').textContent = '';
     document.getElementById('dlq-detail-headers').textContent = '';
+    setValue('dlq-handle-operator', defaultOperator());
+    setValue('dlq-handle-reason', '');
+    document.getElementById('dlq-handle-notice').textContent = '';
     document.getElementById('dlq-message-detail-modal').style.display = 'flex';
     setDetailLoading(true);
 
@@ -216,6 +294,8 @@
   };
 
   function renderDetail(detail) {
+    currentDetail = detail;
+    const alreadyHandled = isHandledStatus(detail.processingStatus);
     document.getElementById('dlq-detail-location').textContent =
       `${detail.dltTopic} / partition ${detail.partition} / offset ${detail.offset}`;
 
@@ -227,6 +307,11 @@
       ['Key', detail.messageKey],
       ['발생 시각', formatDateTime(detail.occurredAt)],
       ['처리 상태', detail.processingStatus],
+      ['처리 방식', detail.handleAction],
+      ['처리자', detail.handledOperator],
+      ['처리 사유', detail.handleReason],
+      ['처리 시각', formatDateTime(detail.handledAt)],
+      ['처리 오류', detail.handleErrorMessage],
       ['Payload Base64', detail.payloadBase64]
     ].map(([label, value]) => `
       <div class="dlq-detail-item">
@@ -237,10 +322,95 @@
 
     document.getElementById('dlq-detail-payload').textContent = formatJsonText(detail.payload);
     document.getElementById('dlq-detail-headers').textContent = JSON.stringify(detail.headers || [], null, 2);
+    setValue('dlq-handle-operator', alreadyHandled ? detail.handledOperator : defaultOperator());
+    setValue('dlq-handle-reason', alreadyHandled ? detail.handleReason : '');
+    refreshHandleControls();
   }
+
+  window.handleDlqMessage = async function (action) {
+    if (!currentDetail) {
+      showToast('DLT 메시지 상세 정보를 먼저 조회하세요.', true);
+      return;
+    }
+    if (isHandledStatus(currentDetail.processingStatus)) {
+      showToast('이미 처리된 DLT 메시지입니다.', true);
+      return;
+    }
+
+    const operator = inputValue('dlq-handle-operator');
+    const reason = inputValue('dlq-handle-reason');
+    if (!operator) {
+      showToast('처리자를 입력하세요.', true);
+      return;
+    }
+    if (!reason) {
+      showToast('처리 사유를 입력하세요.', true);
+      return;
+    }
+
+    const isReplay = action === 'replay';
+    const confirmed = await openDlqConfirm(action, {
+      dltTopic: currentDetail.dltTopic,
+      partition: currentDetail.partition,
+      offset: currentDetail.offset,
+      operator,
+      reason
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    const body = {
+      dltTopic: currentDetail.dltTopic,
+      partition: currentDetail.partition,
+      offset: currentDetail.offset,
+      operator,
+      reason
+    };
+
+    try {
+      setHandleLoading(true);
+      const res = await Fetch(`${DLQ_URL}/${action}`, {
+        method: 'POST',
+        body
+      });
+      if (!res.ok) {
+        await showResponseError(res, isReplay ? 'DLT 메시지 재발행에 실패했습니다.' : 'DLT 메시지 폐기에 실패했습니다.');
+        return;
+      }
+
+      const result = await res.json();
+      currentDetail.processingStatus = result.result;
+      refreshHandleControls();
+      showToast(isReplay ? 'DLT 메시지를 재발행했습니다.' : 'DLT 메시지를 폐기 처리했습니다.');
+      await loadDlqMessages();
+    } catch (e) {
+      console.error('DLT message handle failed', e);
+      showToast('DLT 메시지 처리 통신 오류가 발생했습니다.', true);
+    } finally {
+      setHandleLoading(false);
+    }
+  };
 
   window.closeDlqMessageDetailModal = function () {
     document.getElementById('dlq-message-detail-modal').style.display = 'none';
+    currentDetail = null;
+  };
+
+  window.cancelDlqConfirm = function () {
+    document.getElementById('dlq-confirm-modal').style.display = 'none';
+    if (dlqConfirmResolver) {
+      dlqConfirmResolver(false);
+      dlqConfirmResolver = null;
+    }
+  };
+
+  window.submitDlqConfirm = function () {
+    document.getElementById('dlq-confirm-modal').style.display = 'none';
+    if (dlqConfirmResolver) {
+      dlqConfirmResolver(true);
+      dlqConfirmResolver = null;
+    }
   };
 
   window.resetDlqSearch = function () {

@@ -31,6 +31,7 @@ public class KafkaDlqReplayService {
 
     public DlqMessageHandleResponse replay(DlqMessageHandleRequest request) {
         String targetTopic = resolveTargetTopic(request.getDltTopic());
+        assertNotAlreadyHandled(request);
 
         try {
             ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
@@ -52,6 +53,7 @@ public class KafkaDlqReplayService {
 
     public DlqMessageHandleResponse discard(DlqMessageHandleRequest request) {
         resolveTargetTopic(request.getDltTopic());
+        assertNotAlreadyHandled(request);
 
         try {
             ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
@@ -75,6 +77,23 @@ public class KafkaDlqReplayService {
             throw new IllegalArgumentException("허용되지 않은 DLT topic입니다: " + dltTopic);
         }
         return targetTopic;
+    }
+
+    private void assertNotAlreadyHandled(DlqMessageHandleRequest request) {
+        boolean alreadyHandled = historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                request.getDltTopic(),
+                request.getPartition(),
+                request.getOffset(),
+                DlqMessageHandleStatus.SUCCESS
+        );
+        if (alreadyHandled) {
+            throw new IllegalStateException("이미 처리된 DLT 메시지입니다. dltTopic="
+                    + request.getDltTopic()
+                    + ", partition="
+                    + request.getPartition()
+                    + ", offset="
+                    + request.getOffset());
+        }
     }
 
     private ConsumerRecord<byte[], byte[]> readRecord(String topic, int partition, long offset) {

@@ -51,6 +51,9 @@ class KafkaDlqReplayServiceTest {
         given(consumerFactory.createConsumer()).willReturn(consumer);
         given(consumer.poll(any())).willReturn(records("user-event.DLT", 0, 10L, key, value));
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        given(historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                "user-event.DLT", 0, 10L, DlqMessageHandleStatus.SUCCESS
+        )).willReturn(false);
 
         DlqMessageHandleResponse response = service.replay(request());
 
@@ -87,6 +90,9 @@ class KafkaDlqReplayServiceTest {
     void discard_dlt_message_without_replay() {
         given(consumerFactory.createConsumer()).willReturn(consumer);
         given(consumer.poll(any())).willReturn(records("user-event.DLT", 0, 10L, "user01".getBytes(), "{}".getBytes()));
+        given(historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                "user-event.DLT", 0, 10L, DlqMessageHandleStatus.SUCCESS
+        )).willReturn(false);
 
         DlqMessageHandleResponse response = service.discard(request());
 
@@ -116,6 +122,21 @@ class KafkaDlqReplayServiceTest {
         assertThatThrownBy(() -> service.replay(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("허용되지 않은 DLT topic입니다: unknown.DLT");
+    }
+
+    @Test
+    @DisplayName("이미 성공 처리된 DLT 메시지는 재처리하지 않음")
+    void reject_already_handled_dlt_message() {
+        given(historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
+                "user-event.DLT", 0, 10L, DlqMessageHandleStatus.SUCCESS
+        )).willReturn(true);
+
+        assertThatThrownBy(() -> service.replay(request()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("이미 처리된 DLT 메시지입니다. dltTopic=user-event.DLT, partition=0, offset=10");
+
+        then(consumerFactory).should(never()).createConsumer();
+        then(kafkaTemplate).should(never()).send(any(ProducerRecord.class));
     }
 
     private DlqMessageHandleRequest request() {
