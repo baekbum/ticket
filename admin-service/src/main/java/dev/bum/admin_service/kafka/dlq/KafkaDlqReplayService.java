@@ -27,27 +27,46 @@ public class KafkaDlqReplayService {
     private final KafkaDlqProperties properties;
     private final ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory;
     private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
+    private final DlqMessageHandleHistoryJpaRepository historyRepository;
 
     public DlqMessageHandleResponse replay(DlqMessageHandleRequest request) {
         String targetTopic = resolveTargetTopic(request.getDltTopic());
-        ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
 
-        kafkaTemplate.send(new ProducerRecord<>(targetTopic, record.partition(), record.key(), record.value())).join();
+        try {
+            ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
+            String messageKey = messageKeyOf(record);
 
-        log.info("[DLQ-REPLAY] DLT 메시지 재발행 완료. dltTopic={}, partition={}, offset={}, targetTopic={}, operator={}, reason={}",
-                request.getDltTopic(), request.getPartition(), request.getOffset(), targetTopic, request.getOperator(), request.getReason());
+            kafkaTemplate.send(new ProducerRecord<>(targetTopic, record.partition(), record.key(), record.value())).join();
 
-        return response("REPLAYED", request, targetTopic, messageKeyOf(record));
+            saveHistory(request, DlqMessageHandleAction.REPLAY, DlqMessageHandleStatus.SUCCESS, targetTopic, messageKey, null);
+
+            log.info("[DLQ-REPLAY] DLT 메시지 재발행 완료. dltTopic={}, partition={}, offset={}, targetTopic={}, operator={}, reason={}",
+                    request.getDltTopic(), request.getPartition(), request.getOffset(), targetTopic, request.getOperator(), request.getReason());
+
+            return response("REPLAYED", request, targetTopic, messageKey);
+        } catch (RuntimeException e) {
+            saveHistory(request, DlqMessageHandleAction.REPLAY, DlqMessageHandleStatus.FAILED, targetTopic, null, e.getMessage());
+            throw e;
+        }
     }
 
     public DlqMessageHandleResponse discard(DlqMessageHandleRequest request) {
         resolveTargetTopic(request.getDltTopic());
-        ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
 
-        log.info("[DLQ-DISCARD] DLT 메시지 폐기 처리. dltTopic={}, partition={}, offset={}, operator={}, reason={}",
-                request.getDltTopic(), request.getPartition(), request.getOffset(), request.getOperator(), request.getReason());
+        try {
+            ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
+            String messageKey = messageKeyOf(record);
 
-        return response("DISCARDED", request, null, messageKeyOf(record));
+            saveHistory(request, DlqMessageHandleAction.DISCARD, DlqMessageHandleStatus.SUCCESS, null, messageKey, null);
+
+            log.info("[DLQ-DISCARD] DLT 메시지 폐기 처리. dltTopic={}, partition={}, offset={}, operator={}, reason={}",
+                    request.getDltTopic(), request.getPartition(), request.getOffset(), request.getOperator(), request.getReason());
+
+            return response("DISCARDED", request, null, messageKey);
+        } catch (RuntimeException e) {
+            saveHistory(request, DlqMessageHandleAction.DISCARD, DlqMessageHandleStatus.FAILED, null, null, e.getMessage());
+            throw e;
+        }
     }
 
     private String resolveTargetTopic(String dltTopic) {
@@ -93,6 +112,33 @@ public class KafkaDlqReplayService {
                 request.getOperator(),
                 request.getReason()
         );
+    }
+
+    private void saveHistory(
+            DlqMessageHandleRequest request,
+            DlqMessageHandleAction action,
+            DlqMessageHandleStatus status,
+            String targetTopic,
+            String messageKey,
+            String errorMessage
+    ) {
+        try {
+            historyRepository.save(DlqMessageHandleHistory.builder()
+                    .dltTopic(request.getDltTopic())
+                    .partitionNo(request.getPartition())
+                    .messageOffset(request.getOffset())
+                    .messageKey(messageKey)
+                    .targetTopic(targetTopic)
+                    .action(action)
+                    .status(status)
+                    .operator(request.getOperator())
+                    .reason(request.getReason())
+                    .errorMessage(errorMessage)
+                    .build());
+        } catch (RuntimeException historyException) {
+            log.warn("[DLQ-HISTORY] DLT 처리 이력 저장 실패. dltTopic={}, partition={}, offset={}, action={}, status={}",
+                    request.getDltTopic(), request.getPartition(), request.getOffset(), action, status, historyException);
+        }
     }
 
     private String messageKeyOf(ConsumerRecord<byte[], byte[]> record) {

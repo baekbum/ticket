@@ -32,6 +32,7 @@ class KafkaDlqReplayServiceTest {
     private final ConsumerFactory<byte[], byte[]> consumerFactory = mock(ConsumerFactory.class);
     private final Consumer<byte[], byte[]> consumer = mock(Consumer.class);
     private final KafkaTemplate<byte[], byte[]> kafkaTemplate = mock(KafkaTemplate.class);
+    private final DlqMessageHandleHistoryJpaRepository historyRepository = mock(DlqMessageHandleHistoryJpaRepository.class);
 
     private KafkaDlqReplayService service;
 
@@ -39,7 +40,7 @@ class KafkaDlqReplayServiceTest {
     void setUp() {
         KafkaDlqProperties properties = new KafkaDlqProperties();
         properties.setMappings(Map.of("user-event.DLT", "user-event"));
-        service = new KafkaDlqReplayService(properties, consumerFactory, kafkaTemplate);
+        service = new KafkaDlqReplayService(properties, consumerFactory, kafkaTemplate, historyRepository);
     }
 
     @Test
@@ -66,6 +67,19 @@ class KafkaDlqReplayServiceTest {
         assertThat(producerRecord.partition()).isZero();
         assertThat(producerRecord.key()).isEqualTo(key);
         assertThat(producerRecord.value()).isEqualTo(value);
+
+        var historyCaptor = forClass(DlqMessageHandleHistory.class);
+        then(historyRepository).should().save(historyCaptor.capture());
+        DlqMessageHandleHistory history = historyCaptor.getValue();
+        assertThat(history.getDltTopic()).isEqualTo("user-event.DLT");
+        assertThat(history.getPartitionNo()).isZero();
+        assertThat(history.getMessageOffset()).isEqualTo(10L);
+        assertThat(history.getMessageKey()).isEqualTo("user01");
+        assertThat(history.getTargetTopic()).isEqualTo("user-event");
+        assertThat(history.getAction()).isEqualTo(DlqMessageHandleAction.REPLAY);
+        assertThat(history.getStatus()).isEqualTo(DlqMessageHandleStatus.SUCCESS);
+        assertThat(history.getOperator()).isEqualTo("admin");
+        assertThat(history.getReason()).isEqualTo("일시 장애 복구");
     }
 
     @Test
@@ -79,6 +93,13 @@ class KafkaDlqReplayServiceTest {
         assertThat(response.getResult()).isEqualTo("DISCARDED");
         assertThat(response.getTargetTopic()).isNull();
         then(kafkaTemplate).should(never()).send(any(ProducerRecord.class));
+
+        var historyCaptor = forClass(DlqMessageHandleHistory.class);
+        then(historyRepository).should().save(historyCaptor.capture());
+        DlqMessageHandleHistory history = historyCaptor.getValue();
+        assertThat(history.getAction()).isEqualTo(DlqMessageHandleAction.DISCARD);
+        assertThat(history.getStatus()).isEqualTo(DlqMessageHandleStatus.SUCCESS);
+        assertThat(history.getTargetTopic()).isNull();
     }
 
     @Test
