@@ -110,8 +110,13 @@
 .btn-secondary { background: #f0eef8; color: var(--text-secondary); border: 1px solid var(--border); box-shadow: none; }
 .btn-secondary:hover { background: #e7e3f1; color: var(--text-primary); border-color: #d8d3e8; box-shadow: none; }
 .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
 .table-wrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -163,6 +168,38 @@
   color: var(--text-muted) !important;
 }
 
+.dlq-loading-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.72);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(1px);
+}
+
+.dlq-loading-overlay.active {
+  display: flex;
+}
+
+.dlq-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(124,77,255,0.18);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: dlq-spin 0.8s linear infinite;
+}
+
+@keyframes dlq-spin {
+  to { transform: rotate(360deg); }
+}
+
 .dlq-status-badge {
   display: inline-flex;
   align-items: center;
@@ -204,6 +241,19 @@
 }
 
 .dlq-detail-content { max-width: 1180px; }
+.dlq-detail-loading {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.dlq-detail-loading.active {
+  display: flex;
+}
 .modal-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; }
 .modal-subtitle { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 1rem; }
 .modal-subtitle strong { color: var(--text-primary); font-weight: 700; }
@@ -275,6 +325,7 @@
 }
 
 body.dark-mode .dlq-table th { background: #151722; }
+body.dark-mode .dlq-loading-overlay { background: rgba(20,22,34,0.72); }
 body.dark-mode .search-input,
 body.dark-mode .dlq-detail-item {
   background: #202231;

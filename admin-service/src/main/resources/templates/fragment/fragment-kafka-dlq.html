@@ -22,7 +22,7 @@
       <option value="50">50건</option>
       <option value="100">100건</option>
     </select>
-    <button class="btn" onclick="loadDlqMessages()"><i class="ti ti-search"></i>조회</button>
+    <button class="btn" id="dlq-search-btn" onclick="loadDlqMessages()"><i class="ti ti-search"></i>조회</button>
     <button class="btn btn-outline" onclick="resetDlqSearch()"><i class="ti ti-refresh"></i>초기화</button>
   </div>
   <div class="toolbar-right">
@@ -31,6 +31,10 @@
 </div>
 
 <div class="table-wrap dlq-table-wrap">
+  <div class="dlq-loading-overlay" id="dlq-list-loading" aria-live="polite">
+    <div class="dlq-spinner"></div>
+    <span>DLT 메시지를 조회하는 중입니다...</span>
+  </div>
   <table class="dlq-table">
     <colgroup>
       <col style="width:210px;">
@@ -66,6 +70,10 @@
 
 <div class="f-modal" id="dlq-message-detail-modal">
   <div class="f-modal-content dlq-detail-content">
+    <div class="dlq-detail-loading" id="dlq-detail-loading">
+      <div class="dlq-spinner"></div>
+      <span>DLT 메시지 상세를 불러오는 중입니다...</span>
+    </div>
     <p class="modal-title">DLT 메시지 상세</p>
     <p class="modal-subtitle">
       <strong id="dlq-detail-location">-</strong>

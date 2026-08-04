@@ -35,6 +35,10 @@ public class KafkaDlqQueryService {
     private final KafkaDlqProperties properties;
     private final ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory;
 
+    /**
+     * 관리자 화면에서 조회 가능한 DLT topic 목록을 반환한다.
+     * Kafka broker를 직접 조회하지 않고, 운영자가 허용한 설정 매핑 기준으로만 노출한다.
+     */
     public List<DlqTopicResponse> topics() {
         return properties.getMappings()
                 .entrySet()
@@ -44,6 +48,10 @@ public class KafkaDlqQueryService {
                 .toList();
     }
 
+    /**
+     * 선택한 DLT topic의 메시지 목록을 조회한다.
+     * 화면의 조회 버튼과 연결되며, partition/fromOffset/size 조건에 맞춰 Kafka record를 읽어 요약 정보로 변환한다.
+     */
     public List<DlqMessageSummaryResponse> messages(
             String dltTopic,
             Integer partition,
@@ -82,6 +90,10 @@ public class KafkaDlqQueryService {
         }
     }
 
+    /**
+     * 특정 DLT 메시지의 상세 정보를 조회한다.
+     * 목록에서 선택한 topic/partition/offset으로 원본 payload와 header를 다시 읽어 반환한다.
+     */
     public DlqMessageDetailResponse detail(String dltTopic, int partition, long offset) {
         String targetTopic = resolveTargetTopic(dltTopic);
         ConsumerRecord<byte[], byte[]> record = readRecord(dltTopic, partition, offset);
@@ -100,6 +112,9 @@ public class KafkaDlqQueryService {
         );
     }
 
+    /**
+     * 요청한 DLT topic이 운영 설정에 등록된 허용 대상인지 검증하고 원본 topic을 반환한다.
+     */
     private String resolveTargetTopic(String dltTopic) {
         String targetTopic = properties.targetTopicOf(dltTopic);
         if (!StringUtils.hasText(targetTopic)) {
@@ -108,6 +123,10 @@ public class KafkaDlqQueryService {
         return targetTopic;
     }
 
+    /**
+     * 조회 대상 partition 목록을 결정한다.
+     * partition이 지정되면 해당 partition만 조회하고, 없으면 topic의 전체 partition을 조회한다.
+     */
     private List<TopicPartition> resolveTopicPartitions(
             Consumer<byte[], byte[]> consumer,
             String topic,
@@ -127,6 +146,10 @@ public class KafkaDlqQueryService {
                 .toList();
     }
 
+    /**
+     * 지정된 consumer 위치에서 DLT 메시지를 읽는다.
+     * 조회 시작 시점의 end offset까지만 읽어 조회 중 새로 유입된 메시지가 섞이지 않게 한다.
+     */
     private List<ConsumerRecord<byte[], byte[]>> pollRecords(
             Consumer<byte[], byte[]> consumer,
             Map<TopicPartition, Long> endOffsets,
@@ -157,6 +180,9 @@ public class KafkaDlqQueryService {
         return records;
     }
 
+    /**
+     * 특정 topic/partition/offset의 단일 DLT 메시지를 읽는다.
+     */
     private ConsumerRecord<byte[], byte[]> readRecord(String topic, int partition, long offset) {
         TopicPartition topicPartition = new TopicPartition(topic, partition);
 
@@ -175,6 +201,9 @@ public class KafkaDlqQueryService {
         }
     }
 
+    /**
+     * Kafka record를 목록 화면에 표시할 요약 응답으로 변환한다.
+     */
     private DlqMessageSummaryResponse summaryOf(ConsumerRecord<byte[], byte[]> record) {
         return new DlqMessageSummaryResponse(
                 record.topic(),
@@ -188,6 +217,9 @@ public class KafkaDlqQueryService {
         );
     }
 
+    /**
+     * Kafka record header를 화면 표시용 응답으로 변환한다.
+     */
     private List<DlqHeaderResponse> headersOf(ConsumerRecord<byte[], byte[]> record) {
         List<DlqHeaderResponse> headers = new ArrayList<>();
         for (Header header : record.headers()) {
@@ -200,10 +232,16 @@ public class KafkaDlqQueryService {
         return headers;
     }
 
+    /**
+     * Kafka record timestamp를 서버 기본 시간대의 발생 시각으로 변환한다.
+     */
     private LocalDateTime occurredAt(ConsumerRecord<byte[], byte[]> record) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
     }
 
+    /**
+     * 조회 건수를 기본값과 최대값 범위 안으로 보정한다.
+     */
     private int normalizeSize(Integer size) {
         if (size == null || size <= 0) {
             return DEFAULT_SIZE;
@@ -211,6 +249,9 @@ public class KafkaDlqQueryService {
         return Math.min(size, MAX_SIZE);
     }
 
+    /**
+     * 목록 화면에서 payload가 과도하게 길어지지 않도록 미리보기 문자열로 축약한다.
+     */
     private String preview(byte[] value) {
         String decoded = decode(value);
         if (decoded == null || decoded.length() <= 160) {
@@ -219,6 +260,9 @@ public class KafkaDlqQueryService {
         return decoded.substring(0, 160) + "...";
     }
 
+    /**
+     * Kafka byte 값을 UTF-8 문자열로 변환한다.
+     */
     private String decode(byte[] value) {
         if (value == null) {
             return null;
@@ -226,6 +270,9 @@ public class KafkaDlqQueryService {
         return new String(value, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 원본 byte 값을 손실 없이 확인할 수 있도록 Base64 문자열로 변환한다.
+     */
     private String base64(byte[] value) {
         if (value == null) {
             return null;

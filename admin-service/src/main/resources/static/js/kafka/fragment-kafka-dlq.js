@@ -40,6 +40,29 @@
     return `<span class="dlq-status-badge">${escapeHtml(status || 'UNKNOWN')}</span>`;
   }
 
+  function setListLoading(isLoading) {
+    const loading = document.getElementById('dlq-list-loading');
+    const searchButton = document.getElementById('dlq-search-btn');
+
+    loading?.classList.toggle('active', isLoading);
+    if (searchButton) {
+      searchButton.disabled = isLoading;
+      searchButton.innerHTML = isLoading
+        ? '<i class="ti ti-loader-2"></i>조회 중'
+        : '<i class="ti ti-search"></i>조회';
+    }
+  }
+
+  function setDetailLoading(isLoading) {
+    const loading = document.getElementById('dlq-detail-loading');
+    const detailGrid = document.getElementById('dlq-detail-grid');
+    const detailSection = document.querySelector('.dlq-detail-section');
+
+    loading?.classList.toggle('active', isLoading);
+    if (detailGrid) detailGrid.style.display = isLoading ? 'none' : 'grid';
+    if (detailSection) detailSection.style.display = isLoading ? 'none' : 'grid';
+  }
+
   function renderTopics() {
     const grid = document.getElementById('dlq-topic-grid');
     const select = document.getElementById('dlq-topic-select');
@@ -120,6 +143,7 @@
     if (fromOffset) params.set('fromOffset', fromOffset);
 
     try {
+      setListLoading(true);
       const res = await Fetch(`${DLQ_URL}/messages?${params.toString()}`, { method: 'GET' });
       if (!res.ok) {
         await showResponseError(res, 'DLT 메시지 목록 조회에 실패했습니다.');
@@ -131,6 +155,8 @@
     } catch (e) {
       console.error('DLT messages load failed', e);
       showToast('DLT 메시지 목록 통신 오류가 발생했습니다.', true);
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -165,6 +191,12 @@
 
   window.openDlqMessageDetailModal = async function (dltTopic, partition, offset) {
     const params = new URLSearchParams({ dltTopic, partition, offset });
+    document.getElementById('dlq-detail-location').textContent =
+      `${dltTopic} / partition ${partition} / offset ${offset}`;
+    document.getElementById('dlq-detail-payload').textContent = '';
+    document.getElementById('dlq-detail-headers').textContent = '';
+    document.getElementById('dlq-message-detail-modal').style.display = 'flex';
+    setDetailLoading(true);
 
     try {
       const res = await Fetch(`${DLQ_URL}/messages/detail?${params.toString()}`, { method: 'GET' });
@@ -175,10 +207,11 @@
 
       const detail = await res.json();
       renderDetail(detail);
-      document.getElementById('dlq-message-detail-modal').style.display = 'flex';
     } catch (e) {
       console.error('DLT message detail load failed', e);
       showToast('DLT 메시지 상세 통신 오류가 발생했습니다.', true);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
