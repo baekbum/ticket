@@ -115,6 +115,29 @@ DLQ 메시지는 바로 원본 topic으로 되돌리지 않는다. 아래 정보
 3. 비즈니스상 폐기할 메시지는 폐기 사유를 남기고 재발행하지 않는다.
 4. 재처리 도구는 같은 DLQ record를 중복 재발행하지 않도록 재처리 이력을 저장한다.
 
+현재 1차 운영 기능은 `admin-service`의 관리자 API로 제공한다.
+
+| 기능 | API | 설명 |
+| --- | --- | --- |
+| DLQ 재발행 | `POST /api/v1/manage/kafka-dlq/replay` | 허용된 DLT record를 원본 topic으로 재발행 |
+| DLQ 폐기 기록 | `POST /api/v1/manage/kafka-dlq/discard` | DLT record 존재를 확인하고 폐기 로그 기록 |
+
+요청은 DLT 위치와 처리 사유를 명시한다.
+
+```json
+{
+  "dltTopic": "user-event.DLT",
+  "partition": 0,
+  "offset": 10,
+  "operator": "admin",
+  "reason": "일시 DB 장애 복구"
+}
+```
+
+`admin-service`는 허용된 DLT mapping만 처리한다.
+현재 허용 mapping은 `user-event.DLT -> user-event`, `audit-log.DLT -> audit-log`, `payment-completed.DLT -> payment-completed`다.
+재발행은 payload를 byte 단위로 읽어 원본 topic에 다시 publish한다.
+
 재처리 이력 최소 필드:
 
 | 필드 | 설명 |

@@ -40,6 +40,9 @@ dependencies {
 	// 🌟 내부 MSA 통신을 위한 FeignClient 추가
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
+	// Kafka DLQ 운영 도구
+	implementation 'org.springframework.kafka:spring-kafka'
+
 	// 롬복
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
