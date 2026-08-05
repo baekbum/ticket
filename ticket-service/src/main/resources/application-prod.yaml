@@ -36,6 +36,18 @@ spring:
     admin:
       properties:
         auto.create.topics.enable: false
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: basic
+          queue-service-client:
+            connectTimeout: 500
+            readTimeout: 1000
+            loggerLevel: basic
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}

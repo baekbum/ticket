@@ -85,6 +85,10 @@ public class ViewController {
             return "fragment/fragment-audit-log";
         } else if ("redisHub".equals(menuName)) {
             return "fragment/fragment-redis-hub";
+        } else if ("kafkaDlq".equals(menuName)) {
+            return "fragment/fragment-kafka-dlq";
+        } else if ("kafkaDlqHistory".equals(menuName)) {
+            return "fragment/fragment-kafka-dlq-history";
         } else if ("testHub".equals(menuName)) {
             return "fragment/fragment-test-hub";
         } else if ("seatRedis".equals(menuName)) {

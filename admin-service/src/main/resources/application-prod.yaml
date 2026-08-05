@@ -6,6 +6,27 @@ server:
 spring:
   application:
     name: admin-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: basic
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVER}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
@@ -23,6 +44,11 @@ services:
     url: "http://audit-service:8080"
 
 app:
+  kafka-dlq:
+    mappings:
+      user-event.DLT: ${TOPIC_USER_EVENT_NAME:user-event}
+      audit-log.DLT: ${TOPIC_AUDIT_LOG_NAME:audit-log}
+      payment-completed.DLT: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
   monitoring:
     grafana-dashboard-url: "${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}"
     dashboards:

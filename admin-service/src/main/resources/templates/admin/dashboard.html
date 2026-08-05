@@ -114,6 +114,21 @@
           <button class="menu-btn" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
             <i class="ti ti-database"></i>Redis
           </button>
+          <button class="menu-btn" data-menu="kafkaDlq" onclick="switchMenu('kafkaDlq', this)">
+            <i class="ti ti-alert-triangle"></i>DLQ 관리
+          </button>
+          <button class="menu-btn" data-menu="kafkaDlqHistory" onclick="switchMenu('kafkaDlqHistory', this)">
+            <i class="ti ti-list-details"></i>DLQ 처리 이력
+          </button>
+          <!--
+            TODO: Kafka DLQ 운영 콘솔
+            1. 상세 화면에 원본 topic 재발행 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/replay.
+            2. 상세 화면에 폐기 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/discard.
+            3. replay/discard 요청에는 dltTopic, partition, offset, operator, reason을 반드시 포함한다.
+            4. replay/discard 처리 이력을 DB에 저장한다.
+            5. 이미 처리된 DLT offset은 중복 replay/discard 하지 못하도록 차단한다.
+            6. payload 보정 후 재발행이 필요하면 별도 승인/검증 흐름을 추가한다.
+          -->
         </div>
       </div>
 

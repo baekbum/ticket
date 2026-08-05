@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
@@ -61,13 +63,22 @@ class SeatCacheServiceTest {
     private StringRedisTemplate seatRedisTemplate;
 
     @Mock
+    private SeatCacheSyncFailureService seatCacheSyncFailureService;
+
+    @Mock
     private ValueOperations<String, String> valueOperations;
 
     private SeatCacheService seatCacheService;
 
     @BeforeEach
     void setUp() {
-        seatCacheService = new SeatCacheService(repository, eventRepository, ticketRepository, seatRedisTemplate);
+        seatCacheService = new SeatCacheService(
+                repository,
+                eventRepository,
+                ticketRepository,
+                seatRedisTemplate,
+                seatCacheSyncFailureService
+        );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
@@ -150,6 +161,30 @@ class SeatCacheServiceTest {
     }
 
     @Test
+    @DisplayName("좌석 선점 중 Redis 장애는 복구 단서 로깅 후 선점 실패로 변환한다")
+    void occupy_seat_wraps_redis_error() {
+        SeatOccupyRequest request = SeatOccupyRequest.builder()
+                .eventId(EVENT_ID)
+                .userId(USER_ID)
+                .seats(List.of(
+                        SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build()
+                ))
+                .build();
+        Event event = event();
+
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+        given(ticketRepository.isWithinPurchaseLimit(USER_ID, event, 1)).willReturn(true);
+        given(valueOperations.get(PURCHASE_LIMIT_KEY)).willThrow(new DataAccessException("redis error") {});
+
+        assertThatThrownBy(() -> seatCacheService.occupySeat(request))
+                .isInstanceOf(SeatOccupationFailedException.class)
+                .hasMessage("잠시 후 다시 시도해주세요.");
+
+        then(valueOperations).should().get(PURCHASE_LIMIT_KEY);
+        then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+    }
+
+    @Test
     @DisplayName("좌석 Redis 상태 동기화는 트랜잭션 커밋 이후에만 실행된다")
     void sync_reserved_seats_registers_after_commit_callback() {
         TransactionSynchronizationManager.initSynchronization();
@@ -166,6 +201,35 @@ class SeatCacheServiceTest {
 
             then(valueOperations).should().set(eq(FIRST_SEAT_KEY), eq(SeatStatus.RESERVED.name()), any(Duration.class));
             then(seatRedisTemplate).should().delete(FIRST_SEAT_KEY + ":lock");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("커밋 후 좌석 Redis 동기화 실패는 보정 이력으로 저장한다")
+    void sync_reserved_seats_records_failure_after_commit() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            Seat seat = seat(1L, "VIP", 1, 1);
+            DataAccessException redisError = new DataAccessException("redis error") {};
+            willThrow(redisError)
+                    .given(valueOperations)
+                    .set(eq(FIRST_SEAT_KEY), eq(SeatStatus.RESERVED.name()), any(Duration.class));
+
+            seatCacheService.syncReservedSeatsAfterCommit(List.of(seat));
+
+            List<TransactionSynchronization> synchronizations =
+                    TransactionSynchronizationManager.getSynchronizations();
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+            then(seatCacheSyncFailureService).should().recordFailure(
+                    eq("syncReservedSeatsAfterCommit"),
+                    eq("event:{eventId}:seat"),
+                    eq(List.of(FIRST_SEAT_KEY)),
+                    eq(List.of(SeatStatus.RESERVED.name())),
+                    eq(redisError)
+            );
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }

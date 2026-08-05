@@ -59,6 +59,7 @@ public class SeatCacheService {
     private final EventRepository eventRepository;
     private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
+    private final SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     /**
      * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
@@ -234,8 +235,6 @@ public class SeatCacheService {
     }
 
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
-        validateUserPurchaseLimit(request);
-
         long eventId = request.getEventId();
         String userId = request.getUserId();
         List<SeatInfo> seats = request.getSeats();
@@ -246,6 +245,8 @@ public class SeatCacheService {
         List<String> updatedRedisKeys = new ArrayList<>();
 
         try {
+            validateUserPurchaseLimit(request);
+
             for (SeatInfo seat : seats) {
                 String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
                 String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
@@ -287,9 +288,17 @@ public class SeatCacheService {
         } catch (SeatCacheNotFoundException | SeatAlreadyOccupiedException e) {
             rollbackSeats(acquiredLockKeys, updatedRedisKeys);
             throw e;
+        } catch (TicketLimitExceededException | SeatOccupationFailedException e) {
+            throw e;
+        } catch (DataAccessException e) {
+            rollbackSeats(acquiredLockKeys, updatedRedisKeys);
+            log.error("[REDIS-ERROR] 좌석 선점 Redis 처리 실패. operation=occupy, keyPrefix=event:{eventId}:seat, eventId={}, userId={}, orderId={}, lockKeys={}, seatKeys={}",
+                    eventId, userId, orderId, acquiredLockKeys, updatedRedisKeys, e);
+            throw new SeatOccupationFailedException("잠시 후 다시 시도해주세요.", e);
         } catch (Exception e) {
             rollbackSeats(acquiredLockKeys, updatedRedisKeys);
-            log.error("[좌석 선점 실패] Redis 일괄 롤백 완료. 사유: {}", e.getMessage());
+            log.error("[좌석 선점 실패] Redis 일괄 롤백 완료. eventId={}, userId={}, orderId={}, lockKeys={}, seatKeys={}, 사유={}",
+                    eventId, userId, orderId, acquiredLockKeys, updatedRedisKeys, e.getMessage(), e);
             throw new SeatOccupationFailedException("잠시 후 다시 시도해주세요.", e);
         }
     }
@@ -307,11 +316,18 @@ public class SeatCacheService {
         for (SeatInfo seat : seats) {
             String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
-            String redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
+            String redisKeyValue;
+            try {
+                redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
+            } catch (DataAccessException e) {
+                log.error("[REDIS-ERROR] 좌석 선점 검증 Redis 조회 실패. operation=get, keyPrefix=event:{eventId}:seat, redisKey={}, eventId={}, userId={}, orderId={}",
+                        redisKey, eventId, userId, orderId, e);
+                throw new SeatOccupationFailedException("좌석 정보 검증 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", e);
+            }
 
             if (redisKeyValue == null || !redisKeyValue.equals(correctValue)) {
-                log.error("[Redis 좌석 검증 오류 발생] : event = {}, zone = {}, row = {}, col = {}, userId = {}",
-                        eventId, seat.getZone(), seat.getRow(), seat.getCol(), userId);
+                log.error("[Redis 좌석 검증 오류 발생] eventId={}, zone={}, row={}, col={}, userId={}, orderId={}, redisKey={}",
+                        eventId, seat.getZone(), seat.getRow(), seat.getCol(), userId, orderId, redisKey);
                 log.error("[Redis 저장된 좌석 정보] : {}", redisKeyValue);
 
                 throw new SeatOccupationFailedException("좌석 정보가 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
@@ -332,12 +348,7 @@ public class SeatCacheService {
                 ))
                 .collect(Collectors.toList());
 
-        runAfterCommit(() -> {
-            for (SeatCacheUpdate update : updates) {
-                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
-                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
-            }
-        });
+        runAfterCommit(() -> syncSeatCacheUpdates("syncReservedSeatsAfterCommit", updates));
     }
 
     /**
@@ -353,12 +364,7 @@ public class SeatCacheService {
                 ))
                 .collect(Collectors.toList());
 
-        runAfterCommit(() -> {
-            for (SeatCacheUpdate update : updates) {
-                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
-                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
-            }
-        });
+        runAfterCommit(() -> syncSeatCacheUpdates("syncLockedSeatsAfterCommit", updates));
     }
 
     /**
@@ -374,12 +380,7 @@ public class SeatCacheService {
                 ))
                 .collect(Collectors.toList());
 
-        runAfterCommit(() -> {
-            for (SeatCacheUpdate update : updates) {
-                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
-                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
-            }
-        });
+        runAfterCommit(() -> syncSeatCacheUpdates("syncAvailableSeatsAfterCommit", updates));
     }
 
     /**
@@ -392,16 +393,54 @@ public class SeatCacheService {
     public void updateUserPurchaseLimit(Event event, String userId, int purchaseCnt, String type) {
         String purchaseKey = createPurchaseLimitKey(event, userId);
 
-        int amount = type.equals("PLUS") ? purchaseCnt : -purchaseCnt;
-        Long currentCount = seatRedisTemplate.opsForValue().increment(purchaseKey, amount);
+        try {
+            int amount = type.equals("PLUS") ? purchaseCnt : -purchaseCnt;
+            Long currentCount = seatRedisTemplate.opsForValue().increment(purchaseKey, amount);
 
-        if (currentCount != null && currentCount < 0) {
-            seatRedisTemplate.opsForValue().set(purchaseKey, "0");
-            currentCount = 0L;
+            if (currentCount != null && currentCount < 0) {
+                seatRedisTemplate.opsForValue().set(purchaseKey, "0");
+                currentCount = 0L;
+            }
+
+            seatRedisTemplate.expire(purchaseKey, Duration.ofDays(30));
+            log.info("[Redis 공연 매수 반영 (key : {}), (value : {})]", purchaseKey, currentCount);
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] 사용자 구매 제한 Redis 갱신 실패. operation=increment, keyPrefix=user:purchase:limit, redisKey={}, eventId={}, userId={}, type={}, purchaseCnt={}",
+                    purchaseKey, event.getEventId(), userId, type, purchaseCnt, e);
+            throw e;
         }
+    }
 
-        seatRedisTemplate.expire(purchaseKey, Duration.ofDays(30));
-        log.info("[Redis 공연 매수 반영 (key : {}), (value : {})]", purchaseKey, currentCount);
+    private void syncSeatCacheUpdates(String operation, List<SeatCacheUpdate> updates) {
+        try {
+            for (SeatCacheUpdate update : updates) {
+                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
+                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
+            }
+        } catch (DataAccessException e) {
+            List<String> redisKeys = updates.stream()
+                    .map(SeatCacheUpdate::getRedisKey)
+                    .collect(Collectors.toList());
+            List<String> values = updates.stream()
+                    .map(SeatCacheUpdate::getValue)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            log.error("[REDIS-ERROR] DB 커밋 후 좌석 Redis 동기화 실패. operation={}, keyPrefix=event:{eventId}:seat, redisKeys={}, values={}",
+                    operation, redisKeys, values, e);
+            try {
+                seatCacheSyncFailureService.recordFailure(
+                        operation,
+                        "event:{eventId}:seat",
+                        redisKeys,
+                        values,
+                        e
+                );
+            } catch (Exception recordException) {
+                log.error("[REDIS-ERROR] 좌석 Redis 동기화 실패 이력 저장 실패. operation={}, redisKeys={}",
+                        operation, redisKeys, recordException);
+            }
+        }
     }
 
     /**
@@ -410,12 +449,18 @@ public class SeatCacheService {
      * @param redisKeys
      */
     private void rollbackSeats(List<String> lockKeys, List<String> redisKeys) {
-        for (String redisKey : redisKeys) {
-            seatRedisTemplate.opsForValue().set(redisKey, SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
-        }
+        try {
+            for (String redisKey : redisKeys) {
+                seatRedisTemplate.opsForValue().set(redisKey, SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
+            }
 
-        if (!lockKeys.isEmpty()) {
-            seatRedisTemplate.delete(lockKeys);
+            if (!lockKeys.isEmpty()) {
+                seatRedisTemplate.delete(lockKeys);
+            }
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] 좌석 선점 Redis 롤백 실패. operation=rollback, keyPrefix=event:{eventId}:seat, lockKeys={}, seatKeys={}",
+                    lockKeys, redisKeys, e);
+            throw e;
         }
     }
 
