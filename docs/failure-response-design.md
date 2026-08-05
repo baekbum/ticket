@@ -54,6 +54,19 @@ DLQ Topic:
 | `audit-log` | `audit-log.DLT` |
 | `payment-completed` | `payment-completed.DLT` |
 
+DLT topic 보관 정책:
+
+| 항목 | 정책 |
+| --- | --- |
+| 보관 기간 | 14일 (`retention.ms=1209600000`) |
+| 보관 용량 | partition당 1GB (`retention.bytes=1073741824`) |
+| 삭제 방식 | Kafka retention 조건에 따라 오래된 segment 자동 삭제 |
+| 장기 보관 | 처리 이력 DB에 운영 결과와 payload snapshot을 저장 |
+
+DLT topic은 장애 분석과 재처리를 위해 일반 topic보다 길게 보관한다.
+단, 메시지는 consumer가 읽어도 삭제되지 않으므로 무제한 보관하지 않는다.
+기존에 생성된 topic은 Spring `NewTopic` 설정만으로 retention이 바뀌지 않을 수 있으므로 `kafka-configs --alter`로 운영 중 topic 설정을 별도 적용한다.
+
 ### Consumer 처리 기준
 
 #### `user-event`
