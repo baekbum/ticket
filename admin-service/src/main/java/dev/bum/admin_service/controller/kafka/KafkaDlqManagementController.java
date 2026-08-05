@@ -1,17 +1,22 @@
 package dev.bum.admin_service.controller.kafka;
 
 import dev.bum.admin_service.kafka.dlq.DlqMessageHandleRequest;
+import dev.bum.admin_service.kafka.dlq.DlqMessageHandleHistoryCondRequest;
+import dev.bum.admin_service.kafka.dlq.DlqMessageHandleHistoryResponse;
 import dev.bum.admin_service.kafka.dlq.DlqMessageHandleResponse;
 import dev.bum.admin_service.kafka.dlq.DlqMessageDetailResponse;
 import dev.bum.admin_service.kafka.dlq.DlqMessageModifiedReplayRequest;
 import dev.bum.admin_service.kafka.dlq.DlqMessageSummaryResponse;
 import dev.bum.admin_service.kafka.dlq.DlqTopicResponse;
+import dev.bum.admin_service.kafka.dlq.KafkaDlqHistoryService;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqQueryService;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqReplayService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,6 +32,7 @@ public class KafkaDlqManagementController {
 
     private final KafkaDlqQueryService kafkaDlqQueryService;
     private final KafkaDlqReplayService kafkaDlqReplayService;
+    private final KafkaDlqHistoryService kafkaDlqHistoryService;
 
     @GetMapping("/topics")
     public ResponseEntity<List<DlqTopicResponse>> topics() {
@@ -65,5 +71,15 @@ public class KafkaDlqManagementController {
     @PostMapping("/discard")
     public ResponseEntity<DlqMessageHandleResponse> discard(@Valid @RequestBody DlqMessageHandleRequest request) {
         return ResponseEntity.ok(kafkaDlqReplayService.discard(request));
+    }
+
+    @PostMapping("/histories")
+    public ResponseEntity<Page<DlqMessageHandleHistoryResponse>> histories(@RequestBody(required = false) DlqMessageHandleHistoryCondRequest cond) {
+        return ResponseEntity.ok(kafkaDlqHistoryService.histories(cond));
+    }
+
+    @GetMapping("/histories/{id}")
+    public ResponseEntity<DlqMessageHandleHistoryResponse> history(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(kafkaDlqHistoryService.history(id));
     }
 }
