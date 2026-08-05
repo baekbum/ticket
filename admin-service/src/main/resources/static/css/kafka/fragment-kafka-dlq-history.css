@@ -84,6 +84,10 @@
 .btn-outline:hover { background: var(--bg); color: var(--text-primary); }
 .btn-secondary { background: #f0eef8; color: var(--text-secondary); border: 1px solid var(--border); box-shadow: none; }
 .btn-secondary:hover { background: #e7e3f1; color: var(--text-primary); border-color: #d8d3e8; box-shadow: none; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-warning { background: #f59e0b; color: #fff; }
+.btn-warning:hover { background: #d97706; }
 .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
 
 .dlq-history-quick-filters {
@@ -353,9 +357,61 @@
   white-space: pre-wrap;
 }
 
+.dlq-history-retry-panel {
+  display: none;
+  margin-top: 1rem;
+  padding: 13px 14px;
+  border: 1px solid rgba(214,59,59,0.18);
+  border-radius: var(--radius-sm);
+  background: var(--red-dim);
+}
+
+.dlq-history-retry-title {
+  margin: 0 0 4px;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dlq-history-retry-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dlq-history-confirm-modal {
+  z-index: 1300;
+  align-items: center;
+}
+
+.dlq-history-confirm-content {
+  max-width: 460px;
+}
+
+.dlq-history-confirm-summary {
+  display: grid;
+  gap: 7px;
+  margin-top: 1rem;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafafa;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dlq-history-confirm-summary strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  word-break: break-all;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 1.25rem;
 }
 
@@ -367,4 +423,8 @@ body.dark-mode .dlq-history-detail-item {
   background: #202231;
   border-color: var(--border);
   color: var(--text-primary);
+}
+body.dark-mode .dlq-history-confirm-summary {
+  background: #202231;
+  border-color: var(--border);
 }

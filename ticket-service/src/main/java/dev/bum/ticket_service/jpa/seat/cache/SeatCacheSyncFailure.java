@@ -53,6 +53,12 @@ public class SeatCacheSyncFailure {
     @Column(nullable = false)
     private LocalDateTime lastFailedAt;
 
+    @Column
+    private LocalDateTime resolvedAt;
+
+    @Column(columnDefinition = "text")
+    private String resolvedMessage;
+
     @Builder
     public SeatCacheSyncFailure(
             String operation,
@@ -71,5 +77,23 @@ public class SeatCacheSyncFailure {
         this.retryCount = 0;
         this.createdAt = now;
         this.lastFailedAt = now;
+    }
+
+    public void resolve(String resolvedMessage) {
+        this.status = SeatCacheSyncFailureStatus.RESOLVED;
+        this.resolvedMessage = resolvedMessage;
+        this.resolvedAt = LocalDateTime.now();
+    }
+
+    public void discard(String resolvedMessage) {
+        this.status = SeatCacheSyncFailureStatus.DISCARDED;
+        this.resolvedMessage = resolvedMessage;
+        this.resolvedAt = LocalDateTime.now();
+    }
+
+    public void failRetry(String failureMessage) {
+        this.retryCount++;
+        this.failureMessage = failureMessage;
+        this.lastFailedAt = LocalDateTime.now();
     }
 }

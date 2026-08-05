@@ -112,8 +112,26 @@
       </div>
     </div>
 
+    <div class="dlq-history-retry-panel" id="dlq-history-retry-panel">
+      <p class="dlq-history-retry-title">실패 이력 재시도</p>
+      <p class="dlq-history-retry-desc" id="dlq-history-retry-desc">실패한 DLQ 처리 작업을 같은 조건으로 다시 실행합니다.</p>
+    </div>
+
     <div class="modal-actions">
+      <button class="btn" id="dlq-history-retry-btn" onclick="retryDlqHistory()">재시도</button>
       <button class="btn btn-secondary" onclick="closeDlqHistoryDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal dlq-history-confirm-modal" id="dlq-history-confirm-modal">
+  <div class="f-modal-content dlq-history-confirm-content">
+    <p class="modal-title" id="dlq-history-confirm-title">DLQ 실패 이력 재시도 확인</p>
+    <p class="modal-subtitle" id="dlq-history-confirm-message">실패한 DLQ 처리를 다시 실행할까요?</p>
+    <div class="dlq-history-confirm-summary" id="dlq-history-confirm-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelDlqHistoryRetryConfirm()">취소</button>
+      <button class="btn" id="dlq-history-confirm-submit-btn" onclick="submitDlqHistoryRetryConfirm()">재시도</button>
     </div>
   </div>
 </div>

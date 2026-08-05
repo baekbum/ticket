@@ -1,0 +1,113 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/redis/fragment-seat-cache-sync-failures.css}">
+
+<div class="frag-header">
+  <h2>Redis 보정 이력</h2>
+  <p class="sub-txt">DB 커밋 후 좌석 Redis 동기화에 실패한 이력을 조회하고 재처리합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input status-input" id="seat-cache-failure-status">
+      <option value="">전체 상태</option>
+      <option value="PENDING">PENDING</option>
+      <option value="RESOLVED">RESOLVED</option>
+      <option value="DISCARDED">DISCARDED</option>
+    </select>
+    <input type="text" class="search-input operation-input" id="seat-cache-failure-operation" placeholder="operation">
+    <input type="text" class="search-input key-prefix-input" id="seat-cache-failure-key-prefix" placeholder="key prefix">
+    <button class="btn" onclick="triggerSeatCacheFailureSearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetSeatCacheFailureSearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+</div>
+
+<div class="quick-filters">
+  <button class="quick-filter active" data-status="" onclick="quickSeatCacheFailureStatus(this)">전체</button>
+  <button class="quick-filter" data-status="PENDING" onclick="quickSeatCacheFailureStatus(this)">대기</button>
+  <button class="quick-filter" data-status="RESOLVED" onclick="quickSeatCacheFailureStatus(this)">완료</button>
+  <button class="quick-filter" data-status="DISCARDED" onclick="quickSeatCacheFailureStatus(this)">폐기</button>
+</div>
+
+<div class="table-wrap">
+  <table class="failure-table">
+    <colgroup>
+      <col style="width:72px;">
+      <col style="width:80px;">
+      <col style="width:210px;">
+      <col style="width:150px;">
+      <col>
+      <col style="width:130px;">
+      <col style="width:120px;">
+      <col style="width:90px;">
+      <col style="width:170px;">
+      <col style="width:170px;">
+      <col style="width:150px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>ID</th>
+      <th>Operation</th>
+      <th>Key Prefix</th>
+      <th>Redis Keys</th>
+      <th>Target</th>
+      <th>상태</th>
+      <th>재시도</th>
+      <th>생성 시각</th>
+      <th>최근 실패</th>
+      <th class="actions">작업</th>
+    </tr>
+    </thead>
+    <tbody id="seat-cache-failure-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="seat-cache-failure-detail-modal">
+  <div class="f-modal-content detail-content">
+    <p class="modal-title">Redis 보정 이력 상세</p>
+    <p class="modal-subtitle">이력 ID <strong id="seat-cache-failure-detail-id">-</strong>의 Redis 동기화 실패 정보를 확인합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="detail-grid" id="seat-cache-failure-detail-grid"></div>
+
+    <div class="json-section">
+      <div>
+        <p class="json-title">Redis Keys</p>
+        <pre id="seat-cache-failure-detail-keys" class="json-box"></pre>
+      </div>
+      <div>
+        <p class="json-title">Failure Message</p>
+        <pre id="seat-cache-failure-detail-message" class="json-box"></pre>
+      </div>
+      <div>
+        <p class="json-title">Resolved Message</p>
+        <pre id="seat-cache-failure-detail-resolved" class="json-box"></pre>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="seat-cache-failure-retry-btn" onclick="handleSeatCacheFailure('retry')">재처리</button>
+      <button class="btn btn-danger" id="seat-cache-failure-discard-btn" onclick="handleSeatCacheFailure('discard')">폐기</button>
+      <button class="btn btn-secondary" onclick="closeSeatCacheFailureDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal redis-confirm-modal" id="seat-cache-failure-confirm-modal">
+  <div class="f-modal-content redis-confirm-content">
+    <p class="modal-title" id="seat-cache-failure-confirm-title">Redis 보정 처리 확인</p>
+    <p class="modal-subtitle" id="seat-cache-failure-confirm-message">처리를 진행할까요?</p>
+    <div class="redis-confirm-summary" id="seat-cache-failure-confirm-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelSeatCacheFailureConfirm()">취소</button>
+      <button class="btn" id="seat-cache-failure-confirm-submit-btn" onclick="submitSeatCacheFailureConfirm()">확인</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/redis/fragment-seat-cache-sync-failures.js}"></script>

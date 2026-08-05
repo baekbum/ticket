@@ -4,6 +4,9 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.DeleteSeatRequest;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatGroupRequest;
 import dev.bum.common.service.ticket.seat.dto.InsertSeatRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCacheSyncFailureCondRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatCacheSyncFailureHandleResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatCacheSyncFailureResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
@@ -12,6 +15,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
+import dev.bum.ticket_service.service.seat.SeatCacheSyncFailureService;
 import dev.bum.ticket_service.service.seat.SeatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SeatManagementController {
 
     private final SeatService seatService;
+    private final SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     @PostMapping("/insert")
     public ResponseEntity<Void> insert(@Valid @RequestBody InsertSeatRequest info) {
@@ -152,5 +157,27 @@ public class SeatManagementController {
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(@RequestBody SeatOccupyRequest request) {
         return ResponseEntity.ok(seatService.occupySeat(request));
+    }
+
+    @PostMapping("/cache/sync-failures/select")
+    public ResponseEntity<CustomPageResponse<SeatCacheSyncFailureResponse>> selectCacheSyncFailures(
+            @RequestBody(required = false) SeatCacheSyncFailureCondRequest cond
+    ) {
+        return ResponseEntity.ok(seatCacheSyncFailureService.selectByCond(cond));
+    }
+
+    @GetMapping("/cache/sync-failures/{id}")
+    public ResponseEntity<SeatCacheSyncFailureResponse> selectCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatCacheSyncFailureService.selectById(id));
+    }
+
+    @PostMapping("/cache/sync-failures/{id}/retry")
+    public ResponseEntity<SeatCacheSyncFailureHandleResponse> retryCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatCacheSyncFailureService.retry(id));
+    }
+
+    @PostMapping("/cache/sync-failures/{id}/discard")
+    public ResponseEntity<SeatCacheSyncFailureHandleResponse> discardCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatCacheSyncFailureService.discard(id));
     }
 }
