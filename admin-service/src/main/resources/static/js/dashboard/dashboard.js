@@ -59,6 +59,14 @@
     toggleButton.setAttribute('aria-expanded', String(isOpen));
   }
 
+  function toggleMenuSubsection(toggleButton) {
+    const subsection = toggleButton.closest('.menu-subsection');
+    if (!subsection) return;
+
+    const isOpen = subsection.classList.toggle('is-open');
+    toggleButton.setAttribute('aria-expanded', String(isOpen));
+  }
+
   function openMenuGroupForButton(btnElement) {
     const group = btnElement?.closest('.menu-group');
     if (!group) return;
@@ -67,6 +75,15 @@
     const toggleButton = group.querySelector('.menu-group-toggle');
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'true');
+    }
+
+    const subsection = btnElement.closest('.menu-subsection');
+    if (subsection) {
+      subsection.classList.add('is-open');
+      const subsectionToggleButton = subsection.querySelector('.menu-subsection-toggle');
+      if (subsectionToggleButton) {
+        subsectionToggleButton.setAttribute('aria-expanded', 'true');
+      }
     }
   }
 
@@ -566,6 +583,7 @@
 
   window.switchMenu = switchMenu;
   window.toggleMenuGroup = toggleMenuGroup;
+  window.toggleMenuSubsection = toggleMenuSubsection;
   window.openDashboardEmbedWindow = openDashboardEmbedWindow;
   window.switchMenuWithContext = function (menuName, context = {}) {
     const btn = document.querySelector(`.menu-btn[data-menu="${menuName}"]`);

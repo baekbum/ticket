@@ -33,6 +33,10 @@ public class QSeatCacheSyncFailure extends EntityPathBase<SeatCacheSyncFailure> 
 
     public final StringPath redisKeys = createString("redisKeys");
 
+    public final DateTimePath<java.time.LocalDateTime> resolvedAt = createDateTime("resolvedAt", java.time.LocalDateTime.class);
+
+    public final StringPath resolvedMessage = createString("resolvedMessage");
+
     public final NumberPath<Integer> retryCount = createNumber("retryCount", Integer.class);
 
     public final EnumPath<SeatCacheSyncFailureStatus> status = createEnum("status", SeatCacheSyncFailureStatus.class);

@@ -111,15 +111,34 @@
           <button class="menu-btn" data-menu="monitoring" onclick="switchMenu('monitoring', this)">
             <i class="ti ti-chart-line"></i>모니터링
           </button>
-          <button class="menu-btn" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
-            <i class="ti ti-database"></i>Redis
-          </button>
-          <button class="menu-btn" data-menu="kafkaDlq" onclick="switchMenu('kafkaDlq', this)">
-            <i class="ti ti-alert-triangle"></i>DLQ 관리
-          </button>
-          <button class="menu-btn" data-menu="kafkaDlqHistory" onclick="switchMenu('kafkaDlqHistory', this)">
-            <i class="ti ti-list-details"></i>DLQ 처리 이력
-          </button>
+          <div class="menu-subsection is-open">
+            <button class="menu-subsection-toggle" type="button" onclick="toggleMenuSubsection(this)" aria-expanded="true">
+              <span><i class="ti ti-database"></i>Redis</span>
+              <i class="ti ti-chevron-down menu-subsection-chevron"></i>
+            </button>
+            <div class="menu-subsection-items">
+              <button class="menu-btn menu-btn-nested" data-menu="redisHub" onclick="switchMenu('redisHub', this)">
+                <i class="ti ti-settings"></i>Redis 관리
+              </button>
+              <button class="menu-btn menu-btn-nested" data-menu="seatCacheSyncFailures" onclick="switchMenu('seatCacheSyncFailures', this)">
+                <i class="ti ti-refresh-alert"></i>Redis 보정 이력
+              </button>
+            </div>
+          </div>
+          <div class="menu-subsection is-open">
+            <button class="menu-subsection-toggle" type="button" onclick="toggleMenuSubsection(this)" aria-expanded="true">
+              <span><i class="ti ti-alert-triangle"></i>DLQ</span>
+              <i class="ti ti-chevron-down menu-subsection-chevron"></i>
+            </button>
+            <div class="menu-subsection-items">
+              <button class="menu-btn menu-btn-nested" data-menu="kafkaDlq" onclick="switchMenu('kafkaDlq', this)">
+                <i class="ti ti-inbox"></i>DLQ 관리
+              </button>
+              <button class="menu-btn menu-btn-nested" data-menu="kafkaDlqHistory" onclick="switchMenu('kafkaDlqHistory', this)">
+                <i class="ti ti-list-details"></i>DLQ 처리 이력
+              </button>
+            </div>
+          </div>
           <!--
             TODO: Kafka DLQ 운영 콘솔
             1. 상세 화면에 원본 topic 재발행 버튼을 추가한다. API: POST /api/v1/manage/kafka-dlq/replay.

@@ -272,7 +272,9 @@ CREATE TABLE seat_cache_sync_failures (
     status VARCHAR(20) NOT NULL,
     retry_count INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL,
-    last_failed_at TIMESTAMP NOT NULL
+    last_failed_at TIMESTAMP NOT NULL,
+    resolved_at TIMESTAMP,
+    resolved_message TEXT
 );
 
 CREATE INDEX idx_seat_cache_sync_failure_status ON seat_cache_sync_failures(status);
