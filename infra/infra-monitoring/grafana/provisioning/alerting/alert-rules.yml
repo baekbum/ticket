@@ -20,7 +20,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: up{job=~"local-redis|redis"} == 0
+              expr: redis_up{job=~"local-redis|redis"} == bool 0
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -72,8 +72,8 @@ groups:
         execErrState: Alerting
         for: 1m
         annotations:
-          summary: Redis exporter 수집 실패
-          description: Redis exporter 또는 대상 Redis 연결 상태를 확인하세요.
+          summary: Redis 수집 또는 연결 실패
+          description: Redis exporter 수집 상태와 대상 Redis 연결 상태를 확인하세요.
         labels:
           severity: critical
           service: redis
@@ -92,7 +92,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: up{job=~"local-postgresql|postgresql"} == 0
+              expr: pg_up{job=~"local-postgresql|postgresql"} == bool 0
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -144,8 +144,8 @@ groups:
         execErrState: Alerting
         for: 1m
         annotations:
-          summary: PostgreSQL exporter 수집 실패
-          description: PostgreSQL exporter 또는 대상 DB 연결 상태를 확인하세요.
+          summary: PostgreSQL 수집 또는 연결 실패
+          description: PostgreSQL exporter 수집 상태와 대상 DB 연결 상태를 확인하세요.
         labels:
           severity: critical
           service: postgresql
@@ -164,7 +164,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: up{job=~"local-.*-service|ticket-services|admin-service"} == 0
+              expr: up{job=~"local-(auth|user|ticket|queue|audit|admin)-service|ticket-services|admin-service"} == bool 0
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
