@@ -45,3 +45,8 @@ ticket-service/uploads/
 ### Temporary files ###
 tmp/
 output/
+
+### Local environment files ###
+.env
+*.env
+!*.env.example
