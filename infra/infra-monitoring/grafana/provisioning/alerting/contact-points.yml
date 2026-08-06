@@ -13,6 +13,9 @@ contactPoints:
             {{ range .Alerts }}
             *Summary:* {{ .Annotations.summary }}
             *Description:* {{ .Annotations.description }}
+            *Target:* {{ if .Labels.application }}{{ .Labels.application }}{{ else if .Labels.redis }}{{ .Labels.redis }}{{ else if .Labels.database }}{{ .Labels.database }}{{ else }}{{ .Labels.instance }}{{ end }}
             *Service:* {{ .Labels.service }}
+            *Job:* {{ .Labels.job }}
+            *Instance:* {{ .Labels.instance }}
             *Severity:* {{ .Labels.severity }}
             {{ end }}
