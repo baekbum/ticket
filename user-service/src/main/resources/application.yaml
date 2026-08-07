@@ -31,7 +31,8 @@ token:
   secret: ticket-project-secret-value-is-made-by-random
 
 topic:
-  name: user-event
+  user:
+    name: user-event
   audit:
     log:
       name: audit-log

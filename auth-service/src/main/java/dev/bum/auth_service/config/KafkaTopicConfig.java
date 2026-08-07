@@ -14,7 +14,7 @@ public class KafkaTopicConfig {
     private static final String DLT_RETENTION_MS = "1209600000";
     private static final String DLT_RETENTION_BYTES = "1073741824";
 
-    @Value("${topic.name}")
+    @Value("${topic.user.name}")
     private String userEventTopicName;
 
     @Bean

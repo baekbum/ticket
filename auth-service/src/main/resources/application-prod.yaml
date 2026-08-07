@@ -42,7 +42,8 @@ token:
   refreshTokenValidityInMilliseconds: 1209600000
 
 topic:
-  name: ${TOPIC_USER_EVENT_NAME:user-event}
+  user:
+    name: ${TOPIC_USER_EVENT_NAME:user-event}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
