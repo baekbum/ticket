@@ -29,7 +29,8 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 topic:
-  name: ${TOPIC_USER_EVENT_NAME:user-event}
+  user:
+    name: ${TOPIC_USER_EVENT_NAME:user-event}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}

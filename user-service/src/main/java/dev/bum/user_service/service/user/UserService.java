@@ -43,7 +43,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
 
-    @Value("${topic.name}")
+    @Value("${topic.user.name}")
     private String userTopic;
 
     /**

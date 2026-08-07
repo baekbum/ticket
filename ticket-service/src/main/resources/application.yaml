@@ -69,6 +69,10 @@ app:
   queue:
     enabled: true
     base-url: http://localhost:8083/queue
+  kafka-dlt:
+    slack:
+      enabled: true
+      webhook-url: ${SLACK_WEBHOOK_URL:}
 
 management:
   endpoints:

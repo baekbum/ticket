@@ -45,10 +45,13 @@ services:
 
 app:
   kafka-dlq:
-    mappings:
-      user-event.DLT: ${TOPIC_USER_EVENT_NAME:user-event}
-      audit-log.DLT: ${TOPIC_AUDIT_LOG_NAME:audit-log}
-      payment-completed.DLT: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
+    entries:
+      - dlt-topic: ${TOPIC_USER_EVENT_NAME:user-event}.DLT
+        target-topic: ${TOPIC_USER_EVENT_NAME:user-event}
+      - dlt-topic: ${TOPIC_AUDIT_LOG_NAME:audit-log}.DLT
+        target-topic: ${TOPIC_AUDIT_LOG_NAME:audit-log}
+      - dlt-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}.DLT
+        target-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
   monitoring:
     grafana-dashboard-url: "${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}"
     dashboards:
