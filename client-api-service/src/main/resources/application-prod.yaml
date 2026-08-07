@@ -1,0 +1,41 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /client-api
+
+spring:
+  application:
+    name: client-api-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: basic
+
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+
+services:
+  auth-service:
+    url: "http://auth-service:8080"
+  user-service:
+    url: "http://user-service:8080"
+  ticket-service:
+    url: "http://ticket-service:8080"
+  queue-service:
+    url: "http://queue-service:8080"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}

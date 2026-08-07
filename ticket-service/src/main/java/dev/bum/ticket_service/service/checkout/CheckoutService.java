@@ -73,7 +73,7 @@ public class CheckoutService {
                 .build());
 
         seatCacheService.updateUserPurchaseLimit(
-                request.getEventId(),
+                reservation.getEvent(),
                 currentUserId,
                 request.getSeats().size(),
                 "PLUS"

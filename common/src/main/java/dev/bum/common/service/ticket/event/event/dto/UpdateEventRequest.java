@@ -1,6 +1,10 @@
 package dev.bum.common.service.ticket.event.event.dto;
 
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -12,6 +16,7 @@ import java.time.LocalDateTime;
 public class UpdateEventRequest {
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String description;
     private String venue;
     private String venueAddress;
@@ -26,4 +31,8 @@ public class UpdateEventRequest {
     private Integer availableSeats;
     private EventStatus status;
     private Integer maxTicketsPerPerson;
+    private TicketLimitScope ticketLimitScope;
+    private EventGenre genre;
+    private EventRegion region;
+    private EventTheme theme;
 }

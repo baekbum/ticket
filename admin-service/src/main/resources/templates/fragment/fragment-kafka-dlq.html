@@ -1,0 +1,137 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/kafka/fragment-kafka-dlq.css}">
+
+<div class="frag-header">
+  <h2>DLQ 관리</h2>
+  <p class="sub-txt">Kafka DLT 메시지를 조회하고 상세 payload/header를 확인합니다.</p>
+</div>
+
+<div class="dlq-topic-grid" id="dlq-topic-grid"></div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input dlq-topic-select" id="dlq-topic-select" onchange="loadDlqMessages()">
+      <option value="">DLT topic 선택</option>
+    </select>
+    <input type="number" class="search-input dlq-partition-input" id="dlq-partition-input" placeholder="partition">
+    <input type="number" class="search-input dlq-offset-input" id="dlq-from-offset-input" placeholder="from offset">
+    <select class="search-input dlq-size-input" id="dlq-size-input">
+      <option value="20">20건</option>
+      <option value="50">50건</option>
+      <option value="100">100건</option>
+    </select>
+    <button class="btn" id="dlq-search-btn" onclick="loadDlqMessages()"><i class="ti ti-search"></i>조회</button>
+    <button class="btn btn-outline" onclick="resetDlqSearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+  <div class="toolbar-right">
+    <span class="dlq-help-text">처리 완료된 DLT 메시지는 중복 재발행/폐기할 수 없습니다.</span>
+  </div>
+</div>
+
+<div class="table-wrap dlq-table-wrap">
+  <div class="dlq-loading-overlay" id="dlq-list-loading" aria-live="polite">
+    <div class="dlq-spinner"></div>
+    <span>DLT 메시지를 조회하는 중입니다...</span>
+  </div>
+  <table class="dlq-table">
+    <colgroup>
+      <col style="width:210px;">
+      <col style="width:86px;">
+      <col style="width:110px;">
+      <col style="width:180px;">
+      <col style="width:170px;">
+      <col style="width:110px;">
+      <col style="width:160px;">
+      <col>
+      <col style="width:92px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>DLT Topic</th>
+      <th>Partition</th>
+      <th>Offset</th>
+      <th>Key</th>
+      <th>발생 시각</th>
+      <th>Header</th>
+      <th>처리 상태</th>
+      <th>Payload Preview</th>
+      <th class="actions">상세</th>
+    </tr>
+    </thead>
+    <tbody id="dlq-message-table-body">
+    <tr>
+      <td colspan="9" class="dlq-empty-cell">DLT topic을 선택하고 조회하세요.</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="f-modal" id="dlq-message-detail-modal">
+  <div class="f-modal-content dlq-detail-content">
+    <div class="dlq-detail-loading" id="dlq-detail-loading">
+      <div class="dlq-spinner"></div>
+      <span>DLT 메시지 상세를 불러오는 중입니다...</span>
+    </div>
+    <p class="modal-title">DLT 메시지 상세</p>
+    <p class="modal-subtitle">
+      <strong id="dlq-detail-location">-</strong>
+    </p>
+    <div class="modal-divider"></div>
+
+    <div class="dlq-detail-grid" id="dlq-detail-grid"></div>
+
+    <div class="dlq-detail-section">
+      <div>
+        <p class="dlq-json-title">Payload</p>
+        <pre id="dlq-detail-payload" class="dlq-json-box"></pre>
+      </div>
+      <div>
+        <p class="dlq-json-title">Headers</p>
+        <pre id="dlq-detail-headers" class="dlq-json-box"></pre>
+      </div>
+    </div>
+
+    <div class="dlq-payload-edit-panel" id="dlq-payload-edit-panel">
+      <div class="dlq-payload-edit-header">
+        <p class="dlq-json-title">수정 Payload</p>
+        <button class="btn btn-sm btn-outline" id="dlq-reset-payload-btn" onclick="resetModifiedPayload()">원본으로 되돌리기</button>
+      </div>
+      <textarea id="dlq-modified-payload" class="dlq-payload-editor" placeholder="수정 후 재발행할 JSON payload"></textarea>
+    </div>
+
+    <div class="dlq-handle-panel" id="dlq-handle-panel">
+      <div class="dlq-handle-field">
+        <label for="dlq-handle-operator">처리자</label>
+        <input type="text" class="search-input" id="dlq-handle-operator" placeholder="예: admin">
+      </div>
+      <div class="dlq-handle-field dlq-handle-reason-field">
+        <label for="dlq-handle-reason">처리 사유</label>
+        <input type="text" class="search-input" id="dlq-handle-reason" placeholder="예: 일시 장애 복구 후 재처리">
+      </div>
+      <p class="dlq-handle-notice" id="dlq-handle-notice"></p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="dlq-replay-btn" onclick="handleDlqMessage('replay')">원본 topic 재발행</button>
+      <button class="btn btn-warning" id="dlq-modified-replay-btn" onclick="handleDlqMessage('replay/modified')">수정 payload 재발행</button>
+      <button class="btn btn-danger" id="dlq-discard-btn" onclick="handleDlqMessage('discard')">폐기</button>
+      <button class="btn btn-secondary" onclick="closeDlqMessageDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal dlq-confirm-modal" id="dlq-confirm-modal">
+  <div class="f-modal-content dlq-confirm-content">
+    <p class="modal-title" id="dlq-confirm-title">DLT 메시지 처리 확인</p>
+    <p class="modal-subtitle" id="dlq-confirm-message">처리를 진행할까요?</p>
+    <div class="dlq-confirm-summary" id="dlq-confirm-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelDlqConfirm()">취소</button>
+      <button class="btn" id="dlq-confirm-submit-btn" onclick="submitDlqConfirm()">확인</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/kafka/fragment-kafka-dlq.js}"></script>

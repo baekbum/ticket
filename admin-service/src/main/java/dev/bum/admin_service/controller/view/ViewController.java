@@ -85,12 +85,18 @@ public class ViewController {
             return "fragment/fragment-audit-log";
         } else if ("redisHub".equals(menuName)) {
             return "fragment/fragment-redis-hub";
+        } else if ("kafkaDlq".equals(menuName)) {
+            return "fragment/fragment-kafka-dlq";
+        } else if ("kafkaDlqHistory".equals(menuName)) {
+            return "fragment/fragment-kafka-dlq-history";
         } else if ("testHub".equals(menuName)) {
             return "fragment/fragment-test-hub";
         } else if ("seatRedis".equals(menuName)) {
             return "fragment/fragment-redis";
         } else if ("queueRedis".equals(menuName)) {
             return "fragment/fragment-queue-redis";
+        } else if ("seatCacheSyncFailures".equals(menuName)) {
+            return "fragment/fragment-seat-cache-sync-failures";
         } else if ("seatReservationTest".equals(menuName)) {
             return "fragment/fragment-seat-reservation-test";
         } else if ("queueEnterTest".equals(menuName)) {

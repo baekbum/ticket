@@ -3,7 +3,11 @@ package dev.bum.ticket_service.jpa.event;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
@@ -61,6 +65,7 @@ class EventRepositoryImplTest {
         assertThat(response.getVenue()).isEqualTo("Main Stadium");
         assertThat(response.getAvailableSeats()).isEqualTo(30000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
+        assertThat(response.getTicketLimitScope()).isEqualTo(TicketLimitScope.PER_GROUP);
     }
 
     @Test
@@ -149,6 +154,54 @@ class EventRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("遺꾨쪟 議곌굔?쇰줈 ?대깽??議고쉶")
+    void event_select_by_category_cond() {
+        EventCondRequest cond = EventCondRequest.builder()
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getContent())
+                .extracting(Event::getGenre)
+                .containsOnly(EventGenre.CONCERT);
+    }
+
+    @Test
+    @DisplayName("예매 제한 범위 조건으로 이벤트 조회")
+    void event_select_by_ticket_limit_scope() {
+        EventCondRequest cond = EventCondRequest.builder()
+                .ticketLimitScope(TicketLimitScope.PER_EVENT)
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getContent())
+                .extracting(Event::getTicketLimitScope)
+                .containsOnly(TicketLimitScope.PER_EVENT);
+    }
+
+    @Test
+    @DisplayName("洹몃９ 肄붾뱶濡?媛숈? 怨듭뿰 ?뚯감 議고쉶")
+    void event_select_by_group_code() {
+        Event saved = jpaRepository.save(event("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 19, 17, 0)));
+        EventCondRequest cond = EventCondRequest.builder()
+                .eventGroupCode(saved.getEventGroupCode())
+                .build();
+
+        Page<Event> response = eventRepository.selectByCond(cond, PageRequest.of(0, 10));
+
+        assertThat(response.getTotalElements()).isEqualTo(2);
+        assertThat(response.getContent())
+                .extracting(Event::getEventGroupCode)
+                .containsOnly(saved.getEventGroupCode());
+    }
+
+    @Test
     @DisplayName("이벤트 정보 수정")
     void event_update() {
         Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
@@ -158,6 +211,7 @@ class EventRepositoryImplTest {
                 .totalSeats(35000)
                 .availableSeats(34000)
                 .status(EventStatus.SOLD_OUT)
+                .ticketLimitScope(TicketLimitScope.PER_GROUP)
                 .build();
 
         Event response = eventRepository.update(saved.getEventId(), info);
@@ -167,6 +221,7 @@ class EventRepositoryImplTest {
         assertThat(response.getTotalSeats()).isEqualTo(35000);
         assertThat(response.getAvailableSeats()).isEqualTo(34000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.SOLD_OUT);
+        assertThat(response.getTicketLimitScope()).isEqualTo(TicketLimitScope.PER_GROUP);
     }
 
     @Test
@@ -185,6 +240,7 @@ class EventRepositoryImplTest {
         return Event.builder()
                 .artistName(artistName)
                 .title(title)
+                .eventGroupCode("GROUP-" + artistName + "-" + title + "-" + venue)
                 .description(title + " description")
                 .venue(venue)
                 .venueAddress("Seoul")
@@ -198,6 +254,9 @@ class EventRepositoryImplTest {
                 .availableSeats(30000)
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 
@@ -205,6 +264,7 @@ class EventRepositoryImplTest {
         return InsertEventRequest.builder()
                 .artistName(artistName)
                 .title(title)
+                .eventGroupCode("GROUP-" + artistName + "-" + title + "-" + venue)
                 .description(title + " description")
                 .venue(venue)
                 .venueAddress("Seoul")
@@ -216,6 +276,10 @@ class EventRepositoryImplTest {
                 .ageLimit(12)
                 .totalSeats(30000)
                 .maxTicketsPerPerson(4)
+                .ticketLimitScope(TicketLimitScope.PER_GROUP)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 }

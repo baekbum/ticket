@@ -9,9 +9,15 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
-import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,20 +67,20 @@ class AdminEventControllerTest {
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
-    @DisplayName("이벤트 등록")
-    void event_insert() throws Exception {
-        InsertEventRequest info = insertRequest();
+    @DisplayName("다회차 이벤트 등록")
+    void event_insert_bulk() throws Exception {
+        InsertEventBulkRequest info = insertBulkRequest();
         MockMultipartFile eventPart = jsonPart("event", info);
         MockMultipartFile poster = new MockMultipartFile("posterImage", "poster.png", "image/png", "image".getBytes());
-        given(eventServiceClient.insert(any(), any())).willReturn(eventResponse());
+        given(eventServiceClient.insertBulk(any(), any())).willReturn(List.of(eventResponse()));
 
-        mockMvc.perform(multipart(baseUrl + "/insert")
+        mockMvc.perform(multipart(baseUrl + "/insert/bulk")
                         .file(eventPart)
                         .file(poster))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.eventId").value(1L));
+                .andExpect(jsonPath("$[0].eventId").value(1L));
 
-        then(eventServiceClient).should().insert(any(), eq(poster));
+        then(eventServiceClient).should().insertBulk(any(), eq(poster));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -174,20 +180,31 @@ class AdminEventControllerTest {
         return new MockMultipartFile(name, "", MediaType.APPLICATION_JSON_VALUE, objectMapper.writeValueAsBytes(value));
     }
 
-    private InsertEventRequest insertRequest() {
-        return InsertEventRequest.builder()
-                .artistName("IU")
-                .title("IU Concert")
-                .venue("KSPO Dome")
-                .venueAddress("Seoul")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
-                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
-                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
-                .runningMinutes(120)
-                .ageLimit(12)
-                .totalSeats(1000)
-                .maxTicketsPerPerson(4)
+    private InsertEventBulkRequest insertBulkRequest() {
+        return InsertEventBulkRequest.builder()
+                .common(InsertEventCommonRequest.builder()
+                        .artistName("IU")
+                        .title("IU Concert")
+                        .eventGroupCode("IU_2026_ENCORE")
+                        .venue("KSPO Dome")
+                        .venueAddress("Seoul")
+                        .runningMinutes(120)
+                        .ageLimit(12)
+                        .totalSeats(1000)
+                        .maxTicketsPerPerson(1)
+                        .ticketLimitScope(TicketLimitScope.PER_GROUP)
+                        .genre(EventGenre.CONCERT)
+                        .region(EventRegion.SEOUL)
+                        .theme(EventTheme.IDOL)
+                        .build())
+                .schedules(List.of(
+                        InsertEventScheduleRequest.builder()
+                                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                                .saleEndAt(LocalDateTime.of(2026, 9, 17, 23, 59))
+                                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 17, 17, 0))
+                                .build()
+                ))
                 .build();
     }
 
@@ -198,6 +215,9 @@ class AdminEventControllerTest {
                 .title("IU Concert")
                 .venue("KSPO Dome")
                 .status(EventStatus.ON_SALE)
+                .genre(EventGenre.CONCERT)
+                .region(EventRegion.SEOUL)
+                .theme(EventTheme.IDOL)
                 .build();
     }
 }

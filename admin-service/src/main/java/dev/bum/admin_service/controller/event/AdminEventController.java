@@ -7,7 +7,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
-import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -27,16 +29,17 @@ public class AdminEventController {
     private final ObjectMapper objectMapper;
 
     /**
-     * 이벤트 등록 기능
+     * 이벤트 벌크 등록
      * @param info
+     * @param posterImage
      * @return
      */
-    @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<EventResponse> insert(
-            @Valid @RequestPart("event") InsertEventRequest info,
+    @PostMapping(value = "/insert/bulk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<List<EventResponse>> insertBulk(
+            @Valid @RequestPart("event") InsertEventBulkRequest info,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventServiceClient.insert(toJson(info), posterImage));
+        return ResponseEntity.ok(eventServiceClient.insertBulk(toJson(info), posterImage));
     }
 
     /**

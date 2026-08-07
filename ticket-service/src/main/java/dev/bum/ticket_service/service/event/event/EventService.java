@@ -3,6 +3,9 @@ package dev.bum.ticket_service.service.event.event;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.dto.DeleteEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
+import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.service.event.file.FileStorageService;
@@ -35,19 +38,25 @@ public class EventService {
     private final FileStorageService fileStorageService;
 
     /**
-     * 공연 정보 등록
-     * @param info
-     * @return
+     * 공통 공연 정보와 다중 회차 정보를 받아 여러 이벤트를 하나의 트랜잭션으로 등록한다.
      */
-    @AuditLog(action = "EVENT_CREATE", targetType = "EVENT")
-    public EventResponse insert(InsertEventRequest info, MultipartFile posterImage) {
-        log.info("[INSERT WITH POSTER] Info : {}", info.toString());
+    @AuditLog(action = "EVENT_CREATE_BULK", targetType = "EVENT")
+    public List<EventResponse> insertBulk(InsertEventBulkRequest info, MultipartFile posterImage) {
+        if (info.getSchedules() == null || info.getSchedules().isEmpty()) {
+            throw new IllegalArgumentException("등록할 공연 일정 정보가 없습니다.");
+        }
 
-        Event event = repository.insert(info);
-        String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
-        event.updatePosterUrl(posterUrl);
+        List<EventResponse> responses = new ArrayList<>();
 
-        return event.toResponse();
+        for (InsertEventScheduleRequest schedule : info.getSchedules()) {
+            InsertEventRequest request = toInsertEventRequest(info.getCommon(), schedule);
+            Event event = repository.insert(request);
+            String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
+            event.updatePosterUrl(posterUrl);
+            responses.add(event.toResponse());
+        }
+
+        return responses;
     }
 
     /**
@@ -191,5 +200,29 @@ public class EventService {
         }
 
         return sort;
+    }
+
+    private InsertEventRequest toInsertEventRequest(InsertEventCommonRequest common, InsertEventScheduleRequest schedule) {
+        return InsertEventRequest.builder()
+                .artistName(common.getArtistName())
+                .title(common.getTitle())
+                .eventGroupCode(common.getEventGroupCode())
+                .description(common.getDescription())
+                .venue(common.getVenue())
+                .venueAddress(common.getVenueAddress())
+                .posterUrl(common.getPosterUrl())
+                .eventDateTime(schedule.getEventDateTime())
+                .saleStartAt(schedule.getSaleStartAt())
+                .saleEndAt(schedule.getSaleEndAt())
+                .cancelDeadlineAt(schedule.getCancelDeadlineAt())
+                .runningMinutes(common.getRunningMinutes())
+                .ageLimit(common.getAgeLimit())
+                .totalSeats(common.getTotalSeats())
+                .maxTicketsPerPerson(common.getMaxTicketsPerPerson())
+                .ticketLimitScope(common.getTicketLimitScope())
+                .genre(common.getGenre())
+                .region(common.getRegion())
+                .theme(common.getTheme())
+                .build();
     }
 }

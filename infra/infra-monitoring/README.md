@@ -5,7 +5,7 @@ Prometheus와 Grafana를 함께 실행하는 모니터링 패키지입니다.
 - Prometheus: 각 서비스의 `/actuator/prometheus` 메트릭 수집
 - Grafana: Prometheus를 datasource로 사용해 대시보드 표시
 
-`view-service`가 로컬 `3000` 포트를 사용하므로 Grafana는 호스트 `3001` 포트로 엽니다.
+`client-service`가 로컬 `3000` 포트를 사용하므로 Grafana는 호스트 `3001` 포트로 엽니다.
 
 ## 로컬 서비스 모드
 
@@ -25,12 +25,12 @@ Prometheus는 Docker 컨테이너로 실행되지만, 수집 대상은 호스트
 - `queue-service`: `host.docker.internal:8083/queue/actuator/prometheus`
 - `audit-service`: `host.docker.internal:8084/audit/actuator/prometheus`
 - `admin-service`: `host.docker.internal:8999/admin/actuator/prometheus`
-- `view-service`: `host.docker.internal:3000/actuator/prometheus`
+- `client-service`: `host.docker.internal:3000/health`
 - `local-postgres`: `host.docker.internal:5432` 대상 `local-postgres-exporter`
 - `refresh-redis`: `host.docker.internal:6379` 대상 `refresh-redis-exporter`
 - `seat-redis`: `host.docker.internal:6380` 대상 `seat-redis-exporter`
 - `queue-redis`: `host.docker.internal:6381` 대상 `queue-redis-exporter`
-- `Docker`: `cadvisor:8080`
+- `Docker`: `cadvisor:8080` 대상 `cadvisor` 선택 실행
 
 로컬 PostgreSQL은 기본적으로 단일 DB 컨테이너를 사용합니다.
 
@@ -39,6 +39,14 @@ LOCAL_POSTGRES_USER: postgres
 LOCAL_POSTGRES_PASSWORD: hsck2301
 LOCAL_POSTGRES_PORT: 5432
 LOCAL_POSTGRES_DB: msa
+```
+
+로컬 PostgreSQL 17에서는 `pg_stat_bgwriter` 컬럼 변경으로 `stat_bgwriter` collector를 끄고 `stat_checkpointer` collector를 사용합니다.
+
+Docker Desktop/WSL 환경에서는 cAdvisor가 Docker overlay layer 경로를 안정적으로 읽지 못해 반복 오류 로그가 발생할 수 있습니다. 로컬 compose에서는 cAdvisor를 기본 실행에서 제외하고, Docker 컨테이너 지표가 필요할 때만 profile로 실행합니다.
+
+```bash
+docker compose -f infra/infra-monitoring/docker-compose-local.yml --profile cadvisor up -d
 ```
 
 서버/컨테이너 모드는 서비스별 DB를 분리해서 수집합니다.
@@ -67,7 +75,7 @@ Prometheus는 `ticket-network` 내부 서비스명으로 수집합니다.
 - `queue-service:8080/actuator/prometheus`
 - `audit-service:8080/actuator/prometheus`
 - `admin-service:8999/admin/actuator/prometheus`
-- `view-service:3000/actuator/prometheus`
+- `client-service:3000/health`
 - `auth-db:5432` 대상 `auth-postgres-exporter`
 - `user-db:5432` 대상 `user-postgres-exporter`
 - `ticket-db:5432` 대상 `ticket-postgres-exporter`

@@ -76,13 +76,16 @@ public class AuthService {
      * @param refreshToken
      */
     private void addRefreshTokenToRedis(String userId, String refreshToken) {
+        String redisKey = buildRefreshTokenKey(userId);
         try {
             redisTemplate.opsForValue().set(
-                    buildRefreshTokenKey(userId),
+                    redisKey,
                     refreshToken,
                     Duration.ofDays(14)
             );
         } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Refresh Token 저장 실패. operation=set, keyPrefix=RT, redisKey={}, userId={}",
+                    redisKey, userId, e);
             throw new RedisException("Redis 오류 발생");
         }
     }
@@ -129,7 +132,14 @@ public class AuthService {
 
         // 3. Redis에서 해당 유저의 RT 조회
         String redisKey = buildRefreshTokenKey(userId);
-        String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+        String savedRefreshToken;
+        try {
+            savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Refresh Token 조회 실패. operation=get, keyPrefix=RT, redisKey={}, userId={}",
+                    redisKey, userId, e);
+            throw new RedisException("Redis 조회 중 오류가 발생했습니다.");
+        }
 
         // 4. Redis 토큰 탈락 확인 및 클라이언트가 보낸 토큰과 일치하는지 정합성 검증
         if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
@@ -149,7 +159,9 @@ public class AuthService {
         // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화
         try {
             redisTemplate.opsForValue().set(redisKey, newTokens.getRefreshToken(), Duration.ofDays(14));
-        } catch (Exception e) {
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=set, keyPrefix=RT, redisKey={}, userId={}",
+                    redisKey, userId, e);
             throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
         }
 
@@ -167,7 +179,14 @@ public class AuthService {
 
         String userId = tokenProvider.getUserId(refreshToken);
         String redisKey = buildRefreshTokenKey(userId);
-        String savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+        String savedRefreshToken;
+        try {
+            savedRefreshToken = redisTemplate.opsForValue().get(redisKey);
+        } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Refresh Token 조회 실패. operation=get, keyPrefix=RT, redisKey={}, userId={}",
+                    redisKey, userId, e);
+            throw new RedisException("Redis 조회 중 오류가 발생했습니다.");
+        }
 
         if (savedRefreshToken == null || !savedRefreshToken.equals(refreshToken)) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "Refresh Token 정보가 일치하지 않습니다.");
@@ -182,6 +201,8 @@ public class AuthService {
         try {
             redisTemplate.delete(redisKey);
         } catch (DataAccessException e) {
+            log.error("[REDIS-ERROR] Refresh Token 삭제 실패. operation=delete, keyPrefix=RT, redisKey={}, userId={}",
+                    redisKey, userId, e);
             throw new RedisException("Redis Refresh Token 삭제 중 오류가 발생했습니다.");
         }
     }

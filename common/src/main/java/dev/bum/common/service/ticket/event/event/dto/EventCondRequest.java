@@ -1,6 +1,10 @@
 package dev.bum.common.service.ticket.event.event.dto;
 
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -16,6 +20,7 @@ public class EventCondRequest {
     private Long eventId;
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String venue;
     private String venueAddress;
     private String posterUrl;
@@ -36,6 +41,10 @@ public class EventCondRequest {
     private Integer totalSeats;
     private Integer availableSeats;
     private EventStatus status;
+    private TicketLimitScope ticketLimitScope;
+    private EventGenre genre;
+    private EventRegion region;
+    private EventTheme theme;
 
     @Builder.Default // 빌더 패턴을 사용해서 만들 때도 기본값을 유지
     private Integer page = 0; // page 필드에 기본값 0 할당
@@ -58,6 +67,7 @@ public class EventCondRequest {
         if (eventId != null) sj.add("eventId=" + eventId);
         if (artistName != null) sj.add("artistName='" + artistName + "'");
         if (title != null) sj.add("title='" + title + "'");
+        if (eventGroupCode != null) sj.add("eventGroupCode='" + eventGroupCode + "'");
         if (venue != null) sj.add("venue='" + venue + "'");
         if (venueAddress != null) sj.add("venueAddress='" + venueAddress + "'");
         if (posterUrl != null) sj.add("posterUrl='" + posterUrl + "'");
@@ -78,6 +88,7 @@ public class EventCondRequest {
         if (totalSeats != null) sj.add("totalSeats=" + totalSeats);
         if (availableSeats != null) sj.add("availableSeats=" + availableSeats);
         if (status != null) sj.add("status=" + status);
+        if (ticketLimitScope != null) sj.add("ticketLimitScope=" + ticketLimitScope);
 
         // 정렬 조건 필드 검증 (List 포맷팅 적용)
         if (sort != null && !sort.isEmpty()) {

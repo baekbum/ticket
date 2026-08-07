@@ -34,11 +34,18 @@ dependencies {
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
+	// DLQ 처리 이력 저장
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	runtimeOnly 'org.postgresql:postgresql'
+
 	// PageModel을 사용하기 위해 추가
 	implementation 'org.springframework.data:spring-data-commons'
 
 	// 🌟 내부 MSA 통신을 위한 FeignClient 추가
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+	// Kafka DLQ 운영 도구
+	implementation 'org.springframework.kafka:spring-kafka'
 
 	// 롬복
 	compileOnly 'org.projectlombok:lombok'

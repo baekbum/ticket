@@ -1,6 +1,10 @@
 package dev.bum.common.service.ticket.event.event.dto;
 
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +19,7 @@ public class EventResponse {
     private Long eventId;
     private String artistName;
     private String title;
+    private String eventGroupCode;
     private String description;
     private String venue;
     private String venueAddress;
@@ -29,4 +34,8 @@ public class EventResponse {
     private Integer availableSeats;
     private EventStatus status;
     private Integer maxTicketsPerPerson;
+    private TicketLimitScope ticketLimitScope;
+    private EventGenre genre;
+    private EventRegion region;
+    private EventTheme theme;
 }

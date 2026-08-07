@@ -5,6 +5,7 @@ CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
     artist_name VARCHAR(100) NOT NULL,
     title VARCHAR(100) NOT NULL,
+    event_group_code VARCHAR(100) NOT NULL,
     description TEXT,
     venue VARCHAR(100) NOT NULL,
     venue_address VARCHAR(255),
@@ -19,12 +20,18 @@ CREATE TABLE events (
     available_seats INTEGER,
     status VARCHAR(30) NOT NULL,
     max_tickets_per_person INTEGER NOT NULL,
+    ticket_limit_scope VARCHAR(30) NOT NULL DEFAULT 'PER_EVENT',
+    genre VARCHAR(50) NOT NULL,
+    region VARCHAR(50) NOT NULL,
+    theme VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
+CREATE INDEX idx_event_group_code ON events(event_group_code);
+CREATE INDEX idx_event_category ON events(genre, region, theme);
 
 -- ==========================================
 -- 2. Areas 테이블
@@ -251,3 +258,24 @@ CREATE INDEX idx_ticket_user_id ON tickets(user_id);
 CREATE INDEX idx_ticket_seat_id ON tickets(seat_id);
 CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
 
+
+-- ==========================================
+-- 12. Seat cache sync failures
+-- ==========================================
+CREATE TABLE seat_cache_sync_failures (
+    id BIGSERIAL PRIMARY KEY,
+    operation VARCHAR(100) NOT NULL,
+    key_prefix VARCHAR(50) NOT NULL,
+    redis_keys TEXT NOT NULL,
+    target_value VARCHAR(50) NOT NULL,
+    failure_message TEXT,
+    status VARCHAR(20) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    last_failed_at TIMESTAMP NOT NULL,
+    resolved_at TIMESTAMP,
+    resolved_message TEXT
+);
+
+CREATE INDEX idx_seat_cache_sync_failure_status ON seat_cache_sync_failures(status);
+CREATE INDEX idx_seat_cache_sync_failure_status_created_at ON seat_cache_sync_failures(status, created_at);

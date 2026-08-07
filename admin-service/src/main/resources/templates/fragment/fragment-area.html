@@ -131,8 +131,12 @@
     <div class="modal-divider"></div>
 
     <div class="form-group">
-      <label>이벤트 ID</label>
-      <input type="number" id="area-svg-event-id" min="1" placeholder="이벤트 ID">
+      <label>기준 이벤트 ID</label>
+      <input type="number" id="area-svg-event-id" min="1" placeholder="이벤트 ID" disabled>
+    </div>
+    <div class="form-group">
+      <label>이벤트 그룹 코드 *</label>
+      <input type="text" id="area-svg-event-group-code" placeholder="이벤트 그룹 코드 필수">
     </div>
     <div class="area-file-field">
       <input type="file" id="area-svg-file" accept=".svg,image/svg+xml">
@@ -302,6 +306,13 @@
       <span>등급 <strong id="sbc-grade-label">-</strong></span>
       <span>단가 <strong id="sbc-price-label">-</strong></span>
     </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label>좌석 생성 범위</label>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" class="seat-scope-card is-selected" data-scope="CURRENT" onclick="setSeatCreateScope('CURRENT')"><strong>현재 공연만</strong><small>선택한 이벤트 ID의 구역에만 생성합니다.</small></button>
+        <button type="button" class="seat-scope-card" data-scope="GROUP" onclick="setSeatCreateScope('GROUP')"><strong>이벤트 그룹 전체</strong><small id="sbc-group-scope-label">같은 그룹 코드의 모든 회차에 생성합니다.</small></button>
+      </div>
+    </div>
     <div class="total-seats-preview"><span><i class="ti ti-armchair" style="margin-right:4px;"></i>등록 예정 총 좌석</span><strong id="sbc-total-count">0</strong>석</div>
     <div class="seat-bulk-workspace">
       <div class="seat-bulk-editor">
@@ -333,6 +344,19 @@
     <div class="form-group"><label style="color:var(--purple); font-weight:600;">예약 상태 *</label><select id="se-status"><option value="AVAILABLE">AVAILABLE</option><option value="LOCKED">LOCKED</option><option value="RESERVED">RESERVED</option></select></div>
     <div class="form-row" style="margin-top:1.25rem;"><button class="btn btn-secondary" onclick="closeSeatEditModal()">취소</button><button class="btn" onclick="submitSeatEdit()">저장</button></div>
     <button class="btn btn-danger-solid" style="width:100%; margin-top:8px;" onclick="openSeatSingleDeleteConfirm()"><i class="ti ti-trash"></i>좌석 삭제</button>
+  </div>
+</div>
+
+<div class="f-modal" id="seat-bulk-exists-modal" style="z-index:1400;">
+  <div class="f-modal-content" style="max-width:420px;text-align:center;">
+    <i class="ti ti-alert-triangle" style="font-size:38px;color:var(--amber);"></i>
+    <p class="modal-title" style="text-align:center;">기존 좌석이 존재합니다</p>
+    <p class="modal-subtitle" id="sbc-exists-message" style="text-align:center;">해당 구역에는 이미 좌석이 존재합니다.</p>
+    <div class="form-row" style="margin-top:1rem;">
+      <button class="btn btn-danger-solid" onclick="submitSeatBulkCreate('REPLACE')">싹다 지우고 다시 넣기</button>
+      <button class="btn" onclick="submitSeatBulkCreate('APPEND')">추가 데이터만 insert</button>
+    </div>
+    <button class="btn btn-secondary" style="width:100%; margin-top:8px;" onclick="closeSeatBulkExistsModal()">취소</button>
   </div>
 </div>
 

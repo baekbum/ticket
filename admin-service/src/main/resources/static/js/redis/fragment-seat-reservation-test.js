@@ -1,10 +1,12 @@
 (function () {
   const API_VER = API.VERSION || 'v1';
   const ADMIN_BASE = `${base()}/admin/api/${API_VER}`;
+  const EVENT_API = `${ADMIN_BASE}/event`;
   const AREA_API = `${ADMIN_BASE}/area`;
   const SEAT_API = `${ADMIN_BASE}/seat`;
 
   let eventId = null;
+  let selectedEvent = null;
   let areas = [];
   let selectedArea = null;
   let seats = [];
@@ -75,6 +77,13 @@
     areas = paged.content || [];
   }
 
+  async function fetchEvent() {
+    const res = await Fetch(`${EVENT_API}/select/id/${encodeURIComponent(eventId)}`, { method: 'GET' });
+    if (!res.ok) throw new Error('event select failed');
+    selectedEvent = await res.json();
+    renderEventLimitInfo();
+  }
+
   async function fetchLayout() {
     const res = await Fetch(`${AREA_API}/layout/event/${encodeURIComponent(eventId)}`, { method: 'GET' });
     if (res.status === 204) return null;
@@ -135,6 +144,15 @@
 
     wrap.innerHTML = '';
     wrap.appendChild(svg);
+  }
+
+  function renderEventLimitInfo() {
+    const scopeLabel = document.getElementById('seat-test-limit-scope-label');
+    const groupCodeLabel = document.getElementById('seat-test-group-code-label');
+    const maxTicketsLabel = document.getElementById('seat-test-max-tickets-label');
+    if (scopeLabel) scopeLabel.textContent = selectedEvent?.ticketLimitScope || '-';
+    if (groupCodeLabel) groupCodeLabel.textContent = selectedEvent?.eventGroupCode || '-';
+    if (maxTicketsLabel) maxTicketsLabel.textContent = selectedEvent?.maxTicketsPerPerson ?? '-';
   }
 
   async function selectArea(area) {
@@ -263,8 +281,11 @@
     }
 
     eventId = Number(rawEventId);
+    selectedEvent = null;
+    renderEventLimitInfo();
     document.getElementById('seat-test-empty').style.display = 'none';
     document.getElementById('seat-test-popup').classList.add('is-open');
+    await fetchEvent();
     await window.refreshSeatTestAreas();
   };
 
@@ -312,7 +333,9 @@
         body: {
           eventId,
           userId,
-          maxTicketsPerPerson: 999,
+          maxTicketsPerPerson: selectedEvent?.maxTicketsPerPerson ?? 999,
+          eventGroupCode: selectedEvent?.eventGroupCode || null,
+          ticketLimitScope: selectedEvent?.ticketLimitScope || null,
           seats: selected.map(seat => ({
             id: seat.seatId,
             zone: seat.zone,
@@ -323,7 +346,7 @@
       });
 
       if (!res.ok) {
-        showToast('이미 선택된 좌석입니다.', true);
+        await showResponseError(res, '좌석 선점에 실패했습니다.');
         await loadSeats();
         return;
       }

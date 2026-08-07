@@ -132,12 +132,14 @@ public class ReservationService {
         List<Seat> cancelledSeats = repository.cancel(id, info);
 
         seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
-        seatCacheService.updateUserPurchaseLimit(
-                info.getEventId(),
-                info.getUserId(),
-                cancelledSeats.size(),
-                "SUB"
-        );
+        if (!cancelledSeats.isEmpty()) {
+            seatCacheService.updateUserPurchaseLimit(
+                    cancelledSeats.get(0).getEvent(),
+                    info.getUserId(),
+                    cancelledSeats.size(),
+                    "SUB"
+            );
+        }
     }
 
     /**

@@ -1,0 +1,140 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/kafka/fragment-kafka-dlq-history.css}">
+
+<div class="frag-header">
+  <h2>DLQ 처리 이력</h2>
+  <p class="sub-txt">Kafka DLT 메시지 replay/discard/payload 보정 재발행 처리 이력을 조회합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input dlq-topic-input" id="dlq-history-topic">
+      <option value="">전체 DLT topic</option>
+      <option value="user-event.DLT">user-event.DLT</option>
+      <option value="audit-log.DLT">audit-log.DLT</option>
+      <option value="payment-completed.DLT">payment-completed.DLT</option>
+    </select>
+    <select class="search-input dlq-action-input" id="dlq-history-action">
+      <option value="">전체 처리</option>
+      <option value="REPLAY">REPLAY</option>
+      <option value="MODIFIED_REPLAY">MODIFIED_REPLAY</option>
+      <option value="DISCARD">DISCARD</option>
+    </select>
+    <select class="search-input dlq-status-input" id="dlq-history-status">
+      <option value="">전체 상태</option>
+      <option value="SUCCESS">SUCCESS</option>
+      <option value="FAILED">FAILED</option>
+    </select>
+    <select class="search-input dlq-payload-input" id="dlq-history-payload-modified">
+      <option value="">payload 수정 전체</option>
+      <option value="true">수정됨</option>
+      <option value="false">수정 안됨</option>
+    </select>
+    <input type="number" class="search-input dlq-number-input" id="dlq-history-partition" placeholder="partition">
+    <input type="number" class="search-input dlq-number-input" id="dlq-history-offset" placeholder="offset">
+    <input type="text" class="search-input" id="dlq-history-message-key" placeholder="message key">
+    <input type="text" class="search-input" id="dlq-history-operator" placeholder="처리자">
+    <button class="btn" onclick="triggerDlqHistorySearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetDlqHistorySearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+</div>
+
+<div class="dlq-history-quick-filters">
+  <button class="dlq-history-filter active" data-status="" onclick="quickDlqHistoryStatus(this)">전체</button>
+  <button class="dlq-history-filter" data-status="SUCCESS" onclick="quickDlqHistoryStatus(this)">성공</button>
+  <button class="dlq-history-filter" data-status="FAILED" onclick="quickDlqHistoryStatus(this)">실패</button>
+</div>
+
+<div class="table-wrap">
+  <table class="dlq-history-table">
+    <colgroup>
+      <col style="width:72px;">
+      <col style="width:78px;">
+      <col style="width:170px;">
+      <col style="width:90px;">
+      <col style="width:110px;">
+      <col style="width:170px;">
+      <col style="width:150px;">
+      <col style="width:150px;">
+      <col style="width:96px;">
+      <col style="width:90px;">
+      <col style="width:120px;">
+      <col>
+      <col style="width:170px;">
+      <col style="width:88px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>ID</th>
+      <th>DLT Topic</th>
+      <th>Partition</th>
+      <th>Offset</th>
+      <th>Key</th>
+      <th>원본 Topic</th>
+      <th>처리</th>
+      <th>상태</th>
+      <th>Payload</th>
+      <th>처리자</th>
+      <th>사유</th>
+      <th>처리 시각</th>
+      <th class="actions">상세</th>
+    </tr>
+    </thead>
+    <tbody id="dlq-history-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="dlq-history-detail-modal">
+  <div class="f-modal-content dlq-history-detail-content">
+    <p class="modal-title">DLQ 처리 이력 상세</p>
+    <p class="modal-subtitle">처리 이력 ID <strong id="dlq-history-detail-id">-</strong>의 상세 정보를 확인합니다.</p>
+    <div class="modal-divider"></div>
+
+    <div class="dlq-history-detail-grid" id="dlq-history-detail-grid"></div>
+
+    <div class="dlq-history-json-section">
+      <div>
+        <p class="dlq-history-json-title">Original Payload</p>
+        <pre id="dlq-history-original-payload" class="dlq-history-json-box"></pre>
+      </div>
+      <div>
+        <p class="dlq-history-json-title">Modified Payload</p>
+        <pre id="dlq-history-modified-payload" class="dlq-history-json-box"></pre>
+      </div>
+      <div>
+        <p class="dlq-history-json-title">Error Message</p>
+        <pre id="dlq-history-error-message" class="dlq-history-json-box"></pre>
+      </div>
+    </div>
+
+    <div class="dlq-history-retry-panel" id="dlq-history-retry-panel">
+      <p class="dlq-history-retry-title">실패 이력 재시도</p>
+      <p class="dlq-history-retry-desc" id="dlq-history-retry-desc">실패한 DLQ 처리 작업을 같은 조건으로 다시 실행합니다.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="dlq-history-retry-btn" onclick="retryDlqHistory()">재시도</button>
+      <button class="btn btn-secondary" onclick="closeDlqHistoryDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="f-modal dlq-history-confirm-modal" id="dlq-history-confirm-modal">
+  <div class="f-modal-content dlq-history-confirm-content">
+    <p class="modal-title" id="dlq-history-confirm-title">DLQ 실패 이력 재시도 확인</p>
+    <p class="modal-subtitle" id="dlq-history-confirm-message">실패한 DLQ 처리를 다시 실행할까요?</p>
+    <div class="dlq-history-confirm-summary" id="dlq-history-confirm-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelDlqHistoryRetryConfirm()">취소</button>
+      <button class="btn" id="dlq-history-confirm-submit-btn" onclick="submitDlqHistoryRetryConfirm()">재시도</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/kafka/fragment-kafka-dlq-history.js}"></script>

@@ -46,5 +46,7 @@ ticket-service/uploads/
 tmp/
 output/
 
-### Local modules ###
-view-service/
+### Local environment files ###
+.env
+*.env
+!*.env.example

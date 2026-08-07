@@ -11,11 +11,13 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @FeignClient(name = "event-service", url = "${services.ticket-service.url}", path = "/api/v1/manage/event")
 public interface EventServiceClient {
 
-    @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    EventResponse insert(
+    @PostMapping(value = "/insert/bulk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    List<EventResponse> insertBulk(
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     );

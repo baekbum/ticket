@@ -13,6 +13,9 @@ public interface SeatServiceClient {
     @PostMapping("/insert")
     void insert(@RequestBody InsertSeatRequest info);
 
+    @PostMapping("/insert/group")
+    void insertByGroup(@RequestBody InsertSeatGroupRequest info);
+
     @GetMapping("/select/id/{seatId}")
     SeatResponse selectById(@PathVariable("seatId") Long seatId);
 
@@ -70,5 +73,17 @@ public interface SeatServiceClient {
 
     @PostMapping("/occupy")
     SeatOccupyResponse occupySeat(@RequestBody SeatOccupyRequest request);
+
+    @PostMapping("/cache/sync-failures/select")
+    CustomPageResponse<SeatCacheSyncFailureResponse> selectCacheSyncFailures(@RequestBody(required = false) SeatCacheSyncFailureCondRequest cond);
+
+    @GetMapping("/cache/sync-failures/{id}")
+    SeatCacheSyncFailureResponse selectCacheSyncFailure(@PathVariable("id") Long id);
+
+    @PostMapping("/cache/sync-failures/{id}/retry")
+    SeatCacheSyncFailureHandleResponse retryCacheSyncFailure(@PathVariable("id") Long id);
+
+    @PostMapping("/cache/sync-failures/{id}/discard")
+    SeatCacheSyncFailureHandleResponse discardCacheSyncFailure(@PathVariable("id") Long id);
 }
 

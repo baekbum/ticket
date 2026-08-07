@@ -46,13 +46,13 @@ scrape_configs:
           application: admin-service
           group: application
 
-  - job_name: view-service
-    metrics_path: /actuator/prometheus
+  - job_name: client-service
+    metrics_path: /health
     static_configs:
       - targets:
-          - view-service:3000
+          - client-service:3000
         labels:
-          application: view-service
+          application: client-service
           group: frontend
 
   - job_name: postgresql

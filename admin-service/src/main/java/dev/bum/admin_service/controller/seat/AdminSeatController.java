@@ -25,6 +25,12 @@ public class AdminSeatController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/insert/group")
+    public ResponseEntity<Void> insertByGroup(@Valid @RequestBody InsertSeatGroupRequest info) {
+        seatServiceClient.insertByGroup(info);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/select/id/{seatId}")
     public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
         return ResponseEntity.ok(seatServiceClient.selectById(id));
@@ -126,5 +132,27 @@ public class AdminSeatController {
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(@RequestBody SeatOccupyRequest request) {
         return ResponseEntity.ok(seatServiceClient.occupySeat(request));
+    }
+
+    @PostMapping("/cache/sync-failures/select")
+    public ResponseEntity<CustomPageResponse<SeatCacheSyncFailureResponse>> selectCacheSyncFailures(
+            @RequestBody(required = false) SeatCacheSyncFailureCondRequest cond
+    ) {
+        return ResponseEntity.ok(seatServiceClient.selectCacheSyncFailures(cond));
+    }
+
+    @GetMapping("/cache/sync-failures/{id}")
+    public ResponseEntity<SeatCacheSyncFailureResponse> selectCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatServiceClient.selectCacheSyncFailure(id));
+    }
+
+    @PostMapping("/cache/sync-failures/{id}/retry")
+    public ResponseEntity<SeatCacheSyncFailureHandleResponse> retryCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatServiceClient.retryCacheSyncFailure(id));
+    }
+
+    @PostMapping("/cache/sync-failures/{id}/discard")
+    public ResponseEntity<SeatCacheSyncFailureHandleResponse> discardCacheSyncFailure(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(seatServiceClient.discardCacheSyncFailure(id));
     }
 }

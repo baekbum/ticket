@@ -6,7 +6,11 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventTheme;
+import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -80,6 +84,20 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
+    public List<Event> selectByEventGroupCode(String eventGroupCode) {
+        if (!StringUtils.hasText(eventGroupCode)) {
+            throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
+        }
+
+        List<Event> events = jpaRepository.findByEventGroupCode(eventGroupCode.trim());
+        if (events.isEmpty()) {
+            throw new EventNotExistException("해당 이벤트 그룹 코드의 이벤트 정보가 존재하지 않습니다.");
+        }
+
+        return events;
+    }
+
+    @Override
     public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
         event = QEvent.event;
 
@@ -144,6 +162,10 @@ public class EventRepositoryImpl implements EventRepository {
 
     private BooleanExpression titleLike(String title) {
         return StringUtils.hasText(title) ? event.title.like("%" + title + "%") : null;
+    }
+
+    private BooleanExpression eventGroupCodeEq(String eventGroupCode) {
+        return StringUtils.hasText(eventGroupCode) ? event.eventGroupCode.eq(eventGroupCode) : null;
     }
 
     private BooleanExpression venueLike(String venue) {
@@ -241,11 +263,28 @@ public class EventRepositoryImpl implements EventRepository {
         return status != null ? event.status.eq(status) : null;
     }
 
+    private BooleanExpression ticketLimitScopeEq(TicketLimitScope ticketLimitScope) {
+        return ticketLimitScope != null ? event.ticketLimitScope.eq(ticketLimitScope) : null;
+    }
+
+    private BooleanExpression genreEq(EventGenre genre) {
+        return genre != null ? event.genre.eq(genre) : null;
+    }
+
+    private BooleanExpression regionEq(EventRegion region) {
+        return region != null ? event.region.eq(region) : null;
+    }
+
+    private BooleanExpression themeEq(EventTheme theme) {
+        return theme != null ? event.theme.eq(theme) : null;
+    }
+
     private BooleanExpression[] searchConditions(EventCondRequest cond) {
         return new BooleanExpression[]{
                 eventIdEq(cond.getEventId()),
                 artistNameLike(cond.getArtistName()),
                 titleLike(cond.getTitle()),
+                eventGroupCodeEq(cond.getEventGroupCode()),
                 venueLike(cond.getVenue()),
                 venueAddressLike(cond.getVenueAddress()),
                 posterUrlLike(cond.getPosterUrl()),
@@ -261,7 +300,11 @@ public class EventRepositoryImpl implements EventRepository {
                 ageLimitEq(cond.getAgeLimit()),
                 totalSeatsEq(cond.getTotalSeats()),
                 availableSeatsEq(cond.getAvailableSeats()),
-                statusEq(cond.getStatus())
+                statusEq(cond.getStatus()),
+                ticketLimitScopeEq(cond.getTicketLimitScope()),
+                genreEq(cond.getGenre()),
+                regionEq(cond.getRegion()),
+                themeEq(cond.getTheme())
         };
     }
 }

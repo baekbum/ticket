@@ -222,6 +222,45 @@ class TicketRepositoryImplTest {
         assertThat(response).isTrue();
     }
 
+    @Test
+    @DisplayName("그룹 제한은 같은 그룹의 다른 공연 티켓까지 합산한다")
+    void ticket_is_not_within_group_purchase_limit_when_group_already_max() {
+        Event sundayEvent = eventJpaRepository.save(Event.builder()
+                .artistName("IU")
+                .title("IU Concert Sunday")
+                .eventGroupCode(event.getEventGroupCode())
+                .description("Concert description")
+                .venue("KSPO Dome")
+                .venueAddress("Seoul")
+                .eventDateTime(LocalDateTime.of(2026, 9, 19, 18, 0))
+                .saleStartAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                .saleEndAt(LocalDateTime.of(2026, 9, 18, 23, 59))
+                .cancelDeadlineAt(LocalDateTime.of(2026, 9, 18, 17, 0))
+                .runningMinutes(120)
+                .ageLimit(12)
+                .totalSeats(1000)
+                .availableSeats(1000)
+                .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(4)
+                .build());
+        Area sundayArea = areaJpaRepository.save(area(sundayEvent));
+        Seat sundaySeat = seatJpaRepository.save(seat(sundayEvent, sundayArea, "VIP", 1, 1));
+        Reservation sundayReservation = reservationJpaRepository.save(reservation("order-2", "user01", sundayEvent));
+
+        ticketRepository.insert(List.of(
+                ticket(reservation, event, seatList.get(0)),
+                ticket(reservation, event, seatList.get(1)),
+                ticket(reservation, event, seatList.get(2)),
+                ticket(sundayReservation, sundayEvent, sundaySeat)
+        ));
+        entityManager.flush();
+        entityManager.clear();
+
+        boolean response = ticketRepository.isWithinGroupPurchaseLimit("user01", sundayEvent, 1);
+
+        assertThat(response).isFalse();
+    }
+
     private Ticket ticket(Reservation reservation, Event event, Seat seat) {
         return Ticket.builder()
                 .userId("user01")
