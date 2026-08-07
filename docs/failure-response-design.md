@@ -26,12 +26,12 @@
 
 | Topic | Producer | Consumer | 현재 재처리 상태 |
 | --- | --- | --- | --- |
-| `user-event` | `user-service` | `auth-service` | Consumer 내부에서 예외를 catch하고 로그만 남김 |
-| `audit-log` | `common` `AuditLogProducer` | `audit-service` | Consumer 예외 발생 시 Spring Kafka 기본 동작 의존 |
+| `user-event` | `user-service` | `auth-service` | 1초 간격 최대 3회 재시도 후 `user-event.DLT` 이동, Slack 알림 |
+| `audit-log` | `common` `AuditLogProducer` | `audit-service` | 1초 간격 최대 3회 재시도 후 `audit-log.DLT` 이동, Slack 알림 |
 | `payment-completed` | `ticket-service` | 없음 | Producer는 있으나 결제 완료 흐름에서 비활성화 |
 
 `ticket-service`에는 `DefaultErrorHandler`와 `DeadLetterPublishingRecoverer` 설정이 존재한다.
-하지만 실제 Consumer가 없는 상태이며, 다른 서비스에는 동일 정책이 적용되어 있지 않다.
+하지만 실제 Consumer가 없는 상태이므로 현재는 `payment-completed.DLT` topic과 정책만 준비되어 있다.
 
 ### 목표 정책
 
@@ -44,6 +44,7 @@ Kafka Consumer 공통 정책:
 | DLQ Topic | 원본 topic 뒤에 `.DLT` suffix |
 | DLQ Partition | 원본 record partition 유지 |
 | 실패 로그 | topic, partition, offset, key, deliveryAttempt, exception 기록 |
+| Slack 알림 | DLT 발행 시 `SLACK_WEBHOOK_URL`로 실패 요약 전송 |
 | Poison pill | 역직렬화 실패도 DLQ로 이동하도록 별도 recoverer 적용 |
 
 DLQ Topic:
@@ -129,10 +130,15 @@ DLQ 메시지는 바로 원본 topic으로 되돌리지 않는다. 아래 정보
 4. 재처리 도구는 같은 DLQ record를 중복 재발행하지 않도록 재처리 이력을 저장한다.
 
 현재 1차 운영 기능은 `admin-service`의 관리자 API로 제공한다.
+상세 운영 절차는 [Kafka DLQ 운영 절차](./kafka-dlq-operation.md)를 따른다.
 
 | 기능 | API | 설명 |
 | --- | --- | --- |
+| DLQ topic 목록 | `GET /api/v1/manage/kafka-dlq/topics` | 허용된 DLT mapping 목록 조회 |
+| DLQ 메시지 목록 | `GET /api/v1/manage/kafka-dlq/messages` | DLT topic/partition/offset 기준 메시지 목록 조회 |
+| DLQ 메시지 상세 | `GET /api/v1/manage/kafka-dlq/messages/detail` | payload/header/처리 이력 상세 조회 |
 | DLQ 재발행 | `POST /api/v1/manage/kafka-dlq/replay` | 허용된 DLT record를 원본 topic으로 재발행 |
+| DLQ 보정 재발행 | `POST /api/v1/manage/kafka-dlq/replay/modified` | 운영자가 보정한 payload를 원본 topic으로 재발행 |
 | DLQ 폐기 기록 | `POST /api/v1/manage/kafka-dlq/discard` | DLT record 존재를 확인하고 폐기 로그 기록 |
 
 요청은 DLT 위치와 처리 사유를 명시한다.
@@ -150,6 +156,7 @@ DLQ 메시지는 바로 원본 topic으로 되돌리지 않는다. 아래 정보
 `admin-service`는 허용된 DLT mapping만 처리한다.
 현재 허용 mapping은 `user-event.DLT -> user-event`, `audit-log.DLT -> audit-log`, `payment-completed.DLT -> payment-completed`다.
 재발행은 payload를 byte 단위로 읽어 원본 topic에 다시 publish한다.
+prod 환경에서는 topic 환경변수 변경 시 DLT key와 원본 topic value가 함께 바뀌도록 `app.kafka-dlq.entries`를 사용할 수 있다.
 
 재처리 이력 최소 필드:
 
@@ -295,7 +302,7 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 | 항목 | 알림 기준 |
 | --- | --- |
 | Kafka Consumer retry | 5분 내 retry 로그 급증 |
-| Kafka DLQ 적재 | DLQ 메시지 1건 이상 |
+| Kafka DLQ 적재 | DLT 발행 시 즉시 Slack 알림 |
 | Redis 연결 실패 | 1분 내 Redis 예외 3회 이상 |
 | Queue validate 실패 | `queue-service` 호출 실패율 5% 이상 |
 | Feign timeout | 서비스별 timeout rate 5% 이상 |
@@ -316,22 +323,18 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 
 아래 항목은 현재 코드와 목표 정책 사이의 차이다.
 
-1. `auth-service`의 `UserEventConsumer`에서 예외 catch 후 삼키는 코드를 제거하고 공통 Kafka error handler를 적용한다.
-2. `audit-service`에도 `DefaultErrorHandler`와 `.DLT` topic 설정을 추가한다.
-3. `user-event.DLT`, `audit-log.DLT`, `payment-completed.DLT` topic bean을 명시한다.
-4. Feign timeout 설정을 `admin-service`, `client-api-service`, `ticket-service`에 추가한다.
-5. `queue-service-client`는 짧은 timeout을 별도로 적용한다.
-6. Redis 장애 로그에 key prefix, eventId, userId, orderId 같은 복구 단서를 포함한다.
-7. DB 커밋 후 Redis 좌석 동기화 실패를 운영 보정 대상으로 남기는 테이블 또는 Kafka 이벤트를 추가한다.
-8. DLQ 재처리 도구 또는 관리자 API를 별도 운영 기능으로 만든다.
+1. Feign timeout 설정을 `admin-service`, `client-api-service`, `ticket-service`에 추가한다.
+2. `queue-service-client`는 짧은 timeout을 별도로 적용한다.
+3. Redis 장애 로그에 key prefix, eventId, userId, orderId 같은 복구 단서를 포함한다.
+4. DB 커밋 후 Redis 좌석 동기화 실패를 운영 보정 대상으로 남기는 테이블 또는 Kafka 이벤트를 추가한다.
+5. `payment-completed` 후속 Consumer가 생기면 실제 DLT 재처리 통합 테스트를 추가한다.
 
 ## 우선순위
 
-1. Kafka Consumer 예외 삼킴 제거와 DLQ 적용
-2. Feign timeout 명시
-3. Redis 장애 시 사용자 응답 정책 정리 및 예외 메시지 통일
-4. DLQ 재처리 이력 저장
-5. Outbox 패턴 도입
+1. Feign timeout 명시
+2. Redis 장애 시 사용자 응답 정책 정리 및 예외 메시지 통일
+3. `payment-completed` 후속 Consumer 도입 시 DLQ 처리 검증
+4. Outbox 패턴 도입
 
 ## 좌석 배치도 실시간 상태 TODO
 
