@@ -22,6 +22,7 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - APP_QUEUE_ENABLED=true
       - APP_QUEUE_BASE_URL=http://queue-service:8080
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
 
     # 인프라 컨테이너들이 먼저 떠 있어야 하므로 명시 (참고용)
     # 다만 external 네트워크 환경에서는 컨테이너가 없으면 에러가 날 수 있으니

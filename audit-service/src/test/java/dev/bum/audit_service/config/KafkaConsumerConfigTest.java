@@ -1,5 +1,6 @@
 package dev.bum.audit_service.config;
 
+import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -12,6 +13,7 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class KafkaConsumerConfigTest {
 
@@ -22,7 +24,8 @@ class KafkaConsumerConfigTest {
                     "spring.kafka.bootstrap-servers=localhost:9092",
                     "spring.kafka.consumer.group-id=audit-group",
                     "topic.audit.log.name=audit-log"
-            );
+            )
+            .withBean(KafkaDltSlackNotifier.class, () -> mock(KafkaDltSlackNotifier.class));
 
     @Test
     @DisplayName("기본 Kafka listener container factory에 DLT error handler를 적용")

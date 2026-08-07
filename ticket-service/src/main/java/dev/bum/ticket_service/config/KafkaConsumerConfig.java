@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.config;
 
+import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
@@ -18,10 +19,17 @@ public class KafkaConsumerConfig {
     private static final String DLT_SUFFIX = ".DLT";
 
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<Object, Object> kafkaTemplate) {
+    public DefaultErrorHandler kafkaErrorHandler(
+            KafkaTemplate<Object, Object> kafkaTemplate,
+            KafkaDltSlackNotifier kafkaDltSlackNotifier
+    ) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
-                (record, exception) -> new TopicPartition(record.topic() + DLT_SUFFIX, record.partition())
+                (record, exception) -> {
+                    TopicPartition dltTopicPartition = new TopicPartition(record.topic() + DLT_SUFFIX, record.partition());
+                    kafkaDltSlackNotifier.notifyDlt(record, exception, dltTopicPartition);
+                    return dltTopicPartition;
+                }
         );
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(

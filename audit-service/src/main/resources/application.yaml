@@ -51,3 +51,9 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+app:
+  kafka-dlt:
+    slack:
+      enabled: true
+      webhook-url: ${SLACK_WEBHOOK_URL:}
