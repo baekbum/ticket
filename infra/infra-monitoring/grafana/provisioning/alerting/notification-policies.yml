@@ -5,6 +5,7 @@ policies:
     receiver: slack-critical
     group_by:
       - alertname
+      - severity
       - service
       - job
     group_wait: 30s
