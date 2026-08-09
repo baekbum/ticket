@@ -69,6 +69,17 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,300ms,500ms,1s,3s,5s,10s
     tags:
       application: ${spring.application.name}
