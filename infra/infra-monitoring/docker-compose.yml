@@ -104,6 +104,9 @@ services:
     image: grafana/tempo:2.6.1
     command:
       - -config.file=/etc/tempo/tempo.yaml
+      - -config.expand-env=true
+    environment:
+      - TEMPO_BLOCK_RETENTION=${TEMPO_BLOCK_RETENTION:-168h}
     ports:
       - "3200:3200"
     volumes:
