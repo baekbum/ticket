@@ -23,7 +23,6 @@ services:
     image: otel/opentelemetry-collector-contrib:0.116.1
     depends_on:
       - tempo
-      - jaeger
     command:
       - --config=/etc/otelcol-contrib/config.yaml
     ports:
@@ -42,14 +41,6 @@ services:
     volumes:
       - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo_local_data:/var/tempo
-    restart: "no"
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.62.0
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-    ports:
-      - "16686:16686"
     restart: "no"
 
   local-postgres-exporter:
@@ -106,7 +97,6 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - PROMETHEUS_URL=http://prometheus:9090
       - TEMPO_URL=http://tempo:3200
-      - JAEGER_URL=http://jaeger:16686
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
     volumes:
       - grafana_local_data:/var/lib/grafana

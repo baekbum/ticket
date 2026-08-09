@@ -14,9 +14,3 @@ datasources:
     access: proxy
     url: ${TEMPO_URL}
     editable: true
-  - name: Jaeger
-    uid: jaeger
-    type: jaeger
-    access: proxy
-    url: ${JAEGER_URL}
-    editable: true
