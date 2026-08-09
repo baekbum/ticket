@@ -15,6 +15,7 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.exception.seat.SeatLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -258,6 +259,7 @@ public class SeatService {
      * @param mode
      * @return
      */
+    @Observed(name = "ticket.seat-cache.warm-up-event", contextualName = "ticket seat cache warm up event")
     public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
         return seatCacheService.warmUpEventSeatsToCache(eventId, mode);
     }
@@ -268,6 +270,7 @@ public class SeatService {
      * @param mode
      * @return
      */
+    @Observed(name = "ticket.seat-cache.warm-up-area", contextualName = "ticket seat cache warm up area")
     public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
         return seatCacheService.warmUpAreaSeatsToCache(areaId, mode);
     }
@@ -277,6 +280,7 @@ public class SeatService {
      * @param eventId
      * @return
      */
+    @Observed(name = "ticket.seat-cache.delete-event", contextualName = "ticket seat cache delete event")
     public String deleteEventSeatsFromCache(Long eventId) {
         return seatCacheService.deleteEventSeatsFromCache(eventId);
     }
@@ -286,6 +290,7 @@ public class SeatService {
      * @param areaId
      * @return
      */
+    @Observed(name = "ticket.seat-cache.delete-area", contextualName = "ticket seat cache delete area")
     public String deleteAreaSeatsFromCache(Long areaId) {
         return seatCacheService.deleteAreaSeatsFromCache(areaId);
     }
@@ -326,6 +331,7 @@ public class SeatService {
      * @param request
      */
     @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
+    @Observed(name = "ticket.seat.occupy", contextualName = "ticket seat occupy")
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
         return seatCacheService.occupySeat(request);
     }

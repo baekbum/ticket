@@ -30,7 +30,7 @@
       "title": "Tempo Explore",
       "tooltip": "Open Tempo Explore",
       "type": "link",
-      "url": "/explore?left=%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22queryType%22:%22traceql%22,%22query%22:%22%7B%20resource.service.name%20%3D%20%5C%22$service%5C%22%20%7D%22%7D%5D%7D"
+      "url": "/explore?left=%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22queryType%22:%22traceql%22,%22query%22:%22%7B%20resource.service.name%20%3D%20%5C%22$service%5C%22%20%26%26%20span:name%20!~%20%5C%22.*actuator.*%5C%22%20%26%26%20span:name%20!~%20%5C%22security%20filterchain.*%5C%22%20%7D%22%7D%5D%7D"
     }
   ],
   "liveNow": false,
@@ -88,59 +88,6 @@
         "x": 0,
         "y": 4
       },
-      "id": 2,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "tempo",
-            "uid": "tempo"
-          },
-          "limit": 50,
-          "query": "{ resource.service.name = \"$service\" }",
-          "queryType": "traceql",
-          "refId": "A",
-          "tableType": "traces"
-        }
-      ],
-      "title": "Recent traces",
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "tempo",
-        "uid": "tempo"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      },
       "id": 3,
       "options": {
         "cellHeight": "sm",
@@ -162,7 +109,7 @@
             "uid": "tempo"
           },
           "limit": 50,
-          "query": "{ resource.service.name = \"$service\" && duration > ${minDurationMs}ms }",
+          "query": "{ resource.service.name = \"$service\" && span:name !~ \".*actuator.*\" && span:name !~ \"security filterchain.*\" && trace:duration > ${minDurationMs}ms }",
           "queryType": "traceql",
           "refId": "A",
           "tableType": "traces"

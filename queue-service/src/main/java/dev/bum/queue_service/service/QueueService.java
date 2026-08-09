@@ -5,6 +5,7 @@ import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.queue_service.config.QueueProperties;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -67,6 +68,7 @@ public class QueueService {
      * 사용자의 대기열 최초 진입 요청을 처리한다.
      * 유효한 큐 토큰이 있으면 READY를 복구하고, 없으면 대기열에 등록한 뒤 입장 가능 여부를 확인한다.
      */
+    @Observed(name = "queue.enter", contextualName = "queue enter")
     public QueueEnterResponse enter(Long eventId, String userId, String queueToken) {
         return executeWithRedisLogging("enter", eventId, userId, queueToken, () -> {
             validateUserId(userId);
@@ -85,6 +87,7 @@ public class QueueService {
      * 사용자의 현재 대기열 상태를 조회한다.
      * 유효한 큐 토큰이 있으면 READY를 반환하고, 없으면 대기열 기준으로 입장을 다시 시도한다.
      */
+    @Observed(name = "queue.status", contextualName = "queue status")
     public QueueStatusResponse status(Long eventId, String userId, String queueToken) {
         return executeWithRedisLogging("status", eventId, userId, queueToken, () -> {
             validateUserId(userId);
@@ -103,6 +106,7 @@ public class QueueService {
      * 여러 사용자의 대기열 상태를 한 번에 조회한다.
      * active-user 역방향 키를 먼저 확인하고, READY가 아니면 사용자별로 입장을 시도한다.
      */
+    @Observed(name = "queue.statuses", contextualName = "queue bulk statuses")
     public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
         return executeWithRedisLogging("statuses", eventId, String.join(",", userIds), null, () -> {
             pruneExpiredActiveTokens(eventId);
@@ -128,6 +132,7 @@ public class QueueService {
     /**
      * ticket-service가 전달한 큐 토큰이 해당 이벤트와 사용자에 대해 유효한 active token인지 검증한다.
      */
+    @Observed(name = "queue.validate-token", contextualName = "queue validate token")
     public QueueValidateResponse validate(QueueValidateRequest request) {
         return executeWithRedisLogging("validate", request.eventId(), request.userId(), request.token(), () -> {
             boolean valid = isActiveTokenValid(request.eventId(), request.userId(), request.token());
@@ -139,6 +144,7 @@ public class QueueService {
      * 예매 또는 결제 흐름이 끝난 사용자의 active token을 회수한다.
      * active ZSet, token key, active-user 역방향 키를 함께 제거해 다음 사용자가 입장할 수 있게 한다.
      */
+    @Observed(name = "queue.complete", contextualName = "queue complete")
     public boolean complete(Long eventId, String userId, String token) {
         return executeWithRedisLogging("complete", eventId, userId, token, () -> {
             validateUserId(userId);
