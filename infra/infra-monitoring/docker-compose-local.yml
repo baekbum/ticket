@@ -19,6 +19,33 @@ services:
       - --web.enable-lifecycle
     restart: "no"
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    depends_on:
+      - tempo
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    restart: "no"
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command:
+      - -config.file=/etc/tempo/tempo.yaml
+      - -config.expand-env=true
+    environment:
+      - TEMPO_BLOCK_RETENTION=${TEMPO_BLOCK_RETENTION:-24h}
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_local_data:/var/tempo
+    restart: "no"
+
   local-postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.17.1
     command:
@@ -72,6 +99,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - PROMETHEUS_URL=http://prometheus:9090
+      - TEMPO_URL=http://tempo:3200
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
     volumes:
       - grafana_local_data:/var/lib/grafana
@@ -84,3 +112,4 @@ services:
 volumes:
   prometheus_local_data:
   grafana_local_data:
+  tempo_local_data:

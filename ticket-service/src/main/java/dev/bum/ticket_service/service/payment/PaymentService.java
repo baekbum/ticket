@@ -16,6 +16,7 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class PaymentService {
     private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
 
     @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.approve-card", contextualName = "ticket payment approve card")
     public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
@@ -60,6 +62,7 @@ public class PaymentService {
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.issue-virtual-account", contextualName = "ticket payment issue virtual account")
     public PaymentResponse issueVirtualAccount(String currentUserId, String queueToken, VirtualAccountIssueRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
@@ -85,6 +88,7 @@ public class PaymentService {
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.deposit-virtual-account", contextualName = "ticket payment deposit virtual account")
     public PaymentResponse depositVirtualAccount(VirtualAccountDepositRequest request) {
         Payment payment = paymentJpaRepository.findByAccountNumberForUpdate(request.getAccountNumber())
                 .orElseThrow(() -> new IllegalArgumentException("입금 계좌 정보를 찾을 수 없습니다."));

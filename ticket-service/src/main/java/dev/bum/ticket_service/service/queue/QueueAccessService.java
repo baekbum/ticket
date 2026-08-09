@@ -7,6 +7,7 @@ import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
 import feign.FeignException;
+import io.micrometer.observation.annotation.Observed;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,6 +24,7 @@ public class QueueAccessService {
         this.queueServiceClient = queueServiceClient;
     }
 
+    @Observed(name = "ticket.queue.validate", contextualName = "ticket queue validate")
     public void validate(Long eventId, String userId, String queueToken) {
         if (!properties.enabled()) {
             return;
@@ -50,6 +52,7 @@ public class QueueAccessService {
         }
     }
 
+    @Observed(name = "ticket.queue.complete", contextualName = "ticket queue complete")
     public void complete(Long eventId, String userId, String queueToken) {
         if (!properties.enabled()) {
             return;
