@@ -516,10 +516,6 @@
           <button class="dashboard-browser-nav" type="button" data-reload="true" title="새로고침" aria-label="새로고침">
             <i class="ti ti-refresh"></i>
           </button>
-          <div class="dashboard-browser-url" title="${escapeHtml(url)}">
-            <i class="ti ti-lock"></i>
-            <span>${escapeHtml(url)}</span>
-          </div>
           <div class="dashboard-browser-tools">
             <button class="dashboard-browser-tool" type="button" data-place="left" title="왼쪽 배치" aria-label="왼쪽 배치">
               <i class="ti ti-layout-sidebar-left-collapse"></i>
