@@ -99,6 +99,8 @@ body,
 .failure-summary-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -147,6 +149,19 @@ body,
 .failure-refresh-btn:hover {
   border-color: rgba(124,77,255,0.42);
   box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+.failure-refresh-btn.is-auto-refreshing i {
+  animation: failure-refresh-spin 1s linear infinite;
+}
+
+@keyframes failure-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .failure-overview {
