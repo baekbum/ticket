@@ -1,6 +1,7 @@
 package dev.bum.admin_service.monitoring;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -11,6 +12,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @EnableConfigurationProperties(FailureMetricProperties.class)
+@Slf4j
 public class FailureMetricService {
 
     private static final String DEFAULT_RANGE = "5m";
@@ -87,17 +89,30 @@ public class FailureMetricService {
     public FailureMetricSummaryResponse failureMetrics(String range) {
         String resolvedRange = StringUtils.hasText(range) ? range : DEFAULT_RANGE;
         List<FailureMetricResponse> metrics = DEFINITIONS.stream()
-                .map(definition -> definition.toResponse(
-                        resolvedRange,
-                        prometheusQueryClient.querySingleValue(definition.promql(resolvedRange)),
-                        failureMetricProperties.thresholdOf(
-                                definition.key(),
-                                definition.defaultWarningThreshold(),
-                                definition.defaultCriticalThreshold()
-                        )
-                ))
+                .map(definition -> failureMetric(definition, resolvedRange))
                 .toList();
 
         return new FailureMetricSummaryResponse(OffsetDateTime.now(), resolvedRange, metrics);
+    }
+
+    private FailureMetricResponse failureMetric(FailureMetricDefinition definition, String range) {
+        Double value = null;
+        String promql = definition.promql(range);
+
+        try {
+            value = prometheusQueryClient.querySingleValue(promql);
+        } catch (RuntimeException e) {
+            log.warn("Failure metric query failed. key={}, promql={}", definition.key(), promql, e);
+        }
+
+        return definition.toResponse(
+                range,
+                value,
+                failureMetricProperties.thresholdOf(
+                        definition.key(),
+                        definition.defaultWarningThreshold(),
+                        definition.defaultCriticalThreshold()
+                )
+        );
     }
 }

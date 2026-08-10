@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.client.RestClient;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -16,12 +20,16 @@ public class PrometheusQueryClient {
     private String prometheusUrl;
 
     public Double querySingleValue(String promql) {
+        URI uri = UriComponentsBuilder.fromUriString(prometheusUrl)
+                .path("/api/v1/query")
+                .queryParam("query", promql)
+                .build()
+                .encode(StandardCharsets.UTF_8)
+                .toUri();
+
         JsonNode response = restClientBuilder.build()
                 .get()
-                .uri(prometheusUrl, uriBuilder -> uriBuilder
-                        .path("/api/v1/query")
-                        .queryParam("query", promql)
-                        .build())
+                .uri(uri)
                 .retrieve()
                 .body(JsonNode.class);
 

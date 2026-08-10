@@ -1,0 +1,48 @@
+<link rel="stylesheet" th:href="@{/css/monitoring/fragment-monitoring.css}">
+
+<section class="failure-summary-page" id="failure-monitoring-view">
+  <div class="failure-summary-header">
+    <div>
+      <p class="monitoring-kicker">Failure Summary</p>
+      <h3 id="failure-summary-title">장애 요약</h3>
+      <p id="failure-summary-collected-at">최근 지표를 불러오는 중입니다.</p>
+    </div>
+    <div class="failure-summary-actions">
+      <select id="failure-metric-range" class="failure-range-select" aria-label="장애 지표 조회 범위">
+        <option value="5m">최근 5분</option>
+        <option value="10m">최근 10분</option>
+        <option value="30m">최근 30분</option>
+        <option value="1h">최근 1시간</option>
+      </select>
+      <button class="failure-refresh-btn" type="button" onclick="loadFailureMetrics()">
+        <i class="ti ti-refresh"></i>
+        새로고침
+      </button>
+    </div>
+  </div>
+
+  <div class="failure-overview">
+    <div class="failure-overview-card">
+      <span>정상</span>
+      <strong id="failure-normal-count">-</strong>
+    </div>
+    <div class="failure-overview-card warning">
+      <span>경고</span>
+      <strong id="failure-warning-count">-</strong>
+    </div>
+    <div class="failure-overview-card critical">
+      <span>위험</span>
+      <strong id="failure-critical-count">-</strong>
+    </div>
+    <div class="failure-overview-card unknown">
+      <span>확인불가</span>
+      <strong id="failure-unknown-count">-</strong>
+    </div>
+  </div>
+
+  <div id="failure-metric-grid" class="failure-metric-grid">
+    <div class="failure-loading">장애 지표를 조회하고 있습니다.</div>
+  </div>
+</section>
+
+<script th:src="@{/js/monitoring/fragment-monitoring.js}"></script>

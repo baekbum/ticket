@@ -1,6 +1,5 @@
 .monitoring-page {
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   color: var(--text-primary);
@@ -37,12 +36,251 @@
 }
 
 .monitoring-grid {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   padding: 1.75rem;
+}
+
+.monitoring-card-failure {
+  border-color: rgba(217,45,32,0.22);
+}
+
+.monitoring-icon.failure {
+  background: rgba(217,45,32,0.09);
+  color: #d92d20;
+}
+
+.failure-summary-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 22px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.failure-summary-page::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#embed-content::-webkit-scrollbar {
+  display: none;
+}
+
+html,
+body,
+#embed-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.failure-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.failure-summary-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.failure-summary-header p:not(.monitoring-kicker) {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.failure-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.failure-range-select,
+.failure-refresh-btn {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.failure-range-select {
+  padding: 0 34px 0 12px;
+}
+
+.failure-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.failure-close-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+  transition: border-color .15s, color .15s, box-shadow .15s;
+}
+
+.failure-close-btn:hover {
+  color: var(--red);
+  border-color: rgba(214,59,59,0.24);
+  box-shadow: 0 0 0 3px rgba(214,59,59,0.08);
+}
+
+.failure-refresh-btn:hover {
+  border-color: rgba(124,77,255,0.42);
+  box-shadow: 0 0 0 3px var(--purple-ring);
+}
+
+.failure-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.failure-overview-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.failure-overview-card span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.failure-overview-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.failure-overview-card.warning strong {
+  color: #c47a00;
+}
+
+.failure-overview-card.critical strong {
+  color: #d92d20;
+}
+
+.failure-overview-card.unknown strong {
+  color: var(--text-muted);
+}
+
+.failure-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.failure-metric-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.failure-metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.failure-metric-card h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.failure-metric-card p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.failure-metric-value {
+  margin-top: 13px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.failure-metric-value strong {
+  font-size: 22px;
+}
+
+.failure-metric-value span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.failure-threshold {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.failure-level {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+.failure-level-normal {
+  background: rgba(18, 183, 106, .12);
+  color: #0f9f61;
+}
+
+.failure-level-warning {
+  background: rgba(247, 144, 9, .14);
+  color: #b76a00;
+}
+
+.failure-level-critical {
+  background: rgba(217, 45, 32, .13);
+  color: #c6281d;
+}
+
+.failure-level-unknown {
+  background: rgba(102, 112, 133, .15);
+  color: var(--text-muted);
+}
+
+.failure-loading,
+.failure-empty {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .monitoring-card {
@@ -129,9 +367,27 @@
   .monitoring-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .failure-metric-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
+  .failure-summary-header {
+    flex-direction: column;
+  }
+
+  .failure-summary-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .failure-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .monitoring-grid {
     grid-template-columns: 1fr;
   }

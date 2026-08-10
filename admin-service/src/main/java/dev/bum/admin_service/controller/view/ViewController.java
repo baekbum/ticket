@@ -104,6 +104,8 @@ public class ViewController {
         } else if ("monitoring".equals(menuName)) {
             model.addAttribute("monitoringDashboardCards", monitoringDashboardCards());
             return "fragment/fragment-monitoring";
+        } else if ("failureMonitoring".equals(menuName)) {
+            return "fragment/fragment-failure-monitoring";
         }
 
         return "error/404";
