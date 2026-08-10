@@ -1,5 +1,7 @@
 package dev.bum.admin_service.monitoring;
 
+import java.util.List;
+
 record FailureMetricDefinition(
         String key,
         String name,
@@ -13,7 +15,12 @@ record FailureMetricDefinition(
         return promqlTemplate.replace("{range}", range);
     }
 
-    FailureMetricResponse toResponse(String range, Double value, FailureMetricProperties.Threshold threshold) {
+    FailureMetricResponse toResponse(
+            String range,
+            Double value,
+            FailureMetricProperties.Threshold threshold,
+            List<FailureMetricDetailResponse> details
+    ) {
         return new FailureMetricResponse(
                 key,
                 name,
@@ -23,7 +30,8 @@ record FailureMetricDefinition(
                 threshold.getWarningThreshold(),
                 threshold.getCriticalThreshold(),
                 levelOf(value, threshold),
-                promql(range)
+                promql(range),
+                details
         );
     }
 

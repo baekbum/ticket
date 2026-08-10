@@ -16,6 +16,9 @@ import java.util.List;
 public class FailureMetricService {
 
     private static final String DEFAULT_RANGE = "5m";
+    private static final String SERVICE_DOWN_KEY = "service_down_count";
+    private static final String SERVICE_DOWN_DETAIL_PROMQL =
+            "up{job=~\"local-(auth|user|ticket|queue|audit|admin)-service|ticket-services|admin-service\"} == 0";
 
     private static final List<FailureMetricDefinition> DEFINITIONS = List.of(
             new FailureMetricDefinition(
@@ -98,9 +101,13 @@ public class FailureMetricService {
     private FailureMetricResponse failureMetric(FailureMetricDefinition definition, String range) {
         Double value = null;
         String promql = definition.promql(range);
+        List<FailureMetricDetailResponse> details = List.of();
 
         try {
             value = prometheusQueryClient.querySingleValue(promql);
+            if (SERVICE_DOWN_KEY.equals(definition.key())) {
+                details = prometheusQueryClient.queryDetails(SERVICE_DOWN_DETAIL_PROMQL);
+            }
         } catch (RuntimeException e) {
             log.warn("Failure metric query failed. key={}, promql={}", definition.key(), promql, e);
         }
@@ -112,7 +119,8 @@ public class FailureMetricService {
                         definition.key(),
                         definition.defaultWarningThreshold(),
                         definition.defaultCriticalThreshold()
-                )
+                ),
+                details
         );
     }
 }

@@ -202,6 +202,17 @@ body,
   background: var(--bg);
 }
 
+.failure-metric-card.is-clickable {
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.failure-metric-card.is-clickable:hover {
+  border-color: rgba(124,77,255,0.42);
+  box-shadow: 0 0 0 3px var(--purple-ring);
+  transform: translateY(-1px);
+}
+
 .failure-metric-top {
   display: flex;
   justify-content: space-between;
@@ -242,6 +253,49 @@ body,
   margin-top: 10px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.failure-detail-hint {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.failure-detail-list {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.failure-detail-list[hidden] {
+  display: none;
+}
+
+.failure-detail-item {
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--card-bg);
+}
+
+.failure-detail-item strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.failure-detail-item span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .failure-level {

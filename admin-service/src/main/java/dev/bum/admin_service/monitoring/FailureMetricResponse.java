@@ -9,6 +9,7 @@ public record FailureMetricResponse(
         Double warningThreshold,
         Double criticalThreshold,
         FailureMetricLevel level,
-        String promql
+        String promql,
+        java.util.List<FailureMetricDetailResponse> details
 ) {
 }

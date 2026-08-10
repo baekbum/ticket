@@ -49,6 +49,10 @@
     return `failure-level-${String(level || 'UNKNOWN').toLowerCase()}`;
   }
 
+  function hasDetails(metric) {
+    return Array.isArray(metric.details) && metric.details.length > 0;
+  }
+
   function renderOverview(metrics) {
     if (!document.getElementById('failure-normal-count')) return;
 
@@ -67,8 +71,14 @@
   function renderMetricCard(metric) {
     const level = metric.level || 'UNKNOWN';
     const levelLabel = LEVEL_LABELS[level] || level;
+    const clickableClass = hasDetails(metric) ? ' is-clickable' : '';
+    const detailHint = hasDetails(metric)
+      ? '<div class="failure-detail-hint"><i class="ti ti-list-search"></i>클릭하면 상세 목록을 확인합니다.</div>'
+      : '';
+    const detailList = hasDetails(metric) ? renderMetricDetails(metric) : '';
+
     return `
-      <article class="failure-metric-card">
+      <article class="failure-metric-card${clickableClass}" data-metric-key="${escapeHtml(metric.key)}">
         <div class="failure-metric-top">
           <div>
             <h4>${escapeHtml(metric.name)}</h4>
@@ -83,7 +93,23 @@
         <div class="failure-threshold">
           경고 ${escapeHtml(metric.warningThreshold)} / 위험 ${escapeHtml(metric.criticalThreshold)}
         </div>
+        ${detailHint}
+        ${detailList}
       </article>
+    `;
+  }
+
+  function renderMetricDetails(metric) {
+    return `
+      <div class="failure-detail-list" hidden>
+        ${metric.details.map(detail => `
+          <div class="failure-detail-item">
+            <strong>${escapeHtml(detail.name || 'unknown')}</strong>
+            <span>job: ${escapeHtml(detail.job || '-')}</span>
+            <span>instance: ${escapeHtml(detail.instance || '-')}</span>
+          </div>
+        `).join('')}
+      </div>
     `;
   }
 
@@ -102,6 +128,19 @@
     }
 
     grid.innerHTML = metrics.map(renderMetricCard).join('');
+    bindMetricDetailToggle(grid);
+  }
+
+  function bindMetricDetailToggle(grid) {
+    grid.querySelectorAll('.failure-metric-card.is-clickable').forEach(card => {
+      card.addEventListener('click', () => {
+        const detailList = card.querySelector('.failure-detail-list');
+        if (!detailList) return;
+
+        const isOpen = card.classList.toggle('is-open');
+        detailList.hidden = !isOpen;
+      });
+    });
   }
 
   window.openMonitoringDashboard = function (button) {

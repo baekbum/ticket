@@ -54,7 +54,8 @@ class AdminMonitoringControllerTest {
                         1.0,
                         5.0,
                         FailureMetricLevel.WARNING,
-                        "promql"
+                        "promql",
+                        List.of()
                 ))
         );
         given(failureMetricService.failureMetrics("10m")).willReturn(response);
