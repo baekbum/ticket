@@ -77,13 +77,33 @@ app:
         kafka_dlq_publish_count:
           warning-threshold: 1
           critical-threshold: 1
-    grafana-dashboard-url: "${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}"
-    dashboards:
-      spring-boot-jvm-url: "${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}"
-      postgresql-url: "${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk}"
-      redis-url: "${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk}"
-      docker-url: "${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/d/ticket-docker-cadvisor-overview/ticket-docker-cadvisor-overview?orgId=1&refresh=10s&kiosk}"
-      nginx-url: "${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}"
+    grafana:
+      dashboards:
+        - icon: ti ti-leaf
+          title: Spring Boot / JVM
+          subtitle: SpringBoot APM Dashboard (12900), JVM Micrometer
+          description: HTTP 요청, 응답 시간, 예외, CPU, 메모리, GC, 스레드를 확인합니다.
+          url: "${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}"
+        - icon: ti ti-database
+          title: PostgreSQL
+          subtitle: PostgreSQL Dashboard (9628)
+          description: 커넥션, 트랜잭션, 쿼리 처리량, DB 리소스 상태를 확인합니다.
+          url: "${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk}"
+        - icon: ti ti-database
+          title: Redis
+          subtitle: Redis Dashboard
+          description: 메모리, 명령 처리량, 연결 수, 대기열/락 저장소 상태를 확인합니다.
+          url: "${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk}"
+        - icon: ti ti-brand-docker
+          title: Docker
+          subtitle: Docker / cAdvisor Dashboard
+          description: 컨테이너 CPU, 메모리, 네트워크, 파일시스템 사용량을 확인합니다.
+          url: "${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/d/ticket-docker-cadvisor-overview/ticket-docker-cadvisor-overview?orgId=1&refresh=10s&kiosk}"
+        - icon: ti ti-world-www
+          title: Nginx
+          subtitle: Nginx Ingress Dashboard
+          description: Ingress 요청량, 응답 코드, 지연 시간, 업스트림 상태를 확인합니다.
+          url: "${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}"
 
 management:
   endpoints:

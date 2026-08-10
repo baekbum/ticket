@@ -1,12 +1,14 @@
 package dev.bum.admin_service.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Component
 @ConfigurationProperties(prefix = "app.kafka-dlq")
 public class KafkaDlqProperties {
 
