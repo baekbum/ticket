@@ -1,0 +1,196 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.dlt-test-frag {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+.dlt-test-header {
+  padding: 1.5rem 1.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.dlt-test-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.dlt-test-header p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.dlt-test-warning {
+  margin: 1rem 1.75rem 0;
+  padding: 13px 14px;
+  border: 1px solid rgba(214,59,59,0.18);
+  border-radius: 8px;
+  background: rgba(214,59,59,0.08);
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dlt-test-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 1rem 1.75rem;
+}
+.dlt-test-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dlt-test-field label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+.dlt-test-field input,
+.dlt-test-field select,
+.dlt-test-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.dlt-test-field input,
+.dlt-test-field select {
+  height: 38px;
+  padding: 0 11px;
+}
+.dlt-test-field textarea {
+  min-height: 180px;
+  padding: 11px;
+  resize: vertical;
+  font-family: Consolas, Monaco, monospace;
+  line-height: 1.5;
+}
+.dlt-test-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.dlt-test-btn {
+  height: 38px;
+  min-width: 112px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--purple);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dlt-test-btn.secondary {
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.dlt-test-result {
+  margin: 0 1.75rem 1.5rem;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dlt-test-result strong {
+  color: var(--text-primary);
+}
+.dlt-test-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(24, 23, 43, 0.38);
+}
+.dlt-test-confirm.is-open {
+  display: flex;
+}
+.dlt-test-confirm-card {
+  width: min(460px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.20);
+  padding: 20px;
+}
+.dlt-test-confirm-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.dlt-test-confirm-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.dlt-test-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+</style>
+
+<div class="dlt-test-frag">
+  <div class="dlt-test-header">
+    <h2>DLT 테스트 메시지 발행</h2>
+    <p>로컬 환경에서만 DLT topic에 테스트 메시지를 직접 발행합니다.</p>
+  </div>
+
+  <div class="dlt-test-warning">
+    이 기능은 local profile 전용입니다. 실제 consumer retry → DLT 경로를 검증하는 기능이 아니라,
+    관리자 DLQ 조회/상세/재처리 화면에 테스트 메시지를 넣기 위한 기능입니다.
+  </div>
+
+  <section class="dlt-test-form">
+    <div class="dlt-test-field">
+      <label for="dlt-test-topic">DLT Topic</label>
+      <select id="dlt-test-topic"></select>
+    </div>
+    <div class="dlt-test-field">
+      <label for="dlt-test-key">Message Key</label>
+      <input id="dlt-test-key" type="text" value="admin-dlt-test">
+    </div>
+    <div class="dlt-test-field">
+      <label for="dlt-test-payload">Payload</label>
+      <textarea id="dlt-test-payload"></textarea>
+    </div>
+    <div class="dlt-test-actions">
+      <button class="dlt-test-btn secondary" type="button" onclick="resetDltTestPayload()">기본값 복원</button>
+      <button class="dlt-test-btn" type="button" onclick="openDltTestConfirm()">DLT 메시지 발행</button>
+    </div>
+  </section>
+
+  <div class="dlt-test-result" id="dlt-test-result">아직 발행 결과가 없습니다.</div>
+</div>
+
+<div class="dlt-test-confirm" id="dlt-test-confirm">
+  <div class="dlt-test-confirm-card">
+    <h3>DLT 테스트 메시지를 발행할까요?</h3>
+    <p>
+      선택한 DLT topic에 테스트 메시지를 직접 발행합니다.
+      로컬 환경 검증 용도로만 사용하고, 운영 데이터로 오해되지 않도록 payload를 확인하세요.
+    </p>
+    <div class="dlt-test-confirm-actions">
+      <button class="dlt-test-btn secondary" type="button" onclick="closeDltTestConfirm()">취소</button>
+      <button class="dlt-test-btn" type="button" onclick="publishDltTestMessage()">발행</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/test/fragment-dlt-publish-test.js}"></script>

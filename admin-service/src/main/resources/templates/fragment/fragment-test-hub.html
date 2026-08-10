@@ -84,5 +84,10 @@
       <strong>대기열 진입 테스트</strong>
       <span>여러 테스트 유저의 waiting/ready 흐름을 확인합니다.</span>
     </button>
+    <button class="admin-hub-card" type="button" th:if="${localProfile}" onclick="openDashboardEmbedWindow('dltPublishTest', 'DLT 테스트 메시지 발행')">
+      <span class="admin-hub-icon"><i class="ti ti-alert-triangle"></i></span>
+      <strong>DLT 테스트 메시지 발행</strong>
+      <span>로컬 환경에서만 DLT topic에 운영 테스트용 메시지를 직접 발행합니다.</span>
+    </button>
   </div>
 </div>
