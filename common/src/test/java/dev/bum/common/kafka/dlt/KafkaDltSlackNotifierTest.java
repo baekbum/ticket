@@ -23,6 +23,7 @@ class KafkaDltSlackNotifierTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
         KafkaDltSlackProperties properties = new KafkaDltSlackProperties();
         properties.setWebhookUrl("http://localhost/slack");
+        properties.setGrafanaDashboardUrl("http://localhost:3001/d/ticket-spring-services");
         KafkaDltSlackNotifier notifier = new KafkaDltSlackNotifier(properties, restClientBuilder);
         ReflectionTestUtils.setField(notifier, "serviceName", "auth-service");
 
@@ -32,6 +33,7 @@ class KafkaDltSlackNotifierTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Service:* auth-service")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Origin Topic:* user-event")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLT Topic:* user-event.DLT")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("*Grafana:* <http://localhost:3001/d/ticket-spring-services|관련 Grafana 대시보드>")))
                 .andRespond(withSuccess());
 
         notifier.notifyDlt(

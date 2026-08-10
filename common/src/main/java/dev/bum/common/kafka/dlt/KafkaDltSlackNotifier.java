@@ -62,6 +62,7 @@ public class KafkaDltSlackNotifier {
                 *Key:* %s
                 *Exception:* %s
                 *Failed At:* %s
+                *Grafana:* %s
                 *Payload Preview:* %s
                 """.formatted(
                 serviceName,
@@ -73,8 +74,16 @@ public class KafkaDltSlackNotifier {
                 preview(record.key()),
                 exceptionMessage(exception),
                 LocalDateTime.now(),
+                grafanaLink(),
                 preview(record.value())
         );
+    }
+
+    private String grafanaLink() {
+        if (!StringUtils.hasText(properties.getGrafanaDashboardUrl())) {
+            return "-";
+        }
+        return "<%s|관련 Grafana 대시보드>".formatted(properties.getGrafanaDashboardUrl());
     }
 
     private String exceptionMessage(Exception exception) {
