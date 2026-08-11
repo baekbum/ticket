@@ -7,6 +7,7 @@ public class KafkaDltSlackProperties {
 
     private boolean enabled = true;
     private String webhookUrl;
+    private String adminDlqUrl;
     private int payloadPreviewLength = 500;
 
     public boolean isEnabled() {
@@ -23,6 +24,14 @@ public class KafkaDltSlackProperties {
 
     public void setWebhookUrl(String webhookUrl) {
         this.webhookUrl = webhookUrl;
+    }
+
+    public String getAdminDlqUrl() {
+        return adminDlqUrl;
+    }
+
+    public void setAdminDlqUrl(String adminDlqUrl) {
+        this.adminDlqUrl = adminDlqUrl;
     }
 
     public int getPayloadPreviewLength() {

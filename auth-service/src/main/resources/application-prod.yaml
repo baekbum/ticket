@@ -73,3 +73,4 @@ app:
     slack:
       enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}
       webhook-url: ${SLACK_WEBHOOK_URL:}
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:}"

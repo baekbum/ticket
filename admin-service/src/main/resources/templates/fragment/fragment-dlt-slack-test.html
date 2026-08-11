@@ -1,0 +1,146 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<style>
+.dlt-slack-frag {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  overflow: auto;
+  scrollbar-width: none;
+}
+.dlt-slack-frag::-webkit-scrollbar {
+  display: none;
+}
+.dlt-slack-header {
+  padding: 1.5rem 1.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.dlt-slack-header h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.dlt-slack-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.dlt-slack-body {
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dlt-slack-status,
+.dlt-slack-result {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.dlt-slack-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.dlt-slack-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dlt-slack-field.is-wide {
+  grid-column: 1 / -1;
+}
+.dlt-slack-field label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dlt-slack-field input,
+.dlt-slack-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.dlt-slack-field textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+.dlt-slack-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.dlt-slack-btn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.dlt-slack-btn.is-primary {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: white;
+}
+.dlt-slack-result strong {
+  color: var(--text-primary);
+}
+@media (max-width: 760px) {
+  .dlt-slack-form {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<div class="dlt-slack-frag">
+  <div class="dlt-slack-header">
+    <h2>DLT Slack 알림 테스트</h2>
+    <p>로컬 환경에서 Kafka 발행 없이 Slack 알림 본문과 관리자 DLQ 링크를 검증합니다.</p>
+  </div>
+  <div class="dlt-slack-body">
+    <div class="dlt-slack-status" id="dlt-slack-status">Slack 설정을 확인하는 중입니다.</div>
+    <div class="dlt-slack-form">
+      <div class="dlt-slack-field">
+        <label for="dlt-slack-origin-topic">Origin Topic</label>
+        <input id="dlt-slack-origin-topic" value="user-event">
+      </div>
+      <div class="dlt-slack-field">
+        <label for="dlt-slack-dlt-topic">DLT Topic</label>
+        <input id="dlt-slack-dlt-topic" value="user-event.DLT">
+      </div>
+      <div class="dlt-slack-field">
+        <label for="dlt-slack-key">Key</label>
+        <input id="dlt-slack-key" value="admin-dlt-slack-test">
+      </div>
+      <div class="dlt-slack-field">
+        <label for="dlt-slack-exception">Exception Message</label>
+        <input id="dlt-slack-exception" value="관리자 화면에서 실행한 DLT Slack 알림 테스트">
+      </div>
+      <div class="dlt-slack-field is-wide">
+        <label for="dlt-slack-payload">Payload</label>
+        <textarea id="dlt-slack-payload"></textarea>
+      </div>
+    </div>
+    <div class="dlt-slack-actions">
+      <button class="dlt-slack-btn" type="button" onclick="resetDltSlackTestPayload()">Payload 초기화</button>
+      <button class="dlt-slack-btn is-primary" type="button" onclick="sendDltSlackTest()">Slack 알림 전송</button>
+    </div>
+    <div class="dlt-slack-result" id="dlt-slack-result">아직 전송한 테스트 알림이 없습니다.</div>
+  </div>
+</div>
+
+<script th:src="@{/js/test/fragment-dlt-slack-test.js}"></script>

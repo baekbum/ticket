@@ -169,11 +169,16 @@ Nginx 카드는 아직 Nginx exporter와 대시보드가 없으므로 Grafana �
 ```yaml
 app:
   monitoring:
-    grafana-dashboard-url: ${APP_MONITORING_GRAFANA_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&kiosk}
-    dashboards:
-      spring-boot-jvm-url: ${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}
-      postgresql-url: ${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk}
-      redis-url: ${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk}
-      docker-url: ${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/d/ticket-docker-cadvisor-overview/ticket-docker-cadvisor-overview?orgId=1&refresh=10s&kiosk}
-      nginx-url: ${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}
+    grafana:
+      dashboards:
+        - title: Spring Boot / JVM
+          url: ${APP_MONITORING_SPRING_BOOT_JVM_DASHBOARD_URL:http://localhost:3001/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk}
+        - title: PostgreSQL
+          url: ${APP_MONITORING_POSTGRESQL_DASHBOARD_URL:http://localhost:3001/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk}
+        - title: Redis
+          url: ${APP_MONITORING_REDIS_DASHBOARD_URL:http://localhost:3001/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk}
+        - title: Docker
+          url: ${APP_MONITORING_DOCKER_DASHBOARD_URL:http://localhost:3001/d/ticket-docker-cadvisor-overview/ticket-docker-cadvisor-overview?orgId=1&refresh=10s&kiosk}
+        - title: Nginx
+          url: ${APP_MONITORING_NGINX_DASHBOARD_URL:http://localhost:3001/dashboards?query=Nginx}
 ```

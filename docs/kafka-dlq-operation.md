@@ -20,6 +20,8 @@
 
 Slack webhook URL은 각 서비스 프로세스 환경변수 `SLACK_WEBHOOK_URL`로 전달한다.
 값이 없거나 `app.kafka-dlt.slack.enabled=false`이면 DLT Slack 알림은 전송하지 않는다.
+관련 Grafana 대시보드 링크는 `app.kafka-dlt.slack.grafana-dashboard-url`로 지정한다.
+기본값은 서비스별 Spring Boot/JVM 대시보드를 `var-application=${spring.application.name}`으로 필터링한 URL이다.
 
 ## Slack 알림 확인
 
