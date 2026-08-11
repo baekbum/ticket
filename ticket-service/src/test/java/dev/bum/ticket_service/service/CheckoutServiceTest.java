@@ -150,6 +150,7 @@ class CheckoutServiceTest {
         assertThat(savedPayment.getAmount()).isEqualTo(180000);
         assertThat(savedPayment.getIdempotencyKey()).isEqualTo("idem-1");
         assertThat(savedPayment.getPaymentNo()).startsWith("PAY-");
+        assertThat(savedPayment.getExpiresAt()).isAfter(savedPayment.getRequestedAt());
     }
 
     private CheckoutPrepareRequest checkoutRequest(String idempotencyKey) {

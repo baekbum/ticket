@@ -16,6 +16,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDel
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,9 @@ public class CheckoutService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
 
+    @Value("${payment.expiration.ready-timeout-minutes:10}")
+    private long paymentReadyTimeoutMinutes = 10;
+
     /**
      * 결제 버튼 클릭 시 호출되는 결제 준비 로직.
      * Redis 좌석 선점을 검증한 뒤 예약, 할인, 배송, 결제 정보를 하나의 트랜잭션으로 생성한다.
@@ -61,6 +65,7 @@ public class CheckoutService {
         int discountAmount = calculateDiscountAmount(reservation);
         int paymentAmount = totalTicketAmount - discountAmount;
 
+        LocalDateTime requestedAt = LocalDateTime.now();
         Payment payment = paymentJpaRepository.save(Payment.builder()
                 .reservation(reservation)
                 .paymentNo(generatePaymentNo())
@@ -69,7 +74,8 @@ public class CheckoutService {
                 .amount(paymentAmount)
                 .idempotencyKey(idempotencyKey)
                 .depositorName(request.getDepositorName())
-                .requestedAt(LocalDateTime.now())
+                .requestedAt(requestedAt)
+                .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))
                 .build());
 
         seatCacheService.updateUserPurchaseLimit(
