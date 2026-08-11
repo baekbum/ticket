@@ -51,6 +51,10 @@ public class PaymentService {
         Reservation reservation = payment.getReservation();
 
         validatePaymentOwner(currentUserId, reservation);
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return payment.toResponse();
+        }
+
         queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
         validateCardPaymentReady(payment);
 
@@ -69,6 +73,10 @@ public class PaymentService {
         Reservation reservation = payment.getReservation();
 
         validatePaymentOwner(currentUserId, reservation);
+        if (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) {
+            return payment.toResponse();
+        }
+
         queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
         validateBankTransferPaymentReady(payment);
 

@@ -153,6 +153,20 @@ class CheckoutServiceTest {
         assertThat(savedPayment.getExpiresAt()).isAfter(savedPayment.getRequestedAt());
     }
 
+    @Test
+    @DisplayName("checkout 준비 요청에 멱등 키가 없으면 거부한다")
+    void prepare_rejects_missing_idempotency_key() {
+        CheckoutPrepareRequest request = checkoutRequest(" ");
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("결제 멱등 키가 필요합니다.");
+
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(reservationRepository).shouldHaveNoInteractions();
+    }
+
     private CheckoutPrepareRequest checkoutRequest(String idempotencyKey) {
         return CheckoutPrepareRequest.builder()
                 .orderId("order-1")

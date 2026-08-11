@@ -133,6 +133,23 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("이미 완료된 카드 결제 승인 재시도는 기존 결제 응답을 반환한다")
+    void approve_card_payment_returns_existing_response_when_already_paid() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.PAID);
+        CardPaymentApproveRequest request = cardRequest();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = paymentService.approveCard("user01", "expired-queue-token", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(mockCardAuthorizationService).shouldHaveNoInteractions();
+        then(ticketRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("가상계좌 발급 성공 시 결제를 입금 대기 상태로 변경한다")
     void issue_virtual_account_success() {
         Event event = event();
@@ -178,6 +195,27 @@ class PaymentServiceTest {
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
         then(mockVirtualAccountIssueService).shouldHaveNoInteractions();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    @DisplayName("이미 발급된 가상계좌 요청 재시도는 기존 계좌 응답을 반환한다")
+    void issue_virtual_account_returns_existing_response_when_already_issued() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(
+                reservation,
+                PaymentStatus.WAITING_DEPOSIT,
+                LocalDateTime.of(2099, 7, 27, 23, 59, 59)
+        );
+        VirtualAccountIssueRequest request = virtualAccountRequest();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = paymentService.issueVirtualAccount("user01", "expired-queue-token", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(mockVirtualAccountIssueService).shouldHaveNoInteractions();
     }
 
     @Test

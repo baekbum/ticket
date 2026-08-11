@@ -161,10 +161,14 @@ public class CheckoutService {
     }
 
     /**
-     * 빈 문자열 idempotencyKey는 중복 방지 키로 쓰지 않도록 null로 정규화한다.
+     * idempotencyKey는 필수로 받고, 앞뒤 공백을 제거해 저장/조회 기준을 고정한다.
      */
     private String normalizeIdempotencyKey(String idempotencyKey) {
-        return StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new IllegalArgumentException("결제 멱등 키가 필요합니다.");
+        }
+
+        return idempotencyKey.trim();
     }
 
     /**

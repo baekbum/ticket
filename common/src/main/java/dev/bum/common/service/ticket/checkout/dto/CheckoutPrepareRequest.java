@@ -37,6 +37,7 @@ public class CheckoutPrepareRequest {
     @NotNull
     private PaymentMethod paymentMethod;
 
+    @NotBlank
     private String idempotencyKey;
 
     private String depositorName;
