@@ -89,5 +89,10 @@
       <strong>DLT 테스트 메시지 발행</strong>
       <span>로컬 환경에서만 DLT topic에 운영 테스트용 메시지를 직접 발행합니다.</span>
     </button>
+    <button class="admin-hub-card" type="button" th:if="${localProfile}" onclick="openDashboardEmbedWindow('dltSlackTest', 'DLT Slack 알림 테스트')">
+      <span class="admin-hub-icon"><i class="ti ti-brand-slack"></i></span>
+      <strong>DLT Slack 알림 테스트</strong>
+      <span>Kafka 발행 없이 DLT Slack 알림 메시지와 관리자 DLQ 링크를 테스트합니다.</span>
+    </button>
   </div>
 </div>

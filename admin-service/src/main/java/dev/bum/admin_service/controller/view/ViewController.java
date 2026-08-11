@@ -96,6 +96,8 @@ public class ViewController {
             return "fragment/fragment-queue-enter-test";
         } else if ("dltPublishTest".equals(menuName)) {
             return isLocalProfile() ? "fragment/fragment-dlt-publish-test" : "error/404";
+        } else if ("dltSlackTest".equals(menuName)) {
+            return isLocalProfile() ? "fragment/fragment-dlt-slack-test" : "error/404";
         }
 
         return "error/404";

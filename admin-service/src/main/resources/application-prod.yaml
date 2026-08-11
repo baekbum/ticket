@@ -52,6 +52,11 @@ app:
         target-topic: ${TOPIC_AUDIT_LOG_NAME:audit-log}
       - dlt-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}.DLT
         target-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
+  kafka-dlt:
+    slack:
+      enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:false}
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:}"
   monitoring:
     prometheus-url: "${APP_MONITORING_PROMETHEUS_URL:http://prometheus:9090}"
     failure-metrics:

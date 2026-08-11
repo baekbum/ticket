@@ -57,6 +57,11 @@ app:
       user-event.DLT: user-event
       audit-log.DLT: audit-log
       payment-completed.DLT: payment-completed
+  kafka-dlt:
+    slack:
+      enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost:8999/admin/api/v1/view/embed/kafkaDlq}"
   monitoring:
     prometheus-url: "${APP_MONITORING_PROMETHEUS_URL:http://localhost:9090}"
     failure-metrics:

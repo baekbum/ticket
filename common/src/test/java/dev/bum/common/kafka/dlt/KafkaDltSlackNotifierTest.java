@@ -8,6 +8,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -23,7 +24,7 @@ class KafkaDltSlackNotifierTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
         KafkaDltSlackProperties properties = new KafkaDltSlackProperties();
         properties.setWebhookUrl("http://localhost/slack");
-        properties.setGrafanaDashboardUrl("http://localhost:3001/d/ticket-spring-services");
+        properties.setAdminDlqUrl("http://localhost:8999/admin/api/v1/view/embed/kafkaDlq");
         KafkaDltSlackNotifier notifier = new KafkaDltSlackNotifier(properties, restClientBuilder);
         ReflectionTestUtils.setField(notifier, "serviceName", "auth-service");
 
@@ -33,15 +34,16 @@ class KafkaDltSlackNotifierTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Service:* auth-service")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Origin Topic:* user-event")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLT Topic:* user-event.DLT")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*Grafana:* <http://localhost:3001/d/ticket-spring-services|관련 Grafana 대시보드>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLQ 확인:* <http://localhost:8999/admin/api/v1/view/embed/kafkaDlq|관리자 DLQ 메뉴로 이동>")))
                 .andRespond(withSuccess());
 
-        notifier.notifyDlt(
+        boolean notified = notifier.notifyDlt(
                 new ConsumerRecord<>("user-event", 0, 10L, "user01", "{\"userId\":\"user01\"}"),
                 new IllegalStateException("consume failed"),
                 new TopicPartition("user-event.DLT", 0)
         );
 
+        assertThat(notified).isTrue();
         server.verify();
     }
 
@@ -52,12 +54,13 @@ class KafkaDltSlackNotifierTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
         KafkaDltSlackNotifier notifier = new KafkaDltSlackNotifier(new KafkaDltSlackProperties(), restClientBuilder);
 
-        notifier.notifyDlt(
+        boolean notified = notifier.notifyDlt(
                 new ConsumerRecord<>("user-event", 0, 10L, "user01", "{\"userId\":\"user01\"}"),
                 new IllegalStateException("consume failed"),
                 new TopicPartition("user-event.DLT", 0)
         );
 
+        assertThat(notified).isFalse();
         server.verify();
     }
 }

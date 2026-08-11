@@ -26,9 +26,9 @@ public class KafkaDltSlackNotifier {
     @Value("${spring.application.name:unknown-service}")
     private String serviceName;
 
-    public void notifyDlt(ConsumerRecord<?, ?> record, Exception exception, TopicPartition dltTopicPartition) {
+    public boolean notifyDlt(ConsumerRecord<?, ?> record, Exception exception, TopicPartition dltTopicPartition) {
         if (!properties.isEnabled() || !StringUtils.hasText(properties.getWebhookUrl())) {
-            return;
+            return false;
         }
 
         try {
@@ -38,6 +38,7 @@ public class KafkaDltSlackNotifier {
                     .body(Map.of("text", messageOf(record, exception, dltTopicPartition)))
                     .retrieve()
                     .toBodilessEntity();
+            return true;
         } catch (RuntimeException notifyException) {
             log.warn(
                     "DLT Slack notification failed. service={}, topic={}, partition={}, offset={}, dltTopic={}",
@@ -48,6 +49,7 @@ public class KafkaDltSlackNotifier {
                     dltTopicPartition.topic(),
                     notifyException
             );
+            return false;
         }
     }
 
@@ -62,7 +64,7 @@ public class KafkaDltSlackNotifier {
                 *Key:* %s
                 *Exception:* %s
                 *Failed At:* %s
-                *Grafana:* %s
+                *DLQ 확인:* %s
                 *Payload Preview:* %s
                 """.formatted(
                 serviceName,
@@ -74,16 +76,16 @@ public class KafkaDltSlackNotifier {
                 preview(record.key()),
                 exceptionMessage(exception),
                 LocalDateTime.now(),
-                grafanaLink(),
+                adminDlqLink(),
                 preview(record.value())
         );
     }
 
-    private String grafanaLink() {
-        if (!StringUtils.hasText(properties.getGrafanaDashboardUrl())) {
+    private String adminDlqLink() {
+        if (!StringUtils.hasText(properties.getAdminDlqUrl())) {
             return "-";
         }
-        return "<%s|관련 Grafana 대시보드>".formatted(properties.getGrafanaDashboardUrl());
+        return "<%s|관리자 DLQ 메뉴로 이동>".formatted(properties.getAdminDlqUrl());
     }
 
     private String exceptionMessage(Exception exception) {
