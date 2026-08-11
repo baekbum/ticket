@@ -18,4 +18,5 @@ contactPoints:
             *Job:* {{ .Labels.job }}
             *Instance:* {{ .Labels.instance }}
             *Severity:* {{ .Labels.severity }}
+            {{ if .Annotations.dashboard_url }}*Dashboard URL:* <{{ .Annotations.dashboard_url }}|관련 대시보드로 이동>{{ end }}
             {{ end }}

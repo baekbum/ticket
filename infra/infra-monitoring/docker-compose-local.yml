@@ -101,6 +101,7 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - TEMPO_URL=http://tempo:3200
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - GRAFANA_PUBLIC_URL=${GRAFANA_PUBLIC_URL:-http://localhost:3001}
     volumes:
       - grafana_local_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
