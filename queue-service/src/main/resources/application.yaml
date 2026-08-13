@@ -20,6 +20,7 @@ app:
   queue:
     admission-size: 100
     token-ttl: 20m
+    waiting-token-ttl: 1m
 
 management:
   endpoints:

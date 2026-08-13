@@ -9,6 +9,7 @@ public class QueueProperties {
 
     private int admissionSize = 100;
     private Duration tokenTtl = Duration.ofMinutes(10);
+    private Duration waitingTokenTtl = Duration.ofMinutes(1);
 
     public int getAdmissionSize() {
         return admissionSize;
@@ -27,6 +28,16 @@ public class QueueProperties {
     public void setTokenTtl(Duration tokenTtl) {
         if (tokenTtl != null) {
             this.tokenTtl = tokenTtl;
+        }
+    }
+
+    public Duration getWaitingTokenTtl() {
+        return waitingTokenTtl;
+    }
+
+    public void setWaitingTokenTtl(Duration waitingTokenTtl) {
+        if (waitingTokenTtl != null && !waitingTokenTtl.isNegative() && !waitingTokenTtl.isZero()) {
+            this.waitingTokenTtl = waitingTokenTtl;
         }
     }
 

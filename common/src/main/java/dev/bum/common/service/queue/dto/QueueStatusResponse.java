@@ -13,10 +13,10 @@ public record QueueStatusResponse(
         // 해당 이벤트의 전체 대기 인원 수
         Long waitingCount,
 
-        // 입장 가능 상태일 때 발급된 대기열 토큰. WAITING이면 null
+        // WAITING이면 대기 유지 토큰, READY이면 입장 가능 토큰
         String token,
 
-        // 발급된 토큰의 남은 유효 시간(초). WAITING이면 null
+        // 발급된 토큰의 남은 유효 시간(초)
         Long expiresInSeconds
 ) {
     public QueueEnterResponse toEnterResponse() {

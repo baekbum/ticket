@@ -43,6 +43,16 @@ public class QueueController {
         return ResponseEntity.ok(queueService.status(eventId, currentUserId, queueToken));
     }
 
+    @PostMapping("/events/{eventId}/leave")
+    public ResponseEntity<Void> leave(
+            @AuthenticationPrincipal String currentUserId,
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken
+    ) {
+        queueService.leaveWaiting(eventId, currentUserId, queueToken);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/validate")
     public ResponseEntity<QueueValidateResponse> validate(@Valid @RequestBody QueueValidateRequest request) {
         return ResponseEntity.ok(queueService.validate(request));

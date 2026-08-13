@@ -18,6 +18,7 @@ app:
   queue:
     admission-size: ${APP_QUEUE_ADMISSION_SIZE:100}
     token-ttl: ${APP_QUEUE_TOKEN_TTL:20m}
+    waiting-token-ttl: ${APP_QUEUE_WAITING_TOKEN_TTL:1m}
 
 management:
   endpoints:
