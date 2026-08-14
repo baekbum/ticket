@@ -371,14 +371,16 @@ Content-Type: application/json
   "paymentStatus": "READY",
   "totalTicketAmount": 120000,
   "discountAmount": 10000,
-  "amount": 110000
+  "amount": 110000,
+  "paymentExpiresAt": "2026-08-14T12:10:00",
+  "paymentExpiresInSeconds": 600
 }
 ```
 
 프론트 처리:
 
-1. `reservationId`, `paymentNo`, 결제 금액 저장
-2. 선택한 결제수단에 맞는 결제 화면 표시
+1. `reservationId`, `paymentNo`, 결제 금액, `paymentExpiresInSeconds` 저장
+2. `paymentExpiresInSeconds` 기준으로 결제 가능 시간 타이머 표시
 3. 카드 결제는 카드 승인 API 호출
 4. 무통장은 가상계좌 발급 API 호출 후 입금 안내 표시
 

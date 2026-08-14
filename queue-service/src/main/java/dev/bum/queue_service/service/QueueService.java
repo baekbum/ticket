@@ -594,6 +594,18 @@ public class QueueService {
     }
 
     /*
+    현재 zSet으로 만든 애들은 TTL 없음, set으로 만든 애들은 TTL이 존재
+
+    ZSet 구조
+    key: queue:event:1:waiting
+    member: A토큰
+    score: 최초 진입 시각
+
+    SET 구조
+    key: queue:waiting-token:A토큰
+    value: 1:user123
+    TTL: 60초
+
     eventId -> 1
     userId -> IU
     waitingToken -> 930516
@@ -602,7 +614,7 @@ public class QueueService {
     1. 대기열 등록 시
 
     - queue:event:1:waiting (key) (타입 : zSet)
-      - 930516 (value) - 최초 진입 시각 (score)
+      - 930516 (member) - 최초 진입 시각 (score)
 
     - queue:waiting-token:930516 (key) (타입 : set)
       - 1:IU (value) - 1분 (TTL)
@@ -611,17 +623,21 @@ public class QueueService {
       - 930516 (value) - 1분 (TTL)
 
     - queue:event:1:waiting-expiry (key) (타입 : zSet)
-      - 930516 -> 만료 시각 (score)
+      - 930516 (member) -> 만료 시각 (score)
+
+      ** queue:waiting-token:* <-> queue:waiting-user:* 서로 역방향키를 가지고 있음
 
      2. READY 승격 시:
 
-     - queue:event:1:active
-        activeToken -> 만료 시각
+     - queue:event:1:active (key) (타입 : zSet)
+       - active-token-0516 (member) -> 만료 시각 (score)
 
-     - queue:active-token:activeTokenB
-        "1:user01"
+     - queue:active-token:active-token-0516
+       - 1:IU
 
-     - queue:active-user:1:user01
-        "activeTokenB"
+     - queue:active-user:1:IU
+       - active-token-0516
+
+      ** queue:active-token:* <-> queue:active-user:* 서로 역방향키를 가지고 있음
      */
 }

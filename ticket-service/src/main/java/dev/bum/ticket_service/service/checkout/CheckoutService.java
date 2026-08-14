@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -157,7 +158,20 @@ public class CheckoutService {
                 .totalTicketAmount(totalTicketAmount)
                 .discountAmount(discountAmount)
                 .amount(payment.getAmount())
+                .paymentExpiresAt(payment.getExpiresAt())
+                .paymentExpiresInSeconds(calculatePaymentExpiresInSeconds(payment.getExpiresAt()))
                 .build();
+    }
+
+    /**
+     * 결제 가능 만료 시각까지 남은 시간을 초 단위로 계산한다.
+     */
+    private Long calculatePaymentExpiresInSeconds(LocalDateTime expiresAt) {
+        if (expiresAt == null) {
+            return null;
+        }
+
+        return Math.max(0L, Duration.between(LocalDateTime.now(), expiresAt).getSeconds());
     }
 
     /**

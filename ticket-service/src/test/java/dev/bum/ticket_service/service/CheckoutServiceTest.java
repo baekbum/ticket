@@ -84,6 +84,8 @@ class CheckoutServiceTest {
         assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
         assertThat(response.getPaymentStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(response.getAmount()).isEqualTo(180000);
+        assertThat(response.getPaymentExpiresAt()).isEqualTo(payment.getExpiresAt());
+        assertThat(response.getPaymentExpiresInSeconds()).isPositive();
 
         then(seatCacheService).shouldHaveNoInteractions();
         then(reservationRepository).shouldHaveNoInteractions();
@@ -130,6 +132,8 @@ class CheckoutServiceTest {
         assertThat(response.getOrderId()).isEqualTo("order-1");
         assertThat(response.getPaymentStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(response.getAmount()).isEqualTo(180000);
+        assertThat(response.getPaymentExpiresAt()).isNotNull();
+        assertThat(response.getPaymentExpiresInSeconds()).isBetween(0L, 600L);
 
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         then(seatCacheService).should().validateOccupiedSeat(org.mockito.ArgumentMatchers.argThat(info ->
@@ -224,7 +228,8 @@ class CheckoutServiceTest {
                 .status(PaymentStatus.READY)
                 .amount(180000)
                 .idempotencyKey(idempotencyKey)
-                .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
+                .requestedAt(LocalDateTime.now().minusMinutes(1))
+                .expiresAt(LocalDateTime.now().plusMinutes(9))
                 .build();
     }
 

@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 @AllArgsConstructor
@@ -22,4 +24,6 @@ public class CheckoutPrepareResponse {
     private Integer totalTicketAmount;
     private Integer discountAmount;
     private Integer amount;
+    private LocalDateTime paymentExpiresAt;
+    private Long paymentExpiresInSeconds;
 }

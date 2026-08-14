@@ -8,7 +8,7 @@ import java.time.Duration;
 public class QueueProperties {
 
     private int admissionSize = 100;
-    private Duration activeTokenTtl = Duration.ofMinutes(10);
+    private Duration activeTokenTtl = Duration.ofMinutes(20);
     private Duration waitingTokenTtl = Duration.ofMinutes(1);
     private long cleanupScanCount = 1_000L;
 
