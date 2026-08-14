@@ -19,8 +19,10 @@ token:
 app:
   queue:
     admission-size: 100
-    token-ttl: 20m
+    active-token-ttl: 20m
     waiting-token-ttl: 1m
+    cleanup-fixed-delay-ms: 20000
+    cleanup-scan-count: 1000
 
 management:
   endpoints:

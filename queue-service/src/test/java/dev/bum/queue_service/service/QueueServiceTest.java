@@ -48,7 +48,7 @@ class QueueServiceTest {
     void setUp() {
         QueueProperties properties = new QueueProperties();
         properties.setAdmissionSize(1);
-        properties.setTokenTtl(Duration.ofMinutes(10));
+        properties.setActiveTokenTtl(Duration.ofMinutes(10));
         queueService = new QueueService(redisTemplate, properties);
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
@@ -119,9 +119,9 @@ class QueueServiceTest {
     }
 
     @Test
-    @DisplayName("유효한 대기열 토큰을 제시하면 READY 상태를 복구한다")
+    @DisplayName("유효한 active token을 제시하면 READY 상태를 복구한다")
     void status_restores_ready_only_with_valid_token() {
-        given(valueOperations.get("queue:token:token-1")).willReturn("1:user01");
+        given(valueOperations.get("queue:active-token:token-1")).willReturn("1:user01");
         given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(0L);
 
@@ -133,22 +133,22 @@ class QueueServiceTest {
     }
 
     @Test
-    @DisplayName("유효한 active 토큰 완료 시 active ZSet, token key, active-user key를 함께 정리한다")
+    @DisplayName("유효한 active 토큰 완료 시 active ZSet, active-token key, active-user key를 함께 정리한다")
     void complete_removes_active_token_and_user_mapping() {
-        given(valueOperations.get("queue:token:token-1")).willReturn("1:user01");
+        given(valueOperations.get("queue:active-token:token-1")).willReturn("1:user01");
         given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
 
         boolean completed = queueService.complete(1L, "user01", "token-1");
 
         assertThat(completed).isTrue();
         then(zSetOperations).should().remove("queue:event:1:active", "token-1");
-        then(redisTemplate).should().delete(List.of("queue:token:token-1", "queue:active-user:1:user01"));
+        then(redisTemplate).should().delete(List.of("queue:active-token:token-1", "queue:active-user:1:user01"));
     }
 
     @Test
     @DisplayName("유효하지 않은 토큰 완료 요청은 Redis 상태를 변경하지 않는다")
     void complete_returns_false_without_cleanup_when_token_is_invalid() {
-        given(valueOperations.get("queue:token:token-1")).willReturn("1:other-user");
+        given(valueOperations.get("queue:active-token:token-1")).willReturn("1:other-user");
 
         boolean completed = queueService.complete(1L, "user01", "token-1");
 
@@ -160,7 +160,7 @@ class QueueServiceTest {
     @Test
     @DisplayName("Redis 장애는 대기열 경계에서 로깅 후 전파한다")
     void status_propagates_redis_error_after_context_logging() {
-        given(zSetOperations.rangeByScore(eq("queue:event:1:active"), eq(0.0), any(Double.class)))
+        given(zSetOperations.add(eq("queue:event:1:waiting"), anyString(), any(Double.class)))
                 .willThrow(new DataAccessException("redis error") {});
 
         assertThatThrownBy(() -> queueService.status(1L, "user01", null))
@@ -172,7 +172,7 @@ class QueueServiceTest {
     @DisplayName("bulk 상태 조회는 기존 active-user 매핑이 유효하면 READY를 유지하고 재입장시키지 않는다")
     void statuses_reuses_valid_active_user_mapping() {
         given(valueOperations.get("queue:active-user:1:user01")).willReturn("token-1");
-        given(valueOperations.get("queue:token:token-1")).willReturn("1:user01");
+        given(valueOperations.get("queue:active-token:token-1")).willReturn("1:user01");
         given(valueOperations.get("queue:active-user:1:user02")).willReturn(null);
         given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
         given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);

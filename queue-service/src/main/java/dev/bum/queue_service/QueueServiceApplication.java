@@ -3,7 +3,9 @@ package dev.bum.queue_service;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
+@EnableScheduling
 @ConfigurationPropertiesScan
 @SpringBootApplication(scanBasePackages = {"dev.bum.queue_service", "dev.bum.common"})
 public class QueueServiceApplication {
