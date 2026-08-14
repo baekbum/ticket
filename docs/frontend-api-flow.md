@@ -319,11 +319,12 @@ Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-체크아웃 준비 요청에서 쿠폰을 사용할 경우 `userCouponId`를 포함한다.
+쿠폰은 최종 배송/결제 정보 제출 단계에서 함께 적용한다.
 
 ### 11. 체크아웃 준비
 
-좌석 점유 이후 예약, 배송, 결제 대기 정보를 생성한다.
+좌석 점유 이후 배송/결제 정보 입력 화면으로 이동할 수 있는지 검증한다.
+검증이 성공하면 active token은 회수되며, 이후 단계는 좌석 선점 만료 시간과 결제 만료 시간으로 제어한다.
 
 ```http
 POST /api/v1/checkout/prepare
@@ -346,18 +347,7 @@ Content-Type: application/json
       "col": 10
     }
   ],
-  "userCouponId": 10,
-  "delivery": {
-    "recipientName": "홍길동",
-    "recipientPhone": "010-1234-5678",
-    "zipCode": "01234",
-    "address": "서울시 ...",
-    "detailAddress": "101동 1001호",
-    "deliveryMessage": "문 앞에 놓아주세요"
-  },
-  "paymentMethod": "CREDIT_CARD",
-  "idempotencyKey": "client-generated-unique-key",
-  "depositorName": "홍길동"
+  "idempotencyKey": "client-generated-unique-key"
 }
 ```
 
@@ -365,24 +355,26 @@ Content-Type: application/json
 
 ```json
 {
-  "reservationId": 1,
+  "eventId": 1,
   "orderId": "...",
-  "paymentId": 1,
-  "paymentNo": "...",
-  "paymentMethod": "CREDIT_CARD",
-  "paymentStatus": "READY",
-  "totalTicketAmount": 120000,
-  "discountAmount": 10000,
-  "amount": 110000,
-  "paymentExpiresAt": "2026-08-14T12:10:00",
-  "paymentExpiresInSeconds": 600
+  "seats": [
+    {
+      "id": 101,
+      "zone": "A",
+      "row": 1,
+      "col": 10
+    }
+  ],
+  "idempotencyKey": "client-generated-unique-key",
+  "prepared": true,
+  "preparedAt": "2026-08-14T12:00:00"
 }
 ```
 
 프론트 처리:
 
-1. `reservationId`, `paymentNo`, 결제 금액, `paymentExpiresInSeconds` 저장
-2. `paymentExpiresInSeconds` 기준으로 결제 가능 시간 타이머 표시
+1. `prepared === true`이면 배송/쿠폰/결제수단 입력 화면을 표시
+2. 실패하면 좌석 선택 단계로 되돌리거나 재시도 안내
 3. 카드 결제는 카드 승인 API 호출
 4. 무통장은 가상계좌 발급 API 호출 후 입금 안내 표시
 
@@ -393,7 +385,6 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
-X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -440,7 +431,6 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/virtual-account/issue
 Authorization: Bearer {accessToken}
-X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -576,7 +566,7 @@ Authorization: Bearer {accessToken}
 8. GET  /api/v1/queue/events/{eventId}/status until READY
 9. POST /api/v1/seat/occupy with X-Active-Token
 10. POST /api/v1/checkout/prepare with X-Active-Token
-11. POST /api/v1/payments/card/approve 또는 POST /api/v1/payments/virtual-account/issue
+11. 배송/쿠폰/결제수단 제출 후 paymentNo 발급
 12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
 13. GET  /api/v1/reservation/select/id/{reservationId}
 14. GET  /api/v1/ticket/reservation/{reservationId}

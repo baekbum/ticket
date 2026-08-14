@@ -8,11 +8,10 @@
 
 ```text
 Authorization: Bearer {accessToken}
-X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
-`X-Active-Token`은 좌석 점유, 체크아웃 준비와 동일한 active token이다. 카드 승인과 가상계좌 발급 단계에서 TTL을 검증한다.
+active token은 체크아웃 준비 성공 시점에 회수한다. 카드 승인과 가상계좌 발급 단계는 `paymentNo`, 예약 소유자, 결제 상태, 결제 만료 시간으로 검증한다.
 
 성공 응답은 기존 `PaymentResponse`를 기본으로 사용한다.
 
@@ -49,7 +48,6 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
-X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -68,13 +66,12 @@ Content-Type: application/json
 처리 규칙:
 
 ```text
-1. X-Active-Token TTL 검증
-2. paymentNo로 Payment 조회
-3. payment.reservation.userId와 현재 로그인 사용자 일치 검증
-4. payment.status == READY 검증
-5. 더미 카드 정보 검증
-6. 성공하면 공통 결제 완료 처리 호출
-7. 실패하면 Payment 상태는 READY로 유지
+1. paymentNo로 Payment 조회
+2. payment.reservation.userId와 현재 로그인 사용자 일치 검증
+3. payment.status == READY 검증
+4. 더미 카드 정보 검증
+5. 성공하면 공통 결제 완료 처리 호출
+6. 실패하면 Payment 상태는 READY로 유지
 ```
 
 성공 응답: `PaymentResponse`
@@ -102,7 +99,6 @@ Content-Type: application/json
 ```text
 400 INVALID_REQUEST     카드 정보 불일치, 결제 상태 부적합
 403 FORBIDDEN           다른 사용자의 결제 요청
-429 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
 404 INTERNAL_SERVER_ERROR 또는 INVALID_REQUEST 현재 결제 조회 실패 처리 기준에 맞춤
 ```
 
@@ -111,7 +107,6 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/virtual-account/issue
 Authorization: Bearer {accessToken}
-X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -128,14 +123,13 @@ Content-Type: application/json
 처리 규칙:
 
 ```text
-1. X-Active-Token TTL 검증
-2. paymentNo로 Payment 조회
-3. payment.reservation.userId와 현재 로그인 사용자 일치 검증
-4. payment.status == READY 검증
-5. bankCode로 은행명과 계좌 prefix 결정
-6. 랜덤 계좌번호 생성
-7. Payment.bankName, accountNumber, depositorName, expiresAt 저장
-8. Payment.status = WAITING_DEPOSIT
+1. paymentNo로 Payment 조회
+2. payment.reservation.userId와 현재 로그인 사용자 일치 검증
+3. payment.status == READY 검증
+4. bankCode로 은행명과 계좌 prefix 결정
+5. 랜덤 계좌번호 생성
+6. Payment.bankName, accountNumber, depositorName, expiresAt 저장
+7. Payment.status = WAITING_DEPOSIT
 ```
 
 성공 응답: `PaymentResponse`
@@ -163,7 +157,6 @@ Content-Type: application/json
 ```text
 400 INVALID_REQUEST     은행 코드 불일치, 결제 상태 부적합
 403 FORBIDDEN           다른 사용자의 결제 요청
-429 QUEUE_ACCESS_DENIED active token 누락, 만료, 불일치
 ```
 
 ## 가상계좌 입금 시뮬레이션

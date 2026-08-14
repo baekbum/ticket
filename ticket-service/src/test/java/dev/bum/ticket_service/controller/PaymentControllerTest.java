@@ -70,18 +70,17 @@ class PaymentControllerTest {
                 .amount(180000)
                 .build();
 
-        given(paymentService.approveCard("user01", "queue-token", request)).willReturn(response);
+        given(paymentService.approveCard("user01", request)).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/card/approve")
                         .with(authentication(userAuthentication("user01")))
-                        .header("X-Active-Token", "queue-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
                 .andExpect(jsonPath("$.status").value("PAID"));
 
-        then(paymentService).should().approveCard("user01", "queue-token", request);
+        then(paymentService).should().approveCard("user01", request);
     }
 
     @Test
@@ -105,11 +104,10 @@ class PaymentControllerTest {
                 .depositorName("홍길동")
                 .build();
 
-        given(paymentService.issueVirtualAccount("user01", "queue-token", request)).willReturn(response);
+        given(paymentService.issueVirtualAccount("user01", request)).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/virtual-account/issue")
                         .with(authentication(userAuthentication("user01")))
-                        .header("X-Active-Token", "queue-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -117,7 +115,7 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.status").value("WAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.accountNumber").value("1111-2222-3333-4444"));
 
-        then(paymentService).should().issueVirtualAccount("user01", "queue-token", request);
+        then(paymentService).should().issueVirtualAccount("user01", request);
     }
 
     @Test

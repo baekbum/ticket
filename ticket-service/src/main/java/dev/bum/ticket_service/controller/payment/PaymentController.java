@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,19 +24,17 @@ public class PaymentController {
     @PostMapping("/card/approve")
     public ResponseEntity<PaymentResponse> approveCard(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody CardPaymentApproveRequest request
     ) {
-        return ResponseEntity.ok(paymentService.approveCard(currentUserId, activeToken, request));
+        return ResponseEntity.ok(paymentService.approveCard(currentUserId, request));
     }
 
     @PostMapping("/virtual-account/issue")
     public ResponseEntity<PaymentResponse> issueVirtualAccount(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody VirtualAccountIssueRequest request
     ) {
-        return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, activeToken, request));
+        return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, request));
     }
 
     @PostMapping("/virtual-account/deposit")
