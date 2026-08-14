@@ -278,7 +278,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("카드 결제 승인 후 큐 토큰 회수는 트랜잭션 커밋 이후에 실행된다")
+    @DisplayName("카드 결제 승인 후 active token 회수는 트랜잭션 커밋 이후에 실행된다")
     void approve_card_payment_releases_queue_token_after_commit() {
         TransactionSynchronizationManager.initSynchronization();
         try {

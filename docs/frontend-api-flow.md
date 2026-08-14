@@ -20,10 +20,10 @@ Refresh Token은 재발급과 로그아웃에서 별도 헤더로 보낸다.
 Authorization-Refresh: Bearer {refreshToken}
 ```
 
-대기열 통과 이후 좌석 점유와 체크아웃 준비에는 Queue Token을 보낸다.
+대기열 통과 이후 좌석 점유와 체크아웃 준비에는 Active token을 보낸다.
 
 ```http
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 ```
 
 ### 프론트 저장 값
@@ -35,7 +35,7 @@ X-Queue-Token: {queueToken}
 | `accessToken` | `POST /api/v1/login` | 인증 API 호출 |
 | `refreshToken` | `POST /api/v1/login`, `POST /api/v1/reissue` | 토큰 재발급, 로그아웃 |
 | `eventId` | 이벤트 목록/상세 | 구역, 좌석, 대기열, 체크아웃 |
-| `queueToken` | 대기열 `READY` 응답 | 좌석 점유, 체크아웃 준비 |
+| `activeToken` | 대기열 `READY` 응답 | 좌석 점유, 체크아웃 준비 |
 | `orderId` | 좌석 점유 응답 | 체크아웃 준비 |
 | `paymentNo` | 체크아웃 준비 응답 | 결제 확정 |
 | `reservationId` | 체크아웃 준비/결제 응답 | 예약 상세, 티켓 조회 |
@@ -223,7 +223,7 @@ Authorization: Bearer {accessToken}
 ```
 
 `status`가 `READY`이면 `token`이 내려온다.
-프론트는 이 값을 `queueToken`으로 저장한다.
+프론트는 이 값을 `activeToken`으로 저장한다.
 
 ### 8. 대기열 상태 폴링
 
@@ -236,14 +236,14 @@ Authorization: Bearer {accessToken}
 
 1. `status === "WAITING"`이면 `rank`, `waitingCount`를 화면에 표시하고 일정 간격으로 재호출
 2. `status === "READY"`이면 `token` 저장 후 좌석 선택/점유 단계로 이동
-3. `expiresInSeconds`가 있으면 Queue Token 만료 시간을 UI 또는 내부 타이머에 반영
+3. `expiresInSeconds`가 있으면 Active token 만료 시간을 UI 또는 내부 타이머에 반영
 
 ### 9. 좌석 점유
 
 ```http
 POST /api/v1/seat/occupy
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -326,7 +326,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/checkout/prepare
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -389,7 +389,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -436,7 +436,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/virtual-account/issue
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -570,8 +570,8 @@ Authorization: Bearer {accessToken}
 6. GET  /api/v1/seat/select?eventId={eventId}&areaId={areaId}
 7. POST /api/v1/queue/events/{eventId}/enter
 8. GET  /api/v1/queue/events/{eventId}/status until READY
-9. POST /api/v1/seat/occupy with X-Queue-Token
-10. POST /api/v1/checkout/prepare with X-Queue-Token
+9. POST /api/v1/seat/occupy with X-Active-Token
+10. POST /api/v1/checkout/prepare with X-Active-Token
 11. POST /api/v1/payments/card/approve 또는 POST /api/v1/payments/virtual-account/issue
 12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
 13. GET  /api/v1/reservation/select/id/{reservationId}
@@ -585,13 +585,13 @@ Authorization: Bearer {accessToken}
 | 항목 | 현재 상태 | 결정 필요 |
 | --- | --- | --- |
 | 외부 Base URL | 서비스별 내부 경로만 있음 | Gateway/BFF/프론트 서버 URL 정책 |
-| Queue Token 만료 UI | `expiresInSeconds`, `expiresAt` 존재 | 만료 시 재진입/좌석 해제 UX |
+| Active token 만료 UI | `expiresInSeconds`, `expiresAt` 존재 | 만료 시 재진입/좌석 해제 UX |
 | 결제수단 목록 | `PaymentMethod` enum 사용 | 프론트 선택지 라벨/지원 범위 |
 | 에러 응답 포맷 | 서비스별 문자열 응답 가능 | 공통 `{code,message}` 포맷 여부 |
 | 좌석 실시간 갱신 | 조회/점유 API 존재 | 폴링, SSE, WebSocket 중 선택 |
 | 주문 ID 생성 주체 | 프론트가 `orderId` 전달 | 생성 규칙과 중복 방지 규칙 |
 
-### Queue Token 재진입 정책
+### Active token 재진입 정책
 
-- `GET /api/v1/queue/events/{eventId}/status`는 `X-Queue-Token`이 있을 때만 기존 READY 토큰을 복구한다.
-- 브라우저/탭 종료 후 재대기를 원하면 `queueToken`은 `localStorage`가 아니라 `sessionStorage` 또는 메모리에 저장한다.
+- `GET /api/v1/queue/events/{eventId}/status`는 `X-Active-Token`이 있을 때만 기존 READY 토큰을 복구한다.
+- 브라우저/탭 종료 후 재대기를 원하면 `activeToken`은 `localStorage`가 아니라 `sessionStorage` 또는 메모리에 저장한다.

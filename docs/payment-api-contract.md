@@ -8,11 +8,11 @@
 
 ```text
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
-`X-Queue-Token`은 좌석 점유, 체크아웃 준비와 동일한 active token이다. 카드 승인과 가상계좌 발급 단계에서 TTL을 검증한다.
+`X-Active-Token`은 좌석 점유, 체크아웃 준비와 동일한 active token이다. 카드 승인과 가상계좌 발급 단계에서 TTL을 검증한다.
 
 성공 응답은 기존 `PaymentResponse`를 기본으로 사용한다.
 
@@ -49,7 +49,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -68,7 +68,7 @@ Content-Type: application/json
 처리 규칙:
 
 ```text
-1. X-Queue-Token TTL 검증
+1. X-Active-Token TTL 검증
 2. paymentNo로 Payment 조회
 3. payment.reservation.userId와 현재 로그인 사용자 일치 검증
 4. payment.status == READY 검증
@@ -111,7 +111,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/payments/virtual-account/issue
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -128,7 +128,7 @@ Content-Type: application/json
 처리 규칙:
 
 ```text
-1. X-Queue-Token TTL 검증
+1. X-Active-Token TTL 검증
 2. paymentNo로 Payment 조회
 3. payment.reservation.userId와 현재 로그인 사용자 일치 검증
 4. payment.status == READY 검증
@@ -174,7 +174,7 @@ Authorization: Bearer {adminAccessToken}
 Content-Type: application/json
 ```
 
-이 API는 사용자가 직접 누르는 API가 아니라 은행 입금 통지를 흉내 내는 테스트용 API다. 따라서 `ADMIN` 또는 local/test 전용으로 제한한다. `X-Queue-Token`은 받지 않는다.
+이 API는 사용자가 직접 누르는 API가 아니라 은행 입금 통지를 흉내 내는 테스트용 API다. 따라서 `ADMIN` 또는 local/test 전용으로 제한한다. `X-Active-Token`은 받지 않는다.
 
 요청 DTO 후보: `VirtualAccountDepositRequest`
 

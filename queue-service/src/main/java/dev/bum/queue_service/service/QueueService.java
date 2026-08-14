@@ -121,6 +121,10 @@ public class QueueService {
      */
     @Observed(name = "queue.statuses", contextualName = "queue bulk statuses")
     public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds) {
+        return statuses(eventId, userIds, Map.of());
+    }
+
+    public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds, Map<String, String> tokenByUserId) {
         return executeWithRedisLogging("statuses", eventId, String.join(",", userIds), null, () -> {
             Map<String, String> activeTokenByUserId = activeTokenByUserId(eventId, userIds);
             List<QueueStatusResponse> responses = new ArrayList<>();
@@ -134,7 +138,7 @@ public class QueueService {
                     continue;
                 }
 
-                responses.add(waitOrAdmit(eventId, userId, null));
+                responses.add(waitOrAdmit(eventId, userId, tokenByUserId == null ? null : tokenByUserId.get(userId)));
             }
 
             return responses;

@@ -74,7 +74,7 @@ class PaymentControllerTest {
 
         mockMvc.perform(post(baseUrl + "/card/approve")
                         .with(authentication(userAuthentication("user01")))
-                        .header("X-Queue-Token", "queue-token")
+                        .header("X-Active-Token", "queue-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -109,7 +109,7 @@ class PaymentControllerTest {
 
         mockMvc.perform(post(baseUrl + "/virtual-account/issue")
                         .with(authentication(userAuthentication("user01")))
-                        .header("X-Queue-Token", "queue-token")
+                        .header("X-Active-Token", "queue-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())

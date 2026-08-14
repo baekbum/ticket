@@ -25,19 +25,19 @@ public class PaymentController {
     @PostMapping("/card/approve")
     public ResponseEntity<PaymentResponse> approveCard(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody CardPaymentApproveRequest request
     ) {
-        return ResponseEntity.ok(paymentService.approveCard(currentUserId, queueToken, request));
+        return ResponseEntity.ok(paymentService.approveCard(currentUserId, activeToken, request));
     }
 
     @PostMapping("/virtual-account/issue")
     public ResponseEntity<PaymentResponse> issueVirtualAccount(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody VirtualAccountIssueRequest request
     ) {
-        return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, queueToken, request));
+        return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, activeToken, request));
     }
 
     @PostMapping("/virtual-account/deposit")

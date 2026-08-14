@@ -45,7 +45,7 @@ public class PaymentService {
 
     @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.approve-card", contextualName = "ticket payment approve card")
-    public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
+    public PaymentResponse approveCard(String currentUserId, String activeToken, CardPaymentApproveRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
@@ -55,19 +55,19 @@ public class PaymentService {
             return payment.toResponse();
         }
 
-        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        queueAccessService.validate(resolveEventId(reservation), currentUserId, activeToken);
         validateCardPaymentReady(payment);
 
         if (!mockCardAuthorizationService.approve(request)) {
             throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
         }
 
-        return completePayment(payment, null, currentUserId, queueToken);
+        return completePayment(payment, null, currentUserId, activeToken);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.issue-virtual-account", contextualName = "ticket payment issue virtual account")
-    public PaymentResponse issueVirtualAccount(String currentUserId, String queueToken, VirtualAccountIssueRequest request) {
+    public PaymentResponse issueVirtualAccount(String currentUserId, String activeToken, VirtualAccountIssueRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
@@ -77,7 +77,7 @@ public class PaymentService {
             return payment.toResponse();
         }
 
-        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        queueAccessService.validate(resolveEventId(reservation), currentUserId, activeToken);
         validateBankTransferPaymentReady(payment);
 
         PaymentStatus beforePaymentStatus = payment.getStatus();
@@ -90,7 +90,7 @@ public class PaymentService {
                 virtualAccount.getExpiresAt()
         );
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
-        releaseQueueTokenAfterCommit(resolveEventId(reservation), currentUserId, queueToken);
+        releaseactiveTokenAfterCommit(resolveEventId(reservation), currentUserId, activeToken);
 
         return payment.toResponse();
     }
@@ -110,7 +110,7 @@ public class PaymentService {
      * 카드 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
      * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
      */
-    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String queueUserId, String queueToken) {
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String queueUserId, String activeToken) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -134,19 +134,19 @@ public class PaymentService {
         }
 
         seatCacheService.syncReservedSeatsAfterCommit(seats);
-        releaseQueueTokenAfterCommit(resolveEventId(reservation), queueUserId, queueToken);
+        releaseactiveTokenAfterCommit(resolveEventId(reservation), queueUserId, activeToken);
         // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
         // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.
 
         return payment.toResponse();
     }
 
-    private void releaseQueueTokenAfterCommit(Long eventId, String userId, String queueToken) {
-        if (!StringUtils.hasText(userId) || !StringUtils.hasText(queueToken)) {
+    private void releaseactiveTokenAfterCommit(Long eventId, String userId, String activeToken) {
+        if (!StringUtils.hasText(userId) || !StringUtils.hasText(activeToken)) {
             return;
         }
 
-        runAfterCommit(() -> queueAccessService.complete(eventId, userId, queueToken));
+        runAfterCommit(() -> queueAccessService.complete(eventId, userId, activeToken));
     }
 
     private void validatePaymentOwner(String currentUserId, Reservation reservation) {

@@ -25,10 +25,10 @@ public class CheckoutController {
     @PostMapping("/prepare")
     public ResponseEntity<CheckoutPrepareResponse> prepare(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody CheckoutPrepareRequest request
     ) {
-        queueAccessService.validate(request.getEventId(), currentUserId, queueToken);
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         return ResponseEntity.ok(checkoutService.prepare(currentUserId, request));
     }
 }

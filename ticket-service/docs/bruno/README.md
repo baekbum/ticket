@@ -16,7 +16,7 @@ ticket-service/docs/bruno
 1. `auth-service/docs/bruno`에서 `Admin Login` 또는 `User Login`을 먼저 실행합니다.
 2. 발급된 `accessToken`을 이 컬렉션의 선택한 환경에 붙여 넣습니다.
 3. `eventId`, `seatId`, `couponId`, `userCouponId` 같은 환경변수를 현재 DB 데이터에 맞게 조정합니다.
-4. 대기열 통과 후 발급된 `queueToken`을 환경변수에 반영합니다.
+4. 대기열 통과 후 발급된 `activeToken`을 환경변수에 반영합니다.
 5. 조회 요청부터 실행하고, 생성/수정/취소 요청은 body 값을 확인한 뒤 실행합니다.
 
 주요 흐름:

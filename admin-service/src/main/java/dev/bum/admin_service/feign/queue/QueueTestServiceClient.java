@@ -22,7 +22,9 @@ public interface QueueTestServiceClient {
     QueueEnterResponse enter(@PathVariable("eventId") Long eventId, @RequestParam("userId") String userId);
 
     @GetMapping("/events/{eventId}/status")
-    QueueStatusResponse status(@PathVariable("eventId") Long eventId, @RequestParam("userId") String userId);
+    QueueStatusResponse status(@PathVariable("eventId") Long eventId,
+                               @RequestParam("userId") String userId,
+                               @RequestParam(value = "token", required = false) String token);
 
     @PostMapping("/events/{eventId}/statuses")
     List<QueueStatusResponse> statuses(@PathVariable("eventId") Long eventId,

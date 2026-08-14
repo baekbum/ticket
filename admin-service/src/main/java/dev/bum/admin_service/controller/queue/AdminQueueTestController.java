@@ -37,9 +37,10 @@ public class AdminQueueTestController {
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @PathVariable("eventId") Long eventId,
-            @RequestParam("userId") String userId
+            @RequestParam("userId") String userId,
+            @RequestParam(value = "token", required = false) String token
     ) {
-        return ResponseEntity.ok(queueTestServiceClient.status(eventId, userId));
+        return ResponseEntity.ok(queueTestServiceClient.status(eventId, userId, token));
     }
 
     @PostMapping("/events/{eventId}/statuses")
