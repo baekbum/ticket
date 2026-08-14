@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -256,6 +257,7 @@ public class QueueService {
         Double score = redisTemplate.opsForZSet().score(activeKey(eventId), activeToken);
         Long expiresAt = score == null ? null : score.longValue();
         Long expiresInSeconds = expiresAt == null ? null : Math.max(0L, (expiresAt - nowMillis()) / 1000);
+        Instant activeTokenExpiresAt = expiresAt == null ? null : Instant.ofEpochMilli(expiresAt);
 
         return new QueueStatusResponse(
                 eventId,
@@ -263,13 +265,24 @@ public class QueueService {
                 0L,
                 redisTemplate.opsForZSet().zCard(waitingKey(eventId)),
                 activeToken,
-                expiresInSeconds
+                expiresInSeconds,
+                Instant.now(),
+                activeTokenExpiresAt
         );
     }
 
     /**
      * waiting queue에 등록된 사용자가 active slot에 들어갈 수 있는지 확인하고 가능하면 토큰을 발급한다.
      * Redis Lua script로 rank 확인, active slot 확인, token 저장, waiting 제거를 원자적으로 처리한다.
+     * → admit()
+     *   → Lua script 안에서:
+     *      1. active token 저장
+     *      2. active ZSet 등록
+     *      3. waiting ZSet 제거
+     *      4. waiting-expiry ZSet 제거
+     *      5. waiting-token key 삭제
+     *      6. waiting-user key 삭제
+     * → admitted == 1이면 activeToken 반환
      */
     private String admit(Long eventId, String userId, String waitingToken) {
         String activeToken = UUID.randomUUID().toString();
@@ -352,14 +365,79 @@ public class QueueService {
      */
     private QueueStatusResponse waitingStatusResponse(Long eventId, String userId, String waitingToken) {
         Long rank = redisTemplate.opsForZSet().rank(waitingKey(eventId), waitingToken);
+        Long currentRank = rank == null ? null : rank + 1;
+        Instant estimatedEntryAt = estimatedEntryAt(eventId, currentRank);
+        Instant activeTokenExpiresAt = estimatedEntryAt == null
+                ? null
+                : estimatedEntryAt.plus(properties.getActiveTokenTtl());
         return new QueueStatusResponse(
                 eventId,
                 STATUS_WAITING,
-                rank == null ? null : rank + 1,
+                currentRank,
                 redisTemplate.opsForZSet().zCard(waitingKey(eventId)),
                 waitingToken,
-                properties.getWaitingTokenTtl().toSeconds()
+                properties.getWaitingTokenTtl().toSeconds(),
+                estimatedEntryAt,
+                activeTokenExpiresAt
         );
+    }
+
+    /**
+     * 현재 active token 만료 시각과 대기 순번을 기준으로 예상 입장 시각을 계산한다.
+     * active token이 TTL까지 점유된다는 보수적 가정으로 슬롯별 다음 가용 시각을 시뮬레이션한다.
+     */
+    private Instant estimatedEntryAt(Long eventId, Long currentRank) {
+        if (currentRank == null || currentRank <= 0) {
+            return null;
+        }
+
+        long now = nowMillis();
+        PriorityQueue<Long> slotAvailableAt = activeSlotAvailableTimes(eventId, now);
+        if (slotAvailableAt.isEmpty()) {
+            return Instant.ofEpochMilli(now);
+        }
+
+        long estimatedEntryAt = now;
+        for (long position = 0; position < currentRank; position++) {
+            estimatedEntryAt = Math.max(now, slotAvailableAt.poll());
+            slotAvailableAt.add(estimatedEntryAt + properties.getActiveTokenTtl().toMillis());
+        }
+
+        return Instant.ofEpochMilli(estimatedEntryAt);
+    }
+
+    /**
+     * 이벤트별 active slot의 다음 가용 시각 목록을 만든다.
+     * 비어 있는 슬롯은 즉시 입장 가능하므로 현재 시각으로 채운다.
+     */
+    private PriorityQueue<Long> activeSlotAvailableTimes(Long eventId, long now) {
+        PriorityQueue<Long> slotAvailableAt = new PriorityQueue<>();
+        Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> activeTokens =
+                redisTemplate.opsForZSet().rangeWithScores(activeKey(eventId), 0, -1);
+
+        List<Long> activeTokenExpiresAt = new ArrayList<>();
+        if (activeTokens != null) {
+            activeTokens.stream()
+                    .map(org.springframework.data.redis.core.ZSetOperations.TypedTuple::getScore)
+                    .filter(score -> score != null)
+                    .map(Double::longValue)
+                    .map(expiresAt -> Math.max(now, expiresAt))
+                    .sorted()
+                    .forEach(activeTokenExpiresAt::add);
+        }
+
+        int admissionSize = properties.getAdmissionSize();
+        int overCapacity = Math.max(0, activeTokenExpiresAt.size() - admissionSize);
+        activeTokenExpiresAt.stream()
+                .skip(overCapacity)
+                .forEach(slotAvailableAt::add);
+
+        int availableSlots = admissionSize - activeTokenExpiresAt.size();
+        for (int slot = 0; slot < availableSlots; slot++) {
+            slotAvailableAt.add(now);
+        }
+
+        return slotAvailableAt;
     }
 
     /**

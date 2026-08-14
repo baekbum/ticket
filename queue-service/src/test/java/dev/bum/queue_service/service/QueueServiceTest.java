@@ -12,9 +12,11 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
@@ -85,6 +87,25 @@ class QueueServiceTest {
         assertThat(response.waitingCount()).isEqualTo(1L);
         assertThat(response.token()).isNotBlank();
         assertThat(response.expiresInSeconds()).isEqualTo(60L);
+        assertThat(response.estimatedEntryAt()).isNotNull();
+        assertThat(response.activeTokenExpiresAt()).isEqualTo(response.estimatedEntryAt().plus(Duration.ofMinutes(10)));
+    }
+
+    @Test
+    @DisplayName("WAITING 응답은 현재 순번 기준 예상 입장 시간과 예상 active token 만료 시간을 제공한다")
+    void status_waiting_returns_eta_fields() {
+        Instant activeExpiresAt = Instant.now().plusSeconds(120);
+        TypedTuple<String> activeToken = typedTuple(activeExpiresAt.toEpochMilli());
+        given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
+        given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
+        given(zSetOperations.rangeWithScores("queue:event:1:active", 0, -1)).willReturn(Set.of(activeToken));
+        doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        QueueStatusResponse response = queueService.status(1L, "user01", null);
+
+        assertThat(response.rank()).isEqualTo(1L);
+        assertThat(response.estimatedEntryAt()).isBetween(activeExpiresAt.minusSeconds(1), activeExpiresAt.plusSeconds(1));
+        assertThat(response.activeTokenExpiresAt()).isEqualTo(response.estimatedEntryAt().plus(Duration.ofMinutes(10)));
     }
 
     @Test
@@ -130,6 +151,8 @@ class QueueServiceTest {
         assertThat(response.status()).isEqualTo("READY");
         assertThat(response.token()).isEqualTo("token-1");
         assertThat(response.expiresInSeconds()).isPositive();
+        assertThat(response.estimatedEntryAt()).isNotNull();
+        assertThat(response.activeTokenExpiresAt()).isNotNull();
     }
 
     @Test
@@ -185,5 +208,24 @@ class QueueServiceTest {
                 .containsExactly("READY", "WAITING");
         assertThat(responses.get(0).token()).isEqualTo("token-1");
         assertThat(responses.get(1).rank()).isEqualTo(1L);
+    }
+
+    private TypedTuple<String> typedTuple(double score) {
+        return new TypedTuple<>() {
+            @Override
+            public String getValue() {
+                return "active-token-1";
+            }
+
+            @Override
+            public Double getScore() {
+                return score;
+            }
+
+            @Override
+            public int compareTo(TypedTuple<String> other) {
+                return Double.compare(score, other.getScore());
+            }
+        };
     }
 }

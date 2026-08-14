@@ -217,13 +217,15 @@ Authorization: Bearer {accessToken}
   "status": "WAITING",
   "rank": 10,
   "waitingCount": 100,
-  "token": null,
-  "expiresInSeconds": null
+  "token": "waiting-token",
+  "expiresInSeconds": 60,
+  "estimatedEntryAt": "2026-08-14T13:05:00Z",
+  "activeTokenExpiresAt": "2026-08-14T13:25:00Z"
 }
 ```
 
-`status`가 `READY`이면 `token`이 내려온다.
-프론트는 이 값을 `activeToken`으로 저장한다.
+`status`가 `WAITING`이면 `token`은 대기 유지 토큰이다.
+`status`가 `READY`이면 `token`은 active token이며, 프론트는 이 값을 `activeToken`으로 저장한다.
 
 ### 8. 대기열 상태 폴링
 
@@ -234,9 +236,9 @@ Authorization: Bearer {accessToken}
 
 프론트 처리:
 
-1. `status === "WAITING"`이면 `rank`, `waitingCount`를 화면에 표시하고 일정 간격으로 재호출
+1. `status === "WAITING"`이면 `rank`, `waitingCount`, `estimatedEntryAt`을 화면에 표시하고 일정 간격으로 재호출
 2. `status === "READY"`이면 `token` 저장 후 좌석 선택/점유 단계로 이동
-3. `expiresInSeconds`가 있으면 Active token 만료 시간을 UI 또는 내부 타이머에 반영
+3. `activeTokenExpiresAt`이 있으면 active token 만료 시간을 UI 또는 내부 타이머에 반영
 
 ### 9. 좌석 점유
 
