@@ -16,3 +16,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
