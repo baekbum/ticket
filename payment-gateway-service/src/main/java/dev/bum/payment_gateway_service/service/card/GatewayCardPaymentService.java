@@ -67,6 +67,9 @@ public class GatewayCardPaymentService {
         if (!dummyCard.getCustomerName().equals(request.getCustomerName())) {
             throw new IllegalArgumentException("카드 소유자명이 일치하지 않습니다.");
         }
+        if (!passwordEncoder.matches(request.getCvc(), dummyCard.getCvcHash())) {
+            throw new IllegalArgumentException("카드 CVC가 일치하지 않습니다.");
+        }
         if (!passwordEncoder.matches(request.getCardPassword(), dummyCard.getCardPasswordHash())) {
             throw new IllegalArgumentException("카드 비밀번호가 일치하지 않습니다.");
         }

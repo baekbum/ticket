@@ -62,6 +62,10 @@ public class DummyCard {
     @Column(name = "card_number_last4", nullable = false, length = 4)
     private String cardNumberLast4;
 
+    // 카드 CVC 검증용 BCrypt 해시값. 원문 CVC는 저장하지 않는다.
+    @Column(name = "cvc_hash", nullable = false, length = 128)
+    private String cvcHash;
+
     // 카드 비밀번호 검증용 BCrypt 해시값. 원문 비밀번호는 저장하지 않는다.
     @Column(name = "card_password_hash", nullable = false, length = 128)
     private String cardPasswordHash;
