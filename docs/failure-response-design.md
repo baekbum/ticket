@@ -236,8 +236,8 @@ Redis는 용도별로 장애 시 서비스 영향도가 다르다.
 | --- | --- |
 | 대기열 진입 중 Redis 장애 | 진입 실패. 사용자는 잠시 후 재시도한다. |
 | 상태 조회 중 Redis 장애 | 상태 조회 실패. 프론트는 짧은 간격으로 재시도한다. |
-| Queue token 검증 중 장애 | `ticket-service`는 좌석 점유, 체크아웃, 결제를 차단한다. |
-| Queue token 회수 실패 | 결제/예약 완료는 유지하고 경고 로그만 남긴다. TTL 만료로 자연 회수한다. |
+| Active token 검증 중 장애 | `ticket-service`는 좌석 점유, 체크아웃, 결제를 차단한다. |
+| Active token 회수 실패 | 결제/예약 완료는 유지하고 경고 로그만 남긴다. TTL 만료로 자연 회수한다. |
 | Redis 전체 유실 | 기존 대기 순번과 active token은 복구하지 않고 사용자를 재진입시킨다. |
 
 대기열은 트래픽 제어 장치이므로 검증 단계는 fail-closed다.
@@ -317,7 +317,7 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 | Redis command error count | Redis 명령 실패 |
 | Feign request duration | 서비스 간 호출 지연 |
 | Feign timeout count | timeout 발생 수 |
-| Queue token complete failure count | token 회수 실패 |
+| Active token complete failure count | token 회수 실패 |
 
 ## 구현 TODO
 

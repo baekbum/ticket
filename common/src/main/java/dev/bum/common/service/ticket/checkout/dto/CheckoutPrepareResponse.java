@@ -1,11 +1,13 @@
 package dev.bum.common.service.ticket.checkout.dto;
 
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -13,13 +15,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CheckoutPrepareResponse {
 
-    private Long reservationId;
+    private Long eventId;
     private String orderId;
-    private Long paymentId;
-    private String paymentNo;
-    private PaymentMethod paymentMethod;
-    private PaymentStatus paymentStatus;
-    private Integer totalTicketAmount;
-    private Integer discountAmount;
-    private Integer amount;
+    private List<SeatInfo> seats;
+    private String idempotencyKey;
+    private boolean prepared;
+    private LocalDateTime preparedAt;
 }

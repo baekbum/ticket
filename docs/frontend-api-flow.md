@@ -20,10 +20,10 @@ Refresh Token은 재발급과 로그아웃에서 별도 헤더로 보낸다.
 Authorization-Refresh: Bearer {refreshToken}
 ```
 
-대기열 통과 이후 좌석 점유와 체크아웃 준비에는 Queue Token을 보낸다.
+대기열 통과 이후 좌석 점유와 체크아웃 준비에는 Active token을 보낸다.
 
 ```http
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 ```
 
 ### 프론트 저장 값
@@ -35,7 +35,7 @@ X-Queue-Token: {queueToken}
 | `accessToken` | `POST /api/v1/login` | 인증 API 호출 |
 | `refreshToken` | `POST /api/v1/login`, `POST /api/v1/reissue` | 토큰 재발급, 로그아웃 |
 | `eventId` | 이벤트 목록/상세 | 구역, 좌석, 대기열, 체크아웃 |
-| `queueToken` | 대기열 `READY` 응답 | 좌석 점유, 체크아웃 준비 |
+| `activeToken` | 대기열 `READY` 응답 | 좌석 점유, 체크아웃 준비 |
 | `orderId` | 좌석 점유 응답 | 체크아웃 준비 |
 | `paymentNo` | 체크아웃 준비 응답 | 결제 확정 |
 | `reservationId` | 체크아웃 준비/결제 응답 | 예약 상세, 티켓 조회 |
@@ -217,13 +217,15 @@ Authorization: Bearer {accessToken}
   "status": "WAITING",
   "rank": 10,
   "waitingCount": 100,
-  "token": null,
-  "expiresInSeconds": null
+  "token": "waiting-token",
+  "expiresInSeconds": 60,
+  "estimatedEntryAt": "2026-08-14T13:05:00Z",
+  "activeTokenExpiresAt": "2026-08-14T13:25:00Z"
 }
 ```
 
-`status`가 `READY`이면 `token`이 내려온다.
-프론트는 이 값을 `queueToken`으로 저장한다.
+`status`가 `WAITING`이면 `token`은 대기 유지 토큰이다.
+`status`가 `READY`이면 `token`은 active token이며, 프론트는 이 값을 `activeToken`으로 저장한다.
 
 ### 8. 대기열 상태 폴링
 
@@ -234,16 +236,16 @@ Authorization: Bearer {accessToken}
 
 프론트 처리:
 
-1. `status === "WAITING"`이면 `rank`, `waitingCount`를 화면에 표시하고 일정 간격으로 재호출
+1. `status === "WAITING"`이면 `rank`, `waitingCount`, `estimatedEntryAt`을 화면에 표시하고 일정 간격으로 재호출
 2. `status === "READY"`이면 `token` 저장 후 좌석 선택/점유 단계로 이동
-3. `expiresInSeconds`가 있으면 Queue Token 만료 시간을 UI 또는 내부 타이머에 반영
+3. `activeTokenExpiresAt`이 있으면 active token 만료 시간을 UI 또는 내부 타이머에 반영
 
 ### 9. 좌석 점유
 
 ```http
 POST /api/v1/seat/occupy
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
 Content-Type: application/json
 ```
 
@@ -317,16 +319,71 @@ Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-체크아웃 준비 요청에서 쿠폰을 사용할 경우 `userCouponId`를 포함한다.
+쿠폰은 최종 배송/결제 정보 제출 단계에서 함께 적용한다.
 
 ### 11. 체크아웃 준비
 
-좌석 점유 이후 예약, 배송, 결제 대기 정보를 생성한다.
+좌석 점유 이후 배송/결제 정보 입력 화면으로 이동할 수 있는지 검증한다.
+검증이 성공하면 active token은 회수되며, 이후 단계는 좌석 선점 만료 시간과 결제 만료 시간으로 제어한다.
 
 ```http
 POST /api/v1/checkout/prepare
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+X-Active-Token: {activeToken}
+Content-Type: application/json
+```
+
+요청:
+
+```json
+{
+  "orderId": "...",
+  "eventId": 1,
+  "seats": [
+    {
+      "id": 101,
+      "zone": "A",
+      "row": 1,
+      "col": 10
+    }
+  ],
+  "idempotencyKey": "client-generated-unique-key"
+}
+```
+
+응답:
+
+```json
+{
+  "eventId": 1,
+  "orderId": "...",
+  "seats": [
+    {
+      "id": 101,
+      "zone": "A",
+      "row": 1,
+      "col": 10
+    }
+  ],
+  "idempotencyKey": "client-generated-unique-key",
+  "prepared": true,
+  "preparedAt": "2026-08-14T12:00:00"
+}
+```
+
+프론트 처리:
+
+1. `prepared === true`이면 배송/쿠폰/결제수단 입력 화면을 표시
+2. 실패하면 좌석 선택 단계로 되돌리거나 재시도 안내
+
+### 12. 체크아웃 확정
+
+배송/쿠폰/결제수단 입력 후 예약, 배송, 결제 정보를 생성한다.
+무통장 결제는 이 단계에서 가상계좌까지 발급한다.
+
+```http
+POST /api/v1/checkout/confirm
+Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
@@ -355,7 +412,7 @@ Content-Type: application/json
   },
   "paymentMethod": "CREDIT_CARD",
   "idempotencyKey": "client-generated-unique-key",
-  "depositorName": "홍길동"
+  "bankCode": null,
 }
 ```
 
@@ -363,33 +420,32 @@ Content-Type: application/json
 
 ```json
 {
+  "paymentId": 1,
   "reservationId": 1,
   "orderId": "...",
-  "paymentId": 1,
   "paymentNo": "...",
-  "paymentMethod": "CREDIT_CARD",
-  "paymentStatus": "READY",
-  "totalTicketAmount": 120000,
-  "discountAmount": 10000,
-  "amount": 110000
+  "method": "CREDIT_CARD",
+  "status": "READY",
+  "amount": 110000,
+  "bankName": null,
+  "accountNumber": null,
+  "requestedAt": "...",
+  "paidAt": null,
+  "expiresAt": "2026-08-14 12:10:00"
 }
 ```
 
 프론트 처리:
 
-1. `reservationId`, `paymentNo`, 결제 금액 저장
-2. 선택한 결제수단에 맞는 결제 화면 표시
-3. 카드 결제는 카드 승인 API 호출
-4. 무통장은 가상계좌 발급 API 호출 후 입금 안내 표시
+1. 카드 결제는 `paymentNo`, `amount`를 저장하고 카드 승인 API 호출
 
-### 12. 결제 처리
+### 13. 결제 처리
 
-#### 12-1. 카드 결제 승인
+#### 13-1. 카드 결제 승인
 
 ```http
 POST /api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 Content-Type: application/json
 ```
 
@@ -418,7 +474,6 @@ Content-Type: application/json
   "amount": 110000,
   "bankName": null,
   "accountNumber": null,
-  "depositorName": null,
   "requestedAt": "...",
   "paidAt": "...",
   "expiresAt": null
@@ -431,52 +486,7 @@ Content-Type: application/json
 2. `reservationId` 기준으로 예약 상세 또는 티켓 조회
 3. 실패 시 alert 표시 후 카드 재시도 또는 무통장 전환 허용
 
-#### 12-2. 가상계좌 발급
-
-```http
-POST /api/v1/payments/virtual-account/issue
-Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
-Content-Type: application/json
-```
-
-요청:
-
-```json
-{
-  "paymentNo": "...",
-  "bankCode": "KB",
-  "depositorName": "홍길동"
-}
-```
-
-응답:
-
-```json
-{
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "...",
-  "paymentNo": "...",
-  "method": "BANK_TRANSFER",
-  "status": "WAITING_DEPOSIT",
-  "amount": 110000,
-  "bankName": "KB국민은행",
-  "accountNumber": "1111-2222-3333-4444",
-  "depositorName": "홍길동",
-  "requestedAt": "...",
-  "paidAt": null,
-  "expiresAt": "2026-07-27 23:59:59"
-}
-```
-
-프론트 처리:
-
-1. 은행명, 계좌번호, 입금자명, 입금 기한 표시
-2. 사용자는 입금 완료 전까지 예매 대기 상태로 본다
-3. 실제 입금 확인은 사용자 API가 아니라 은행 콜백 시뮬레이션 API로 처리한다
-
-#### 12-3. 가상계좌 입금 시뮬레이션
+#### 13-2. 가상계좌 입금 시뮬레이션
 
 ```http
 POST /api/v1/payments/virtual-account/deposit
@@ -489,6 +499,7 @@ Content-Type: application/json
 ```json
 {
   "accountNumber": "1111-2222-3333-4444",
+  "depositorName": "홍길동",
   "amount": 110000
 }
 ```
@@ -570,9 +581,9 @@ Authorization: Bearer {accessToken}
 6. GET  /api/v1/seat/select?eventId={eventId}&areaId={areaId}
 7. POST /api/v1/queue/events/{eventId}/enter
 8. GET  /api/v1/queue/events/{eventId}/status until READY
-9. POST /api/v1/seat/occupy with X-Queue-Token
-10. POST /api/v1/checkout/prepare with X-Queue-Token
-11. POST /api/v1/payments/card/approve 또는 POST /api/v1/payments/virtual-account/issue
+9. POST /api/v1/seat/occupy with X-Active-Token
+10. POST /api/v1/checkout/prepare with X-Active-Token
+11. 배송/쿠폰/결제수단 제출 후 paymentNo 발급
 12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
 13. GET  /api/v1/reservation/select/id/{reservationId}
 14. GET  /api/v1/ticket/reservation/{reservationId}
@@ -585,13 +596,13 @@ Authorization: Bearer {accessToken}
 | 항목 | 현재 상태 | 결정 필요 |
 | --- | --- | --- |
 | 외부 Base URL | 서비스별 내부 경로만 있음 | Gateway/BFF/프론트 서버 URL 정책 |
-| Queue Token 만료 UI | `expiresInSeconds`, `expiresAt` 존재 | 만료 시 재진입/좌석 해제 UX |
+| Active token 만료 UI | `expiresInSeconds`, `expiresAt` 존재 | 만료 시 재진입/좌석 해제 UX |
 | 결제수단 목록 | `PaymentMethod` enum 사용 | 프론트 선택지 라벨/지원 범위 |
 | 에러 응답 포맷 | 서비스별 문자열 응답 가능 | 공통 `{code,message}` 포맷 여부 |
 | 좌석 실시간 갱신 | 조회/점유 API 존재 | 폴링, SSE, WebSocket 중 선택 |
 | 주문 ID 생성 주체 | 프론트가 `orderId` 전달 | 생성 규칙과 중복 방지 규칙 |
 
-### Queue Token 재진입 정책
+### Active token 재진입 정책
 
-- `GET /api/v1/queue/events/{eventId}/status`는 `X-Queue-Token`이 있을 때만 기존 READY 토큰을 복구한다.
-- 브라우저/탭 종료 후 재대기를 원하면 `queueToken`은 `localStorage`가 아니라 `sessionStorage` 또는 메모리에 저장한다.
+- `GET /api/v1/queue/events/{eventId}/status`는 `X-Active-Token`이 있을 때만 기존 READY 토큰을 복구한다.
+- 브라우저/탭 종료 후 재대기를 원하면 `activeToken`은 `localStorage`가 아니라 `sessionStorage` 또는 메모리에 저장한다.

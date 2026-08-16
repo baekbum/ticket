@@ -12,7 +12,7 @@ post {
 
 headers {
   Content-Type: application/json
-  X-Queue-Token: {{queueToken}}
+  X-Active-Token: {{activeToken}}
 }
 
 auth:bearer {
@@ -22,7 +22,6 @@ auth:bearer {
 body:json {
   {
     "paymentNo": "{{paymentNo}}",
-    "bankCode": "{{bankCode}}",
-    "depositorName": "{{depositorName}}"
+    "bankCode": "{{bankCode}}"
   }
 }

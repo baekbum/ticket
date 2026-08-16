@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/event/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/seat/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/checkout/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")

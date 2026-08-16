@@ -14,15 +14,12 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -39,37 +36,42 @@ public class PaymentService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final TicketRepository ticketRepository;
     private final SeatCacheService seatCacheService;
-    private final QueueAccessService queueAccessService;
     private final MockCardAuthorizationService mockCardAuthorizationService;
     private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
 
     @AuditLog(action = "CARD_PAYMENT_APPROVE", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.approve-card", contextualName = "ticket payment approve card")
-    public PaymentResponse approveCard(String currentUserId, String queueToken, CardPaymentApproveRequest request) {
+    public PaymentResponse approveCard(String currentUserId, CardPaymentApproveRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
 
         validatePaymentOwner(currentUserId, reservation);
-        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return payment.toResponse();
+        }
+
         validateCardPaymentReady(payment);
 
         if (!mockCardAuthorizationService.approve(request)) {
             throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
         }
 
-        return completePayment(payment, null, currentUserId, queueToken);
+        return completePayment(payment, null);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.issue-virtual-account", contextualName = "ticket payment issue virtual account")
-    public PaymentResponse issueVirtualAccount(String currentUserId, String queueToken, VirtualAccountIssueRequest request) {
+    public PaymentResponse issueVirtualAccount(String currentUserId, VirtualAccountIssueRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
 
         validatePaymentOwner(currentUserId, reservation);
-        queueAccessService.validate(resolveEventId(reservation), currentUserId, queueToken);
+        if (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) {
+            return payment.toResponse();
+        }
+
         validateBankTransferPaymentReady(payment);
 
         PaymentStatus beforePaymentStatus = payment.getStatus();
@@ -78,11 +80,9 @@ public class PaymentService {
         payment.waitDeposit(
                 virtualAccount.getBankName(),
                 virtualAccount.getAccountNumber(),
-                request.getDepositorName(),
                 virtualAccount.getExpiresAt()
         );
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
-        releaseQueueTokenAfterCommit(resolveEventId(reservation), currentUserId, queueToken);
 
         return payment.toResponse();
     }
@@ -95,14 +95,18 @@ public class PaymentService {
 
         validateVirtualAccountDeposit(payment, request);
 
-        return completePayment(payment, null, null, null);
+        return completePayment(payment, null, request.getDepositorName());
     }
 
     /**
      * 카드 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
      * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
      */
-    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String queueUserId, String queueToken) {
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
+        return completePayment(payment, paidAt, null);
+    }
+
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String depositorName) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -117,7 +121,11 @@ public class PaymentService {
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
 
-        payment.complete(paidAt);
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && depositorName != null) {
+            payment.completeDeposit(depositorName, paidAt);
+        } else {
+            payment.complete(paidAt);
+        }
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
         reservation.paid();
         for (Ticket ticket : tickets) {
@@ -126,19 +134,10 @@ public class PaymentService {
         }
 
         seatCacheService.syncReservedSeatsAfterCommit(seats);
-        releaseQueueTokenAfterCommit(resolveEventId(reservation), queueUserId, queueToken);
         // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
         // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.
 
         return payment.toResponse();
-    }
-
-    private void releaseQueueTokenAfterCommit(Long eventId, String userId, String queueToken) {
-        if (!StringUtils.hasText(userId) || !StringUtils.hasText(queueToken)) {
-            return;
-        }
-
-        runAfterCommit(() -> queueAccessService.complete(eventId, userId, queueToken));
     }
 
     private void validatePaymentOwner(String currentUserId, Reservation reservation) {
@@ -150,13 +149,6 @@ public class PaymentService {
         }
     }
 
-    private Long resolveEventId(Reservation reservation) {
-        if (reservation == null || reservation.getEvent() == null || reservation.getEvent().getEventId() == null) {
-            throw new IllegalArgumentException("대기열 검증을 위한 이벤트 정보가 없습니다.");
-        }
-        return reservation.getEvent().getEventId();
-    }
-
     private void validateCardPaymentReady(Payment payment) {
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
@@ -164,6 +156,7 @@ public class PaymentService {
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("카드 승인 처리할 수 없는 결제 상태입니다.");
         }
+        validatePaymentNotExpired(payment);
     }
 
     private void validateBankTransferPaymentReady(Payment payment) {
@@ -172,6 +165,14 @@ public class PaymentService {
         }
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("가상계좌를 발급할 수 없는 결제 상태입니다.");
+        }
+        validatePaymentNotExpired(payment);
+    }
+
+    private void validatePaymentNotExpired(Payment payment) {
+        if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
+            payment.expire();
+            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
         }
     }
 
@@ -202,24 +203,4 @@ public class PaymentService {
         }
     }
 
-    /**
-     * DB 트랜잭션 커밋이 성공한 뒤에만 외부 부수 효과를 실행한다.
-     * 트랜잭션이 없을 때는 호출 위치에서 즉시 실행한다.
-     */
-    private void runAfterCommit(Runnable runnable) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            runnable.run();
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            /**
-             * 결제 트랜잭션 커밋 이후 결제 완료 이벤트를 발행한다.
-             */
-            @Override
-            public void afterCommit() {
-                runnable.run();
-            }
-        });
-    }
 }

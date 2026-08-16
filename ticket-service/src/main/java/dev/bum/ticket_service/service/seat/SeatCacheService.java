@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.service.seat;
 
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
@@ -311,19 +310,14 @@ public class SeatCacheService {
 
     /**
      * 예매 요청 좌석이 요청 사용자로 선점된 상태인지 검증하는 메서드
-     * @param info
      */
     @Observed(name = "ticket.seat-cache.redis.validate-occupied-seat", contextualName = "ticket seat cache redis validate occupied seat")
-    public void validateOccupiedSeat(InsertReservationRequest info) {
-        long eventId = info.getEventId();
-        String userId = info.getUserId();
-        String orderId = info.getOrderId();
-        List<SeatInfo> seats = info.getSeats();
-
+    public void validateOccupiedSeat(Long eventId, String userId, String orderId, List<SeatInfo> seats) {
         for (SeatInfo seat : seats) {
             String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
             String redisKeyValue;
+
             try {
                 redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
             } catch (DataAccessException e) {

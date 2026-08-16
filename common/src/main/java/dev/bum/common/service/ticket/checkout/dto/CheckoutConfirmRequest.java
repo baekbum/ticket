@@ -1,6 +1,9 @@
 package dev.bum.common.service.ticket.checkout.dto;
 
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -14,7 +17,7 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class CheckoutPrepareRequest {
+public class CheckoutConfirmRequest {
 
     @NotBlank
     private String orderId;
@@ -25,6 +28,17 @@ public class CheckoutPrepareRequest {
     @NotNull
     private List<SeatInfo> seats;
 
+    private Long userCouponId;
+
+    @Valid
+    @NotNull
+    private ReservationDeliveryRequest delivery;
+
+    @NotNull
+    private PaymentMethod paymentMethod;
+
     @NotBlank
     private String idempotencyKey;
+
+    private String bankCode;
 }

@@ -68,8 +68,8 @@ public class FailureMetricService {
             ),
             new FailureMetricDefinition(
                     "queue_token_complete_failure_count",
-                    "Queue token 완료 실패",
-                    "Queue token 회수/완료 처리 실패 수",
+                    "Active token 완료 실패",
+                    "Active token 회수/완료 처리 실패 수",
                     "count",
                     "sum(increase(queue_token_complete_failure_total[{range}])) or vector(0)",
                     1,

@@ -443,9 +443,9 @@
       ['수단', payment.method],
       ['상태', paymentStatusBadge(payment.status), true],
       ['결제 금액', money(payment.amount)],
-      ['입금자명', payment.depositorName],
       ['은행', payment.bankName],
       ['계좌번호', payment.accountNumber],
+      ['실제 입금자명', payment.depositorName],
       ['요청일', payment.requestedAt],
       ['완료일', payment.paidAt],
       ['만료일', payment.expiresAt]

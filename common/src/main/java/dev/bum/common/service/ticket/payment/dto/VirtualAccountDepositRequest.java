@@ -17,6 +17,9 @@ public class VirtualAccountDepositRequest {
     @NotBlank
     private String accountNumber;
 
+    @NotBlank
+    private String depositorName;
+
     @NotNull
     @Positive
     private Integer amount;
