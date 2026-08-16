@@ -80,7 +80,6 @@ public class PaymentService {
         payment.waitDeposit(
                 virtualAccount.getBankName(),
                 virtualAccount.getAccountNumber(),
-                request.getDepositorName(),
                 virtualAccount.getExpiresAt()
         );
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
@@ -96,7 +95,7 @@ public class PaymentService {
 
         validateVirtualAccountDeposit(payment, request);
 
-        return completePayment(payment, null);
+        return completePayment(payment, null, request.getDepositorName());
     }
 
     /**
@@ -104,6 +103,10 @@ public class PaymentService {
      * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
      */
     private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
+        return completePayment(payment, paidAt, null);
+    }
+
+    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String depositorName) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -118,7 +121,11 @@ public class PaymentService {
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
 
-        payment.complete(paidAt);
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && depositorName != null) {
+            payment.completeDeposit(depositorName, paidAt);
+        } else {
+            payment.complete(paidAt);
+        }
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
         reservation.paid();
         for (Ticket ticket : tickets) {

@@ -317,6 +317,7 @@ public class SeatCacheService {
             String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
             String redisKeyValue;
+
             try {
                 redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
             } catch (DataAccessException e) {

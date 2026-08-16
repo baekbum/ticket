@@ -375,12 +375,73 @@ Content-Type: application/json
 
 1. `prepared === true`이면 배송/쿠폰/결제수단 입력 화면을 표시
 2. 실패하면 좌석 선택 단계로 되돌리거나 재시도 안내
-3. 카드 결제는 카드 승인 API 호출
-4. 무통장은 가상계좌 발급 API 호출 후 입금 안내 표시
 
-### 12. 결제 처리
+### 12. 체크아웃 확정
 
-#### 12-1. 카드 결제 승인
+배송/쿠폰/결제수단 입력 후 예약, 배송, 결제 정보를 생성한다.
+무통장 결제는 이 단계에서 가상계좌까지 발급한다.
+
+```http
+POST /api/v1/checkout/confirm
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+요청:
+
+```json
+{
+  "orderId": "...",
+  "eventId": 1,
+  "seats": [
+    {
+      "id": 101,
+      "zone": "A",
+      "row": 1,
+      "col": 10
+    }
+  ],
+  "userCouponId": 10,
+  "delivery": {
+    "recipientName": "홍길동",
+    "recipientPhone": "010-1234-5678",
+    "zipCode": "01234",
+    "address": "서울시 ...",
+    "detailAddress": "101동 1001호",
+    "deliveryMessage": "문 앞에 놓아주세요"
+  },
+  "paymentMethod": "CREDIT_CARD",
+  "idempotencyKey": "client-generated-unique-key",
+  "bankCode": null,
+}
+```
+
+응답:
+
+```json
+{
+  "paymentId": 1,
+  "reservationId": 1,
+  "orderId": "...",
+  "paymentNo": "...",
+  "method": "CREDIT_CARD",
+  "status": "READY",
+  "amount": 110000,
+  "bankName": null,
+  "accountNumber": null,
+  "requestedAt": "...",
+  "paidAt": null,
+  "expiresAt": "2026-08-14 12:10:00"
+}
+```
+
+프론트 처리:
+
+1. 카드 결제는 `paymentNo`, `amount`를 저장하고 카드 승인 API 호출
+
+### 13. 결제 처리
+
+#### 13-1. 카드 결제 승인
 
 ```http
 POST /api/v1/payments/card/approve
@@ -413,7 +474,6 @@ Content-Type: application/json
   "amount": 110000,
   "bankName": null,
   "accountNumber": null,
-  "depositorName": null,
   "requestedAt": "...",
   "paidAt": "...",
   "expiresAt": null
@@ -426,51 +486,7 @@ Content-Type: application/json
 2. `reservationId` 기준으로 예약 상세 또는 티켓 조회
 3. 실패 시 alert 표시 후 카드 재시도 또는 무통장 전환 허용
 
-#### 12-2. 가상계좌 발급
-
-```http
-POST /api/v1/payments/virtual-account/issue
-Authorization: Bearer {accessToken}
-Content-Type: application/json
-```
-
-요청:
-
-```json
-{
-  "paymentNo": "...",
-  "bankCode": "KB",
-  "depositorName": "홍길동"
-}
-```
-
-응답:
-
-```json
-{
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "...",
-  "paymentNo": "...",
-  "method": "BANK_TRANSFER",
-  "status": "WAITING_DEPOSIT",
-  "amount": 110000,
-  "bankName": "KB국민은행",
-  "accountNumber": "1111-2222-3333-4444",
-  "depositorName": "홍길동",
-  "requestedAt": "...",
-  "paidAt": null,
-  "expiresAt": "2026-07-27 23:59:59"
-}
-```
-
-프론트 처리:
-
-1. 은행명, 계좌번호, 입금자명, 입금 기한 표시
-2. 사용자는 입금 완료 전까지 예매 대기 상태로 본다
-3. 실제 입금 확인은 사용자 API가 아니라 은행 콜백 시뮬레이션 API로 처리한다
-
-#### 12-3. 가상계좌 입금 시뮬레이션
+#### 13-2. 가상계좌 입금 시뮬레이션
 
 ```http
 POST /api/v1/payments/virtual-account/deposit
@@ -483,6 +499,7 @@ Content-Type: application/json
 ```json
 {
   "accountNumber": "1111-2222-3333-4444",
+  "depositorName": "홍길동",
   "amount": 110000
 }
 ```

@@ -26,7 +26,6 @@ active token은 체크아웃 준비 성공 시점에 회수한다. 카드 승인
   "amount": 180000,
   "bankName": null,
   "accountNumber": null,
-  "depositorName": null,
   "requestedAt": "2026-07-27 12:00:00",
   "paidAt": "2026-07-27 12:03:00",
   "expiresAt": null
@@ -87,7 +86,6 @@ Content-Type: application/json
   "amount": 180000,
   "bankName": null,
   "accountNumber": null,
-  "depositorName": null,
   "requestedAt": "2026-07-27 12:00:00",
   "paidAt": "2026-07-27 12:03:00",
   "expiresAt": null
@@ -116,7 +114,6 @@ Content-Type: application/json
 {
   "paymentNo": "PAY-...",
   "bankCode": "KB",
-  "depositorName": "홍길동"
 }
 ```
 
@@ -128,7 +125,6 @@ Content-Type: application/json
 3. payment.status == READY 검증
 4. bankCode로 은행명과 계좌 prefix 결정
 5. 랜덤 계좌번호 생성
-6. Payment.bankName, accountNumber, depositorName, expiresAt 저장
 7. Payment.status = WAITING_DEPOSIT
 ```
 
@@ -145,7 +141,6 @@ Content-Type: application/json
   "amount": 180000,
   "bankName": "KB국민은행",
   "accountNumber": "1111-2222-3333-4444",
-  "depositorName": "홍길동",
   "requestedAt": "2026-07-27 12:00:00",
   "paidAt": null,
   "expiresAt": "2026-07-27 23:59:59"
@@ -174,6 +169,7 @@ Content-Type: application/json
 ```json
 {
   "accountNumber": "1111-2222-3333-4444",
+  "depositorName": "홍길동",
   "amount": 180000
 }
 ```
@@ -185,7 +181,8 @@ Content-Type: application/json
 2. payment.status == WAITING_DEPOSIT 검증
 3. expiresAt 만료 여부 검증
 4. amount 일치 검증
-5. 성공하면 공통 결제 완료 처리 호출
+5. 실제 입금자명 저장
+6. 성공하면 공통 결제 완료 처리 호출
 ```
 
 성공 응답: `PaymentResponse`
@@ -238,10 +235,10 @@ CardPaymentApproveRequest
 VirtualAccountIssueRequest
 - paymentNo: String, required
 - bankCode: String, required
-- depositorName: String, required
 
 VirtualAccountDepositRequest
 - accountNumber: String, required
+- depositorName: String, required
 - amount: Integer, required, positive
 
 PaymentResponse

@@ -83,6 +83,8 @@ class PaymentServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
+        assertThat(payment.getDepositorName()).isEqualTo("홍길동");
+        assertThat(response.getDepositorName()).isEqualTo("홍길동");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
@@ -157,7 +159,6 @@ class PaymentServiceTest {
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        assertThat(response.getDepositorName()).isEqualTo("홍길동");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
     }
@@ -269,13 +270,13 @@ class PaymentServiceTest {
         return VirtualAccountIssueRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .bankCode("KB")
-                .depositorName("홍길동")
                 .build();
     }
 
     private VirtualAccountDepositRequest virtualAccountDepositRequest(Integer amount) {
         return VirtualAccountDepositRequest.builder()
                 .accountNumber("1111-2222-3333-4444")
+                .depositorName("홍길동")
                 .amount(amount)
                 .build();
     }
@@ -328,7 +329,6 @@ class PaymentServiceTest {
                 .amount(180000)
                 .bankName("KB국민은행")
                 .accountNumber("1111-2222-3333-4444")
-                .depositorName("홍길동")
                 .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
                 .expiresAt(expiresAt)
                 .build();

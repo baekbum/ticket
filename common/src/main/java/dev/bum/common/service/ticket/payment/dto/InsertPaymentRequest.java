@@ -23,6 +23,4 @@ public class InsertPaymentRequest {
     private Integer amount;
 
     private String idempotencyKey;
-
-    private String depositorName;
 }

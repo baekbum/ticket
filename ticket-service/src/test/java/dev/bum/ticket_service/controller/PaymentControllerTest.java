@@ -89,7 +89,6 @@ class PaymentControllerTest {
         VirtualAccountIssueRequest request = VirtualAccountIssueRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .bankCode("KB")
-                .depositorName("홍길동")
                 .build();
         PaymentResponse response = PaymentResponse.builder()
                 .paymentId(1L)
@@ -101,7 +100,6 @@ class PaymentControllerTest {
                 .amount(180000)
                 .bankName("KB국민은행")
                 .accountNumber("1111-2222-3333-4444")
-                .depositorName("홍길동")
                 .build();
 
         given(paymentService.issueVirtualAccount("user01", request)).willReturn(response);
@@ -123,6 +121,7 @@ class PaymentControllerTest {
     void deposit_virtual_account() throws Exception {
         VirtualAccountDepositRequest request = VirtualAccountDepositRequest.builder()
                 .accountNumber("1111-2222-3333-4444")
+                .depositorName("홍길동")
                 .amount(180000)
                 .build();
         PaymentResponse response = PaymentResponse.builder()

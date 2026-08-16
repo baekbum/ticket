@@ -1,7 +1,9 @@
 package dev.bum.ticket_service.controller.checkout;
 
+import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.ticket_service.service.checkout.CheckoutService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,5 +29,13 @@ public class CheckoutController {
             @Valid @RequestBody CheckoutPrepareRequest request
     ) {
         return ResponseEntity.ok(checkoutService.prepare(currentUserId, activeToken, request));
+    }
+
+    @PostMapping("/confirm")
+    public ResponseEntity<PaymentResponse> confirm(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody CheckoutConfirmRequest request
+    ) {
+        return ResponseEntity.ok(checkoutService.confirm(currentUserId, request));
     }
 }
