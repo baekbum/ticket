@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "dummy_cards",
         indexes = {
+                @Index(name = "idx_dummy_cards_user_id", columnList = "user_id"),
                 @Index(name = "idx_dummy_cards_customer_name", columnList = "customer_name"),
                 @Index(name = "idx_dummy_cards_card_company", columnList = "card_company")
         },
@@ -43,6 +44,10 @@ public class DummyCard {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "dummy_card_id")
     private Long dummyCardId;
+
+    // 카드 소유 사용자 ID. user-service의 userId와 매칭해서 더미 결제 검증에 사용한다.
+    @Column(name = "user_id", nullable = false, length = 50)
+    private String userId;
 
     // 프론트 결제 화면에서 사용자가 선택하는 카드사.
     @Enumerated(EnumType.STRING)

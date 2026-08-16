@@ -1,0 +1,49 @@
+INSERT INTO dummy_cards (
+    user_id,
+    card_company,
+    card_number_hash,
+    card_number_last4,
+    customer_name,
+    issued_at,
+    expires_at,
+    current_month_used_amount,
+    limit_amount,
+    active
+)
+VALUES
+(
+    'IU',
+    'SHINHAN',
+    '9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e',
+    '1111',
+    '아이유',
+    '2024-01-01',
+    '2030-12-31',
+    0,
+    3000000,
+    true
+),
+(
+    'BUM',
+    'KB',
+    '2f725bbd1f405a1ed0336abaf85ddfeb6902a9984a76fd877c3b5cc3b5085a82',
+    '4444',
+    '백범',
+    '2024-01-01',
+    '2030-12-31',
+    0,
+    5000000,
+    true
+),
+(
+    'YOUNHA',
+    'HYUNDAI',
+    'd79449f462cec9af0d857c3e1af888d4fa8bbdaa511b9eaaafcd2805c4ea6471',
+    '0505',
+    '윤하',
+    '2024-01-01',
+    '2030-12-31',
+    0,
+    4000000,
+    true
+);

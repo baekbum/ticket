@@ -1,3 +1,18 @@
+server:
+  port: 8099
+  servlet:
+    context-path: /payment-gateway
+
 spring:
+  profiles:
+    default: local
   application:
     name: payment-gateway-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ticket
+    username: postgres
+    password: hsck2301
+  jpa:
+    hibernate:
+      ddl-auto: update
