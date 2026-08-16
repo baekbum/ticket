@@ -24,7 +24,7 @@ public enum ErrorCode {
     FEIGN_CLIENT_ERROR("외부 서비스 통신 중 오류가 발생했습니다."),
 
     // Queue-service
-    QUEUE_TOKEN_INVALID("유효하지 않은 대기열 토큰입니다."),
+    QUEUE_TOKEN_INVALID("유효하지 않은 active token입니다."),
 
     // Ticket-service
     // Event

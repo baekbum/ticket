@@ -31,7 +31,7 @@ public class QueueRedisInspectService {
     }
 
     public QueueRedisInspectResponse inspectToken(String token) {
-        String key = tokenKey(token);
+        String key = activeTokenKey(token);
         String value = redisTemplate.opsForValue().get(key);
         Long ttlSeconds = redisTemplate.getExpire(key);
 
@@ -91,15 +91,15 @@ public class QueueRedisInspectService {
             for (ZSetOperations.TypedTuple<String> tuple : tuples) {
                 String token = tuple.getValue();
                 Double score = tuple.getScore();
-                String tokenKey = tokenKey(token);
+                String activeTokenKey = activeTokenKey(token);
                 entries.add(QueueRedisEntryResponse.builder()
                         .key(key)
                         .member(token)
                         .token(token)
                         .score(score)
                         .timestampMillis(score == null ? null : score.longValue())
-                        .value(redisTemplate.opsForValue().get(tokenKey))
-                        .ttlSeconds(redisTemplate.getExpire(tokenKey))
+                        .value(redisTemplate.opsForValue().get(activeTokenKey))
+                        .ttlSeconds(redisTemplate.getExpire(activeTokenKey))
                         .build());
             }
         }
@@ -128,7 +128,7 @@ public class QueueRedisInspectService {
         return "queue:event:" + eventId + ":active";
     }
 
-    private String tokenKey(String token) {
-        return "queue:token:" + token;
+    private String activeTokenKey(String token) {
+        return "queue:active-token:" + token;
     }
 }

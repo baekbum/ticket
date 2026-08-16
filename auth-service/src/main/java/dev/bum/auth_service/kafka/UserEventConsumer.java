@@ -15,7 +15,7 @@ public class UserEventConsumer {
 
     private final AuthService authService;
 
-    @KafkaListener(topics = "${topic.name}", groupId = "${spring.kafka.consumer.group-id}")
+    @KafkaListener(topics = "${topic.user.name}", groupId = "${spring.kafka.consumer.group-id}")
     public void consume(UserDtoForEvent event) {
         log.info(">>>> Kafka로부터 메시지 도착");
 

@@ -17,7 +17,4 @@ public class VirtualAccountIssueRequest {
 
     @NotBlank
     private String bankCode;
-
-    @NotBlank
-    private String depositorName;
 }

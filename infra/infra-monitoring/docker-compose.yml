@@ -85,6 +85,37 @@ services:
       - ticket-network
     restart: unless-stopped
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    depends_on:
+      - tempo
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command:
+      - -config.file=/etc/tempo/tempo.yaml
+      - -config.expand-env=true
+    environment:
+      - TEMPO_BLOCK_RETENTION=${TEMPO_BLOCK_RETENTION:-168h}
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.4.0
     depends_on:
@@ -98,7 +129,9 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - PROMETHEUS_URL=http://prometheus:9090
+      - TEMPO_URL=http://tempo:3200
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - GRAFANA_PUBLIC_URL=${GRAFANA_PUBLIC_URL:-http://localhost:3001}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -116,3 +149,4 @@ networks:
 volumes:
   prometheus_data:
   grafana_data:
+  tempo_data:

@@ -7,6 +7,7 @@ import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
 import feign.FeignException;
+import io.micrometer.observation.annotation.Observed;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,7 +24,8 @@ public class QueueAccessService {
         this.queueServiceClient = queueServiceClient;
     }
 
-    public void validate(Long eventId, String userId, String queueToken) {
+    @Observed(name = "ticket.queue.validate", contextualName = "ticket queue validate")
+    public void validate(Long eventId, String userId, String activeToken) {
         if (!properties.enabled()) {
             return;
         }
@@ -33,13 +35,13 @@ public class QueueAccessService {
         if (!StringUtils.hasText(userId)) {
             throw new QueueAccessDeniedException("사용자 인증 정보가 필요합니다.");
         }
-        if (!StringUtils.hasText(queueToken)) {
-            throw new QueueAccessDeniedException("대기열 통과 토큰이 필요합니다.");
+        if (!StringUtils.hasText(activeToken)) {
+            throw new QueueAccessDeniedException("active token이 필요합니다.");
         }
 
         QueueValidateResponse response;
         try {
-            response = queueServiceClient.validate(new QueueValidateRequest(eventId, userId, queueToken));
+            response = queueServiceClient.validate(new QueueValidateRequest(eventId, userId, activeToken));
         } catch (FeignException e) {
             log.warn("[QUEUE-VALIDATE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
             throw new QueueAccessDeniedException("대기열 서버 검증에 실패했습니다.");
@@ -50,17 +52,18 @@ public class QueueAccessService {
         }
     }
 
-    public void complete(Long eventId, String userId, String queueToken) {
+    @Observed(name = "ticket.queue.complete", contextualName = "ticket queue complete")
+    public void complete(Long eventId, String userId, String activeToken) {
         if (!properties.enabled()) {
             return;
         }
-        if (eventId == null || !StringUtils.hasText(userId) || !StringUtils.hasText(queueToken)) {
+        if (eventId == null || !StringUtils.hasText(userId) || !StringUtils.hasText(activeToken)) {
             log.warn("[QUEUE-COMPLETE] invalid complete request. eventId={}, userId={}", eventId, userId);
             return;
         }
 
         try {
-            queueServiceClient.complete(new QueueCompleteRequest(eventId, userId, queueToken));
+            queueServiceClient.complete(new QueueCompleteRequest(eventId, userId, activeToken));
         } catch (FeignException e) {
             log.warn("[QUEUE-COMPLETE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
         }

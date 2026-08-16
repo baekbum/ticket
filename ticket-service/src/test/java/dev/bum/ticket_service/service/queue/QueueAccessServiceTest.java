@@ -71,7 +71,7 @@ class QueueAccessServiceTest {
     }
 
     @Test
-    @DisplayName("큐 토큰 회수 실패는 결제 완료 흐름을 롤백하지 않도록 삼킨다")
+    @DisplayName("active token 회수 실패는 결제 완료 흐름을 롤백하지 않도록 삼킨다")
     void complete_swallows_queue_service_failure() {
         doThrow(org.mockito.Mockito.mock(FeignException.class))
                 .when(queueServiceClient)

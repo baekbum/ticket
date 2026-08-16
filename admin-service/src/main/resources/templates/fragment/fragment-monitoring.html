@@ -5,11 +5,29 @@
     <div>
       <p class="monitoring-kicker">Grafana Dashboard</p>
       <h2>모니터링</h2>
-      <p>카드를 선택하면 Grafana 대시보드가 새 창으로 열립니다.</p>
+      <p>핵심 장애 지표를 확인하고, 카드를 선택하면 Grafana 대시보드가 새 창으로 열립니다.</p>
     </div>
   </div>
 
   <div class="monitoring-grid">
+    <button
+        class="monitoring-card monitoring-card-failure"
+        type="button"
+        onclick="openFailureSummaryWindow()"
+        aria-label="장애 요약 모니터링 팝업 열기">
+      <span class="monitoring-icon failure">
+        <i class="ti ti-alert-triangle"></i>
+      </span>
+      <span class="monitoring-card-content">
+        <strong>장애 요약</strong>
+        <em>Failure Summary</em>
+        <span>5xx, latency, timeout, Redis, DLQ 등 핵심 장애 지표를 한 번에 확인합니다.</span>
+      </span>
+      <span class="monitoring-card-action">
+        <i class="ti ti-window-maximize"></i>
+      </span>
+    </button>
+
     <button
         class="monitoring-card"
         th:each="card : ${monitoringDashboardCards}"
@@ -32,11 +50,4 @@
   </div>
 </section>
 
-<script>
-  function openMonitoringDashboard(button) {
-    const dashboardUrl = button?.dataset?.url;
-    if (!dashboardUrl) return;
-
-    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
-  }
-</script>
+<script th:src="@{/js/monitoring/fragment-monitoring.js}"></script>

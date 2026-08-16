@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.ticket.TicketNotExistException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -40,6 +41,7 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     @Override
+    @Observed(name = "ticket.repository.ticket.select-by-reservation", contextualName = "ticket repository ticket select by reservation")
     public List<Ticket> selectByReservation(Reservation reservation) {
         List<Ticket> tickets = jpaRepository.findByReservation(reservation);
 

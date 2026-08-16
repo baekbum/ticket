@@ -42,10 +42,10 @@ public class SeatController {
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(
             @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @RequestBody SeatOccupyRequest request
     ) {
-        queueAccessService.validate(request.getEventId(), currentUserId, queueToken);
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         request.setUserId(currentUserId);
         return ResponseEntity.ok(seatService.occupySeat(request));
     }

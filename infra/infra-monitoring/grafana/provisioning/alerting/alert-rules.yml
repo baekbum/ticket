@@ -74,6 +74,7 @@ groups:
         annotations:
           summary: Redis 수집 또는 연결 실패
           description: Redis exporter 수집 상태와 대상 Redis 연결 상태를 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-redis-overview/ticket-redis-overview?orgId=1&refresh=10s&kiosk"
         labels:
           severity: critical
           service: redis
@@ -146,6 +147,7 @@ groups:
         annotations:
           summary: PostgreSQL 수집 또는 연결 실패
           description: PostgreSQL exporter 수집 상태와 대상 DB 연결 상태를 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-postgresql-overview/ticket-postgresql-overview?orgId=1&refresh=10s&kiosk"
         labels:
           severity: critical
           service: postgresql
@@ -218,6 +220,387 @@ groups:
         annotations:
           summary: Spring 서비스 메트릭 수집 실패
           description: Spring Boot 서비스가 내려갔거나 actuator/prometheus endpoint에 접근할 수 없습니다.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk"
         labels:
           severity: critical
           service: spring
+
+  - orgId: 1
+    name: critical-application
+    folder: Critical Alerts
+    interval: 30s
+    rules:
+      - uid: spring_5xx_error_rate_high
+        title: Spring 5xx Error Rate High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: (sum by (application) (rate(http_server_requests_seconds_count{group="application", status=~"5.."}[5m])) / sum by (application) (rate(http_server_requests_seconds_count{group="application"}[5m]))) > 0.05
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: Spring 서비스 5xx 비율 증가
+          description: 최근 5분 기준 5xx 응답 비율이 5%를 초과했습니다. 에러 로그와 최근 배포 변경사항을 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk"
+        labels:
+          severity: critical
+          service: spring
+
+  - orgId: 1
+    name: warning-application
+    folder: Warning Alerts
+    interval: 30s
+    rules:
+      - uid: spring_average_latency_high
+        title: Spring Average Latency High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: (sum by (application) (rate(http_server_requests_seconds_sum{group="application"}[5m])) / sum by (application) (rate(http_server_requests_seconds_count{group="application"}[5m]))) > 1.5
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: Spring 서비스 평균 응답 지연 증가
+          description: 최근 5분 기준 평균 응답 시간이 1.5초를 초과했습니다. 느린 API, DB 쿼리, 외부 호출을 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk"
+        labels:
+          severity: warning
+          service: spring
+
+      - uid: queue_average_latency_high
+        title: Queue Average Latency High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: (sum by (job) (rate(http_server_requests_seconds_sum{job=~"local-queue-service|queue-service"}[5m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~"local-queue-service|queue-service"}[5m]))) > 1
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: Queue 서비스 응답 지연 증가
+          description: 최근 5분 기준 queue-service 평균 응답 시간이 1초를 초과했습니다. Redis 상태와 대기열 처리 로직을 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=queue-service&kiosk"
+        labels:
+          severity: warning
+          service: queue
+
+  - orgId: 1
+    name: business-application
+    folder: Business Alerts
+    interval: 30s
+    rules:
+      - uid: payment_failure_rate_high
+        title: Payment Failure Rate High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: (sum by (application) (rate(http_server_requests_seconds_count{group="application", uri=~".*payment.*", status=~"4..|5.."}[5m])) / sum by (application) (rate(http_server_requests_seconds_count{group="application", uri=~".*payment.*"}[5m]))) > 0.2
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: 결제 API 실패 비율 증가
+          description: 최근 5분 기준 결제 API의 4xx/5xx 비율이 20%를 초과했습니다. 결제 요청 검증, 중복 요청, 결제 승인 흐름을 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk"
+        labels:
+          severity: business
+          service: payment
+
+      - uid: seat_occupy_conflict_spike
+        title: Seat Occupy Conflict Spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: sum by (application) (rate(http_server_requests_seconds_count{group="application", uri=~".*seat.*occupy.*", status=~"4.."}[5m])) > 0.5
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: 좌석 선점 실패 증가
+          description: 최근 5분 기준 좌석 선점 API의 4xx 응답이 초당 0.5건을 초과했습니다. 중복 클릭, 경쟁 상황, 좌석 캐시 TTL을 확인하세요.
+          dashboard_url: "${GRAFANA_PUBLIC_URL}/d/ticket-spring-services/ticket-spring-services-overview?orgId=1&refresh=10s&var-application=All&kiosk"
+        labels:
+          severity: business
+          service: seat

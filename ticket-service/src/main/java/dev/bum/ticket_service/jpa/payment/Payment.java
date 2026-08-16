@@ -84,7 +84,7 @@ public class Payment {
     @Column(name = "account_number", length = 50)
     private String accountNumber;
 
-    // 입금 확인에 사용할 입금자명.
+    // 가상계좌 입금 확인 이후 은행 콜백으로 전달된 실제 입금자명.
     @Column(name = "depositor_name", length = 50)
     private String depositorName;
 
@@ -126,17 +126,21 @@ public class Payment {
                 .build();
     }
 
-    public void waitDeposit(String bankName, String accountNumber, String depositorName, LocalDateTime expiresAt) {
+    public void waitDeposit(String bankName, String accountNumber, LocalDateTime expiresAt) {
         this.status = PaymentStatus.WAITING_DEPOSIT;
         this.bankName = bankName;
         this.accountNumber = accountNumber;
-        this.depositorName = depositorName;
         this.expiresAt = expiresAt;
     }
 
     public void complete(LocalDateTime paidAt) {
         this.status = PaymentStatus.PAID;
         this.paidAt = paidAt != null ? paidAt : LocalDateTime.now();
+    }
+
+    public void completeDeposit(String depositorName, LocalDateTime paidAt) {
+        this.depositorName = depositorName;
+        complete(paidAt);
     }
 
     public void fail() {

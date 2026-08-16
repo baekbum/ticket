@@ -8,3 +8,9 @@ datasources:
     url: ${PROMETHEUS_URL}
     isDefault: true
     editable: true
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: ${TEMPO_URL}
+    editable: true

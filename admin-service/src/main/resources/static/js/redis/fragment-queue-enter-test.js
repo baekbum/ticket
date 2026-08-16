@@ -195,7 +195,9 @@
       return current;
     }
 
-    const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}/status?userId=${encodeURIComponent(userId)}`, {
+    const params = new URLSearchParams({ userId });
+    if (current?.token) params.set('token', current.token);
+    const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}/status?${params.toString()}`, {
       method: 'GET'
     });
     if (!res.ok) {
@@ -214,7 +216,14 @@
 
     const res = await Fetch(`${QUEUE_TEST_URL}/events/${encodeURIComponent(eventId)}/statuses`, {
       method: 'POST',
-      body: { userIds: targetUserIds }
+      body: {
+        userIds: targetUserIds,
+        tokenByUserId: Object.fromEntries(
+          targetUserIds
+            .map(userId => [userId, users.get(userId)?.token])
+            .filter(([, token]) => Boolean(token))
+        )
+      }
     });
     if (!res.ok) {
       throw new Error(`statuses failed: ${res.status}`);

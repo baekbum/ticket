@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.service.seat;
 
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
@@ -19,6 +18,7 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -67,6 +67,7 @@ public class SeatCacheService {
      * @param mode
      * @return
      */
+    @Observed(name = "ticket.seat-cache.redis.warm-up-event", contextualName = "ticket seat cache redis warm up event")
     public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
         log.info("[REDIS-WARM-UP] EventId : {}, Mode : {}", eventId, mode);
         List<Seat> seats = repository.selectByEventId(eventId);
@@ -80,6 +81,7 @@ public class SeatCacheService {
      * @param mode
      * @return
      */
+    @Observed(name = "ticket.seat-cache.redis.warm-up-area", contextualName = "ticket seat cache redis warm up area")
     public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
         log.info("[REDIS-WARM-UP] AreaId : {}, Mode : {}", areaId, mode);
         List<Seat> seats = repository.selectByAreaId(areaId);
@@ -92,6 +94,7 @@ public class SeatCacheService {
      * @param eventId
      * @return
      */
+    @Observed(name = "ticket.seat-cache.redis.delete-event", contextualName = "ticket seat cache redis delete event")
     public String deleteEventSeatsFromCache(Long eventId) {
         log.info("[REDIS-DELETE] EventId : {}", eventId);
         List<Seat> seats = repository.selectByEventId(eventId);
@@ -104,6 +107,7 @@ public class SeatCacheService {
      * @param areaId
      * @return
      */
+    @Observed(name = "ticket.seat-cache.redis.delete-area", contextualName = "ticket seat cache redis delete area")
     public String deleteAreaSeatsFromCache(Long areaId) {
         log.info("[REDIS-DELETE] AreaId : {}", areaId);
         List<Seat> seats = repository.selectByAreaId(areaId);
@@ -234,6 +238,7 @@ public class SeatCacheService {
         return seat;
     }
 
+    @Observed(name = "ticket.seat-cache.redis.occupy", contextualName = "ticket seat cache redis occupy")
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
         long eventId = request.getEventId();
         String userId = request.getUserId();
@@ -305,18 +310,14 @@ public class SeatCacheService {
 
     /**
      * 예매 요청 좌석이 요청 사용자로 선점된 상태인지 검증하는 메서드
-     * @param info
      */
-    public void validateOccupiedSeat(InsertReservationRequest info) {
-        long eventId = info.getEventId();
-        String userId = info.getUserId();
-        String orderId = info.getOrderId();
-        List<SeatInfo> seats = info.getSeats();
-
+    @Observed(name = "ticket.seat-cache.redis.validate-occupied-seat", contextualName = "ticket seat cache redis validate occupied seat")
+    public void validateOccupiedSeat(Long eventId, String userId, String orderId, List<SeatInfo> seats) {
         for (SeatInfo seat : seats) {
             String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
             String redisKeyValue;
+
             try {
                 redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
             } catch (DataAccessException e) {
@@ -339,6 +340,7 @@ public class SeatCacheService {
      * 예매 확정 후 좌석 Redis 상태를 RESERVED로 동기화하는 메서드
      * @param seats
      */
+    @Observed(name = "ticket.seat-cache.redis.sync-reserved-after-commit", contextualName = "ticket seat cache redis sync reserved after commit")
     public void syncReservedSeatsAfterCommit(List<Seat> seats) {
         List<SeatCacheUpdate> updates = seats.stream()
                 .map(seat -> new SeatCacheUpdate(

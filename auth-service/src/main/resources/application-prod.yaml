@@ -42,7 +42,8 @@ token:
   refreshTokenValidityInMilliseconds: 1209600000
 
 topic:
-  name: ${TOPIC_USER_EVENT_NAME:user-event}
+  user:
+    name: ${TOPIC_USER_EVENT_NAME:user-event}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
@@ -66,3 +67,10 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+app:
+  kafka-dlt:
+    slack:
+      enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:}"

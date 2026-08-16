@@ -8,7 +8,9 @@ import java.time.Duration;
 public class QueueProperties {
 
     private int admissionSize = 100;
-    private Duration tokenTtl = Duration.ofMinutes(10);
+    private Duration activeTokenTtl = Duration.ofMinutes(20);
+    private Duration waitingTokenTtl = Duration.ofMinutes(1);
+    private long cleanupScanCount = 1_000L;
 
     public int getAdmissionSize() {
         return admissionSize;
@@ -20,13 +22,39 @@ public class QueueProperties {
         }
     }
 
-    public Duration getTokenTtl() {
-        return tokenTtl;
+    public Duration getActiveTokenTtl() {
+        return activeTokenTtl;
+    }
+
+    public void setActiveTokenTtl(Duration activeTokenTtl) {
+        if (activeTokenTtl != null) {
+            this.activeTokenTtl = activeTokenTtl;
+        }
     }
 
     public void setTokenTtl(Duration tokenTtl) {
         if (tokenTtl != null) {
-            this.tokenTtl = tokenTtl;
+            this.activeTokenTtl = tokenTtl;
+        }
+    }
+
+    public Duration getWaitingTokenTtl() {
+        return waitingTokenTtl;
+    }
+
+    public void setWaitingTokenTtl(Duration waitingTokenTtl) {
+        if (waitingTokenTtl != null && !waitingTokenTtl.isNegative() && !waitingTokenTtl.isZero()) {
+            this.waitingTokenTtl = waitingTokenTtl;
+        }
+    }
+
+    public long getCleanupScanCount() {
+        return cleanupScanCount;
+    }
+
+    public void setCleanupScanCount(long cleanupScanCount) {
+        if (cleanupScanCount > 0) {
+            this.cleanupScanCount = cleanupScanCount;
         }
     }
 

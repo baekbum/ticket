@@ -21,7 +21,6 @@ import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.service.payment.MockCardAuthorizationService;
 import dev.bum.ticket_service.service.payment.MockVirtualAccountIssueService;
 import dev.bum.ticket_service.service.payment.PaymentService;
-import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,8 +29,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -57,9 +54,6 @@ class PaymentServiceTest {
     private SeatCacheService seatCacheService;
 
     @Mock
-    private QueueAccessService queueAccessService;
-
-    @Mock
     private MockCardAuthorizationService mockCardAuthorizationService;
 
     @Mock
@@ -82,16 +76,15 @@ class PaymentServiceTest {
         given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
         given(mockCardAuthorizationService.approve(request)).willReturn(true);
 
-        PaymentResponse response = paymentService.approveCard("user01", "queue-token", request);
+        PaymentResponse response = paymentService.approveCard("user01", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-
-        then(queueAccessService).should().validate(1L, "user01", "queue-token");
-        then(queueAccessService).should().complete(1L, "user01", "queue-token");
+        assertThat(payment.getDepositorName()).isEqualTo("홍길동");
+        assertThat(response.getDepositorName()).isEqualTo("홍길동");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
@@ -104,11 +97,9 @@ class PaymentServiceTest {
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> paymentService.approveCard("other-user", "queue-token", request))
+        assertThatThrownBy(() -> paymentService.approveCard("other-user", request))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("다른 사용자의 결제 요청입니다.");
-
-        then(queueAccessService).should(never()).validate(1L, "other-user", "queue-token");
         then(mockCardAuthorizationService).should(never()).approve(request);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
     }
@@ -124,12 +115,26 @@ class PaymentServiceTest {
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockCardAuthorizationService.approve(request)).willReturn(false);
 
-        assertThatThrownBy(() -> paymentService.approveCard("user01", "queue-token", request))
+        assertThatThrownBy(() -> paymentService.approveCard("user01", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("카드 정보가 일치하지 않습니다.");
-
-        then(queueAccessService).should().validate(1L, "user01", "queue-token");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    @DisplayName("이미 완료된 카드 결제 승인 재시도는 기존 결제 응답을 반환한다")
+    void approve_card_payment_returns_existing_response_when_already_paid() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.PAID);
+        CardPaymentApproveRequest request = cardRequest();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = paymentService.approveCard("user01", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
+        then(mockCardAuthorizationService).shouldHaveNoInteractions();
+        then(ticketRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -149,16 +154,12 @@ class PaymentServiceTest {
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(mockVirtualAccountIssueService.issue("KB")).willReturn(virtualAccount);
 
-        PaymentResponse response = paymentService.issueVirtualAccount("user01", "queue-token", request);
+        PaymentResponse response = paymentService.issueVirtualAccount("user01", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        assertThat(response.getDepositorName()).isEqualTo("홍길동");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-
-        then(queueAccessService).should().validate(1L, "user01", "queue-token");
-        then(queueAccessService).should().complete(1L, "user01", "queue-token");
         then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
     }
 
@@ -171,13 +172,31 @@ class PaymentServiceTest {
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> paymentService.issueVirtualAccount("user01", "queue-token", request))
+        assertThatThrownBy(() -> paymentService.issueVirtualAccount("user01", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("무통장 입금 결제 요청이 아닙니다.");
-
-        then(queueAccessService).should().validate(1L, "user01", "queue-token");
         then(mockVirtualAccountIssueService).shouldHaveNoInteractions();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    @DisplayName("이미 발급된 가상계좌 요청 재시도는 기존 계좌 응답을 반환한다")
+    void issue_virtual_account_returns_existing_response_when_already_issued() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(
+                reservation,
+                PaymentStatus.WAITING_DEPOSIT,
+                LocalDateTime.of(2099, 7, 27, 23, 59, 59)
+        );
+        VirtualAccountIssueRequest request = virtualAccountRequest();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = paymentService.issueVirtualAccount("user01", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
+        then(mockVirtualAccountIssueService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -200,8 +219,6 @@ class PaymentServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-
-        then(queueAccessService).shouldHaveNoInteractions();
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
@@ -239,37 +256,6 @@ class PaymentServiceTest {
         then(ticketRepository).shouldHaveNoInteractions();
     }
 
-    @Test
-    @DisplayName("카드 결제 승인 후 큐 토큰 회수는 트랜잭션 커밋 이후에 실행된다")
-    void approve_card_payment_releases_queue_token_after_commit() {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            Event event = event();
-            Reservation reservation = reservation(event, "user01");
-            Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-            Seat seat = seat(event);
-            Ticket ticket = ticket(event, reservation, seat);
-            CardPaymentApproveRequest request = cardRequest();
-
-            given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-            given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
-            given(mockCardAuthorizationService.approve(request)).willReturn(true);
-
-            paymentService.approveCard("user01", "queue-token", request);
-
-            then(queueAccessService).should().validate(1L, "user01", "queue-token");
-            then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
-
-            List<TransactionSynchronization> synchronizations =
-                    TransactionSynchronizationManager.getSynchronizations();
-            synchronizations.forEach(TransactionSynchronization::afterCommit);
-
-            then(queueAccessService).should().complete(1L, "user01", "queue-token");
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
-    }
-
     private CardPaymentApproveRequest cardRequest() {
         return CardPaymentApproveRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
@@ -284,13 +270,13 @@ class PaymentServiceTest {
         return VirtualAccountIssueRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .bankCode("KB")
-                .depositorName("홍길동")
                 .build();
     }
 
     private VirtualAccountDepositRequest virtualAccountDepositRequest(Integer amount) {
         return VirtualAccountDepositRequest.builder()
                 .accountNumber("1111-2222-3333-4444")
+                .depositorName("홍길동")
                 .amount(amount)
                 .build();
     }
@@ -343,7 +329,6 @@ class PaymentServiceTest {
                 .amount(180000)
                 .bankName("KB국민은행")
                 .accountNumber("1111-2222-3333-4444")
-                .depositorName("홍길동")
                 .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
                 .expiresAt(expiresAt)
                 .build();

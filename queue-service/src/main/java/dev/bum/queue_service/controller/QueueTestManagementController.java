@@ -55,7 +55,7 @@ public class QueueTestManagementController {
             @PathVariable Long eventId,
             @RequestBody QueueBulkStatusRequest request
     ) {
-        return ResponseEntity.ok(queueService.statuses(eventId, request.userIds()));
+        return ResponseEntity.ok(queueService.statuses(eventId, request.userIds(), request.tokenByUserId()));
     }
 
     @PostMapping("/validate")
@@ -87,9 +87,9 @@ public class QueueTestManagementController {
         Set<String> activeTokens = redisTemplate.opsForZSet().range(activeKey, 0, -1);
         if (activeTokens != null) {
             for (String token : activeTokens) {
-                String tokenKey = tokenKey(token);
-                String tokenValue = redisTemplate.opsForValue().get(tokenKey);
-                keys.add(tokenKey);
+                String activeTokenKey = activeTokenKey(token);
+                String tokenValue = redisTemplate.opsForValue().get(activeTokenKey);
+                keys.add(activeTokenKey);
                 if (tokenValue != null) {
                     String activeUserKey = activeUserKey(tokenValue);
                     if (activeUserKey != null) {
@@ -111,8 +111,8 @@ public class QueueTestManagementController {
         return "queue:event:" + eventId + ":active";
     }
 
-    private String tokenKey(String token) {
-        return "queue:token:" + token;
+    private String activeTokenKey(String token) {
+        return "queue:active-token:" + token;
     }
 
     private String activeUserKey(String tokenValue) {

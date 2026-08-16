@@ -17,7 +17,10 @@ token:
 app:
   queue:
     admission-size: ${APP_QUEUE_ADMISSION_SIZE:100}
-    token-ttl: ${APP_QUEUE_TOKEN_TTL:20m}
+    active-token-ttl: ${APP_QUEUE_ACTIVE_TOKEN_TTL:${APP_QUEUE_TOKEN_TTL:20m}}
+    waiting-token-ttl: ${APP_QUEUE_WAITING_TOKEN_TTL:1m}
+    cleanup-fixed-delay-ms: ${APP_QUEUE_CLEANUP_FIXED_DELAY_MS:20000}
+    cleanup-scan-count: ${APP_QUEUE_CLEANUP_SCAN_COUNT:1000}
 
 management:
   endpoints:
@@ -30,3 +33,13 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://otel-collector:4318/v1/traces}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"

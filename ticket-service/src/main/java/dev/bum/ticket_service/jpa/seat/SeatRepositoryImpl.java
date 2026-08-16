@@ -19,6 +19,7 @@ import dev.bum.ticket_service.jpa.area.QArea;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.event.QEvent;
+import io.micrometer.observation.annotation.Observed;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -179,12 +180,14 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    @Observed(name = "ticket.repository.seat.select-by-id", contextualName = "ticket repository seat select by id")
     public Seat selectById(Long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new SeatNotExistException("해당 좌석 정보는 존재하지 않습니다."));
     }
 
     @Override
+    @Observed(name = "ticket.repository.seat.select-by-event-id", contextualName = "ticket repository seat select by event id")
     public List<Seat> selectByEventId(Long eventId) {
         List<Seat> seats = jpaRepository.findByEventEventId(eventId);
 
@@ -194,6 +197,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    @Observed(name = "ticket.repository.seat.select-by-area-id", contextualName = "ticket repository seat select by area id")
     public List<Seat> selectByAreaId(Long areaId) {
         List<Seat> seats = jpaRepository.findByAreaAreaId(areaId);
 
@@ -236,6 +240,7 @@ public class SeatRepositoryImpl implements SeatRepository {
     }
 
     @Override
+    @Observed(name = "ticket.repository.seat.select-by-cond", contextualName = "ticket repository seat select by cond")
     public Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable) {
         seat = QSeat.seat;
         QEvent event = QEvent.event;
