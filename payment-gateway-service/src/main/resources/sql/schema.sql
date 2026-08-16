@@ -7,6 +7,7 @@ CREATE TABLE dummy_cards (
     card_company VARCHAR(30) NOT NULL,
     card_number_hash VARCHAR(128) NOT NULL,
     card_number_last4 VARCHAR(4) NOT NULL,
+    card_password_hash VARCHAR(128) NOT NULL,
     customer_name VARCHAR(50) NOT NULL,
     issued_at DATE NOT NULL,
     expires_at DATE NOT NULL,
