@@ -8,6 +8,9 @@ public enum VirtualAccountPaymentHistoryType {
     // 입금이 확인된 이력.
     DEPOSITED,
 
+    // 입금 완료 Kafka 이벤트 발행 이력.
+    DEPOSIT_EVENT_PUBLISHED,
+
     // ticket-service 결제 완료 반영에 성공한 이력.
     TICKET_PAYMENT_COMPLETED,
 

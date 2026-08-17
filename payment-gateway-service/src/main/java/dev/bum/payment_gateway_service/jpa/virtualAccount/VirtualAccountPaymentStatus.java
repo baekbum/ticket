@@ -8,6 +8,9 @@ public enum VirtualAccountPaymentStatus {
     // 사용자가 입금했고 ticket-service 결제 완료 반영을 기다리는 상태.
     DEPOSITED,
 
+    // 입금 완료 Kafka 이벤트 발행이 완료된 상태.
+    DEPOSIT_EVENT_PUBLISHED,
+
     // ticket-service 결제 완료 반영까지 성공한 상태.
     TICKET_PAYMENT_COMPLETED,
 
