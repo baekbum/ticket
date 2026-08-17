@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/api/*/payments/internal/**").permitAll()
 
                         // 2. 관리자용 통로
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
@@ -63,9 +64,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/checkout/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/payments/virtual-account/deposit").hasRole("ADMIN")
-                        .requestMatchers("/api/*/payments/virtual-account/issue").hasAnyRole("USER", "ADMIN")
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
                         .anyRequest().hasRole("ADMIN")

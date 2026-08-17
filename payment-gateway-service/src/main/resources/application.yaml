@@ -19,3 +19,7 @@ spring:
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
+
+app:
+  ticket:
+    base-url: http://localhost:8082/ticket

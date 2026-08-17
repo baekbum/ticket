@@ -1,7 +1,11 @@
 package dev.bum.payment_gateway_service.service.card;
 
+import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
+import dev.bum.payment_gateway_service.exception.TicketPaymentCompleteException;
+import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
@@ -20,14 +24,15 @@ import java.time.LocalDate;
 import java.util.HexFormat;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class GatewayCardPaymentService {
 
     private final DummyCardJpaRepository dummyCardJpaRepository;
     private final DummyCardPaymentHistoryJpaRepository dummyCardPaymentHistoryJpaRepository;
+    private final TicketPaymentClient ticketPaymentClient;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional(noRollbackFor = TicketPaymentCompleteException.class)
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
         validateCurrentUser(currentUserId);
 
@@ -45,12 +50,13 @@ public class GatewayCardPaymentService {
         validateNotApprovedPayment(request.getPaymentNo());
 
         dummyCard.approve(request.getAmount());
-        dummyCardPaymentHistoryJpaRepository.save(
+        DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository.save(
                 DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount())
         );
+        PaymentResponse ticketPayment = completeTicketPayment(paymentHistory, request);
 
         return GatewayCardPaymentApproveResponse.builder()
-                .paymentNo(request.getPaymentNo())
+                .paymentNo(ticketPayment.getPaymentNo())
                 .userId(dummyCard.getUserId())
                 .cardCompany(dummyCard.getCardCompany())
                 .cardNumberLast4(dummyCard.getCardNumberLast4())
@@ -58,7 +64,7 @@ public class GatewayCardPaymentService {
                 .currentMonthUsedAmount(dummyCard.getCurrentMonthUsedAmount())
                 .limitAmount(dummyCard.getLimitAmount())
                 .approved(true)
-                .message("카드 결제 검증이 완료되었습니다.")
+                .message("카드 결제와 티켓 결제 완료 반영이 완료되었습니다.")
                 .build();
     }
 
@@ -71,6 +77,26 @@ public class GatewayCardPaymentService {
     private void validateNotApprovedPayment(String paymentNo) {
         if (dummyCardPaymentHistoryJpaRepository.existsByPaymentNo(paymentNo)) {
             throw new IllegalArgumentException("이미 카드 승인 처리된 결제입니다.");
+        }
+    }
+
+    private PaymentResponse completeTicketPayment(
+            DummyCardPaymentHistory paymentHistory,
+            GatewayCardPaymentApproveRequest request
+    ) {
+        try {
+            PaymentResponse ticketPayment = ticketPaymentClient.completeCardPayment(
+                    CardPaymentCompleteRequest.builder()
+                            .paymentNo(request.getPaymentNo())
+                            .userId(paymentHistory.getUserId())
+                            .amount(request.getAmount())
+                            .build()
+            );
+            paymentHistory.completeTicketPayment(null);
+            return ticketPayment;
+        } catch (RuntimeException e) {
+            paymentHistory.failTicketPayment(e.getMessage());
+            throw new TicketPaymentCompleteException("ticket-service 결제 완료 반영에 실패했습니다.", e);
         }
     }
 

@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -58,6 +60,21 @@ public class PaymentService {
         }
 
         return completePayment(payment, null);
+    }
+
+    @AuditLog(action = "CARD_PAYMENT_COMPLETE_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.complete-card-from-gateway", contextualName = "ticket payment complete card from gateway")
+    public PaymentResponse completeCardFromGateway(CardPaymentCompleteRequest request) {
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+        Reservation reservation = payment.getReservation();
+
+        validateGatewayCardCompletion(payment, reservation, request);
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return payment.toResponse();
+        }
+
+        return completePayment(payment, LocalDateTime.now());
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
@@ -126,7 +143,9 @@ public class PaymentService {
         } else {
             payment.complete(paidAt);
         }
+
         AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
+
         reservation.paid();
         for (Ticket ticket : tickets) {
             ticket.paid();
@@ -147,6 +166,29 @@ public class PaymentService {
         if (reservation == null || !currentUserId.equals(reservation.getUserId())) {
             throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
         }
+    }
+
+    private void validateGatewayCardCompletion(
+            Payment payment,
+            Reservation reservation,
+            CardPaymentCompleteRequest request
+    ) {
+        if (reservation == null || !request.getUserId().equals(reservation.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 완료 요청입니다.");
+        }
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
+            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
+        }
+        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
+            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
+        }
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return;
+        }
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalArgumentException("카드 결제 완료 처리할 수 없는 상태입니다.");
+        }
+        validatePaymentNotExpired(payment);
     }
 
     private void validateCardPaymentReady(Payment payment) {

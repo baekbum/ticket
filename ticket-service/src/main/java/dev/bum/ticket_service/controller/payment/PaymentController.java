@@ -1,14 +1,11 @@
 package dev.bum.ticket_service.controller.payment;
 
-import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,26 +18,10 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @PostMapping("/card/approve")
-    public ResponseEntity<PaymentResponse> approveCard(
-            @AuthenticationPrincipal String currentUserId,
-            @Valid @RequestBody CardPaymentApproveRequest request
+    @PostMapping("/internal/card/complete")
+    public ResponseEntity<PaymentResponse> completeCardFromGateway(
+            @Valid @RequestBody CardPaymentCompleteRequest request
     ) {
-        return ResponseEntity.ok(paymentService.approveCard(currentUserId, request));
-    }
-
-    @PostMapping("/virtual-account/issue")
-    public ResponseEntity<PaymentResponse> issueVirtualAccount(
-            @AuthenticationPrincipal String currentUserId,
-            @Valid @RequestBody VirtualAccountIssueRequest request
-    ) {
-        return ResponseEntity.ok(paymentService.issueVirtualAccount(currentUserId, request));
-    }
-
-    @PostMapping("/virtual-account/deposit")
-    public ResponseEntity<PaymentResponse> depositVirtualAccount(
-            @Valid @RequestBody VirtualAccountDepositRequest request
-    ) {
-        return ResponseEntity.ok(paymentService.depositVirtualAccount(request));
+        return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
     }
 }
