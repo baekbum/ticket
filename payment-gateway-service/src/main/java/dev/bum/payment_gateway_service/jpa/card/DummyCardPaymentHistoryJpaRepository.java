@@ -2,7 +2,9 @@ package dev.bum.payment_gateway_service.jpa.card;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
+
 public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<DummyCardPaymentHistory, Long> {
 
-    boolean existsByPaymentNo(String paymentNo);
+    Optional<DummyCardPaymentHistory> findByPaymentNo(String paymentNo);
 }

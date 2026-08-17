@@ -6,6 +6,7 @@ import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
 import dev.bum.payment_gateway_service.exception.TicketPaymentCompleteException;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
+import dev.bum.payment_gateway_service.jpa.card.CardPaymentHistoryStatus;
 import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
@@ -22,6 +23,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.HexFormat;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +41,12 @@ public class GatewayCardPaymentService {
         String cardNumber = normalizeCardNumber(request.getCardNumber());
         validateCardNumber(cardNumber);
 
+        Optional<DummyCardPaymentHistory> existingHistory =
+                dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo());
+        if (existingHistory.isPresent()) {
+            return retryTicketPaymentCompletion(currentUserId, existingHistory.get(), request);
+        }
+
         DummyCard dummyCard = dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
                         currentUserId,
                         request.getCardCompany(),
@@ -47,7 +55,6 @@ public class GatewayCardPaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("카드 정보가 일치하지 않습니다."));
 
         validateCard(dummyCard, request, cardNumber);
-        validateNotApprovedPayment(request.getPaymentNo());
 
         dummyCard.approve(request.getAmount());
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository.save(
@@ -74,9 +81,34 @@ public class GatewayCardPaymentService {
         }
     }
 
-    private void validateNotApprovedPayment(String paymentNo) {
-        if (dummyCardPaymentHistoryJpaRepository.existsByPaymentNo(paymentNo)) {
-            throw new IllegalArgumentException("이미 카드 승인 처리된 결제입니다.");
+    private GatewayCardPaymentApproveResponse retryTicketPaymentCompletion(
+            String currentUserId,
+            DummyCardPaymentHistory paymentHistory,
+            GatewayCardPaymentApproveRequest request
+    ) {
+        validateExistingHistory(currentUserId, paymentHistory, request);
+        if (paymentHistory.getStatus() != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
+            completeTicketPayment(paymentHistory, request);
+        }
+
+        return toApproveResponse(
+                paymentHistory.getPaymentNo(),
+                paymentHistory.getDummyCard(),
+                paymentHistory.getAmount(),
+                "이미 승인된 카드 결제의 티켓 결제 완료 반영을 확인했습니다."
+        );
+    }
+
+    private void validateExistingHistory(
+            String currentUserId,
+            DummyCardPaymentHistory paymentHistory,
+            GatewayCardPaymentApproveRequest request
+    ) {
+        if (!currentUserId.equals(paymentHistory.getUserId())) {
+            throw new IllegalArgumentException("다른 사용자의 카드 승인 이력입니다.");
+        }
+        if (paymentHistory.getAmount().compareTo(request.getAmount()) != 0) {
+            throw new IllegalArgumentException("기존 카드 승인 금액과 요청 금액이 일치하지 않습니다.");
         }
     }
 
@@ -98,6 +130,25 @@ public class GatewayCardPaymentService {
             paymentHistory.failTicketPayment(e.getMessage());
             throw new TicketPaymentCompleteException("ticket-service 결제 완료 반영에 실패했습니다.", e);
         }
+    }
+
+    private GatewayCardPaymentApproveResponse toApproveResponse(
+            String paymentNo,
+            DummyCard dummyCard,
+            BigDecimal approvedAmount,
+            String message
+    ) {
+        return GatewayCardPaymentApproveResponse.builder()
+                .paymentNo(paymentNo)
+                .userId(dummyCard.getUserId())
+                .cardCompany(dummyCard.getCardCompany())
+                .cardNumberLast4(dummyCard.getCardNumberLast4())
+                .approvedAmount(approvedAmount)
+                .currentMonthUsedAmount(dummyCard.getCurrentMonthUsedAmount())
+                .limitAmount(dummyCard.getLimitAmount())
+                .approved(true)
+                .message(message)
+                .build();
     }
 
     private void validateCard(DummyCard dummyCard, GatewayCardPaymentApproveRequest request, String cardNumber) {
