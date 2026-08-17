@@ -4,6 +4,8 @@ import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
 import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
+import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
+import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import java.util.HexFormat;
 public class GatewayCardPaymentService {
 
     private final DummyCardJpaRepository dummyCardJpaRepository;
+    private final DummyCardPaymentHistoryJpaRepository dummyCardPaymentHistoryJpaRepository;
     private final PasswordEncoder passwordEncoder;
 
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
@@ -39,7 +42,12 @@ public class GatewayCardPaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("카드 정보가 일치하지 않습니다."));
 
         validateCard(dummyCard, request, cardNumber);
+        validateNotApprovedPayment(request.getPaymentNo());
+
         dummyCard.approve(request.getAmount());
+        dummyCardPaymentHistoryJpaRepository.save(
+                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount())
+        );
 
         return GatewayCardPaymentApproveResponse.builder()
                 .paymentNo(request.getPaymentNo())
@@ -57,6 +65,12 @@ public class GatewayCardPaymentService {
     private void validateCurrentUser(String currentUserId) {
         if (!StringUtils.hasText(currentUserId)) {
             throw new IllegalArgumentException("사용자 인증 정보가 필요합니다.");
+        }
+    }
+
+    private void validateNotApprovedPayment(String paymentNo) {
+        if (dummyCardPaymentHistoryJpaRepository.existsByPaymentNo(paymentNo)) {
+            throw new IllegalArgumentException("이미 카드 승인 처리된 결제입니다.");
         }
     }
 
