@@ -1,8 +1,12 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
@@ -37,6 +41,9 @@ class GatewayVirtualAccountServiceTest {
     @Mock
     private DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
 
+    @Mock
+    private TicketPaymentClient ticketPaymentClient;
+
     @InjectMocks
     private GatewayVirtualAccountService gatewayVirtualAccountService;
 
@@ -49,6 +56,7 @@ class GatewayVirtualAccountServiceTest {
         given(dummyVirtualAccountJpaRepository.existsByAccountNumber(any())).willReturn(false);
         given(dummyVirtualAccountJpaRepository.save(any(DummyVirtualAccount.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
+        given(ticketPaymentClient.applyVirtualAccountIssued(any())).willReturn(paymentResponse());
 
         GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
 
@@ -62,6 +70,7 @@ class GatewayVirtualAccountServiceTest {
         then(dummyVirtualAccountJpaRepository).should().save(accountCaptor.capture());
         assertThat(accountCaptor.getValue().getStatus()).isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
         then(dummyVirtualAccountPaymentHistoryJpaRepository).should().save(any(DummyVirtualAccountPaymentHistory.class));
+        then(ticketPaymentClient).should().applyVirtualAccountIssued(any());
     }
 
     @Test
@@ -85,6 +94,7 @@ class GatewayVirtualAccountServiceTest {
         then(dummyVirtualAccountJpaRepository).should().findByPaymentNo(request.getPaymentNo());
         then(dummyVirtualAccountJpaRepository).shouldHaveNoMoreInteractions();
         then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
     }
 
     @Test
@@ -105,6 +115,20 @@ class GatewayVirtualAccountServiceTest {
                 .bankCompany(BankCompany.KB)
                 .amount(BigDecimal.valueOf(180000))
                 .eventDateTime(eventDateTime)
+                .build();
+    }
+
+    private PaymentResponse paymentResponse() {
+        return PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.WAITING_DEPOSIT)
+                .amount(180000)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
                 .build();
     }
 }

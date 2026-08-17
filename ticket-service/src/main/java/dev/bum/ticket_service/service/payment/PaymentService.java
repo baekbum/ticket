@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -75,6 +76,25 @@ public class PaymentService {
         }
 
         return completePayment(payment, LocalDateTime.now());
+    }
+
+    @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUED_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.apply-virtual-account-issued", contextualName = "ticket payment apply virtual account issued")
+    public PaymentResponse applyVirtualAccountIssued(VirtualAccountIssuedRequest request) {
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+
+        validateGatewayVirtualAccountIssuedBasics(payment, request);
+        if (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) {
+            return payment.toResponse();
+        }
+
+        validateGatewayVirtualAccountIssuedReady(payment);
+        PaymentStatus beforePaymentStatus = payment.getStatus();
+        payment.waitDeposit(request.getBankName(), request.getAccountNumber(), request.getExpiresAt());
+        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
+
+        return payment.toResponse();
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUE", targetType = "PAYMENT")
@@ -187,6 +207,22 @@ public class PaymentService {
         }
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("카드 결제 완료 처리할 수 없는 상태입니다.");
+        }
+        validatePaymentNotExpired(payment);
+    }
+
+    private void validateGatewayVirtualAccountIssuedBasics(Payment payment, VirtualAccountIssuedRequest request) {
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
+        }
+        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
+            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private void validateGatewayVirtualAccountIssuedReady(Payment payment) {
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalArgumentException("가상계좌 발급 정보를 반영할 수 없는 결제 상태입니다.");
         }
         validatePaymentNotExpired(payment);
     }

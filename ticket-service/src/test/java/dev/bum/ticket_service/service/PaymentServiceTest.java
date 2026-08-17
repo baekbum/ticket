@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -242,6 +243,39 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("payment-gateway 가상계좌 발급 정보를 입금 대기 상태로 반영한다")
+    void apply_virtual_account_issued_success() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.BANK_TRANSFER, PaymentStatus.READY);
+        VirtualAccountIssuedRequest request = virtualAccountIssuedRequest(BigDecimal.valueOf(180000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = paymentService.applyVirtualAccountIssued(request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getBankName()).isEqualTo("KB국민은행");
+        assertThat(response.getAccountNumber()).isEqualTo("1111-1234-123456");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+    }
+
+    @Test
+    @DisplayName("payment-gateway 가상계좌 발급 금액이 다르면 결제 상태를 유지한다")
+    void apply_virtual_account_issued_amount_mismatch() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.BANK_TRANSFER, PaymentStatus.READY);
+        VirtualAccountIssuedRequest request = virtualAccountIssuedRequest(BigDecimal.valueOf(170000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.applyVirtualAccountIssued(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("결제 금액이 일치하지 않습니다.");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
     @DisplayName("가상계좌 입금 성공 시 결제와 예매를 완료 처리한다")
     void deposit_virtual_account_success() {
         Event event = event();
@@ -312,6 +346,16 @@ class PaymentServiceTest {
         return VirtualAccountIssueRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .bankCode("KB")
+                .build();
+    }
+
+    private VirtualAccountIssuedRequest virtualAccountIssuedRequest(BigDecimal amount) {
+        return VirtualAccountIssuedRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .amount(amount)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
                 .build();
     }
 

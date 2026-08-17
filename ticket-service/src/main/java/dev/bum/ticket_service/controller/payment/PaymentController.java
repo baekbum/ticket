@@ -2,6 +2,7 @@ package dev.bum.ticket_service.controller.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,5 +24,12 @@ public class PaymentController {
             @Valid @RequestBody CardPaymentCompleteRequest request
     ) {
         return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
+    }
+
+    @PostMapping("/internal/virtual-account/issued")
+    public ResponseEntity<PaymentResponse> applyVirtualAccountIssued(
+            @Valid @RequestBody VirtualAccountIssuedRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.applyVirtualAccountIssued(request));
     }
 }

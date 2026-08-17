@@ -1,8 +1,12 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueException;
+import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
@@ -25,6 +29,7 @@ public class GatewayVirtualAccountService {
 
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
+    private final TicketPaymentClient ticketPaymentClient;
 
     public GatewayVirtualAccountIssueResponse issue(GatewayVirtualAccountIssueRequest request) {
         return dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())
@@ -46,8 +51,25 @@ public class GatewayVirtualAccountService {
                 )
         );
         dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.issued(virtualAccount));
+        applyTicketVirtualAccountIssued(virtualAccount);
 
         return toIssueResponse(virtualAccount, "가상계좌가 발급되었습니다.");
+    }
+
+    private PaymentResponse applyTicketVirtualAccountIssued(DummyVirtualAccount virtualAccount) {
+        try {
+            return ticketPaymentClient.applyVirtualAccountIssued(
+                    VirtualAccountIssuedRequest.builder()
+                            .paymentNo(virtualAccount.getPaymentNo())
+                            .amount(virtualAccount.getAmount())
+                            .bankName(virtualAccount.getBankName())
+                            .accountNumber(virtualAccount.getAccountNumber())
+                            .expiresAt(virtualAccount.getExpiresAt())
+                            .build()
+            );
+        } catch (RuntimeException e) {
+            throw new TicketVirtualAccountIssueException("ticket-service 가상계좌 발급 정보 반영에 실패했습니다.", e);
+        }
     }
 
     /**

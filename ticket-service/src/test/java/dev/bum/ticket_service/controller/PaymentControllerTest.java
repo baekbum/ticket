@@ -5,6 +5,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
@@ -20,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -73,5 +75,40 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.status").value("PAID"));
 
         then(paymentService).should().completeCardFromGateway(request);
+    }
+
+    @Test
+    @DisplayName("payment-gateway 가상계좌 발급 정보를 반영한다")
+    void apply_virtual_account_issued_from_gateway() throws Exception {
+        VirtualAccountIssuedRequest request = VirtualAccountIssuedRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .amount(BigDecimal.valueOf(180000))
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
+                .build();
+        PaymentResponse response = PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo(request.getPaymentNo())
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.WAITING_DEPOSIT)
+                .amount(180000)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .build();
+
+        given(paymentService.applyVirtualAccountIssued(request)).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/internal/virtual-account/issued")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
+                .andExpect(jsonPath("$.status").value("WAITING_DEPOSIT"))
+                .andExpect(jsonPath("$.accountNumber").value("1111-1234-123456"));
+
+        then(paymentService).should().applyVirtualAccountIssued(request);
     }
 }
