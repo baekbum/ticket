@@ -44,6 +44,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().hasRole("ADMIN")
                 );
 

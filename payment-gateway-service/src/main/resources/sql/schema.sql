@@ -56,3 +56,48 @@ CREATE TABLE dummy_card_payment_histories (
 CREATE INDEX idx_dummy_card_payment_histories_user_id ON dummy_card_payment_histories(user_id);
 CREATE INDEX idx_dummy_card_payment_histories_payment_no ON dummy_card_payment_histories(payment_no);
 CREATE INDEX idx_dummy_card_payment_histories_status ON dummy_card_payment_histories(status);
+
+-- ==========================================
+-- Dummy virtual accounts 테이블
+-- ==========================================
+CREATE TABLE dummy_virtual_accounts (
+    virtual_account_id BIGSERIAL PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    bank_company VARCHAR(30) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL,
+    account_number VARCHAR(30) NOT NULL,
+    depositor_name VARCHAR(50),
+    amount NUMERIC(15, 2) NOT NULL,
+    status VARCHAR(40) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    deposited_at TIMESTAMP,
+    ticket_completed_at TIMESTAMP,
+    failure_reason VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_dummy_virtual_accounts_payment_no UNIQUE (payment_no),
+    CONSTRAINT uk_dummy_virtual_accounts_account_number UNIQUE (account_number),
+    CONSTRAINT chk_dummy_virtual_accounts_amount CHECK (amount > 0)
+);
+
+CREATE INDEX idx_dummy_virtual_accounts_payment_no ON dummy_virtual_accounts(payment_no);
+CREATE INDEX idx_dummy_virtual_accounts_account_number ON dummy_virtual_accounts(account_number);
+CREATE INDEX idx_dummy_virtual_accounts_status ON dummy_virtual_accounts(status);
+
+-- ==========================================
+-- Dummy virtual account payment histories 테이블
+-- ==========================================
+CREATE TABLE dummy_virtual_account_payment_histories (
+    history_id BIGSERIAL PRIMARY KEY,
+    virtual_account_id BIGINT NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    history_type VARCHAR(40) NOT NULL,
+    message VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_dummy_virtual_account_histories_virtual_account_id FOREIGN KEY (virtual_account_id) REFERENCES dummy_virtual_accounts(virtual_account_id)
+);
+
+CREATE INDEX idx_dummy_virtual_account_histories_payment_no ON dummy_virtual_account_payment_histories(payment_no);
+CREATE INDEX idx_dummy_virtual_account_histories_history_type ON dummy_virtual_account_payment_histories(history_type);

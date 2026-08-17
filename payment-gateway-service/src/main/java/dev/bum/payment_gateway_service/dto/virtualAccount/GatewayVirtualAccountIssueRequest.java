@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -23,10 +24,10 @@ public class GatewayVirtualAccountIssueRequest {
     @NotNull
     private BankCompany bankCompany;
 
-    @NotBlank
-    private String depositorName;
-
     @NotNull
     @Positive
     private BigDecimal amount;
+
+    @NotNull
+    private LocalDateTime eventDateTime;
 }
