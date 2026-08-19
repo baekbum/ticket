@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryRequest;
@@ -13,6 +14,8 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
+import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
@@ -23,7 +26,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDel
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.service.checkout.CheckoutService;
-import dev.bum.ticket_service.service.payment.MockVirtualAccountIssueService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +71,7 @@ class CheckoutServiceTest {
     private PaymentJpaRepository paymentJpaRepository;
 
     @Mock
-    private MockVirtualAccountIssueService mockVirtualAccountIssueService;
+    private PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
 
     @InjectMocks
     private CheckoutService checkoutService;
@@ -175,17 +178,12 @@ class CheckoutServiceTest {
         Seat seat = seat(event);
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
-        MockVirtualAccountIssueService.VirtualAccount virtualAccount =
-                new MockVirtualAccountIssueService.VirtualAccount(
-                        "KB국민은행",
-                        "1111-2222-3333-4444",
-                        LocalDateTime.of(2026, 9, 18, 23, 59, 59)
-                );
+        GatewayVirtualAccountIssueResponse virtualAccount = virtualAccountIssueResponse();
 
         given(paymentJpaRepository.findByIdempotencyKey("idem-1")).willReturn(Optional.empty());
         given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
-        given(mockVirtualAccountIssueService.issue("KB")).willReturn(virtualAccount);
+        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any())).willReturn(virtualAccount);
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
@@ -195,7 +193,12 @@ class CheckoutServiceTest {
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        then(paymentJpaRepository).should().existsByAccountNumber("1111-2222-3333-4444");
+        then(paymentGatewayVirtualAccountClient).should().issue(org.mockito.ArgumentMatchers.argThat(argument ->
+                argument.getBankCompany() == BankCompany.KB
+                        && argument.getAmount().compareTo(BigDecimal.valueOf(180000)) == 0
+                        && argument.getEventDateTime().equals(event.getEventDateTime())
+                        && Boolean.FALSE.equals(argument.getTicketPaymentApplyRequired())
+        ));
     }
 
     @Test
@@ -249,6 +252,19 @@ class CheckoutServiceTest {
                 .paymentMethod(paymentMethod)
                 .idempotencyKey("idem-1")
                 .bankCode(paymentMethod == PaymentMethod.BANK_TRANSFER ? "KB" : null)
+                .build();
+    }
+
+    private GatewayVirtualAccountIssueResponse virtualAccountIssueResponse() {
+        return GatewayVirtualAccountIssueResponse.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-2222-3333-4444")
+                .amount(BigDecimal.valueOf(180000))
+                .expiresAt(LocalDateTime.of(2026, 9, 18, 23, 59, 59))
+                .issued(true)
+                .message("가상계좌가 발급되었습니다.")
                 .build();
     }
 

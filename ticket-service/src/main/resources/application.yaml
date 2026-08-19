@@ -78,6 +78,8 @@ app:
   queue:
     enabled: true
     base-url: http://localhost:8083/queue
+  payment-gateway:
+    base-url: http://localhost:8099/payment-gateway
   kafka-dlt:
     slack:
       enabled: true

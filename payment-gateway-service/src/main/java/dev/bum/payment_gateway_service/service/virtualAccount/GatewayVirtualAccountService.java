@@ -66,7 +66,9 @@ public class GatewayVirtualAccountService {
                 )
         );
         dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.issued(virtualAccount));
-        applyTicketVirtualAccountIssued(virtualAccount);
+        if (request.isTicketPaymentApplyRequired()) {
+            applyTicketVirtualAccountIssued(virtualAccount);
+        }
 
         return toIssueResponse(virtualAccount, "가상계좌가 발급되었습니다.");
     }

@@ -76,6 +76,8 @@ app:
   queue:
     enabled: ${APP_QUEUE_ENABLED:true}
     base-url: ${APP_QUEUE_BASE_URL:http://queue-service:8080}
+  payment-gateway:
+    base-url: ${APP_PAYMENT_GATEWAY_BASE_URL:http://payment-gateway-service:8080}
   kafka-dlt:
     slack:
       enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}

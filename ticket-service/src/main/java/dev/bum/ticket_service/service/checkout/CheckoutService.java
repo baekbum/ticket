@@ -4,10 +4,14 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueRequest;
+import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -17,7 +21,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.service.payment.MockVirtualAccountIssueService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +32,11 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -40,7 +45,6 @@ import java.util.UUID;
 public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
 
     private final SeatCacheService seatCacheService;
     private final QueueAccessService queueAccessService;
@@ -48,7 +52,7 @@ public class CheckoutService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
-    private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
+    private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
 
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
@@ -121,8 +125,7 @@ public class CheckoutService {
                 .build();
 
         if (request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
-            validateBankTransferRequest(request);
-            MockVirtualAccountIssueService.VirtualAccount virtualAccount = issueUniqueVirtualAccount(request.getBankCode());
+            GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
             payment.waitDeposit(
                     virtualAccount.getBankName(),
                     virtualAccount.getAccountNumber(),
@@ -141,9 +144,30 @@ public class CheckoutService {
         return savedPayment.toResponse();
     }
 
-    private void validateBankTransferRequest(CheckoutConfirmRequest request) {
+    private GatewayVirtualAccountIssueResponse issueVirtualAccountFromGateway(
+            CheckoutConfirmRequest request,
+            Payment payment
+    ) {
+        BankCompany bankCompany = resolveBankCompany(request);
+        return paymentGatewayVirtualAccountClient.issue(
+                GatewayVirtualAccountIssueRequest.builder()
+                        .paymentNo(payment.getPaymentNo())
+                        .bankCompany(bankCompany)
+                        .amount(BigDecimal.valueOf(payment.getAmount()))
+                        .eventDateTime(payment.getReservation().getEvent().getEventDateTime())
+                        .ticketPaymentApplyRequired(false)
+                        .build()
+        );
+    }
+
+    private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
         if (!StringUtils.hasText(request.getBankCode())) {
             throw new IllegalArgumentException("은행 코드가 필요합니다.");
+        }
+        try {
+            return BankCompany.valueOf(request.getBankCode().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("지원하지 않는 은행 코드입니다.");
         }
     }
 
@@ -191,17 +215,6 @@ public class CheckoutService {
         return discounts.stream()
                 .mapToInt(ReservationDiscount::getDiscountAmount)
                 .sum();
-    }
-
-    private MockVirtualAccountIssueService.VirtualAccount issueUniqueVirtualAccount(String bankCode) {
-        for (int attempt = 0; attempt < MAX_ACCOUNT_ISSUE_ATTEMPTS; attempt++) {
-            MockVirtualAccountIssueService.VirtualAccount virtualAccount = mockVirtualAccountIssueService.issue(bankCode);
-            if (!paymentJpaRepository.existsByAccountNumber(virtualAccount.getAccountNumber())) {
-                return virtualAccount;
-            }
-        }
-
-        throw new IllegalStateException("가상계좌 번호를 발급하지 못했습니다.");
     }
 
     private String generatePaymentNo() {
