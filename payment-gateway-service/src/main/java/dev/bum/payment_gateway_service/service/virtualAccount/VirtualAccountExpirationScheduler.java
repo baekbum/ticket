@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Component
@@ -45,21 +46,30 @@ public class VirtualAccountExpirationScheduler {
                 return;
             }
 
-            for (DummyVirtualAccount virtualAccount : expiredAccounts) {
-                expireWaitingAccount(virtualAccount, now);
-            }
+            expireWaitingAccountBatch(expiredAccounts, now);
         }
     }
 
-    private void expireWaitingAccount(DummyVirtualAccount virtualAccount, LocalDateTime expiredAt) {
-        try {
-            virtualAccountExpiredEventProducer.sendExpired(virtualAccount, expiredAt).join();
-            virtualAccount.expire();
-            dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                    DummyVirtualAccountPaymentHistory.expired(virtualAccount)
-            );
-        } catch (RuntimeException e) {
-            log.warn("가상계좌 만료 이벤트 발행 건너뜀: paymentNo={}", virtualAccount.getPaymentNo(), e);
-        }
+    private void expireWaitingAccountBatch(List<DummyVirtualAccount> expiredAccounts, LocalDateTime expiredAt) {
+        List<CompletableFuture<Void>> publishFutures = expiredAccounts.stream()
+                .map(virtualAccount -> expireAndPublish(virtualAccount, expiredAt))
+                .toList();
+
+        CompletableFuture.allOf(publishFutures.toArray(CompletableFuture[]::new)).join();
+    }
+
+    private CompletableFuture<Void> expireAndPublish(DummyVirtualAccount virtualAccount, LocalDateTime expiredAt) {
+        virtualAccount.expire();
+        dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                DummyVirtualAccountPaymentHistory.expired(virtualAccount)
+        );
+
+        return virtualAccountExpiredEventProducer.sendExpired(virtualAccount, expiredAt)
+                .handle((result, throwable) -> {
+                    if (throwable != null) {
+                        log.warn("가상계좌 만료 이벤트 발행 실패: paymentNo={}", virtualAccount.getPaymentNo(), throwable);
+                    }
+                    return null;
+                });
     }
 }

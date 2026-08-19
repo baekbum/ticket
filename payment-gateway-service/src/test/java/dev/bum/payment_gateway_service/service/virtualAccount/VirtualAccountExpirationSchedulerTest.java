@@ -92,6 +92,29 @@ class VirtualAccountExpirationSchedulerTest {
                 .save(any(DummyVirtualAccountPaymentHistory.class));
     }
 
+    @Test
+    @DisplayName("배치 내 일부 만료 이벤트 발행이 실패해도 gateway 만료 상태는 저장한다")
+    void expire_accounts_even_when_some_publish_failed_in_batch() {
+        DummyVirtualAccount successAccount = waitingVirtualAccount("PAY-1", "1111-1234-567890");
+        DummyVirtualAccount failedAccount = waitingVirtualAccount("PAY-2", "1111-1234-567891");
+
+        given(dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
+                any(LocalDateTime.class)
+        )).willReturn(List.of(successAccount, failedAccount), List.of());
+        given(virtualAccountExpiredEventProducer.sendExpired(eq(successAccount), any(LocalDateTime.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(virtualAccountExpiredEventProducer.sendExpired(eq(failedAccount), any(LocalDateTime.class)))
+                .willReturn(CompletableFuture.failedFuture(new IllegalStateException("kafka down")));
+
+        scheduler.expireWaitingAccounts();
+
+        assertThat(successAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(failedAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
+                .save(any(DummyVirtualAccountPaymentHistory.class));
+    }
+
     private DummyVirtualAccount waitingVirtualAccount() {
         return waitingVirtualAccount("PAY-20260727120000-abcdef123456", "1111-1234-567890");
     }
