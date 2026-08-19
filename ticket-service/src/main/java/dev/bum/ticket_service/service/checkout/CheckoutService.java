@@ -62,7 +62,7 @@ public class CheckoutService {
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
-        String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
+        String idempotencyKey = generateIdempotencyKey();
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
@@ -204,7 +204,7 @@ public class CheckoutService {
     }
 
     /**
-     * idempotencyKey는 필수로 받고, 앞뒤 공백을 제거해 저장/조회 기준을 고정한다.
+     * confirm 요청의 idempotencyKey는 prepare 응답으로 내려준 값을 필수로 받고, 앞뒤 공백을 제거해 저장/조회 기준을 고정한다.
      */
     private String normalizeIdempotencyKey(String idempotencyKey) {
         if (!StringUtils.hasText(idempotencyKey)) {
@@ -212,6 +212,10 @@ public class CheckoutService {
         }
 
         return idempotencyKey.trim();
+    }
+
+    private String generateIdempotencyKey() {
+        return "CHK-" + UUID.randomUUID().toString().replace("-", "");
     }
 
 }

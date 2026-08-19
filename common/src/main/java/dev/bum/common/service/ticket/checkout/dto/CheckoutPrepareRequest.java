@@ -24,7 +24,4 @@ public class CheckoutPrepareRequest {
 
     @NotNull
     private List<SeatInfo> seats;
-
-    @NotBlank
-    private String idempotencyKey;
 }

@@ -78,7 +78,7 @@ class CheckoutServiceTest {
     @Test
     @DisplayName("checkout 준비 요청은 active token과 좌석 선점 상태를 검증한다")
     void prepare_validates_active_token_and_occupied_seats() {
-        CheckoutPrepareRequest request = checkoutRequest("  idem-1  ");
+        CheckoutPrepareRequest request = checkoutRequest();
 
         CheckoutPrepareResponse response = checkoutService.prepare("user01", "queue-token", request);
 
@@ -86,7 +86,7 @@ class CheckoutServiceTest {
         assertThat(response.getEventId()).isEqualTo(1L);
         assertThat(response.getOrderId()).isEqualTo("order-1");
         assertThat(response.getSeats()).hasSize(1);
-        assertThat(response.getIdempotencyKey()).isEqualTo("idem-1");
+        assertThat(response.getIdempotencyKey()).startsWith("CHK-");
         assertThat(response.getPreparedAt()).isNotNull();
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
@@ -100,24 +100,11 @@ class CheckoutServiceTest {
     }
 
     @Test
-    @DisplayName("checkout 준비 요청에 멱등 키가 없으면 거부한다")
-    void prepare_rejects_missing_idempotency_key() {
-        CheckoutPrepareRequest request = checkoutRequest(" ");
-
-        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("결제 멱등 키가 필요합니다.");
-
-        then(queueAccessService).shouldHaveNoInteractions();
-        then(seatCacheService).shouldHaveNoInteractions();
-    }
-
-    @Test
     @DisplayName("checkout 준비 성공 후 active token 회수는 트랜잭션 커밋 이후 실행된다")
     void prepare_releases_active_token_after_commit() {
         TransactionSynchronizationManager.initSynchronization();
         try {
-            CheckoutPrepareRequest request = checkoutRequest("idem-1");
+            CheckoutPrepareRequest request = checkoutRequest();
 
             checkoutService.prepare("user01", "queue-token", request);
 
@@ -269,7 +256,7 @@ class CheckoutServiceTest {
         then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.any(Payment.class));
     }
 
-    private CheckoutPrepareRequest checkoutRequest(String idempotencyKey) {
+    private CheckoutPrepareRequest checkoutRequest() {
         return CheckoutPrepareRequest.builder()
                 .orderId("order-1")
                 .eventId(1L)
@@ -279,7 +266,6 @@ class CheckoutServiceTest {
                         .row(1)
                         .col(1)
                         .build()))
-                .idempotencyKey(idempotencyKey)
                 .build();
     }
 
