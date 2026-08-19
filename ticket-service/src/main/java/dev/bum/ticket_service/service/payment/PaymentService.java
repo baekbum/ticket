@@ -121,6 +121,12 @@ public class PaymentService {
             ticket.getSeat().reserved();
         }
 
+        seatCacheService.updateUserPurchaseLimit(
+                reservation.getEvent(),
+                reservation.getUserId(),
+                tickets.size(),
+                "PLUS"
+        );
         seatCacheService.syncReservedSeatsAfterCommit(seats);
         // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
         // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.

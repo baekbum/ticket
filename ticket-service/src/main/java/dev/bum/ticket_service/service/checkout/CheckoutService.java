@@ -134,12 +134,6 @@ public class CheckoutService {
         }
 
         Payment savedPayment = paymentJpaRepository.save(payment);
-        seatCacheService.updateUserPurchaseLimit(
-                reservation.getEvent(),
-                currentUserId,
-                request.getSeats().size(),
-                "PLUS"
-        );
 
         return savedPayment.toResponse();
     }

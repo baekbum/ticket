@@ -134,6 +134,4 @@ gateway virtual account: WAITING_DEPOSIT -> DEPOSITED -> DEPOSIT_EVENT_PUBLISHED
 
 ## 현재 남은 정리 포인트
 
-- `CheckoutService.confirm`에서 구매 제한 카운트 증가 로직 제거
-- `PaymentService.completePayment`에서 결제 완료 시 구매 제한 카운트 증가
 - 카드 승인 실패, 결제 만료, 결제 수단 변경 시 기존 `READY` 결제 건 처리 정책 확정

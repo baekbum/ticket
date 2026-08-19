@@ -167,7 +167,7 @@ class CheckoutServiceTest {
         ));
         then(reservationDeliveryJpaRepository).should().save(org.mockito.ArgumentMatchers.any());
         then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.any(Payment.class));
-        then(seatCacheService).should().updateUserPurchaseLimit(event, "user01", 1, "PLUS");
+        then(seatCacheService).should(never()).updateUserPurchaseLimit(event, "user01", 1, "PLUS");
     }
 
     @Test
@@ -193,6 +193,7 @@ class CheckoutServiceTest {
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
+        then(seatCacheService).should(never()).updateUserPurchaseLimit(event, "user01", 1, "PLUS");
         then(paymentGatewayVirtualAccountClient).should().issue(org.mockito.ArgumentMatchers.argThat(argument ->
                 argument.getBankCompany() == BankCompany.KB
                         && argument.getAmount().compareTo(BigDecimal.valueOf(180000)) == 0
