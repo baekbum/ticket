@@ -34,14 +34,20 @@ public class VirtualAccountExpirationScheduler {
     @Transactional
     public void expireWaitingAccounts() {
         LocalDateTime now = LocalDateTime.now();
-        List<DummyVirtualAccount> expiredAccounts =
-                dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-                        VirtualAccountPaymentStatus.WAITING_DEPOSIT,
-                        now
-                );
 
-        for (DummyVirtualAccount virtualAccount : expiredAccounts) {
-            expireWaitingAccount(virtualAccount, now);
+        while (true) {
+            List<DummyVirtualAccount> expiredAccounts =
+                    dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                            VirtualAccountPaymentStatus.WAITING_DEPOSIT,
+                            now
+                    );
+            if (expiredAccounts.isEmpty()) {
+                return;
+            }
+
+            for (DummyVirtualAccount virtualAccount : expiredAccounts) {
+                expireWaitingAccount(virtualAccount, now);
+            }
         }
     }
 

@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class VirtualAccountExpirationSchedulerTest {
@@ -50,7 +51,7 @@ class VirtualAccountExpirationSchedulerTest {
         given(dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
                 eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
                 any(LocalDateTime.class)
-        )).willReturn(List.of(virtualAccount));
+        )).willReturn(List.of(virtualAccount), List.of());
         given(virtualAccountExpiredEventProducer.sendExpired(eq(virtualAccount), any(LocalDateTime.class)))
                 .willReturn(CompletableFuture.completedFuture(null));
 
@@ -65,11 +66,41 @@ class VirtualAccountExpirationSchedulerTest {
         assertThat(historyCaptor.getValue().getHistoryType()).isEqualTo(VirtualAccountPaymentHistoryType.EXPIRED);
     }
 
+    @Test
+    @DisplayName("만료 대상이 남아 있으면 100건 단위로 반복 처리한다")
+    void repeat_until_no_expired_accounts() {
+        DummyVirtualAccount firstAccount = waitingVirtualAccount("PAY-1", "1111-1234-567890");
+        DummyVirtualAccount secondAccount = waitingVirtualAccount("PAY-2", "1111-1234-567891");
+
+        given(dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
+                any(LocalDateTime.class)
+        )).willReturn(List.of(firstAccount), List.of(secondAccount), List.of());
+        given(virtualAccountExpiredEventProducer.sendExpired(any(DummyVirtualAccount.class), any(LocalDateTime.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        scheduler.expireWaitingAccounts();
+
+        assertThat(firstAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(secondAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        then(dummyVirtualAccountJpaRepository).should(times(3))
+                .findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                        eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
+                        any(LocalDateTime.class)
+                );
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
+                .save(any(DummyVirtualAccountPaymentHistory.class));
+    }
+
     private DummyVirtualAccount waitingVirtualAccount() {
+        return waitingVirtualAccount("PAY-20260727120000-abcdef123456", "1111-1234-567890");
+    }
+
+    private DummyVirtualAccount waitingVirtualAccount(String paymentNo, String accountNumber) {
         return DummyVirtualAccount.issue(
-                "PAY-20260727120000-abcdef123456",
+                paymentNo,
                 BankCompany.KB,
-                "1111-1234-567890",
+                accountNumber,
                 BigDecimal.valueOf(180000),
                 LocalDateTime.of(2026, 8, 20, 23, 59, 59)
         );
