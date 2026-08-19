@@ -4,146 +4,36 @@ import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
-import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private final PaymentJpaRepository paymentJpaRepository;
-    private final PaymentCompletionService paymentCompletionService;
+    private final CardPaymentService cardPaymentService;
+    private final VirtualAccountPaymentService virtualAccountPaymentService;
 
     @AuditLog(action = "CARD_PAYMENT_COMPLETE_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-card-from-gateway", contextualName = "ticket payment complete card from gateway")
     public PaymentResponse completeCardFromGateway(CardPaymentCompleteRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-        Reservation reservation = payment.getReservation();
-
-        validateGatewayCardCompletion(payment, reservation, request);
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return payment.toResponse();
-        }
-
-        return paymentCompletionService.complete(payment, LocalDateTime.now());
+        return cardPaymentService.completeFromGateway(request);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUED_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.apply-virtual-account-issued", contextualName = "ticket payment apply virtual account issued")
     public PaymentResponse applyVirtualAccountIssued(VirtualAccountIssuedRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        validateGatewayVirtualAccountIssuedBasics(payment, request);
-        if (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) {
-            return payment.toResponse();
-        }
-
-        validateGatewayVirtualAccountIssuedReady(payment);
-        PaymentStatus beforePaymentStatus = payment.getStatus();
-        payment.waitDeposit(request.getBankName(), request.getAccountNumber(), request.getExpiresAt());
-        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
-
-        return payment.toResponse();
+        return virtualAccountPaymentService.applyIssuedFromGateway(request);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
     public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompletedEvent event) {
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        validateGatewayVirtualAccountDeposit(payment, event);
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return payment.toResponse();
-        }
-
-        return paymentCompletionService.completeDeposit(payment, event.getDepositedAt(), event.getDepositorName());
-    }
-
-    private void validateGatewayCardCompletion(
-            Payment payment,
-            Reservation reservation,
-            CardPaymentCompleteRequest request
-    ) {
-        if (reservation == null || !request.getUserId().equals(reservation.getUserId())) {
-            throw new AccessDeniedException("다른 사용자의 결제 완료 요청입니다.");
-        }
-        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
-        }
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
-            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
-        }
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return;
-        }
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("카드 결제 완료 처리할 수 없는 상태입니다.");
-        }
-        validatePaymentNotExpired(payment);
-    }
-
-    private void validateGatewayVirtualAccountIssuedBasics(Payment payment, VirtualAccountIssuedRequest request) {
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
-        }
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
-            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
-        }
-    }
-
-    private void validateGatewayVirtualAccountIssuedReady(Payment payment) {
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("가상계좌 발급 정보를 반영할 수 없는 결제 상태입니다.");
-        }
-        validatePaymentNotExpired(payment);
-    }
-
-    private void validatePaymentNotExpired(Payment payment) {
-        if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
-            payment.expire();
-            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
-        }
-    }
-
-    private void validateGatewayVirtualAccountDeposit(Payment payment, VirtualAccountDepositCompletedEvent event) {
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
-        }
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(event.getAmount()) != 0) {
-            throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
-        }
-        if (StringUtils.hasText(payment.getAccountNumber())
-                && !payment.getAccountNumber().equals(event.getAccountNumber())) {
-            throw new IllegalArgumentException("입금 계좌번호가 일치하지 않습니다.");
-        }
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return;
-        }
-        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
-            throw new IllegalArgumentException("입금 처리할 수 없는 결제 상태입니다.");
-        }
-        if (payment.getExpiresAt() != null && event.getDepositedAt() != null && event.getDepositedAt().isAfter(payment.getExpiresAt())) {
-            payment.expire();
-            throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
-        }
+        return virtualAccountPaymentService.completeDepositFromGateway(event);
     }
 
 }
