@@ -6,6 +6,8 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
@@ -98,6 +100,66 @@ class GatewayVirtualAccountServiceTest {
     }
 
     @Test
+    @DisplayName("가상계좌 입금 요청 시 입금 완료 상태로 변경하고 이력을 저장한다")
+    void deposit_virtual_account() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(response.getDepositorName()).isEqualTo("아이유");
+        assertThat(response.getDepositedAt()).isEqualTo(LocalDateTime.of(2026, 8, 19, 12, 0));
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should().save(any(DummyVirtualAccountPaymentHistory.class));
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("입금 금액이 다르면 입금 상태로 변경하지 않는다")
+    void reject_deposit_amount_mismatch() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(170000));
+
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.deposit(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 금액이 일치하지 않습니다.");
+
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("입금 기한이 지나면 만료 상태로 변경한다")
+    void expire_deposit_after_expires_at() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = GatewayVirtualAccountDepositRequest.builder()
+                .accountNumber("1111-1234-123456")
+                .depositorName("아이유")
+                .amount(BigDecimal.valueOf(180000))
+                .depositedAt(LocalDateTime.of(2099, 7, 28, 0, 0))
+                .build();
+
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.deposit(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 기한이 만료되었습니다.");
+
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("공연 당일에는 무통장 가상계좌를 발급할 수 없다")
     void reject_virtual_account_on_event_day() {
         GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().atTime(18, 0));
@@ -116,6 +178,25 @@ class GatewayVirtualAccountServiceTest {
                 .amount(BigDecimal.valueOf(180000))
                 .eventDateTime(eventDateTime)
                 .build();
+    }
+
+    private GatewayVirtualAccountDepositRequest depositRequest(BigDecimal amount) {
+        return GatewayVirtualAccountDepositRequest.builder()
+                .accountNumber("1111-1234-123456")
+                .depositorName("아이유")
+                .amount(amount)
+                .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
+                .build();
+    }
+
+    private DummyVirtualAccount virtualAccount() {
+        return DummyVirtualAccount.issue(
+                "PAY-20260727120000-abcdef123456",
+                BankCompany.KB,
+                "1111-1234-123456",
+                BigDecimal.valueOf(180000),
+                LocalDateTime.of(2099, 7, 27, 23, 59, 59)
+        );
     }
 
     private PaymentResponse paymentResponse() {

@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.controller.virtualAccount;
 
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
@@ -23,5 +25,12 @@ public class GatewayVirtualAccountController {
             @Valid @RequestBody GatewayVirtualAccountIssueRequest request
     ) {
         return ResponseEntity.ok(gatewayVirtualAccountService.issue(request));
+    }
+
+    @PostMapping("/deposit")
+    public ResponseEntity<GatewayVirtualAccountDepositResponse> deposit(
+            @Valid @RequestBody GatewayVirtualAccountDepositRequest request
+    ) {
+        return ResponseEntity.ok(gatewayVirtualAccountService.deposit(request));
     }
 }

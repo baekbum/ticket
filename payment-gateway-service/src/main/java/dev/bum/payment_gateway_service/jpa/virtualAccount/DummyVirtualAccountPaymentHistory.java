@@ -79,4 +79,13 @@ public class DummyVirtualAccountPaymentHistory {
                 .message("입금 완료 Kafka 이벤트가 발행되었습니다.")
                 .build();
     }
+
+    public static DummyVirtualAccountPaymentHistory deposited(DummyVirtualAccount virtualAccount) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.DEPOSITED)
+                .message("가상계좌 입금이 확인되었습니다.")
+                .build();
+    }
 }
