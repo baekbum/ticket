@@ -5,6 +5,9 @@ public enum CardPaymentHistoryStatus {
     // payment-gateway에서 카드 검증과 승인 처리가 완료된 상태.
     APPROVED,
 
+    // payment-gateway에서 카드 정보 검증이나 승인 처리가 실패한 상태.
+    APPROVAL_FAILED,
+
     // ticket-service 결제 완료 반영까지 성공한 상태.
     TICKET_PAYMENT_COMPLETED,
 

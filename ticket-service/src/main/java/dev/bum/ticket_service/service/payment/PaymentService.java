@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -22,6 +23,12 @@ public class PaymentService {
     @Observed(name = "ticket.payment.complete-card-from-gateway", contextualName = "ticket payment complete card from gateway")
     public PaymentResponse completeCardFromGateway(CardPaymentCompleteRequest request) {
         return cardPaymentService.completeFromGateway(request);
+    }
+
+    @AuditLog(action = "CARD_PAYMENT_FAIL_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.fail-card-from-gateway", contextualName = "ticket payment fail card from gateway")
+    public PaymentResponse failCardFromGateway(CardPaymentFailRequest request) {
+        return cardPaymentService.failFromGateway(request);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUED_FROM_GATEWAY", targetType = "PAYMENT")

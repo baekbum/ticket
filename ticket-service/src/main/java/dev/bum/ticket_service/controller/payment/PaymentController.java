@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.controller.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.ticket_service.service.payment.PaymentService;
@@ -24,6 +25,13 @@ public class PaymentController {
             @Valid @RequestBody CardPaymentCompleteRequest request
     ) {
         return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
+    }
+
+    @PostMapping("/internal/card/fail")
+    public ResponseEntity<PaymentResponse> failCardFromGateway(
+            @Valid @RequestBody CardPaymentFailRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.failCardFromGateway(request));
     }
 
     @PostMapping("/internal/virtual-account/issued")

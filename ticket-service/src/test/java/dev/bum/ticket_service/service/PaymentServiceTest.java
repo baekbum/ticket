@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -51,6 +52,33 @@ class PaymentServiceTest {
 
         assertThat(response).isEqualTo(expectedResponse);
         then(cardPaymentService).should().completeFromGateway(request);
+    }
+
+    @Test
+    @DisplayName("카드 결제 실패 요청을 카드 결제 서비스로 위임한다")
+    void delegate_card_failure() {
+        CardPaymentFailRequest request = CardPaymentFailRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
+                .failureReason("카드 승인 실패")
+                .build();
+        PaymentResponse expectedResponse = PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo(request.getPaymentNo())
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.FAILED)
+                .amount(180000)
+                .build();
+
+        given(cardPaymentService.failFromGateway(request)).willReturn(expectedResponse);
+
+        PaymentResponse response = paymentService.failCardFromGateway(request);
+
+        assertThat(response).isEqualTo(expectedResponse);
+        then(cardPaymentService).should().failFromGateway(request);
     }
 
     @Test

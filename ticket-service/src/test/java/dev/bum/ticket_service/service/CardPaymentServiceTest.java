@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -76,11 +77,53 @@ class CardPaymentServiceTest {
         then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("payment-gateway 카드 결제 실패 요청 시 READY 결제를 FAILED 처리한다")
+    void fail_card_payment_from_gateway_success() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+        CardPaymentFailRequest request = cardFailRequest(BigDecimal.valueOf(180000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        PaymentResponse response = cardPaymentService.failFromGateway(request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        then(paymentCompletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("payment-gateway 카드 결제 실패 요청 금액이 다르면 결제 상태를 유지한다")
+    void fail_card_payment_from_gateway_amount_mismatch() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+        CardPaymentFailRequest request = cardFailRequest(BigDecimal.valueOf(170000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> cardPaymentService.failFromGateway(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("결제 금액이 일치하지 않습니다.");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        then(paymentCompletionService).shouldHaveNoInteractions();
+    }
+
     private CardPaymentCompleteRequest cardCompleteRequest(BigDecimal amount) {
         return CardPaymentCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(amount)
+                .build();
+    }
+
+    private CardPaymentFailRequest cardFailRequest(BigDecimal amount) {
+        return CardPaymentFailRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .userId("user01")
+                .amount(amount)
+                .failureReason("카드 승인 실패")
                 .build();
     }
 

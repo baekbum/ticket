@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.service.card;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
@@ -12,6 +13,7 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GatewayCardPaymentService {
 
     private final DummyCardJpaRepository dummyCardJpaRepository;
@@ -34,7 +37,7 @@ public class GatewayCardPaymentService {
     private final TicketPaymentClient ticketPaymentClient;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional(noRollbackFor = TicketPaymentCompleteException.class)
+    @Transactional(noRollbackFor = {TicketPaymentCompleteException.class, IllegalArgumentException.class})
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
         validateCurrentUser(currentUserId);
 
@@ -44,17 +47,29 @@ public class GatewayCardPaymentService {
         Optional<DummyCardPaymentHistory> existingHistory =
                 dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo());
         if (existingHistory.isPresent()) {
-            return retryTicketPaymentCompletion(currentUserId, existingHistory.get(), request);
+            return handleExistingHistory(currentUserId, existingHistory.get(), request);
         }
 
-        DummyCard dummyCard = dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
+        Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
                         currentUserId,
                         request.getCardCompany(),
                         sha256(cardNumber)
-                )
-                .orElseThrow(() -> new IllegalArgumentException("카드 정보가 일치하지 않습니다."));
+                );
 
-        validateCard(dummyCard, request, cardNumber);
+        if (dummyCardOptional.isEmpty()) {
+            failApproval(null, currentUserId, request, cardNumber, "카드 정보가 일치하지 않습니다.");
+            failTicketPayment(currentUserId, request, "카드 정보가 일치하지 않습니다.");
+            throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
+        }
+
+        DummyCard dummyCard = dummyCardOptional.get();
+        try {
+            validateCard(dummyCard, request, cardNumber);
+        } catch (IllegalArgumentException e) {
+            failApproval(dummyCard, currentUserId, request, cardNumber, e.getMessage());
+            failTicketPayment(currentUserId, request, e.getMessage());
+            throw e;
+        }
 
         dummyCard.approve(request.getAmount());
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository.save(
@@ -81,22 +96,22 @@ public class GatewayCardPaymentService {
         }
     }
 
-    private GatewayCardPaymentApproveResponse retryTicketPaymentCompletion(
+    private GatewayCardPaymentApproveResponse handleExistingHistory(
             String currentUserId,
             DummyCardPaymentHistory paymentHistory,
             GatewayCardPaymentApproveRequest request
     ) {
         validateExistingHistory(currentUserId, paymentHistory, request);
-        if (paymentHistory.getStatus() != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
-            completeTicketPayment(paymentHistory, request);
+        if (paymentHistory.getStatus() == CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
+            return toApproveResponse(
+                    paymentHistory.getPaymentNo(),
+                    paymentHistory.getDummyCard(),
+                    paymentHistory.getAmount(),
+                    "이미 완료된 카드 결제입니다."
+            );
         }
 
-        return toApproveResponse(
-                paymentHistory.getPaymentNo(),
-                paymentHistory.getDummyCard(),
-                paymentHistory.getAmount(),
-                "이미 승인된 카드 결제의 티켓 결제 완료 반영을 확인했습니다."
-        );
+        throw new IllegalArgumentException("이미 카드 결제 시도가 처리된 결제번호입니다. 새 결제번호로 다시 시도해주세요.");
     }
 
     private void validateExistingHistory(
@@ -110,6 +125,26 @@ public class GatewayCardPaymentService {
         if (paymentHistory.getAmount().compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("기존 카드 승인 금액과 요청 금액이 일치하지 않습니다.");
         }
+    }
+
+    private void failApproval(
+            DummyCard dummyCard,
+            String currentUserId,
+            GatewayCardPaymentApproveRequest request,
+            String cardNumber,
+            String failureReason
+    ) {
+        dummyCardPaymentHistoryJpaRepository.save(
+                DummyCardPaymentHistory.approvalFailed(
+                        dummyCard,
+                        currentUserId,
+                        request.getPaymentNo(),
+                        request.getCardCompany(),
+                        cardNumber.substring(cardNumber.length() - 4),
+                        request.getAmount(),
+                        failureReason
+                )
+        );
     }
 
     private PaymentResponse completeTicketPayment(
@@ -127,8 +162,26 @@ public class GatewayCardPaymentService {
             paymentHistory.completeTicketPayment(null);
             return ticketPayment;
         } catch (RuntimeException e) {
-            paymentHistory.failTicketPayment(e.getMessage());
-            throw new TicketPaymentCompleteException("ticket-service 결제 완료 반영에 실패했습니다.", e);
+            String failureReason = "ticket-service 결제 완료 반영 실패: " + e.getMessage();
+            paymentHistory.getDummyCard().cancelApproval(request.getAmount());
+            paymentHistory.cancel(failureReason);
+            failTicketPayment(paymentHistory.getUserId(), request, failureReason);
+            throw new TicketPaymentCompleteException("카드 승인 후 ticket-service 반영에 실패해 카드 승인을 취소했습니다. 다시 결제해주세요.", e);
+        }
+    }
+
+    private void failTicketPayment(String currentUserId, GatewayCardPaymentApproveRequest request, String failureReason) {
+        try {
+            ticketPaymentClient.failCardPayment(
+                    CardPaymentFailRequest.builder()
+                            .paymentNo(request.getPaymentNo())
+                            .userId(currentUserId)
+                            .amount(request.getAmount())
+                            .failureReason(failureReason)
+                            .build()
+            );
+        } catch (RuntimeException e) {
+            log.warn("ticket-service 카드 결제 실패 반영 실패: paymentNo={}, reason={}", request.getPaymentNo(), e.getMessage());
         }
     }
 

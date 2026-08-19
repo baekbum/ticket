@@ -127,6 +127,15 @@ public class DummyCard {
         this.currentMonthUsedAmount = this.currentMonthUsedAmount.add(paymentAmount);
     }
 
+    public void cancelApproval(BigDecimal paymentAmount) {
+        if (paymentAmount == null || paymentAmount.signum() <= 0) {
+            throw new IllegalArgumentException("취소 금액이 올바르지 않습니다.");
+        }
+
+        BigDecimal cancelledAmount = this.currentMonthUsedAmount.subtract(paymentAmount);
+        this.currentMonthUsedAmount = cancelledAmount.signum() < 0 ? BigDecimal.ZERO : cancelledAmount;
+    }
+
     public void deactivate() {
         this.active = false;
     }

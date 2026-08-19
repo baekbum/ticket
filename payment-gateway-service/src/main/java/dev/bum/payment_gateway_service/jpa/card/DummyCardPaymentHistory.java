@@ -47,9 +47,9 @@ public class DummyCardPaymentHistory {
     @Column(name = "history_id")
     private Long historyId;
 
-    // 결제 승인에 사용된 더미 카드.
+    // 결제 승인에 사용된 더미 카드. 카드 조회 실패 이력은 null로 저장된다.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "dummy_card_id", nullable = false)
+    @JoinColumn(name = "dummy_card_id")
     private DummyCard dummyCard;
 
     // 결제 요청 사용자 ID.
@@ -60,16 +60,16 @@ public class DummyCardPaymentHistory {
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
-    // 승인 당시 카드사 스냅샷.
+    // 요청 당시 카드사 스냅샷.
     @Enumerated(EnumType.STRING)
     @Column(name = "card_company", nullable = false, length = 30)
     private CardCompany cardCompany;
 
-    // 승인 당시 카드번호 마지막 4자리 스냅샷.
+    // 요청 당시 카드번호 마지막 4자리 스냅샷.
     @Column(name = "card_number_last4", nullable = false, length = 4)
     private String cardNumberLast4;
 
-    // 승인 금액.
+    // 요청 금액.
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
@@ -78,11 +78,11 @@ public class DummyCardPaymentHistory {
     @Column(name = "status", nullable = false, length = 40)
     private CardPaymentHistoryStatus status;
 
-    // ticket-service 결제 완료 요청 실패 사유.
+    // 카드 승인 실패 또는 ticket-service 결제 완료 요청 실패 사유.
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
-    // 카드 검증과 승인 처리가 완료된 시각.
+    // 카드 검증과 승인 처리가 처리된 시각.
     @Column(name = "approved_at", nullable = false)
     private LocalDateTime approvedAt;
 
@@ -109,6 +109,28 @@ public class DummyCardPaymentHistory {
                 .cardNumberLast4(dummyCard.getCardNumberLast4())
                 .amount(amount)
                 .status(CardPaymentHistoryStatus.APPROVED)
+                .approvedAt(LocalDateTime.now())
+                .build();
+    }
+
+    public static DummyCardPaymentHistory approvalFailed(
+            DummyCard dummyCard,
+            String userId,
+            String paymentNo,
+            CardCompany cardCompany,
+            String cardNumberLast4,
+            BigDecimal amount,
+            String failureReason
+    ) {
+        return DummyCardPaymentHistory.builder()
+                .dummyCard(dummyCard)
+                .userId(userId)
+                .paymentNo(paymentNo)
+                .cardCompany(cardCompany)
+                .cardNumberLast4(cardNumberLast4)
+                .amount(amount)
+                .status(CardPaymentHistoryStatus.APPROVAL_FAILED)
+                .failureReason(failureReason)
                 .approvedAt(LocalDateTime.now())
                 .build();
     }

@@ -34,7 +34,7 @@ CREATE INDEX idx_dummy_cards_card_company ON dummy_cards(card_company);
 -- ==========================================
 CREATE TABLE dummy_card_payment_histories (
     history_id BIGSERIAL PRIMARY KEY,
-    dummy_card_id BIGINT NOT NULL,
+    dummy_card_id BIGINT,
     user_id VARCHAR(50) NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     card_company VARCHAR(30) NOT NULL,
