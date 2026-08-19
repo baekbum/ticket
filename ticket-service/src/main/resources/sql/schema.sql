@@ -232,12 +232,12 @@ CREATE TABLE payments (
 
     CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
     CONSTRAINT uk_payments_payment_no UNIQUE (payment_no),
-    CONSTRAINT uk_payments_idempotency_key UNIQUE (idempotency_key),
     CONSTRAINT uk_payments_account_number UNIQUE (account_number)
 );
 
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
 CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
+CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, status);
 
 
 -- ==========================================

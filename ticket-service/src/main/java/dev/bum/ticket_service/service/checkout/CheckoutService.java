@@ -39,6 +39,11 @@ import java.util.UUID;
 public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final List<PaymentStatus> REUSABLE_PAYMENT_STATUSES = List.of(
+            PaymentStatus.READY,
+            PaymentStatus.WAITING_DEPOSIT,
+            PaymentStatus.PAID
+    );
 
     private final SeatCacheService seatCacheService;
     private final QueueAccessService queueAccessService;
@@ -137,7 +142,10 @@ public class CheckoutService {
             return null;
         }
 
-        return paymentJpaRepository.findByIdempotencyKey(idempotencyKey)
+        return paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                        idempotencyKey,
+                        REUSABLE_PAYMENT_STATUSES
+                )
                 .map(payment -> {
                     Reservation reservation = payment.getReservation();
                     if (reservation == null || !currentUserId.equals(reservation.getUserId())) {

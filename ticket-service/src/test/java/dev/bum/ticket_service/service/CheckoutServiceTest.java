@@ -42,6 +42,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doAnswer;
@@ -141,7 +142,10 @@ class CheckoutServiceTest {
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
 
-        given(paymentJpaRepository.findByIdempotencyKey("idem-1")).willReturn(Optional.empty());
+        given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                org.mockito.ArgumentMatchers.eq("idem-1"),
+                anyList()
+        )).willReturn(Optional.empty());
         given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
@@ -181,7 +185,10 @@ class CheckoutServiceTest {
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
 
-        given(paymentJpaRepository.findByIdempotencyKey("idem-1")).willReturn(Optional.empty());
+        given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                org.mockito.ArgumentMatchers.eq("idem-1"),
+                anyList()
+        )).willReturn(Optional.empty());
         given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         doAnswer(invocation -> {
@@ -213,7 +220,10 @@ class CheckoutServiceTest {
         Payment payment = payment(reservation);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
 
-        given(paymentJpaRepository.findByIdempotencyKey("idem-1")).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                org.mockito.ArgumentMatchers.eq("idem-1"),
+                anyList()
+        )).willReturn(Optional.of(payment));
 
         PaymentResponse response = checkoutService.confirm("user01", request);
 
@@ -221,6 +231,42 @@ class CheckoutServiceTest {
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         then(seatCacheService).shouldHaveNoInteractions();
         then(reservationRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("같은 멱등 키라도 종료된 결제만 있으면 새 결제를 생성한다")
+    void confirm_creates_new_payment_when_previous_payment_is_terminal() {
+        Event event = event();
+        Reservation reservation = reservation(event, "user01");
+        Seat seat = seat(event);
+        new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+
+        given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                org.mockito.ArgumentMatchers.eq("idem-1"),
+                anyList()
+        )).willReturn(Optional.empty());
+        given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+        doAnswer(invocation -> {
+            Payment payment = invocation.getArgument(1);
+            payment.waitDeposit(
+                    "KB국민은행",
+                    "1111-2222-3333-4444",
+                    LocalDateTime.of(2026, 9, 18, 23, 59, 59)
+            );
+            return null;
+        }).when(checkoutPaymentService).process(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.any(Payment.class));
+        given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentResponse response = checkoutService.confirm("user01", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getPaymentNo()).startsWith("PAY-");
+        assertThat(response.getPaymentNo()).isNotEqualTo("PAY-1");
+        then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.any());
+        then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.any(Payment.class));
     }
 
     private CheckoutPrepareRequest checkoutRequest(String idempotencyKey) {
