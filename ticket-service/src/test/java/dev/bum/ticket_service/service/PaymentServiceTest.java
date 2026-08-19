@@ -9,18 +9,12 @@ import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
-import dev.bum.common.service.ticket.seat.enums.SeatGrade;
-import dev.bum.common.service.ticket.seat.enums.SeatStatus;
-import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import dev.bum.ticket_service.service.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.payment.PaymentService;
-import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,10 +39,7 @@ class PaymentServiceTest {
     private PaymentJpaRepository paymentJpaRepository;
 
     @Mock
-    private TicketRepository ticketRepository;
-
-    @Mock
-    private SeatCacheService seatCacheService;
+    private PaymentCompletionService paymentCompletionService;
 
     @InjectMocks
     private PaymentService paymentService;
@@ -60,22 +50,17 @@ class PaymentServiceTest {
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        Seat seat = seat(event);
-        Ticket ticket = ticket(event, reservation, seat);
         CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(180000));
+        PaymentResponse paymentResponse = paidResponse(PaymentMethod.CREDIT_CARD);
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-        given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentCompletionService.complete(org.mockito.ArgumentMatchers.eq(payment), org.mockito.ArgumentMatchers.any()))
+                .willReturn(paymentResponse);
 
         PaymentResponse response = paymentService.completeCardFromGateway(request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
-        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
-        assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-        then(seatCacheService).should().updateUserPurchaseLimit(event, "user01", 1, "PLUS");
-        then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
+        then(paymentCompletionService).should().complete(org.mockito.ArgumentMatchers.eq(payment), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -92,7 +77,7 @@ class PaymentServiceTest {
                 .hasMessage("결제 금액이 일치하지 않습니다.");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
-        then(ticketRepository).shouldHaveNoInteractions();
+        then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -134,23 +119,17 @@ class PaymentServiceTest {
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
-        Seat seat = seat(event);
-        Ticket ticket = ticket(event, reservation, seat);
         VirtualAccountDepositCompletedEvent depositEvent = virtualAccountDepositCompletedEvent(BigDecimal.valueOf(180000));
+        PaymentResponse paymentResponse = paidResponse(PaymentMethod.BANK_TRANSFER);
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(depositEvent.getPaymentNo())).willReturn(Optional.of(payment));
-        given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentCompletionService.completeDeposit(payment, depositEvent.getDepositedAt(), depositEvent.getDepositorName()))
+                .willReturn(paymentResponse);
 
         PaymentResponse response = paymentService.completeVirtualAccountDepositFromGateway(depositEvent);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(payment.getDepositorName()).isEqualTo("아이유");
-        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
-        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
-        assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-        then(seatCacheService).should().updateUserPurchaseLimit(event, "user01", 1, "PLUS");
-        then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
+        then(paymentCompletionService).should().completeDeposit(payment, depositEvent.getDepositedAt(), depositEvent.getDepositorName());
     }
 
     @Test
@@ -167,7 +146,7 @@ class PaymentServiceTest {
                 .hasMessage("입금 금액이 일치하지 않습니다.");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-        then(ticketRepository).shouldHaveNoInteractions();
+        then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
     private VirtualAccountIssuedRequest virtualAccountIssuedRequest(BigDecimal amount) {
@@ -253,27 +232,15 @@ class PaymentServiceTest {
                 .build();
     }
 
-    private Seat seat(Event event) {
-        return Seat.builder()
-                .seatId(1L)
-                .event(event)
-                .zone("VIP")
-                .seatRow(1)
-                .seatCol(1)
-                .grade(SeatGrade.VIP)
-                .price(180000)
-                .status(SeatStatus.LOCKED)
-                .build();
-    }
-
-    private Ticket ticket(Event event, Reservation reservation, Seat seat) {
-        return Ticket.builder()
-                .ticketId(1L)
-                .userId("user01")
-                .reservation(reservation)
-                .event(event)
-                .seat(seat)
-                .status(TicketStatus.PENDING_PAYMENT)
+    private PaymentResponse paidResponse(PaymentMethod paymentMethod) {
+        return PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .method(paymentMethod)
+                .status(PaymentStatus.PAID)
+                .amount(180000)
                 .build();
     }
 }

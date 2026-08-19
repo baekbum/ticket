@@ -11,10 +11,6 @@ import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.ticket_service.service.seat.SeatCacheService;
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -24,8 +20,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -33,8 +27,7 @@ import java.util.stream.Collectors;
 public class PaymentService {
 
     private final PaymentJpaRepository paymentJpaRepository;
-    private final TicketRepository ticketRepository;
-    private final SeatCacheService seatCacheService;
+    private final PaymentCompletionService paymentCompletionService;
 
     @AuditLog(action = "CARD_PAYMENT_COMPLETE_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-card-from-gateway", contextualName = "ticket payment complete card from gateway")
@@ -48,7 +41,7 @@ public class PaymentService {
             return payment.toResponse();
         }
 
-        return completePayment(payment, LocalDateTime.now());
+        return paymentCompletionService.complete(payment, LocalDateTime.now());
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUED_FROM_GATEWAY", targetType = "PAYMENT")
@@ -81,57 +74,7 @@ public class PaymentService {
             return payment.toResponse();
         }
 
-        return completePayment(payment, event.getDepositedAt(), event.getDepositorName());
-    }
-
-    /**
-     * 카드 승인 또는 무통장 입금 확인 이후 결제를 최종 완료 처리한다.
-     * 결제, 예약, 티켓, 좌석 상태를 같은 트랜잭션에서 확정한다.
-     */
-    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt) {
-        return completePayment(payment, paidAt, null);
-    }
-
-    private PaymentResponse completePayment(Payment payment, LocalDateTime paidAt, String depositorName) {
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return payment.toResponse();
-        }
-        if (payment.getStatus() != PaymentStatus.READY && payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
-            throw new IllegalArgumentException("결제 완료 처리할 수 없는 상태입니다.");
-        }
-        PaymentStatus beforePaymentStatus = payment.getStatus();
-
-        Reservation reservation = payment.getReservation();
-        List<Ticket> tickets = ticketRepository.selectByReservation(reservation);
-        List<Seat> seats = tickets.stream()
-                .map(Ticket::getSeat)
-                .collect(Collectors.toList());
-
-        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && depositorName != null) {
-            payment.completeDeposit(depositorName, paidAt);
-        } else {
-            payment.complete(paidAt);
-        }
-
-        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
-
-        reservation.paid();
-        for (Ticket ticket : tickets) {
-            ticket.paid();
-            ticket.getSeat().reserved();
-        }
-
-        seatCacheService.updateUserPurchaseLimit(
-                reservation.getEvent(),
-                reservation.getUserId(),
-                tickets.size(),
-                "PLUS"
-        );
-        seatCacheService.syncReservedSeatsAfterCommit(seats);
-        // 현재는 결제 완료 이벤트를 소비하는 consumer가 없으므로 Kafka 발행을 비활성화한다.
-        // 후속 알림/정산/배송 이벤트 consumer를 붙일 때 PaymentEventProducer 호출을 다시 활성화한다.
-
-        return payment.toResponse();
+        return paymentCompletionService.completeDeposit(payment, event.getDepositedAt(), event.getDepositorName());
     }
 
     private void validateGatewayCardCompletion(
