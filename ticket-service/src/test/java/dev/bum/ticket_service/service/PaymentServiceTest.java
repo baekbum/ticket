@@ -1,6 +1,8 @@
 package dev.bum.ticket_service.service;
 
+import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -299,6 +301,47 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("payment-gateway 입금 완료 이벤트 수신 시 결제와 예매를 완료 처리한다")
+    void complete_virtual_account_deposit_from_gateway_success() {
+        Event event = event();
+        Reservation reservation = reservation(event, "user01");
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
+        Seat seat = seat(event);
+        Ticket ticket = ticket(event, reservation, seat);
+        VirtualAccountDepositCompletedEvent depositEvent = virtualAccountDepositCompletedEvent(BigDecimal.valueOf(180000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(depositEvent.getPaymentNo())).willReturn(Optional.of(payment));
+        given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(ticket));
+
+        PaymentResponse response = paymentService.completeVirtualAccountDepositFromGateway(depositEvent);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getDepositorName()).isEqualTo("아이유");
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
+        assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
+        then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
+    }
+
+    @Test
+    @DisplayName("payment-gateway 입금 완료 이벤트 금액이 다르면 결제 상태를 유지한다")
+    void complete_virtual_account_deposit_from_gateway_amount_mismatch() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
+        VirtualAccountDepositCompletedEvent depositEvent = virtualAccountDepositCompletedEvent(BigDecimal.valueOf(170000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(depositEvent.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completeVirtualAccountDepositFromGateway(depositEvent))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 금액이 일치하지 않습니다.");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        then(ticketRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("입금 금액이 결제 금액과 다르면 결제 상태를 유지한다")
     void deposit_virtual_account_amount_mismatch() {
         Reservation reservation = reservation(event(), "user01");
@@ -372,6 +415,18 @@ class PaymentServiceTest {
                 .accountNumber("1111-2222-3333-4444")
                 .depositorName("홍길동")
                 .amount(amount)
+                .build();
+    }
+
+    private VirtualAccountDepositCompletedEvent virtualAccountDepositCompletedEvent(BigDecimal amount) {
+        return VirtualAccountDepositCompletedEvent.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-2222-3333-4444")
+                .depositorName("아이유")
+                .amount(amount)
+                .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
                 .build();
     }
 

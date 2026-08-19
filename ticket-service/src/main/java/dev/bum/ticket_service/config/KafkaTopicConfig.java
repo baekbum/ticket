@@ -17,6 +17,9 @@ public class KafkaTopicConfig {
     @Value("${topic.payment.completed.name}")
     private String paymentCompletedTopicName;
 
+    @Value("${topic.payment.virtual-account.deposited.name}")
+    private String virtualAccountDepositedTopicName;
+
     @Bean
     public NewTopic paymentCompletedTopic() {
         return TopicBuilder.name(paymentCompletedTopicName)
@@ -28,6 +31,24 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic paymentCompletedDltTopic() {
         return TopicBuilder.name(paymentCompletedTopicName + DLT_SUFFIX)
+                .partitions(3)
+                .replicas(1)
+                .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
+                .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
+                .build();
+    }
+
+    @Bean
+    public NewTopic virtualAccountDepositedTopic() {
+        return TopicBuilder.name(virtualAccountDepositedTopicName)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic virtualAccountDepositedDltTopic() {
+        return TopicBuilder.name(virtualAccountDepositedTopicName + DLT_SUFFIX)
                 .partitions(3)
                 .replicas(1)
                 .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)

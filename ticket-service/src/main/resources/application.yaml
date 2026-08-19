@@ -34,8 +34,9 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
+      group-id: ticket-service-group
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "dev.bum.*"
@@ -62,6 +63,10 @@ topic:
   payment:
     completed:
       name: payment-completed
+    virtual-account:
+      deposited:
+        name: virtual-account-deposited
+        group-id: ticket-virtual-account-deposit-group
   audit:
     log:
       name: audit-log

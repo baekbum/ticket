@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.service.payment;
 
+import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -133,6 +134,20 @@ public class PaymentService {
         validateVirtualAccountDeposit(payment, request);
 
         return completePayment(payment, null, request.getDepositorName());
+    }
+
+    @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
+    public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompletedEvent event) {
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+
+        validateGatewayVirtualAccountDeposit(payment, event);
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return payment.toResponse();
+        }
+
+        return completePayment(payment, event.getDepositedAt(), event.getDepositorName());
     }
 
     /**
@@ -278,6 +293,29 @@ public class PaymentService {
         }
         if (!payment.getAmount().equals(request.getAmount())) {
             throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private void validateGatewayVirtualAccountDeposit(Payment payment, VirtualAccountDepositCompletedEvent event) {
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
+        }
+        if (BigDecimal.valueOf(payment.getAmount()).compareTo(event.getAmount()) != 0) {
+            throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
+        }
+        if (StringUtils.hasText(payment.getAccountNumber())
+                && !payment.getAccountNumber().equals(event.getAccountNumber())) {
+            throw new IllegalArgumentException("입금 계좌번호가 일치하지 않습니다.");
+        }
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return;
+        }
+        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
+            throw new IllegalArgumentException("입금 처리할 수 없는 결제 상태입니다.");
+        }
+        if (payment.getExpiresAt() != null && event.getDepositedAt() != null && event.getDepositedAt().isAfter(payment.getExpiresAt())) {
+            payment.expire();
+            throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
     }
 
