@@ -4,6 +4,8 @@
 현재 별도 프론트 서버가 없으므로, 경로는 각 백엔드 서비스의 내부 API 경로(`/api/v1/...`) 기준으로 적는다.
 나중에 프론트 서버나 Gateway/BFF가 생기면 Base URL만 해당 환경에 맞게 치환한다.
 
+카드 결제와 무통장 입금의 최신 서비스 간 처리 흐름은 `docs/payment-flow.md`를 기준으로 한다.
+
 ## 공통 규칙
 
 ### 인증 헤더
@@ -412,7 +414,7 @@ Content-Type: application/json
   },
   "paymentMethod": "CREDIT_CARD",
   "idempotencyKey": "client-generated-unique-key",
-  "bankCode": null,
+  "bankCode": null
 }
 ```
 
