@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -17,6 +19,8 @@ import java.util.List;
 public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String SERVICE_TOKEN_HEADER = "X-Service-Token";
+    private static final RequestMatcher INTERNAL_PAYMENT_REQUEST_MATCHER =
+            new AntPathRequestMatcher("/api/*/payments/internal/**");
 
     private final InternalServiceTokenValidator internalServiceTokenValidator;
 
@@ -48,8 +52,6 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean isInternalPaymentRequest(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        return requestUri.contains("/api/")
-                && requestUri.contains("/payments/internal/");
+        return INTERNAL_PAYMENT_REQUEST_MATCHER.matches(request);
     }
 }
