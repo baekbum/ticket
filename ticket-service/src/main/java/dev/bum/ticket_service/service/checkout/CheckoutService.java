@@ -4,14 +4,9 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.enums.BankCompany;
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.ticket_service.audit.AuditLog;
-import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueRequest;
-import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -21,6 +16,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +28,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -52,7 +46,7 @@ public class CheckoutService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
-    private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
+    private final CheckoutPaymentService checkoutPaymentService;
 
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
@@ -124,45 +118,11 @@ public class CheckoutService {
                 .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))
                 .build();
 
-        if (request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
-            GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
-            payment.waitDeposit(
-                    virtualAccount.getBankName(),
-                    virtualAccount.getAccountNumber(),
-                    virtualAccount.getExpiresAt()
-            );
-        }
+        checkoutPaymentService.process(request, payment);
 
         Payment savedPayment = paymentJpaRepository.save(payment);
 
         return savedPayment.toResponse();
-    }
-
-    private GatewayVirtualAccountIssueResponse issueVirtualAccountFromGateway(
-            CheckoutConfirmRequest request,
-            Payment payment
-    ) {
-        BankCompany bankCompany = resolveBankCompany(request);
-        return paymentGatewayVirtualAccountClient.issue(
-                GatewayVirtualAccountIssueRequest.builder()
-                        .paymentNo(payment.getPaymentNo())
-                        .bankCompany(bankCompany)
-                        .amount(BigDecimal.valueOf(payment.getAmount()))
-                        .eventDateTime(payment.getReservation().getEvent().getEventDateTime())
-                        .ticketPaymentApplyRequired(false)
-                        .build()
-        );
-    }
-
-    private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
-        if (!StringUtils.hasText(request.getBankCode())) {
-            throw new IllegalArgumentException("은행 코드가 필요합니다.");
-        }
-        try {
-            return BankCompany.valueOf(request.getBankCode().trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("지원하지 않는 은행 코드입니다.");
-        }
     }
 
     /**
