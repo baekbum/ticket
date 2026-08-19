@@ -70,6 +70,8 @@ topic:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
 
 app:
+  internal:
+    service-token: ${APP_INTERNAL_SERVICE_TOKEN}
   upload:
     root: ${APP_UPLOAD_ROOT:/app/uploads}
     public-url-prefix: ${APP_UPLOAD_PUBLIC_URL_PREFIX:/ticket/uploads}

@@ -72,6 +72,8 @@ topic:
       name: audit-log
 
 app:
+  internal:
+    service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   upload:
     root: uploads
     public-url-prefix: /ticket/uploads

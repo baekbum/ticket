@@ -28,6 +28,7 @@ public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
+    private final InternalServiceTokenValidator internalServiceTokenValidator;
 
     @Value("${spring.profiles.default:local}")
     private String activeProfile;
@@ -51,7 +52,8 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/*/payments/internal/**").permitAll()
+                        // 내부 payment-gateway와 통신할 때 보안 강화를 위해 조건 추가
+                        .requestMatchers("/api/*/payments/internal/**").hasRole("INTERNAL_SERVICE")
 
                         // 2. 관리자용 통로
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
@@ -73,6 +75,11 @@ public class SecurityConfig {
         // =================================================================
         // 🌟 [핵심 변경] 실행 환경(Profile)에 따른 필터 자동 교체 스위치
         // =================================================================
+        http.addFilterBefore(
+                new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
+                UsernamePasswordAuthenticationFilter.class
+        );
+
         if ("local".equals(activeProfile)) {
             // 로컬 개발 환경: 인그레스 없이 직접 포트로 접근하므로 토큰을 직접 복호화하는 기존 필터 작동
             // (JwtAuthenticationFilter 패키지 경로가 다르면 import를 맞춰주세요)
