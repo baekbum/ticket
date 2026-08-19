@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
+import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -41,6 +42,12 @@ public class PaymentService {
     @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
     public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompletedEvent event) {
         return virtualAccountPaymentService.completeDepositFromGateway(event);
+    }
+
+    @AuditLog(action = "VIRTUAL_ACCOUNT_EXPIRED_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.expire-virtual-account-from-gateway", contextualName = "ticket payment expire virtual account from gateway")
+    public PaymentResponse expireVirtualAccountFromGateway(VirtualAccountExpiredEvent event) {
+        return virtualAccountPaymentService.expireFromGateway(event);
     }
 
 }

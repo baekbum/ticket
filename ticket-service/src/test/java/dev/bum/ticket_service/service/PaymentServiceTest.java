@@ -1,10 +1,12 @@
 package dev.bum.ticket_service.service;
 
 import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
+import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.service.payment.CardPaymentService;
@@ -117,6 +119,32 @@ class PaymentServiceTest {
 
         assertThat(response).isEqualTo(expectedResponse);
         then(virtualAccountPaymentService).should().completeDepositFromGateway(event);
+    }
+
+    @Test
+    @DisplayName("가상계좌 만료 이벤트를 무통장 결제 서비스로 위임한다")
+    void delegate_virtual_account_expiration() {
+        VirtualAccountExpiredEvent event = VirtualAccountExpiredEvent.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-2222-3333-4444")
+                .amount(BigDecimal.valueOf(180000))
+                .expiredAt(LocalDateTime.of(2026, 8, 20, 23, 59, 59))
+                .build();
+        PaymentResponse expectedResponse = PaymentResponse.builder()
+                .paymentNo(event.getPaymentNo())
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.EXPIRED)
+                .amount(180000)
+                .build();
+
+        given(virtualAccountPaymentService.expireFromGateway(event)).willReturn(expectedResponse);
+
+        PaymentResponse response = paymentService.expireVirtualAccountFromGateway(event);
+
+        assertThat(response).isEqualTo(expectedResponse);
+        then(virtualAccountPaymentService).should().expireFromGateway(event);
     }
 
     private PaymentResponse paidResponse(PaymentMethod paymentMethod) {

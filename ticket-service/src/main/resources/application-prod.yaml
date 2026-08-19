@@ -65,6 +65,9 @@ topic:
       deposited:
         name: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_DEPOSITED_NAME:virtual-account-deposited}
         group-id: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_DEPOSITED_GROUP_ID:ticket-virtual-account-deposit-group}
+      expired:
+        name: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_EXPIRED_NAME:virtual-account-expired}
+        group-id: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_EXPIRED_GROUP_ID:ticket-virtual-account-expire-group}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}

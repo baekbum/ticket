@@ -88,4 +88,13 @@ public class DummyVirtualAccountPaymentHistory {
                 .message("가상계좌 입금이 확인되었습니다.")
                 .build();
     }
+
+    public static DummyVirtualAccountPaymentHistory expired(DummyVirtualAccount virtualAccount) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.EXPIRED)
+                .message("가상계좌 입금 기한이 만료되었습니다.")
+                .build();
+    }
 }

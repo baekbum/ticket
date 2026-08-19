@@ -1,0 +1,4 @@
+app:
+  virtual-account:
+    expiration:
+      cron: "*/5 * * * * *"

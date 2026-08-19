@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVirtualAccount, Long> {
 
@@ -17,4 +18,9 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     boolean existsByAccountNumber(String accountNumber);
 
     List<DummyVirtualAccount> findTop100ByStatusOrderByDepositedAtAsc(VirtualAccountPaymentStatus status);
+
+    List<DummyVirtualAccount> findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+            VirtualAccountPaymentStatus status,
+            LocalDateTime expiresAt
+    );
 }

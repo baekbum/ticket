@@ -20,6 +20,9 @@ public class KafkaTopicConfig {
     @Value("${topic.payment.virtual-account.deposited.name}")
     private String virtualAccountDepositedTopicName;
 
+    @Value("${topic.payment.virtual-account.expired.name}")
+    private String virtualAccountExpiredTopicName;
+
     @Bean
     public NewTopic paymentCompletedTopic() {
         return TopicBuilder.name(paymentCompletedTopicName)
@@ -49,6 +52,24 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic virtualAccountDepositedDltTopic() {
         return TopicBuilder.name(virtualAccountDepositedTopicName + DLT_SUFFIX)
+                .partitions(3)
+                .replicas(1)
+                .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
+                .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
+                .build();
+    }
+
+    @Bean
+    public NewTopic virtualAccountExpiredTopic() {
+        return TopicBuilder.name(virtualAccountExpiredTopicName)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic virtualAccountExpiredDltTopic() {
+        return TopicBuilder.name(virtualAccountExpiredTopicName + DLT_SUFFIX)
                 .partitions(3)
                 .replicas(1)
                 .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)

@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service;
 
 import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
+import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -13,6 +14,7 @@ import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.PaymentExpirationService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class VirtualAccountPaymentServiceTest {
@@ -39,6 +42,9 @@ class VirtualAccountPaymentServiceTest {
 
     @Mock
     private PaymentCompletionService paymentCompletionService;
+
+    @Mock
+    private PaymentExpirationService paymentExpirationService;
 
     @InjectMocks
     private VirtualAccountPaymentService virtualAccountPaymentService;
@@ -111,6 +117,50 @@ class VirtualAccountPaymentServiceTest {
         then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("payment-gateway 가상계좌 만료 이벤트 수신 시 결제 만료를 처리한다")
+    void expire_virtual_account_from_gateway_success() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
+        VirtualAccountExpiredEvent event = virtualAccountExpiredEvent(BigDecimal.valueOf(180000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())).willReturn(Optional.of(payment));
+        doAnswer(invocation -> {
+            Payment target = invocation.getArgument(0);
+            target.expire();
+            return null;
+        }).when(paymentExpirationService).expire(payment);
+
+        PaymentResponse response = virtualAccountPaymentService.expireFromGateway(event);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+        then(paymentExpirationService).should().expire(payment);
+    }
+
+    @Test
+    @DisplayName("payment-gateway 가상계좌 만료 이벤트 계좌가 다르면 결제 상태를 유지한다")
+    void expire_virtual_account_from_gateway_account_mismatch() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
+        VirtualAccountExpiredEvent event = VirtualAccountExpiredEvent.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("9999-2222-3333-4444")
+                .amount(BigDecimal.valueOf(180000))
+                .expiredAt(LocalDateTime.of(2026, 8, 20, 23, 59, 59))
+                .build();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> virtualAccountPaymentService.expireFromGateway(event))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 계좌번호가 일치하지 않습니다.");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        then(paymentExpirationService).shouldHaveNoInteractions();
+    }
+
     private VirtualAccountIssuedRequest virtualAccountIssuedRequest(BigDecimal amount) {
         return VirtualAccountIssuedRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
@@ -130,6 +180,17 @@ class VirtualAccountPaymentServiceTest {
                 .depositorName("아이유")
                 .amount(amount)
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
+                .build();
+    }
+
+    private VirtualAccountExpiredEvent virtualAccountExpiredEvent(BigDecimal amount) {
+        return VirtualAccountExpiredEvent.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-2222-3333-4444")
+                .amount(amount)
+                .expiredAt(LocalDateTime.of(2026, 8, 20, 23, 59, 59))
                 .build();
     }
 

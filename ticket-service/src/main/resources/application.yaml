@@ -67,6 +67,9 @@ topic:
       deposited:
         name: virtual-account-deposited
         group-id: ticket-virtual-account-deposit-group
+      expired:
+        name: virtual-account-expired
+        group-id: ticket-virtual-account-expire-group
   audit:
     log:
       name: audit-log
