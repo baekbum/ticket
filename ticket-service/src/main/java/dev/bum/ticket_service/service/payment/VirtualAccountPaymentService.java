@@ -102,7 +102,7 @@ public class VirtualAccountPaymentService {
             throw new IllegalArgumentException("입금 처리할 수 없는 결제 상태입니다.");
         }
         if (payment.getExpiresAt() != null && request.getDepositedAt() != null && request.getDepositedAt().isAfter(payment.getExpiresAt())) {
-            payment.expire();
+            paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
     }
@@ -128,7 +128,7 @@ public class VirtualAccountPaymentService {
 
     private void validatePaymentNotExpired(Payment payment) {
         if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
-            payment.expire();
+            paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
         }
     }

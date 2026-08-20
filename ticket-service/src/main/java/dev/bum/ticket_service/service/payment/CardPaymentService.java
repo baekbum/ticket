@@ -23,6 +23,7 @@ public class CardPaymentService {
 
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentCompletionService paymentCompletionService;
+    private final PaymentExpirationService paymentExpirationService;
 
     public PaymentResponse completeFromGateway(CardPaymentCompleteRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
@@ -98,7 +99,7 @@ public class CardPaymentService {
 
     private void validatePaymentNotExpired(Payment payment) {
         if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
-            payment.expire();
+            paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
         }
     }

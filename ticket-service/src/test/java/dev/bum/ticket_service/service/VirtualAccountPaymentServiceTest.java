@@ -83,7 +83,7 @@ class VirtualAccountPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("payment-gateway 입금 완료 이벤트 수신 시 결제와 예매를 완료 처리한다")
+    @DisplayName("payment-gateway 입금 완료 요청 수신 시 결제와 예매를 완료 처리한다")
     void complete_virtual_account_deposit_from_gateway_success() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
@@ -101,7 +101,7 @@ class VirtualAccountPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("payment-gateway 입금 완료 이벤트 금액이 다르면 결제 상태를 유지한다")
+    @DisplayName("payment-gateway 입금 완료 요청 금액이 다르면 결제 상태를 유지한다")
     void complete_virtual_account_deposit_from_gateway_amount_mismatch() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
@@ -114,6 +114,31 @@ class VirtualAccountPaymentServiceTest {
                 .hasMessage("입금 금액이 일치하지 않습니다.");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        then(paymentCompletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("입금 완료 시각이 결제 기한 이후면 공통 만료 처리로 예매와 좌석까지 정리한다")
+    void expire_virtual_account_deposit_after_payment_expires_at() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
+        VirtualAccountDepositCompleteRequest depositRequest = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-2222-3333-4444")
+                .depositorName("아이유")
+                .amount(BigDecimal.valueOf(180000))
+                .depositedAt(LocalDateTime.of(2026, 8, 21, 0, 0))
+                .build();
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(depositRequest.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 기한이 만료되었습니다.");
+
+        then(paymentExpirationService).should().expire(payment);
         then(paymentCompletionService).shouldHaveNoInteractions();
     }
 

@@ -13,6 +13,7 @@ import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.CardPaymentService;
 import dev.bum.ticket_service.service.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.PaymentExpirationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,9 @@ class CardPaymentServiceTest {
 
     @Mock
     private PaymentCompletionService paymentCompletionService;
+
+    @Mock
+    private PaymentExpirationService paymentExpirationService;
 
     @InjectMocks
     private CardPaymentService cardPaymentService;
@@ -74,6 +78,28 @@ class CardPaymentServiceTest {
                 .hasMessage("결제 금액이 일치하지 않습니다.");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        then(paymentCompletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("만료된 카드 결제 완료 요청은 공통 만료 처리로 예매와 좌석까지 정리한다")
+    void complete_card_payment_from_gateway_expired_payment() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(
+                reservation,
+                PaymentMethod.CREDIT_CARD,
+                PaymentStatus.READY,
+                LocalDateTime.now().minusMinutes(1)
+        );
+        CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(180000));
+
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> cardPaymentService.completeFromGateway(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("결제 기한이 만료되었습니다.");
+
+        then(paymentExpirationService).should().expire(payment);
         then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
@@ -154,6 +180,10 @@ class CardPaymentServiceTest {
     }
 
     private Payment payment(Reservation reservation, PaymentMethod method, PaymentStatus status) {
+        return payment(reservation, method, status, null);
+    }
+
+    private Payment payment(Reservation reservation, PaymentMethod method, PaymentStatus status, LocalDateTime expiresAt) {
         return Payment.builder()
                 .paymentId(1L)
                 .reservation(reservation)
@@ -162,6 +192,7 @@ class CardPaymentServiceTest {
                 .status(status)
                 .amount(180000)
                 .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
+                .expiresAt(expiresAt)
                 .build();
     }
 
