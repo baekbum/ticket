@@ -85,7 +85,7 @@ class PaymentExpirationServiceTest {
         assertThat(userCoupon.getUsedAt()).isNull();
 
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(seat));
-        then(seatCacheService).should().updateUserPurchaseLimit(event, "user01", 1, "SUB");
+        then(seatCacheService).shouldHaveNoMoreInteractions();
     }
 
     @Test

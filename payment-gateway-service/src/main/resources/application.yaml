@@ -1,0 +1,46 @@
+server:
+  port: 8099
+  servlet:
+    context-path: /payment-gateway
+
+spring:
+  profiles:
+    default: local
+  application:
+    name: payment-gateway-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ticket
+    username: postgres
+    password: hsck2301
+  jpa:
+    hibernate:
+      ddl-auto: update
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+token:
+  secret: ticket-project-secret-value-is-made-by-random
+
+app:
+  ticket:
+    base-url: http://localhost:8082/ticket
+    service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
+  virtual-account:
+    expiration:
+      enabled: true
+      cron: "0 5 0 * * *"
+    expired-outbox-publisher:
+      enabled: true
+      fixed-delay-ms: 30000
+
+topic:
+  payment:
+    virtual-account:
+      expired:
+        name: virtual-account-expired

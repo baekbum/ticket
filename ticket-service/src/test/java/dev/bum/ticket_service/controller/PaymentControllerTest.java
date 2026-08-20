@@ -3,14 +3,17 @@ package dev.bum.ticket_service.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentApproveRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssueRequest;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
 import dev.bum.ticket_service.security.SecurityConfig;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.service.payment.PaymentService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,16 +21,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,17 +50,19 @@ class PaymentControllerTest {
     @MockitoBean
     private PaymentService paymentService;
 
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
     private final String baseUrl = "/api/v1/payments";
+    private final String serviceToken = "local-internal-service-token";
 
     @Test
-    @DisplayName("카드 결제를 승인한다")
-    void approve_card_payment() throws Exception {
-        CardPaymentApproveRequest request = CardPaymentApproveRequest.builder()
+    @DisplayName("payment-gateway 카드 결제 완료 요청을 반영한다")
+    void complete_card_payment_from_gateway() throws Exception {
+        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
-                .cardCompany("KB")
-                .cardNumber("1234-5678-9012-3456")
-                .cvc("123")
-                .cardPassword("12")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
                 .build();
         PaymentResponse response = PaymentResponse.builder()
                 .paymentId(1L)
@@ -70,25 +74,103 @@ class PaymentControllerTest {
                 .amount(180000)
                 .build();
 
-        given(paymentService.approveCard("user01", request)).willReturn(response);
+        given(paymentService.completeCardFromGateway(request)).willReturn(response);
 
-        mockMvc.perform(post(baseUrl + "/card/approve")
-                        .with(authentication(userAuthentication("user01")))
+        mockMvc.perform(post(baseUrl + "/internal/card/complete")
+                        .header("X-Service-Token", serviceToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
                 .andExpect(jsonPath("$.status").value("PAID"));
 
-        then(paymentService).should().approveCard("user01", request);
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+        then(paymentService).should().completeCardFromGateway(request);
     }
 
     @Test
-    @DisplayName("가상계좌를 발급한다")
-    void issue_virtual_account() throws Exception {
-        VirtualAccountIssueRequest request = VirtualAccountIssueRequest.builder()
+    @DisplayName("내부 서비스 토큰이 유효하지 않으면 카드 결제 완료 반영을 거부한다")
+    void reject_card_completion_invalid_service_token() throws Exception {
+        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
-                .bankCode("KB")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
+                .build();
+
+        doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
+                .when(internalServiceTokenValidator).validate("invalid-token");
+
+        mockMvc.perform(post(baseUrl + "/internal/card/complete")
+                        .header("X-Service-Token", "invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        then(paymentService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("내부 서비스 토큰이 없으면 카드 결제 완료 반영을 거부한다")
+    void reject_card_completion_missing_service_token() throws Exception {
+        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
+                .build();
+
+        doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
+                .when(internalServiceTokenValidator).validate(null);
+
+        mockMvc.perform(post(baseUrl + "/internal/card/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        then(paymentService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("payment-gateway 카드 결제 실패 요청을 반영한다")
+    void fail_card_payment_from_gateway() throws Exception {
+        CardPaymentFailRequest request = CardPaymentFailRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
+                .failureReason("카드 승인 실패")
+                .build();
+        PaymentResponse response = PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo(request.getPaymentNo())
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.FAILED)
+                .amount(180000)
+                .build();
+
+        given(paymentService.failCardFromGateway(request)).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/internal/card/fail")
+                        .header("X-Service-Token", serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
+                .andExpect(jsonPath("$.status").value("FAILED"));
+
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+        then(paymentService).should().failCardFromGateway(request);
+    }
+
+    @Test
+    @DisplayName("payment-gateway 가상계좌 발급 정보를 반영한다")
+    void apply_virtual_account_issued_from_gateway() throws Exception {
+        VirtualAccountIssuedRequest request = VirtualAccountIssuedRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .amount(BigDecimal.valueOf(180000))
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
                 .build();
         PaymentResponse response = PaymentResponse.builder()
                 .paymentId(1L)
@@ -99,70 +181,57 @@ class PaymentControllerTest {
                 .status(PaymentStatus.WAITING_DEPOSIT)
                 .amount(180000)
                 .bankName("KB국민은행")
-                .accountNumber("1111-2222-3333-4444")
+                .accountNumber("1111-1234-123456")
                 .build();
 
-        given(paymentService.issueVirtualAccount("user01", request)).willReturn(response);
+        given(paymentService.applyVirtualAccountIssued(request)).willReturn(response);
 
-        mockMvc.perform(post(baseUrl + "/virtual-account/issue")
-                        .with(authentication(userAuthentication("user01")))
+        mockMvc.perform(post(baseUrl + "/internal/virtual-account/issued")
+                        .header("X-Service-Token", serviceToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
                 .andExpect(jsonPath("$.status").value("WAITING_DEPOSIT"))
-                .andExpect(jsonPath("$.accountNumber").value("1111-2222-3333-4444"));
+                .andExpect(jsonPath("$.accountNumber").value("1111-1234-123456"));
 
-        then(paymentService).should().issueVirtualAccount("user01", request);
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+        then(paymentService).should().applyVirtualAccountIssued(request);
     }
 
     @Test
-    @DisplayName("관리자가 가상계좌 입금을 시뮬레이션한다")
-    void deposit_virtual_account() throws Exception {
-        VirtualAccountDepositRequest request = VirtualAccountDepositRequest.builder()
-                .accountNumber("1111-2222-3333-4444")
-                .depositorName("홍길동")
-                .amount(180000)
+    @DisplayName("payment-gateway 가상계좌 입금 완료 정보를 반영한다")
+    void complete_virtual_account_deposit_from_gateway() throws Exception {
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .depositorName("아이유")
+                .amount(BigDecimal.valueOf(180000))
+                .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
                 .build();
         PaymentResponse response = PaymentResponse.builder()
                 .paymentId(1L)
                 .reservationId(1L)
                 .orderId("ORDER-1")
-                .paymentNo("PAY-20260727120000-abcdef123456")
+                .paymentNo(request.getPaymentNo())
                 .method(PaymentMethod.BANK_TRANSFER)
                 .status(PaymentStatus.PAID)
                 .amount(180000)
-                .bankName("KB국민은행")
-                .accountNumber(request.getAccountNumber())
-                .depositorName("홍길동")
                 .build();
 
-        given(paymentService.depositVirtualAccount(request)).willReturn(response);
+        given(paymentService.completeVirtualAccountDepositFromGateway(request)).willReturn(response);
 
-        mockMvc.perform(post(baseUrl + "/virtual-account/deposit")
-                        .with(authentication(adminAuthentication()))
+        mockMvc.perform(post(baseUrl + "/internal/virtual-account/deposit/complete")
+                        .header("X-Service-Token", serviceToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accountNumber").value(request.getAccountNumber()))
+                .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
                 .andExpect(jsonPath("$.status").value("PAID"));
 
-        then(paymentService).should().depositVirtualAccount(request);
-    }
-
-    private UsernamePasswordAuthenticationToken userAuthentication(String userId) {
-        return new UsernamePasswordAuthenticationToken(
-                userId,
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-    }
-
-    private UsernamePasswordAuthenticationToken adminAuthentication() {
-        return new UsernamePasswordAuthenticationToken(
-                "admin",
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-        );
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+        then(paymentService).should().completeVirtualAccountDepositFromGateway(request);
     }
 }

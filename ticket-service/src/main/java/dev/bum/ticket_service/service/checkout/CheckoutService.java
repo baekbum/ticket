@@ -4,7 +4,6 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -17,7 +16,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.service.payment.MockVirtualAccountIssueService;
+import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +39,11 @@ import java.util.UUID;
 public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
+    private static final List<PaymentStatus> REUSABLE_PAYMENT_STATUSES = List.of(
+            PaymentStatus.READY,
+            PaymentStatus.WAITING_DEPOSIT,
+            PaymentStatus.PAID
+    );
 
     private final SeatCacheService seatCacheService;
     private final QueueAccessService queueAccessService;
@@ -48,7 +51,7 @@ public class CheckoutService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
-    private final MockVirtualAccountIssueService mockVirtualAccountIssueService;
+    private final CheckoutPaymentService checkoutPaymentService;
 
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
@@ -59,7 +62,7 @@ public class CheckoutService {
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
-        String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
+        String idempotencyKey = generateIdempotencyKey();
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
@@ -120,31 +123,11 @@ public class CheckoutService {
                 .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))
                 .build();
 
-        if (request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
-            validateBankTransferRequest(request);
-            MockVirtualAccountIssueService.VirtualAccount virtualAccount = issueUniqueVirtualAccount(request.getBankCode());
-            payment.waitDeposit(
-                    virtualAccount.getBankName(),
-                    virtualAccount.getAccountNumber(),
-                    virtualAccount.getExpiresAt()
-            );
-        }
+        checkoutPaymentService.process(request, payment);
 
         Payment savedPayment = paymentJpaRepository.save(payment);
-        seatCacheService.updateUserPurchaseLimit(
-                reservation.getEvent(),
-                currentUserId,
-                request.getSeats().size(),
-                "PLUS"
-        );
 
         return savedPayment.toResponse();
-    }
-
-    private void validateBankTransferRequest(CheckoutConfirmRequest request) {
-        if (!StringUtils.hasText(request.getBankCode())) {
-            throw new IllegalArgumentException("은행 코드가 필요합니다.");
-        }
     }
 
     /**
@@ -159,7 +142,10 @@ public class CheckoutService {
             return null;
         }
 
-        return paymentJpaRepository.findByIdempotencyKey(idempotencyKey)
+        return paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                        idempotencyKey,
+                        REUSABLE_PAYMENT_STATUSES
+                )
                 .map(payment -> {
                     Reservation reservation = payment.getReservation();
                     if (reservation == null || !currentUserId.equals(reservation.getUserId())) {
@@ -193,17 +179,6 @@ public class CheckoutService {
                 .sum();
     }
 
-    private MockVirtualAccountIssueService.VirtualAccount issueUniqueVirtualAccount(String bankCode) {
-        for (int attempt = 0; attempt < MAX_ACCOUNT_ISSUE_ATTEMPTS; attempt++) {
-            MockVirtualAccountIssueService.VirtualAccount virtualAccount = mockVirtualAccountIssueService.issue(bankCode);
-            if (!paymentJpaRepository.existsByAccountNumber(virtualAccount.getAccountNumber())) {
-                return virtualAccount;
-            }
-        }
-
-        throw new IllegalStateException("가상계좌 번호를 발급하지 못했습니다.");
-    }
-
     private String generatePaymentNo() {
         String timestamp = LocalDateTime.now().format(PAYMENT_NO_FORMATTER);
         String randomValue = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
@@ -229,7 +204,7 @@ public class CheckoutService {
     }
 
     /**
-     * idempotencyKey는 필수로 받고, 앞뒤 공백을 제거해 저장/조회 기준을 고정한다.
+     * confirm 요청의 idempotencyKey는 prepare 응답으로 내려준 값을 필수로 받고, 앞뒤 공백을 제거해 저장/조회 기준을 고정한다.
      */
     private String normalizeIdempotencyKey(String idempotencyKey) {
         if (!StringUtils.hasText(idempotencyKey)) {
@@ -237,6 +212,10 @@ public class CheckoutService {
         }
 
         return idempotencyKey.trim();
+    }
+
+    private String generateIdempotencyKey() {
+        return "CHK-" + UUID.randomUUID().toString().replace("-", "");
     }
 
 }

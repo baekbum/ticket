@@ -43,6 +43,10 @@ public class PaymentExpirationService {
             return;
         }
 
+        expire(payment);
+    }
+
+    public void expire(Payment payment) {
         Reservation reservation = payment.getReservation();
         List<Ticket> tickets = ticketRepository.selectByReservation(reservation);
         List<Seat> availableSeats = tickets.stream()
@@ -60,14 +64,6 @@ public class PaymentExpirationService {
         restoreUsedCoupons(reservation);
 
         seatCacheService.syncAvailableSeatsAfterCommit(availableSeats);
-        if (!availableSeats.isEmpty()) {
-            seatCacheService.updateUserPurchaseLimit(
-                    availableSeats.get(0).getEvent(),
-                    reservation.getUserId(),
-                    availableSeats.size(),
-                    "SUB"
-            );
-        }
 
         log.info("[PAYMENT][EXPIRE][HANDLE] paymentId={}, reservationId={}, seatCount={}",
                 payment.getPaymentId(), reservation.getReservationId(), availableSeats.size());

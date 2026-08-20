@@ -5,14 +5,13 @@ meta {
 }
 
 post {
-  url: {{ticketBaseUrl}}/payments/virtual-account/issue
+  url: {{paymentGatewayBaseUrl}}/payments/virtual-account/issue
   body: json
   auth: bearer
 }
 
 headers {
   Content-Type: application/json
-  X-Active-Token: {{activeToken}}
 }
 
 auth:bearer {
@@ -22,6 +21,9 @@ auth:bearer {
 body:json {
   {
     "paymentNo": "{{paymentNo}}",
-    "bankCode": "{{bankCode}}"
+    "bankCompany": "{{bankCode}}",
+    "amount": {{depositAmount}},
+    "eventDateTime": "2026-09-18T18:00:00",
+    "ticketPaymentApplyRequired": true
   }
 }

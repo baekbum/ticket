@@ -1,246 +1,195 @@
 # 결제 API 계약
 
-이 문서는 사용자 결제 시나리오 구현 전에 고정할 API 계약이다. 실제 PG 대신 백엔드가 카드 승인과 무통장 입금을 시뮬레이션한다.
+현재 결제 흐름은 `ticket-service`가 checkout과 최종 결제 상태를 관리하고, `payment-gateway-service`가 카드 승인/가상계좌 발급/입금 확인을 담당한다.
 
 ## 공통 규칙
 
-사용자 결제 API는 로그인 사용자의 예약에 대해서만 동작해야 한다.
+- 사용자는 `ticket-service`의 `CheckoutController.prepare`로 결제 화면 진입 가능 여부를 검증한다.
+- `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
+- 카드 승인과 가상계좌 입금 확인은 `payment-gateway-service`로 요청한다.
+- `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
+- `ticket-service` 내부 API는 `X-Service-Token` 헤더로 보호한다.
 
 ```text
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-active token은 체크아웃 준비 성공 시점에 회수한다. 카드 승인과 가상계좌 발급 단계는 `paymentNo`, 예약 소유자, 결제 상태, 결제 만료 시간으로 검증한다.
-
-성공 응답은 기존 `PaymentResponse`를 기본으로 사용한다.
-
-```json
-{
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "ORDER-...",
-  "paymentNo": "PAY-...",
-  "method": "CREDIT_CARD",
-  "status": "PAID",
-  "amount": 180000,
-  "bankName": null,
-  "accountNumber": null,
-  "requestedAt": "2026-07-27 12:00:00",
-  "paidAt": "2026-07-27 12:03:00",
-  "expiresAt": null
-}
-```
-
-실패 응답은 공통 `ErrorResponse`를 사용한다.
-
-```json
-{
-  "code": "INVALID_REQUEST",
-  "message": "카드 정보가 일치하지 않습니다.",
-  "details": null
-}
-```
-
-## 카드 결제 승인
+## Checkout 준비
 
 ```http
-POST /api/v1/payments/card/approve
+POST /ticket/api/v1/checkout/prepare
+Authorization: Bearer {accessToken}
+X-Active-Token: {activeToken}
+Content-Type: application/json
+```
+
+성공 시 서버가 `idempotencyKey`를 발급한다. 프론트는 결제 화면에 머무르는 동안 이 값을 `confirm` 요청에 사용한다.
+
+```json
+{
+  "orderId": "ORDER-1",
+  "eventId": 1,
+  "seats": [
+    { "id": 1, "zone": "VIP", "row": 1, "col": 1 }
+  ]
+}
+```
+
+## Checkout 확정
+
+```http
+POST /ticket/api/v1/checkout/confirm
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-요청 DTO 후보: `CardPaymentApproveRequest`
+카드 결제는 `Payment.status=READY`로 생성하고 `paymentNo`를 반환한다. 무통장 결제는 gateway에서 계좌 발급 후 `Payment.status=WAITING_DEPOSIT`로 반영한다.
 
 ```json
 {
-  "paymentNo": "PAY-...",
-  "cardCompany": "KB",
-  "cardNumber": "1234-5678-9012-3456",
-  "cvc": "123",
-  "cardPassword": "qwe123!"
+  "orderId": "ORDER-1",
+  "eventId": 1,
+  "seats": [
+    { "id": 1, "zone": "VIP", "row": 1, "col": 1 }
+  ],
+  "delivery": {
+    "recipientName": "홍길동",
+    "recipientPhone": "010-0000-0000",
+    "zipCode": "12345",
+    "address": "서울시 강남구",
+    "detailAddress": "101호"
+  },
+  "paymentMethod": "CREDIT_CARD",
+  "idempotencyKey": "CHK-...",
+  "bankCode": null
 }
 ```
 
-처리 규칙:
-
-```text
-1. paymentNo로 Payment 조회
-2. payment.reservation.userId와 현재 로그인 사용자 일치 검증
-3. payment.status == READY 검증
-4. 더미 카드 정보 검증
-5. 성공하면 공통 결제 완료 처리 호출
-6. 실패하면 Payment 상태는 READY로 유지
-```
-
-성공 응답: `PaymentResponse`
-
-```json
-{
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "ORDER-...",
-  "paymentNo": "PAY-...",
-  "method": "CREDIT_CARD",
-  "status": "PAID",
-  "amount": 180000,
-  "bankName": null,
-  "accountNumber": null,
-  "requestedAt": "2026-07-27 12:00:00",
-  "paidAt": "2026-07-27 12:03:00",
-  "expiresAt": null
-}
-```
-
-주요 실패:
-
-```text
-400 INVALID_REQUEST     카드 정보 불일치, 결제 상태 부적합
-403 FORBIDDEN           다른 사용자의 결제 요청
-404 INTERNAL_SERVER_ERROR 또는 INVALID_REQUEST 현재 결제 조회 실패 처리 기준에 맞춤
-```
-
-## 가상계좌 발급
+## Gateway 카드 승인
 
 ```http
-POST /api/v1/payments/virtual-account/issue
+POST /payment-gateway/api/v1/payments/card/approve
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-요청 DTO 후보: `VirtualAccountIssueRequest`
-
 ```json
 {
   "paymentNo": "PAY-...",
-  "bankCode": "KB",
-}
-```
-
-처리 규칙:
-
-```text
-1. paymentNo로 Payment 조회
-2. payment.reservation.userId와 현재 로그인 사용자 일치 검증
-3. payment.status == READY 검증
-4. bankCode로 은행명과 계좌 prefix 결정
-5. 랜덤 계좌번호 생성
-7. Payment.status = WAITING_DEPOSIT
-```
-
-성공 응답: `PaymentResponse`
-
-```json
-{
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "ORDER-...",
-  "paymentNo": "PAY-...",
-  "method": "BANK_TRANSFER",
-  "status": "WAITING_DEPOSIT",
-  "amount": 180000,
-  "bankName": "KB국민은행",
-  "accountNumber": "1111-2222-3333-4444",
-  "requestedAt": "2026-07-27 12:00:00",
-  "paidAt": null,
-  "expiresAt": "2026-07-27 23:59:59"
-}
-```
-
-주요 실패:
-
-```text
-400 INVALID_REQUEST     은행 코드 불일치, 결제 상태 부적합
-403 FORBIDDEN           다른 사용자의 결제 요청
-```
-
-## 가상계좌 입금 시뮬레이션
-
-```http
-POST /api/v1/payments/virtual-account/deposit
-Authorization: Bearer {adminAccessToken}
-Content-Type: application/json
-```
-
-이 API는 사용자가 직접 누르는 API가 아니라 은행 입금 통지를 흉내 내는 테스트용 API다. 따라서 `ADMIN` 또는 local/test 전용으로 제한한다. `X-Active-Token`은 받지 않는다.
-
-요청 DTO 후보: `VirtualAccountDepositRequest`
-
-```json
-{
-  "accountNumber": "1111-2222-3333-4444",
-  "depositorName": "홍길동",
+  "cardCompany": "SHINHAN",
+  "cardNumber": "4111-1111-1111-1111",
+  "cvc": "516",
+  "cardPassword": "1234",
+  "customerName": "아이유",
   "amount": 180000
 }
 ```
 
-처리 규칙:
-
-```text
-1. accountNumber로 Payment 조회
-2. payment.status == WAITING_DEPOSIT 검증
-3. expiresAt 만료 여부 검증
-4. amount 일치 검증
-5. 실제 입금자명 저장
-6. 성공하면 공통 결제 완료 처리 호출
-```
-
-성공 응답: `PaymentResponse`
+성공 응답:
 
 ```json
 {
-  "paymentId": 1,
-  "reservationId": 1,
-  "orderId": "ORDER-...",
   "paymentNo": "PAY-...",
-  "method": "BANK_TRANSFER",
-  "status": "PAID",
-  "amount": 180000,
-  "bankName": "KB국민은행",
-  "accountNumber": "1111-2222-3333-4444",
-  "depositorName": "홍길동",
-  "requestedAt": "2026-07-27 12:00:00",
-  "paidAt": "2026-07-27 12:10:00",
-  "expiresAt": "2026-07-27 23:59:59"
+  "userId": "IU",
+  "cardCompany": "SHINHAN",
+  "cardNumberLast4": "1111",
+  "approvedAmount": 180000,
+  "currentMonthUsedAmount": 180000,
+  "limitAmount": 1000000,
+  "approved": true,
+  "message": "카드 결제와 티켓 결제 완료 반영이 완료되었습니다."
 }
 ```
 
-주요 실패:
+처리 규칙:
 
 ```text
-400 INVALID_REQUEST 계좌번호 불일치, 금액 불일치, 이미 만료된 입금, 결제 상태 부적합
-403 FORBIDDEN       관리자 권한 없음
+1. paymentNo 중복 이력이 있으면 기존 이력 상태 검증
+2. 새 결제번호면 사용자, 카드번호, CVC, 카드 비밀번호, 금액, 한도 검증
+3. 카드 승인 성공 이력 저장
+4. ticket-service 내부 카드 완료 API 호출
+5. 성공 시 gateway card history = TICKET_PAYMENT_COMPLETED
+6. 실패 시 카드 승인 취소, gateway card history = CANCELLED, ticket-service 실패 반영 요청
 ```
 
-## 보안 matcher
+## Gateway 가상계좌 입금
 
-`ticket-service`의 `SecurityConfig`에는 다음 matcher를 추가한다.
-
-```java
-.requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")
-.requestMatchers("/api/*/payments/virtual-account/issue").hasAnyRole("USER", "ADMIN")
-.requestMatchers("/api/*/payments/virtual-account/deposit").hasRole("ADMIN")
+```http
+POST /payment-gateway/api/v1/payments/virtual-account/deposit
+Authorization: Bearer {accessToken}
+Content-Type: application/json
 ```
 
-## DTO 목록
+```json
+{
+  "accountNumber": "1111-2222-3333",
+  "depositorName": "홍길동",
+  "amount": 180000,
+  "depositedAt": "2026-08-20T12:00:00"
+}
+```
+
+성공 응답:
+
+```json
+{
+  "paymentNo": "PAY-...",
+  "bankCompany": "KB",
+  "bankName": "KB국민은행",
+  "accountNumber": "1111-2222-3333",
+  "depositorName": "홍길동",
+  "amount": 180000,
+  "status": "TICKET_PAYMENT_COMPLETED",
+  "expiresAt": "2026-08-20T23:59:59",
+  "depositedAt": "2026-08-20T12:00:00",
+  "message": "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
+}
+```
+
+처리 규칙:
 
 ```text
-CardPaymentApproveRequest
-- paymentNo: String, required
-- cardCompany: String, required
-- cardNumber: String, required
-- cvc: String, required
-- cardPassword: String, required
-
-VirtualAccountIssueRequest
-- paymentNo: String, required
-- bankCode: String, required
-
-VirtualAccountDepositRequest
-- accountNumber: String, required
-- depositorName: String, required
-- amount: Integer, required, positive
-
-PaymentResponse
-- 기존 DTO 재사용
+1. accountNumber로 gateway 가상계좌 조회
+2. WAITING_DEPOSIT 상태, 입금 금액, 만료 시각 검증
+3. gateway virtual account = DEPOSITED
+4. 입금 이력 저장
+5. ticket-service 내부 무통장 입금 완료 API 호출
+6. 성공 시 gateway virtual account = TICKET_PAYMENT_COMPLETED
+7. 실패 시 gateway virtual account = TICKET_PAYMENT_FAILED, 실패 사유 저장
 ```
+
+## ticket-service 내부 API
+
+gateway가 ticket-service에 결제 상태를 반영할 때만 사용한다.
+
+```text
+X-Service-Token: {internalServiceToken}
+Content-Type: application/json
+```
+
+```http
+POST /ticket/api/v1/payments/internal/card/complete
+POST /ticket/api/v1/payments/internal/card/fail
+POST /ticket/api/v1/payments/internal/virtual-account/issued
+POST /ticket/api/v1/payments/internal/virtual-account/deposit/complete
+```
+
+## 무통장 만료 이벤트
+
+무통장 만료는 사용자 요청이 아니라 스케줄러 기반 후처리이므로 Kafka outbox로 처리한다.
+
+```text
+gateway scheduler
+-> WAITING_DEPOSIT + expiresAt 지난 가상계좌 만료
+-> virtual_account_outbox_events PENDING 저장
+-> outbox publisher가 VIRTUAL_ACCOUNT_EXPIRED 이벤트 발행
+-> ticket-service consumer가 Payment.status=EXPIRED 반영
+```
+
+## 재시도 정책
+
+- `READY`, `WAITING_DEPOSIT`, `PAID` 상태의 같은 `idempotencyKey`는 기존 결제를 반환한다.
+- `FAILED`, `CANCELLED`, `EXPIRED` 이후 같은 `idempotencyKey`로 `confirm`하면 새 `Payment` row와 새 `paymentNo`를 생성한다.
+- 카드 gateway에 이미 실패/취소 이력이 있는 `paymentNo`로 다시 승인 요청하면 새 결제번호로 재시도해야 한다.
+- `TICKET_PAYMENT_FAILED` 상태의 gateway 가상계좌 수동 재처리 API는 운영/정산 범위로 보고 현재 구현에서는 보류한다.

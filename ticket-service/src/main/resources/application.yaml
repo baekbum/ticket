@@ -34,8 +34,9 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
+      group-id: ticket-service-group
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "dev.bum.*"
@@ -62,17 +63,25 @@ topic:
   payment:
     completed:
       name: payment-completed
+    virtual-account:
+      expired:
+        name: virtual-account-expired
+        group-id: ticket-virtual-account-expire-group
   audit:
     log:
       name: audit-log
 
 app:
+  internal:
+    service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   upload:
     root: uploads
     public-url-prefix: /ticket/uploads
   queue:
     enabled: true
     base-url: http://localhost:8083/queue
+  payment-gateway:
+    base-url: http://localhost:8099/payment-gateway
   kafka-dlt:
     slack:
       enabled: true

@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
@@ -28,10 +29,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "payments",
+        indexes = {
+                @Index(name = "idx_payments_idempotency_key_status", columnList = "idempotency_key,status")
+        },
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_payments_reservation_id", columnNames = "reservation_id"),
                 @UniqueConstraint(name = "uk_payments_payment_no", columnNames = "payment_no"),
-                @UniqueConstraint(name = "uk_payments_idempotency_key", columnNames = "idempotency_key"),
                 @UniqueConstraint(name = "uk_payments_account_number", columnNames = "account_number")
         }
 )
