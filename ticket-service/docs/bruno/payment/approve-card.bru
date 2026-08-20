@@ -5,14 +5,13 @@ meta {
 }
 
 post {
-  url: {{ticketBaseUrl}}/payments/card/approve
+  url: {{paymentGatewayBaseUrl}}/payments/card/approve
   body: json
   auth: bearer
 }
 
 headers {
   Content-Type: application/json
-  X-Active-Token: {{activeToken}}
 }
 
 auth:bearer {
@@ -25,6 +24,8 @@ body:json {
     "cardCompany": "{{cardCompany}}",
     "cardNumber": "{{cardNumber}}",
     "cvc": "{{cardCvc}}",
-    "cardPassword": "{{cardPassword}}"
+    "cardPassword": "{{cardPassword}}",
+    "customerName": "{{cardCustomerName}}",
+    "amount": {{depositAmount}}
   }
 }

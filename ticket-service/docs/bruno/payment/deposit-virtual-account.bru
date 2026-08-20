@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{ticketBaseUrl}}/payments/virtual-account/deposit
+  url: {{paymentGatewayBaseUrl}}/payments/virtual-account/deposit
   body: json
   auth: bearer
 }
@@ -22,6 +22,7 @@ body:json {
   {
     "accountNumber": "{{accountNumber}}",
     "depositorName": "이지은",
-    "amount": {{depositAmount}}
+    "amount": {{depositAmount}},
+    "depositedAt": "2026-08-20T12:00:00"
   }
 }
