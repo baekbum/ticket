@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class GatewayVirtualAccountServiceTest {
@@ -107,15 +108,36 @@ class GatewayVirtualAccountServiceTest {
 
         given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
                 .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any())).willReturn(paymentResponse(PaymentStatus.PAID));
 
         GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
 
-        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
         assertThat(response.getDepositorName()).isEqualTo("아이유");
         assertThat(response.getDepositedAt()).isEqualTo(LocalDateTime.of(2026, 8, 19, 12, 0));
-        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
-        then(dummyVirtualAccountPaymentHistoryJpaRepository).should().save(any(DummyVirtualAccountPaymentHistory.class));
-        then(ticketPaymentClient).shouldHaveNoInteractions();
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2)).save(any(DummyVirtualAccountPaymentHistory.class));
+        then(ticketPaymentClient).should().completeVirtualAccountDeposit(any());
+    }
+
+    @Test
+    @DisplayName("ticket-service 입금 완료 반영에 실패하면 gateway 상태를 실패로 저장한다")
+    void fail_ticket_payment_when_deposit_complete_sync_failed() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any()))
+                .willThrow(new RuntimeException("ticket-service unavailable"));
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED);
+        assertThat(response.getMessage()).isEqualTo("가상계좌 입금은 완료되었지만 ticket-service 결제 완료 반영에 실패했습니다.");
+        assertThat(virtualAccount.getFailureReason()).contains("ticket-service 입금 완료 반영 실패");
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2)).save(any(DummyVirtualAccountPaymentHistory.class));
+        then(ticketPaymentClient).should().completeVirtualAccountDeposit(any());
     }
 
     @Test
@@ -200,13 +222,17 @@ class GatewayVirtualAccountServiceTest {
     }
 
     private PaymentResponse paymentResponse() {
+        return paymentResponse(PaymentStatus.WAITING_DEPOSIT);
+    }
+
+    private PaymentResponse paymentResponse(PaymentStatus status) {
         return PaymentResponse.builder()
                 .paymentId(1L)
                 .reservationId(1L)
                 .orderId("ORDER-1")
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.WAITING_DEPOSIT)
+                .status(status)
                 .amount(180000)
                 .bankName("KB국민은행")
                 .accountNumber("1111-1234-123456")

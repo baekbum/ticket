@@ -71,15 +71,6 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
-    public static DummyVirtualAccountPaymentHistory depositEventPublished(DummyVirtualAccount virtualAccount) {
-        return DummyVirtualAccountPaymentHistory.builder()
-                .virtualAccount(virtualAccount)
-                .paymentNo(virtualAccount.getPaymentNo())
-                .historyType(VirtualAccountPaymentHistoryType.DEPOSIT_EVENT_PUBLISHED)
-                .message("입금 완료 Kafka 이벤트가 발행되었습니다.")
-                .build();
-    }
-
     public static DummyVirtualAccountPaymentHistory deposited(DummyVirtualAccount virtualAccount) {
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
@@ -95,6 +86,24 @@ public class DummyVirtualAccountPaymentHistory {
                 .paymentNo(virtualAccount.getPaymentNo())
                 .historyType(VirtualAccountPaymentHistoryType.EXPIRED)
                 .message("가상계좌 입금 기한이 만료되었습니다.")
+                .build();
+    }
+
+    public static DummyVirtualAccountPaymentHistory ticketPaymentCompleted(DummyVirtualAccount virtualAccount) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.TICKET_PAYMENT_COMPLETED)
+                .message("ticket-service 결제 완료 반영에 성공했습니다.")
+                .build();
+    }
+
+    public static DummyVirtualAccountPaymentHistory ticketPaymentFailed(DummyVirtualAccount virtualAccount) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.TICKET_PAYMENT_FAILED)
+                .message(virtualAccount.getFailureReason())
                 .build();
     }
 }

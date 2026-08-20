@@ -1,10 +1,10 @@
 package dev.bum.ticket_service.service;
 
-import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -87,17 +87,17 @@ class VirtualAccountPaymentServiceTest {
     void complete_virtual_account_deposit_from_gateway_success() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
-        VirtualAccountDepositCompletedEvent depositEvent = virtualAccountDepositCompletedEvent(BigDecimal.valueOf(180000));
+        VirtualAccountDepositCompleteRequest depositRequest = virtualAccountDepositCompleteRequest(BigDecimal.valueOf(180000));
         PaymentResponse paymentResponse = paidResponse(PaymentMethod.BANK_TRANSFER);
 
-        given(paymentJpaRepository.findByPaymentNoForUpdate(depositEvent.getPaymentNo())).willReturn(Optional.of(payment));
-        given(paymentCompletionService.completeDeposit(payment, depositEvent.getDepositedAt(), depositEvent.getDepositorName()))
+        given(paymentJpaRepository.findByPaymentNoForUpdate(depositRequest.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentCompletionService.completeDeposit(payment, depositRequest.getDepositedAt(), depositRequest.getDepositorName()))
                 .willReturn(paymentResponse);
 
-        PaymentResponse response = virtualAccountPaymentService.completeDepositFromGateway(depositEvent);
+        PaymentResponse response = virtualAccountPaymentService.completeDepositFromGateway(depositRequest);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
-        then(paymentCompletionService).should().completeDeposit(payment, depositEvent.getDepositedAt(), depositEvent.getDepositorName());
+        then(paymentCompletionService).should().completeDeposit(payment, depositRequest.getDepositedAt(), depositRequest.getDepositorName());
     }
 
     @Test
@@ -105,11 +105,11 @@ class VirtualAccountPaymentServiceTest {
     void complete_virtual_account_deposit_from_gateway_amount_mismatch() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2099, 7, 27, 23, 59, 59));
-        VirtualAccountDepositCompletedEvent depositEvent = virtualAccountDepositCompletedEvent(BigDecimal.valueOf(170000));
+        VirtualAccountDepositCompleteRequest depositRequest = virtualAccountDepositCompleteRequest(BigDecimal.valueOf(170000));
 
-        given(paymentJpaRepository.findByPaymentNoForUpdate(depositEvent.getPaymentNo())).willReturn(Optional.of(payment));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(depositRequest.getPaymentNo())).willReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositEvent))
+        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("입금 금액이 일치하지 않습니다.");
 
@@ -171,8 +171,8 @@ class VirtualAccountPaymentServiceTest {
                 .build();
     }
 
-    private VirtualAccountDepositCompletedEvent virtualAccountDepositCompletedEvent(BigDecimal amount) {
-        return VirtualAccountDepositCompletedEvent.builder()
+    private VirtualAccountDepositCompleteRequest virtualAccountDepositCompleteRequest(BigDecimal amount) {
+        return VirtualAccountDepositCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .bankCompany(BankCompany.KB)
                 .bankName("KB국민은행")

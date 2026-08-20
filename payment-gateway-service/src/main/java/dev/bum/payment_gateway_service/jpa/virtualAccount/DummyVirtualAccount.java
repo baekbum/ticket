@@ -125,10 +125,6 @@ public class DummyVirtualAccount {
         this.depositedAt = depositedAt != null ? depositedAt : LocalDateTime.now();
     }
 
-    public void publishDepositEvent() {
-        this.status = VirtualAccountPaymentStatus.DEPOSIT_EVENT_PUBLISHED;
-    }
-
     public void completeTicketPayment(LocalDateTime ticketCompletedAt) {
         this.status = VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED;
         this.ticketCompletedAt = ticketCompletedAt != null ? ticketCompletedAt : LocalDateTime.now();

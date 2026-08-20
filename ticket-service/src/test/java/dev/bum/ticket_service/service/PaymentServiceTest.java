@@ -1,10 +1,10 @@
 package dev.bum.ticket_service.service;
 
-import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -104,21 +104,25 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("가상계좌 입금 완료 이벤트를 무통장 결제 서비스로 위임한다")
+    @DisplayName("가상계좌 입금 완료 요청을 무통장 결제 서비스로 위임한다")
     void delegate_virtual_account_deposit_completion() {
-        VirtualAccountDepositCompletedEvent event = VirtualAccountDepositCompletedEvent.builder()
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .depositorName("아이유")
                 .amount(BigDecimal.valueOf(180000))
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
                 .build();
         PaymentResponse expectedResponse = paidResponse(PaymentMethod.BANK_TRANSFER);
 
-        given(virtualAccountPaymentService.completeDepositFromGateway(event)).willReturn(expectedResponse);
+        given(virtualAccountPaymentService.completeDepositFromGateway(request)).willReturn(expectedResponse);
 
-        PaymentResponse response = paymentService.completeVirtualAccountDepositFromGateway(event);
+        PaymentResponse response = paymentService.completeVirtualAccountDepositFromGateway(request);
 
         assertThat(response).isEqualTo(expectedResponse);
-        then(virtualAccountPaymentService).should().completeDepositFromGateway(event);
+        then(virtualAccountPaymentService).should().completeDepositFromGateway(request);
     }
 
     @Test

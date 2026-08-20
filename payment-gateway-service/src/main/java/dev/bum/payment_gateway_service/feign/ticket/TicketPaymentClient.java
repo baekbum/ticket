@@ -3,6 +3,7 @@ package dev.bum.payment_gateway_service.feign.ticket;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,4 +20,7 @@ public interface TicketPaymentClient {
 
     @PostMapping("/api/v1/payments/internal/virtual-account/issued")
     PaymentResponse applyVirtualAccountIssued(@RequestBody VirtualAccountIssuedRequest request);
+
+    @PostMapping("/api/v1/payments/internal/virtual-account/deposit/complete")
+    PaymentResponse completeVirtualAccountDeposit(@RequestBody VirtualAccountDepositCompleteRequest request);
 }

@@ -1,10 +1,10 @@
 package dev.bum.ticket_service.service.payment;
 
-import dev.bum.common.kafka.payment.VirtualAccountDepositCompletedEvent;
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.ticket_service.audit.AuditLog;
 import io.micrometer.observation.annotation.Observed;
@@ -40,8 +40,8 @@ public class PaymentService {
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
-    public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompletedEvent event) {
-        return virtualAccountPaymentService.completeDepositFromGateway(event);
+    public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
+        return virtualAccountPaymentService.completeDepositFromGateway(request);
     }
 
     @AuditLog(action = "VIRTUAL_ACCOUNT_EXPIRED_FROM_GATEWAY", targetType = "PAYMENT")

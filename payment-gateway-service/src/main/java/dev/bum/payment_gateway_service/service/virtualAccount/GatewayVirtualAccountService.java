@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
@@ -48,8 +49,12 @@ public class GatewayVirtualAccountService {
         validateDeposit(virtualAccount, request);
         virtualAccount.deposit(request.getDepositorName(), request.getDepositedAt());
         dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.deposited(virtualAccount));
+        boolean ticketPaymentCompleted = applyTicketVirtualAccountDepositCompleted(virtualAccount);
 
-        return toDepositResponse(virtualAccount, "가상계좌 입금이 완료되었습니다.");
+        String message = ticketPaymentCompleted
+                ? "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
+                : "가상계좌 입금은 완료되었지만 ticket-service 결제 완료 반영에 실패했습니다.";
+        return toDepositResponse(virtualAccount, message);
     }
 
     private GatewayVirtualAccountIssueResponse issueNewVirtualAccount(GatewayVirtualAccountIssueRequest request) {
@@ -86,6 +91,38 @@ public class GatewayVirtualAccountService {
             );
         } catch (RuntimeException e) {
             throw new TicketVirtualAccountIssueException("ticket-service 가상계좌 발급 정보 반영에 실패했습니다.", e);
+        }
+    }
+
+    private boolean applyTicketVirtualAccountDepositCompleted(DummyVirtualAccount virtualAccount) {
+        try {
+            ticketPaymentClient.completeVirtualAccountDeposit(
+                    VirtualAccountDepositCompleteRequest.builder()
+                            .paymentNo(virtualAccount.getPaymentNo())
+                            .bankCompany(virtualAccount.getBankCompany())
+                            .bankName(virtualAccount.getBankName())
+                            .accountNumber(virtualAccount.getAccountNumber())
+                            .depositorName(virtualAccount.getDepositorName())
+                            .amount(virtualAccount.getAmount())
+                            .depositedAt(virtualAccount.getDepositedAt())
+                            .build()
+            );
+
+            virtualAccount.completeTicketPayment(null);
+
+            dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                    DummyVirtualAccountPaymentHistory.ticketPaymentCompleted(virtualAccount)
+            );
+
+            return true;
+        } catch (RuntimeException e) {
+            virtualAccount.failTicketPayment("ticket-service 입금 완료 반영 실패: " + e.getMessage());
+
+            dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                    DummyVirtualAccountPaymentHistory.ticketPaymentFailed(virtualAccount)
+            );
+
+            return false;
         }
     }
 
@@ -128,8 +165,8 @@ public class GatewayVirtualAccountService {
 
     private void validateDeposit(DummyVirtualAccount virtualAccount, GatewayVirtualAccountDepositRequest request) {
         if (virtualAccount.getStatus() == VirtualAccountPaymentStatus.DEPOSITED
-                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.DEPOSIT_EVENT_PUBLISHED
-                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
+                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED
+                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED) {
             throw new IllegalArgumentException("이미 입금 처리된 가상계좌입니다.");
         }
         if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.WAITING_DEPOSIT) {

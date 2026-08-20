@@ -6,7 +6,9 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
@@ -195,5 +197,41 @@ class PaymentControllerTest {
 
         then(internalServiceTokenValidator).should().validate(serviceToken);
         then(paymentService).should().applyVirtualAccountIssued(request);
+    }
+
+    @Test
+    @DisplayName("payment-gateway 가상계좌 입금 완료 정보를 반영한다")
+    void complete_virtual_account_deposit_from_gateway() throws Exception {
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .bankCompany(BankCompany.KB)
+                .bankName("KB국민은행")
+                .accountNumber("1111-1234-123456")
+                .depositorName("아이유")
+                .amount(BigDecimal.valueOf(180000))
+                .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
+                .build();
+        PaymentResponse response = PaymentResponse.builder()
+                .paymentId(1L)
+                .reservationId(1L)
+                .orderId("ORDER-1")
+                .paymentNo(request.getPaymentNo())
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.PAID)
+                .amount(180000)
+                .build();
+
+        given(paymentService.completeVirtualAccountDepositFromGateway(request)).willReturn(response);
+
+        mockMvc.perform(post(baseUrl + "/internal/virtual-account/deposit/complete")
+                        .header("X-Service-Token", serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+        then(paymentService).should().completeVirtualAccountDepositFromGateway(request);
     }
 }
