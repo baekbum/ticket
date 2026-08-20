@@ -108,6 +108,26 @@ class PaymentControllerTest {
     }
 
     @Test
+    @DisplayName("내부 서비스 토큰이 없으면 카드 결제 완료 반영을 거부한다")
+    void reject_card_completion_missing_service_token() throws Exception {
+        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .userId("user01")
+                .amount(BigDecimal.valueOf(180000))
+                .build();
+
+        doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
+                .when(internalServiceTokenValidator).validate(null);
+
+        mockMvc.perform(post(baseUrl + "/internal/card/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        then(paymentService).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("payment-gateway 카드 결제 실패 요청을 반영한다")
     void fail_card_payment_from_gateway() throws Exception {
         CardPaymentFailRequest request = CardPaymentFailRequest.builder()
