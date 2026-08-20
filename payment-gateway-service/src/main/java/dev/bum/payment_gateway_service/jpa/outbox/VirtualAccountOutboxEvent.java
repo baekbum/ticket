@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "virtual_account_outbox_events",
         indexes = {
-                @Index(name = "idx_virtual_account_outbox_status_id", columnList = "status,outbox_id"),
+                @Index(name = "idx_virtual_account_outbox_type_status_id", columnList = "event_type,status,outbox_id"),
                 @Index(name = "idx_virtual_account_outbox_payment_no", columnList = "payment_no")
         }
 )

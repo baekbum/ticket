@@ -41,7 +41,10 @@ class VirtualAccountExpiredOutboxPublisherTest {
     void publish_pending_virtual_account_expired_outbox() {
         VirtualAccountOutboxEvent outboxEvent = outboxEvent("PAY-1");
 
-        given(virtualAccountOutboxEventJpaRepository.findTop100ByStatusOrderByOutboxIdAsc(OutboxEventStatus.PENDING))
+        given(virtualAccountOutboxEventJpaRepository.findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
+                OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED,
+                OutboxEventStatus.PENDING
+        ))
                 .willReturn(List.of(outboxEvent));
         given(virtualAccountExpiredEventProducer.sendExpired(any(VirtualAccountExpiredEvent.class)))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -51,6 +54,11 @@ class VirtualAccountExpiredOutboxPublisherTest {
         assertThat(outboxEvent.getStatus()).isEqualTo(OutboxEventStatus.PUBLISHED);
         assertThat(outboxEvent.getPublishedAt()).isNotNull();
         assertThat(outboxEvent.getLastErrorMessage()).isNull();
+        then(virtualAccountOutboxEventJpaRepository).should()
+                .findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
+                        OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED,
+                        OutboxEventStatus.PENDING
+                );
         then(virtualAccountExpiredEventProducer).should().sendExpired(any(VirtualAccountExpiredEvent.class));
     }
 
@@ -59,7 +67,10 @@ class VirtualAccountExpiredOutboxPublisherTest {
     void keep_pending_when_publish_failed() {
         VirtualAccountOutboxEvent outboxEvent = outboxEvent("PAY-1");
 
-        given(virtualAccountOutboxEventJpaRepository.findTop100ByStatusOrderByOutboxIdAsc(OutboxEventStatus.PENDING))
+        given(virtualAccountOutboxEventJpaRepository.findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
+                OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED,
+                OutboxEventStatus.PENDING
+        ))
                 .willReturn(List.of(outboxEvent));
         given(virtualAccountExpiredEventProducer.sendExpired(any(VirtualAccountExpiredEvent.class)))
                 .willReturn(CompletableFuture.failedFuture(new IllegalStateException("kafka down")));

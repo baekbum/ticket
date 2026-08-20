@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.payment_gateway_service.jpa.outbox.OutboxEventStatus;
+import dev.bum.payment_gateway_service.jpa.outbox.OutboxEventType;
 import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEvent;
 import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEventJpaRepository;
 import dev.bum.payment_gateway_service.kafka.virtualAccount.VirtualAccountExpiredEventProducer;
@@ -33,7 +34,10 @@ public class VirtualAccountExpiredOutboxPublisher {
     @Transactional
     public void publishPendingEvents() {
         List<VirtualAccountOutboxEvent> pendingEvents =
-                virtualAccountOutboxEventJpaRepository.findTop100ByStatusOrderByOutboxIdAsc(OutboxEventStatus.PENDING);
+                virtualAccountOutboxEventJpaRepository.findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
+                        OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED,
+                        OutboxEventStatus.PENDING
+                );
 
         if (pendingEvents.isEmpty()) {
             return;

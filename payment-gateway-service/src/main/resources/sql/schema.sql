@@ -125,5 +125,5 @@ CREATE TABLE virtual_account_outbox_events (
     CONSTRAINT chk_virtual_account_outbox_retry_count CHECK (retry_count >= 0)
 );
 
-CREATE INDEX idx_virtual_account_outbox_status_id ON virtual_account_outbox_events(status, outbox_id);
+CREATE INDEX idx_virtual_account_outbox_type_status_id ON virtual_account_outbox_events(event_type, status, outbox_id);
 CREATE INDEX idx_virtual_account_outbox_payment_no ON virtual_account_outbox_events(payment_no);

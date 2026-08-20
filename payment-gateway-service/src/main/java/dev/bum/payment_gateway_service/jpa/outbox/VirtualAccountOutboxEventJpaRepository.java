@@ -6,5 +6,8 @@ import java.util.List;
 
 public interface VirtualAccountOutboxEventJpaRepository extends JpaRepository<VirtualAccountOutboxEvent, Long> {
 
-    List<VirtualAccountOutboxEvent> findTop100ByStatusOrderByOutboxIdAsc(OutboxEventStatus status);
+    List<VirtualAccountOutboxEvent> findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
+            OutboxEventType eventType,
+            OutboxEventStatus status
+    );
 }
