@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
@@ -22,10 +23,13 @@ class SeatCacheSyncFailureServiceTest {
     @Mock
     private SeatCacheSyncFailureJpaRepository repository;
 
+    @Mock
+    private StringRedisTemplate seatRedisTemplate;
+
     @Test
     @DisplayName("좌석 Redis 동기화 실패 정보를 보정 이력으로 저장")
     void record_failure() {
-        SeatCacheSyncFailureService service = new SeatCacheSyncFailureService(repository);
+        SeatCacheSyncFailureService service = new SeatCacheSyncFailureService(repository, seatRedisTemplate);
         DataAccessException exception = new DataAccessException("redis error") {};
 
         service.recordFailure(

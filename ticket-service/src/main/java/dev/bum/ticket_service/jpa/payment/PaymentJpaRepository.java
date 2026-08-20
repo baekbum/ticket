@@ -22,7 +22,10 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     @Observed(name = "ticket.repository.payment.find-by-payment-no-for-update", contextualName = "ticket repository payment find by payment no for update")
     Optional<Payment> findByPaymentNoForUpdate(@Param("paymentNo") String paymentNo);
 
-    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
+    Optional<Payment> findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+            String idempotencyKey,
+            Collection<PaymentStatus> statuses
+    );
 
     Optional<Payment> findByReservation(Reservation reservation);
 

@@ -8,19 +8,28 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class VirtualAccountDepositRequest {
+public class VirtualAccountIssuedRequest {
+
+    @NotBlank
+    private String paymentNo;
+
+    @NotNull
+    @Positive
+    private BigDecimal amount;
+
+    @NotBlank
+    private String bankName;
 
     @NotBlank
     private String accountNumber;
 
-    @NotBlank
-    private String depositorName;
-
     @NotNull
-    @Positive
-    private Integer amount;
+    private LocalDateTime expiresAt;
 }

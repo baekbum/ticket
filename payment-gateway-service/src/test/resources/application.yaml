@@ -1,0 +1,6 @@
+app:
+  virtual-account:
+    expiration:
+      cron: "*/5 * * * * *"
+    expired-outbox-publisher:
+      fixed-delay-ms: 1000
