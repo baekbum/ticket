@@ -136,6 +136,28 @@ class GatewayCardPaymentServiceTest {
     }
 
     @Test
+    @DisplayName("이미 완료된 결제번호는 카드 재검증 없이 기존 승인 결과를 반환한다")
+    void return_existing_completed_history_without_card_revalidation() {
+        GatewayCardPaymentApproveRequest request = approveRequest();
+        DummyCard dummyCard = dummyCard();
+        DummyCardPaymentHistory existingHistory =
+                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount());
+        existingHistory.completeTicketPayment(null);
+
+        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(existingHistory));
+
+        GatewayCardPaymentApproveResponse response = gatewayCardPaymentService.approve("IU", request);
+
+        assertThat(response.getApproved()).isTrue();
+        assertThat(response.getPaymentNo()).isEqualTo(request.getPaymentNo());
+        assertThat(response.getMessage()).isEqualTo("이미 완료된 카드 결제입니다.");
+        then(dummyCardJpaRepository).shouldHaveNoInteractions();
+        then(passwordEncoder).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("기존 카드 승인 이력이 있어도 사용자 인증 정보가 없으면 거부한다")
     void reject_existing_history_without_current_user() {
         GatewayCardPaymentApproveRequest request = approveRequest();

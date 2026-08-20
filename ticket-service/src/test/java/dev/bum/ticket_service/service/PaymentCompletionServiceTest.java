@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -90,6 +91,33 @@ class PaymentCompletionServiceTest {
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
         then(seatCacheService).should().updateUserPurchaseLimit(event, "user01", 1, "PLUS");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
+    }
+
+    @Test
+    @DisplayName("이미 완료된 결제 완료 요청은 구매 카운트를 다시 증가시키지 않는다")
+    void skip_side_effects_when_payment_already_paid() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.PAID);
+
+        PaymentResponse response = paymentCompletionService.complete(payment, LocalDateTime.of(2026, 8, 19, 12, 0));
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
+        then(ticketRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("종료된 결제는 완료 처리할 수 없다")
+    void reject_completion_when_payment_is_terminal() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.EXPIRED);
+
+        assertThatThrownBy(() -> paymentCompletionService.complete(payment, LocalDateTime.of(2026, 8, 19, 12, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("결제 완료 처리할 수 없는 상태입니다.");
+
+        then(ticketRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
     }
 
     private Event event() {
