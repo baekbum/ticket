@@ -101,22 +101,25 @@ gateway card history: APPROVED -> TICKET_PAYMENT_COMPLETED 또는 TICKET_PAYMENT
    DummyVirtualAccount.status = DEPOSITED
    입금 이력 저장
 
-8. payment-gateway-service scheduler
-   DEPOSITED 상태의 가상계좌 조회
-   Kafka 입금 완료 이벤트 발행
-   DummyVirtualAccount.status = DEPOSIT_EVENT_PUBLISHED
+8. payment-gateway-service -> ticket-service
+   입금 완료 내부 API 호출
+   ticket-service 결제 완료 반영 요청
 
-9. ticket-service Kafka consumer
-   입금 완료 이벤트 수신
+9. ticket-service
    Payment.status = PAID
    예약/티켓/좌석 상태 확정
+
+10. payment-gateway-service
+    ticket-service 반영 성공 시 DummyVirtualAccount.status = TICKET_PAYMENT_COMPLETED
+    ticket-service 반영 실패 시 DummyVirtualAccount.status = TICKET_PAYMENT_FAILED
+    실패 사유 저장
 ```
 
 ### 상태 흐름
 
 ```text
 ticket Payment: READY -> WAITING_DEPOSIT -> PAID
-gateway virtual account: WAITING_DEPOSIT -> DEPOSITED -> DEPOSIT_EVENT_PUBLISHED
+gateway virtual account: WAITING_DEPOSIT -> DEPOSITED -> TICKET_PAYMENT_COMPLETED 또는 TICKET_PAYMENT_FAILED
 ```
 
 ### 입금 만료 기준
@@ -129,9 +132,14 @@ gateway virtual account: WAITING_DEPOSIT -> DEPOSITED -> DEPOSIT_EVENT_PUBLISHED
 
 - `CheckoutController.confirm` 시점에는 실제 결제 완료가 아니므로 구매 제한 카운트를 증가시키면 안 된다.
 - 카드 결제는 gateway 승인 성공 후 ticket-service가 `PAID`로 반영할 때 증가시키는 것이 맞다.
-- 무통장 입금은 입금 완료 Kafka 이벤트를 받아 ticket-service가 `PAID`로 반영할 때 증가시키는 것이 맞다.
+- 무통장 입금은 gateway의 입금 완료 내부 API 요청을 받아 ticket-service가 `PAID`로 반영할 때 증가시키는 것이 맞다.
 - 즉, 구매 제한 카운트 증가는 결제 성공 확정 처리와 같은 트랜잭션 흐름에 두는 것이 안전하다.
 
 ## 현재 남은 정리 포인트
 
 - 카드 승인 실패, 결제 만료, 결제 수단 변경 시 기존 `READY` 결제 건 처리 정책 확정
+- payment-gateway 관리자 재처리 API 추가
+  - `TICKET_PAYMENT_FAILED` 상태의 가상계좌 입금 완료 건을 운영자가 확인 후 재반영
+  - ticket-service 내부 API 재호출
+  - 성공 시 `TICKET_PAYMENT_COMPLETED`, 실패 시 실패 사유 갱신
+  - 실제 운영/정산 기능 범위에 가까우므로 현재 티켓팅 핵심 플로우에서는 보류
