@@ -39,16 +39,15 @@ public class GatewayCardPaymentService {
 
     @Transactional(noRollbackFor = {TicketPaymentCompleteException.class, IllegalArgumentException.class})
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
-        validateCurrentUser(currentUserId);
-
-        String cardNumber = normalizeCardNumber(request.getCardNumber());
-        validateCardNumber(cardNumber);
-
         Optional<DummyCardPaymentHistory> existingHistory =
                 dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo());
         if (existingHistory.isPresent()) {
             return handleExistingHistory(currentUserId, existingHistory.get(), request);
         }
+
+        validateCurrentUser(currentUserId);
+        String cardNumber = normalizeCardNumber(request.getCardNumber());
+        validateCardNumber(cardNumber);
 
         Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
                         currentUserId,
@@ -119,6 +118,8 @@ public class GatewayCardPaymentService {
             DummyCardPaymentHistory paymentHistory,
             GatewayCardPaymentApproveRequest request
     ) {
+        validateCurrentUser(currentUserId);
+
         if (!currentUserId.equals(paymentHistory.getUserId())) {
             throw new IllegalArgumentException("다른 사용자의 카드 승인 이력입니다.");
         }

@@ -29,6 +29,7 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -221,6 +222,7 @@ class CheckoutServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("같은 멱등 키라도 종료된 결제만 있으면 새 결제를 생성한다")
     void confirm_creates_new_payment_when_previous_payment_is_terminal() {
         Event event = event();
@@ -252,6 +254,14 @@ class CheckoutServiceTest {
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(response.getPaymentNo()).startsWith("PAY-");
         assertThat(response.getPaymentNo()).isNotEqualTo("PAY-1");
+        ArgumentCaptor<List<PaymentStatus>> statusesCaptor = ArgumentCaptor.forClass(List.class);
+        then(paymentJpaRepository).should().findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
+                org.mockito.ArgumentMatchers.eq("idem-1"),
+                statusesCaptor.capture()
+        );
+        assertThat(statusesCaptor.getValue())
+                .containsExactly(PaymentStatus.READY, PaymentStatus.WAITING_DEPOSIT, PaymentStatus.PAID)
+                .doesNotContain(PaymentStatus.FAILED, PaymentStatus.CANCELLED, PaymentStatus.EXPIRED);
         then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.any());
         then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.any(Payment.class));
     }

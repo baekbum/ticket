@@ -136,6 +136,25 @@ class GatewayCardPaymentServiceTest {
     }
 
     @Test
+    @DisplayName("기존 카드 승인 이력이 있어도 사용자 인증 정보가 없으면 거부한다")
+    void reject_existing_history_without_current_user() {
+        GatewayCardPaymentApproveRequest request = approveRequest();
+        DummyCardPaymentHistory existingHistory =
+                DummyCardPaymentHistory.approved(dummyCard(), request.getPaymentNo(), request.getAmount());
+        existingHistory.completeTicketPayment(null);
+
+        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(existingHistory));
+
+        assertThatThrownBy(() -> gatewayCardPaymentService.approve(null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("사용자 인증 정보가 필요합니다.");
+
+        then(dummyCardJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("카드 CVC 검증 실패 시 실패 이력을 저장하고 ticket-service를 호출하지 않는다")
     void save_failed_history_when_cvc_is_invalid() {
         GatewayCardPaymentApproveRequest request = approveRequest();
