@@ -101,3 +101,29 @@ CREATE TABLE dummy_virtual_account_payment_histories (
 
 CREATE INDEX idx_dummy_virtual_account_histories_payment_no ON dummy_virtual_account_payment_histories(payment_no);
 CREATE INDEX idx_dummy_virtual_account_histories_history_type ON dummy_virtual_account_payment_histories(history_type);
+
+-- ==========================================
+-- Virtual account outbox events 테이블
+-- ==========================================
+CREATE TABLE virtual_account_outbox_events (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    event_type VARCHAR(60) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    bank_company VARCHAR(30) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL,
+    account_number VARCHAR(30) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_error_message VARCHAR(500),
+    published_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_virtual_account_outbox_amount CHECK (amount > 0),
+    CONSTRAINT chk_virtual_account_outbox_retry_count CHECK (retry_count >= 0)
+);
+
+CREATE INDEX idx_virtual_account_outbox_status_id ON virtual_account_outbox_events(status, outbox_id);
+CREATE INDEX idx_virtual_account_outbox_payment_no ON virtual_account_outbox_events(payment_no);

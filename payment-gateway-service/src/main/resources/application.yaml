@@ -38,6 +38,9 @@ app:
     expiration:
       enabled: true
       cron: "0 5 0 * * *"
+    expired-outbox-publisher:
+      enabled: true
+      fixed-delay-ms: 30000
 
 topic:
   payment:

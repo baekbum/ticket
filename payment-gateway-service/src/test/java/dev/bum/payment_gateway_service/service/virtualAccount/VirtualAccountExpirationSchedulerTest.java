@@ -7,7 +7,10 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPay
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentHistoryType;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
-import dev.bum.payment_gateway_service.kafka.virtualAccount.VirtualAccountExpiredEventProducer;
+import dev.bum.payment_gateway_service.jpa.outbox.OutboxEventStatus;
+import dev.bum.payment_gateway_service.jpa.outbox.OutboxEventType;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEvent;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEventJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +22,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +40,7 @@ class VirtualAccountExpirationSchedulerTest {
     private DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
 
     @Mock
-    private VirtualAccountExpiredEventProducer virtualAccountExpiredEventProducer;
+    private VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
 
     @InjectMocks
     private VirtualAccountExpirationScheduler scheduler;
@@ -52,9 +54,6 @@ class VirtualAccountExpirationSchedulerTest {
                 eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
                 any(LocalDateTime.class)
         )).willReturn(List.of(virtualAccount), List.of());
-        given(virtualAccountExpiredEventProducer.sendExpired(eq(virtualAccount), any(LocalDateTime.class)))
-                .willReturn(CompletableFuture.completedFuture(null));
-
         scheduler.expireWaitingAccounts();
 
         assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
@@ -64,6 +63,13 @@ class VirtualAccountExpirationSchedulerTest {
         then(dummyVirtualAccountPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getPaymentNo()).isEqualTo(virtualAccount.getPaymentNo());
         assertThat(historyCaptor.getValue().getHistoryType()).isEqualTo(VirtualAccountPaymentHistoryType.EXPIRED);
+
+        ArgumentCaptor<VirtualAccountOutboxEvent> outboxCaptor =
+                ArgumentCaptor.forClass(VirtualAccountOutboxEvent.class);
+        then(virtualAccountOutboxEventJpaRepository).should().save(outboxCaptor.capture());
+        assertThat(outboxCaptor.getValue().getPaymentNo()).isEqualTo(virtualAccount.getPaymentNo());
+        assertThat(outboxCaptor.getValue().getEventType()).isEqualTo(OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED);
+        assertThat(outboxCaptor.getValue().getStatus()).isEqualTo(OutboxEventStatus.PENDING);
     }
 
     @Test
@@ -76,9 +82,6 @@ class VirtualAccountExpirationSchedulerTest {
                 eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
                 any(LocalDateTime.class)
         )).willReturn(List.of(firstAccount), List.of(secondAccount), List.of());
-        given(virtualAccountExpiredEventProducer.sendExpired(any(DummyVirtualAccount.class), any(LocalDateTime.class)))
-                .willReturn(CompletableFuture.completedFuture(null));
-
         scheduler.expireWaitingAccounts();
 
         assertThat(firstAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
@@ -90,29 +93,8 @@ class VirtualAccountExpirationSchedulerTest {
                 );
         then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
                 .save(any(DummyVirtualAccountPaymentHistory.class));
-    }
-
-    @Test
-    @DisplayName("배치 내 일부 만료 이벤트 발행이 실패해도 gateway 만료 상태는 저장한다")
-    void expire_accounts_even_when_some_publish_failed_in_batch() {
-        DummyVirtualAccount successAccount = waitingVirtualAccount("PAY-1", "1111-1234-567890");
-        DummyVirtualAccount failedAccount = waitingVirtualAccount("PAY-2", "1111-1234-567891");
-
-        given(dummyVirtualAccountJpaRepository.findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-                eq(VirtualAccountPaymentStatus.WAITING_DEPOSIT),
-                any(LocalDateTime.class)
-        )).willReturn(List.of(successAccount, failedAccount), List.of());
-        given(virtualAccountExpiredEventProducer.sendExpired(eq(successAccount), any(LocalDateTime.class)))
-                .willReturn(CompletableFuture.completedFuture(null));
-        given(virtualAccountExpiredEventProducer.sendExpired(eq(failedAccount), any(LocalDateTime.class)))
-                .willReturn(CompletableFuture.failedFuture(new IllegalStateException("kafka down")));
-
-        scheduler.expireWaitingAccounts();
-
-        assertThat(successAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
-        assertThat(failedAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
-        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
-                .save(any(DummyVirtualAccountPaymentHistory.class));
+        then(virtualAccountOutboxEventJpaRepository).should(times(2))
+                .save(any(VirtualAccountOutboxEvent.class));
     }
 
     private DummyVirtualAccount waitingVirtualAccount() {

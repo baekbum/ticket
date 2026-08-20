@@ -5,7 +5,8 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpa
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
-import dev.bum.payment_gateway_service.kafka.virtualAccount.VirtualAccountExpiredEventProducer;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEvent;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEventJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Component
@@ -29,7 +29,7 @@ public class VirtualAccountExpirationScheduler {
 
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
-    private final VirtualAccountExpiredEventProducer virtualAccountExpiredEventProducer;
+    private final VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
 
     @Scheduled(cron = "${app.virtual-account.expiration.cron:0 5 0 * * *}")
     @Transactional
@@ -51,25 +51,18 @@ public class VirtualAccountExpirationScheduler {
     }
 
     private void expireWaitingAccountBatch(List<DummyVirtualAccount> expiredAccounts, LocalDateTime expiredAt) {
-        List<CompletableFuture<Void>> publishFutures = expiredAccounts.stream()
-                .map(virtualAccount -> expireAndPublish(virtualAccount, expiredAt))
-                .toList();
+        for (DummyVirtualAccount virtualAccount : expiredAccounts) {
+            virtualAccount.expire();
 
-        CompletableFuture.allOf(publishFutures.toArray(CompletableFuture[]::new)).join();
-    }
+            dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                    DummyVirtualAccountPaymentHistory.expired(virtualAccount)
+            );
 
-    private CompletableFuture<Void> expireAndPublish(DummyVirtualAccount virtualAccount, LocalDateTime expiredAt) {
-        virtualAccount.expire();
-        dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                DummyVirtualAccountPaymentHistory.expired(virtualAccount)
-        );
+            virtualAccountOutboxEventJpaRepository.save(
+                    VirtualAccountOutboxEvent.virtualAccountExpired(virtualAccount, expiredAt)
+            );
 
-        return virtualAccountExpiredEventProducer.sendExpired(virtualAccount, expiredAt)
-                .handle((result, throwable) -> {
-                    if (throwable != null) {
-                        log.warn("가상계좌 만료 이벤트 발행 실패: paymentNo={}", virtualAccount.getPaymentNo(), throwable);
-                    }
-                    return null;
-                });
+            log.info("가상계좌 만료 outbox 저장: paymentNo={}", virtualAccount.getPaymentNo());
+        }
     }
 }
