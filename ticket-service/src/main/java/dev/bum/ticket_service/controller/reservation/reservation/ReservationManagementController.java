@@ -6,7 +6,7 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
-import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,26 +25,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ReservationManagementController {
 
-    private final ReservationService reservationService;
+    private final ReservationManagementService reservationManagementService;
 
     @GetMapping("/select/id/{reservationId}")
     public ResponseEntity<ReservationResponse> selectById(@PathVariable("reservationId") long id) {
-        return ResponseEntity.ok(reservationService.selectById(id));
+        return ResponseEntity.ok(reservationManagementService.selectById(id));
     }
 
     @GetMapping("/select/detail/{reservationId}")
     public ResponseEntity<ReservationDetailResponse> selectDetailById(@PathVariable("reservationId") long id) {
-        return ResponseEntity.ok(reservationService.selectDetailById(id));
+        return ResponseEntity.ok(reservationManagementService.selectDetailById(id));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<ReservationResponse>> selectByCond(@RequestBody ReservationCondRequest cond) {
-        return ResponseEntity.ok(reservationService.selectByCond(cond));
+        return ResponseEntity.ok(reservationManagementService.selectByCond(cond));
     }
 
     @PutMapping("/cancel/id/{id}")
     public ResponseEntity<Void> cancel(@PathVariable("id") long id, @RequestBody CancelReservationRequest info) {
-        reservationService.cancel(id, info);
+        reservationManagementService.cancel(id, info);
         return ResponseEntity.ok().build();
     }
 
@@ -53,6 +53,6 @@ public class ReservationManagementController {
             @PathVariable("id") long id,
             @Valid @RequestBody UpdateReservationStatusRequest request
     ) {
-        return ResponseEntity.ok(reservationService.updateStatus(id, request));
+        return ResponseEntity.ok(reservationManagementService.updateStatus(id, request));
     }
 }

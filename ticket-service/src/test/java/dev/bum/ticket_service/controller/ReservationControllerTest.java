@@ -9,6 +9,7 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.controller.reservation.reservation.ReservationController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,9 @@ class ReservationControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
 
     @MockitoBean
     private ReservationService reservationService;
