@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
@@ -22,6 +23,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
+import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,7 @@ public class ReservationService {
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
+    private final CardPaymentRefundService cardPaymentRefundService;
 
     /**
      * 예매 ID로 예매 기본 정보를 조회한다.
@@ -129,6 +132,9 @@ public class ReservationService {
      */
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancel(long id, CancelReservationRequest info) {
+        Reservation reservation = repository.selectById(id);
+        refundCardPaymentBeforeFullCancel(reservation, info);
+
         List<Seat> cancelledSeats = repository.cancel(id, info);
 
         seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
@@ -140,6 +146,27 @@ public class ReservationService {
                     "SUB"
             );
         }
+    }
+
+    /**
+     * 카드 결제 완료 예매를 전체 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
+     */
+    private void refundCardPaymentBeforeFullCancel(Reservation reservation, CancelReservationRequest info) {
+        if (!isFullCancellation(info)) {
+            return;
+        }
+        if (reservation.getStatus() != ReservationStatus.PAID) {
+            return;
+        }
+
+        paymentJpaRepository.findByReservation(reservation)
+                .filter(payment -> payment.getMethod() == PaymentMethod.CREDIT_CARD)
+                .filter(payment -> payment.getStatus() == PaymentStatus.PAID)
+                .ifPresent(cardPaymentRefundService::refundAll);
+    }
+
+    private boolean isFullCancellation(CancelReservationRequest info) {
+        return info.getSelectedTicketIdList() == null || info.getSelectedTicketIdList().isEmpty();
     }
 
     /**

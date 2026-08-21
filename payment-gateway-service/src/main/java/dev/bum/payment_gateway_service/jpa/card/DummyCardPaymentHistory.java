@@ -161,4 +161,9 @@ public class DummyCardPaymentHistory {
         this.status = CardPaymentHistoryStatus.CANCELLED;
         this.failureReason = failureReason;
     }
+
+    public void refund() {
+        this.status = CardPaymentHistoryStatus.REFUNDED;
+        this.failureReason = null;
+    }
 }

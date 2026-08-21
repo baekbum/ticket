@@ -2,6 +2,9 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
@@ -10,10 +13,14 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
+import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +43,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
@@ -48,6 +56,12 @@ class ReservationServiceTest {
 
     @Mock
     private SeatCacheService seatCacheService;
+
+    @Mock
+    private PaymentJpaRepository paymentJpaRepository;
+
+    @Mock
+    private CardPaymentRefundService cardPaymentRefundService;
 
     @Test
     @DisplayName("ID로 예약을 조회한다")
@@ -143,6 +157,7 @@ class ReservationServiceTest {
     @Test
     @DisplayName("예약 취소 후 좌석 캐시와 구매 제한 캐시를 갱신한다")
     void reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event());
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
                 .eventId(1L)
@@ -150,13 +165,37 @@ class ReservationServiceTest {
                 .build();
         List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
 
+        given(repository.selectById(1L)).willReturn(reservation);
         given(repository.cancel(1L, info)).willReturn(cancelledSeats);
 
         reservationService.cancel(1L, info);
 
+        then(cardPaymentRefundService).shouldHaveNoInteractions();
         then(repository).should().cancel(1L, info);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
         then(seatCacheService).should().updateUserPurchaseLimit(cancelledSeats.get(0).getEvent(), "user01", 1, "SUB");
+    }
+
+    @Test
+    @DisplayName("카드 결제 완료 예매 전체 취소는 gateway 환불 후 예매를 취소한다")
+    void refund_card_payment_before_full_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of())
+                .build();
+        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+
+        reservationService.cancel(1L, info);
+
+        then(cardPaymentRefundService).should().refundAll(payment);
+        then(repository).should().cancel(1L, info);
     }
 
     @Test
@@ -176,7 +215,7 @@ class ReservationServiceTest {
         reservationService.cancelMyReservation("user01", 1L, info);
 
         assertThat(info.getUserId()).isEqualTo("user01");
-        then(repository).should().selectById(1L);
+        then(repository).should(times(2)).selectById(1L);
         then(repository).should().cancel(1L, info);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
         then(seatCacheService).should().updateUserPurchaseLimit(cancelledSeats.get(0).getEvent(), "user01", 1, "SUB");
@@ -203,13 +242,33 @@ class ReservationServiceTest {
     }
 
     private Reservation reservation(Long reservationId, String orderId, String userId, Event event) {
+        return reservation(reservationId, orderId, userId, event, ReservationStatus.PENDING_PAYMENT);
+    }
+
+    private Reservation reservation(Long reservationId, String orderId, String userId, Event event, ReservationStatus status) {
         return Reservation.builder()
                 .reservationId(reservationId)
                 .orderId(orderId)
                 .userId(userId)
                 .event(event)
-                .status(ReservationStatus.PENDING_PAYMENT)
+                .status(status)
                 .reservedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .build();
+    }
+
+    private Payment cardPayment(Reservation reservation) {
+        return Payment.builder()
+                .reservation(reservation)
+                .paymentNo("PAY-1")
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.PAID)
+                .amount(250000)
+                .cardInfo(CardPaymentInfo.builder()
+                        .transactionId("CARD-1")
+                        .cardCompany(CardCompany.SHINHAN)
+                        .maskedCardNumber("4111-****-****-1111")
+                        .build())
+                .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
                 .build();
     }
 
