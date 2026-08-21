@@ -1,8 +1,10 @@
 package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -33,6 +35,29 @@ public class PaymentCompletionService {
     }
 
     private PaymentResponse complete(Payment payment, LocalDateTime paidAt, String depositorName) {
+        return complete(payment, paidAt, depositorName, null);
+    }
+
+    public PaymentResponse completeCard(
+            Payment payment,
+            String transactionId,
+            CardCompany cardCompany,
+            String maskedCardNumber,
+            LocalDateTime paidAt
+    ) {
+        return complete(payment, paidAt, null, CardPaymentInfo.builder()
+                .transactionId(transactionId)
+                .cardCompany(cardCompany)
+                .maskedCardNumber(maskedCardNumber)
+                .build());
+    }
+
+    private PaymentResponse complete(
+            Payment payment,
+            LocalDateTime paidAt,
+            String depositorName,
+            CardPaymentInfo cardPaymentInfo
+    ) {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
@@ -47,7 +72,14 @@ public class PaymentCompletionService {
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
 
-        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && depositorName != null) {
+        if (payment.getMethod() == PaymentMethod.CREDIT_CARD && cardPaymentInfo != null) {
+            payment.completeCard(
+                    cardPaymentInfo.getTransactionId(),
+                    cardPaymentInfo.getCardCompany(),
+                    cardPaymentInfo.getMaskedCardNumber(),
+                    paidAt
+            );
+        } else if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && depositorName != null) {
             payment.completeDeposit(depositorName, paidAt);
         } else {
             payment.complete(paidAt);

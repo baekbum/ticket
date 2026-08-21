@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.service.payment.CardPaymentService;
@@ -45,6 +46,9 @@ class PaymentServiceTest {
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(BigDecimal.valueOf(180000))
+                .transactionId("CARD-transaction-1")
+                .cardCompany(CardCompany.SHINHAN)
+                .maskedCardNumber("4111-****-****-1111")
                 .build();
         PaymentResponse expectedResponse = paidResponse(PaymentMethod.CREDIT_CARD);
 

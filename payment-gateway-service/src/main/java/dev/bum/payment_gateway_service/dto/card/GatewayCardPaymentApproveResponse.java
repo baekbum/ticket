@@ -15,9 +15,10 @@ import java.math.BigDecimal;
 public class GatewayCardPaymentApproveResponse {
 
     private String paymentNo;
+    private String transactionId;
     private String userId;
     private CardCompany cardCompany;
-    private String cardNumberLast4;
+    private String maskedCardNumber;
     private BigDecimal approvedAmount;
     private BigDecimal currentMonthUsedAmount;
     private BigDecimal limitAmount;

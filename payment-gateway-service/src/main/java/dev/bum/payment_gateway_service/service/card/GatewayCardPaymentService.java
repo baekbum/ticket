@@ -19,13 +19,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -71,16 +71,25 @@ public class GatewayCardPaymentService {
         }
 
         dummyCard.approve(request.getAmount());
+        String transactionId = createTransactionId();
+        String maskedCardNumber = maskCardNumber(cardNumber);
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository.save(
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount())
+                DummyCardPaymentHistory.approved(
+                        dummyCard,
+                        request.getPaymentNo(),
+                        transactionId,
+                        maskedCardNumber,
+                        request.getAmount()
+                )
         );
         PaymentResponse ticketPayment = completeTicketPayment(paymentHistory, request);
 
         return GatewayCardPaymentApproveResponse.builder()
                 .paymentNo(ticketPayment.getPaymentNo())
+                .transactionId(paymentHistory.getTransactionId())
                 .userId(dummyCard.getUserId())
                 .cardCompany(dummyCard.getCardCompany())
-                .cardNumberLast4(dummyCard.getCardNumberLast4())
+                .maskedCardNumber(paymentHistory.getMaskedCardNumber())
                 .approvedAmount(request.getAmount())
                 .currentMonthUsedAmount(dummyCard.getCurrentMonthUsedAmount())
                 .limitAmount(dummyCard.getLimitAmount())
@@ -102,12 +111,7 @@ public class GatewayCardPaymentService {
     ) {
         validateExistingHistory(currentUserId, paymentHistory, request);
         if (paymentHistory.getStatus() == CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
-            return toApproveResponse(
-                    paymentHistory.getPaymentNo(),
-                    paymentHistory.getDummyCard(),
-                    paymentHistory.getAmount(),
-                    "이미 완료된 카드 결제입니다."
-            );
+            return toApproveResponse(paymentHistory, "이미 완료된 카드 결제입니다.");
         }
 
         throw new IllegalArgumentException("이미 카드 결제 시도가 처리된 결제번호입니다. 새 결제번호로 다시 시도해주세요.");
@@ -141,7 +145,7 @@ public class GatewayCardPaymentService {
                         currentUserId,
                         request.getPaymentNo(),
                         request.getCardCompany(),
-                        cardNumber.substring(cardNumber.length() - 4),
+                        maskCardNumber(cardNumber),
                         request.getAmount(),
                         failureReason
                 )
@@ -158,6 +162,9 @@ public class GatewayCardPaymentService {
                             .paymentNo(request.getPaymentNo())
                             .userId(paymentHistory.getUserId())
                             .amount(request.getAmount())
+                            .transactionId(paymentHistory.getTransactionId())
+                            .cardCompany(paymentHistory.getCardCompany())
+                            .maskedCardNumber(paymentHistory.getMaskedCardNumber())
                             .build()
             );
             paymentHistory.completeTicketPayment(null);
@@ -186,18 +193,15 @@ public class GatewayCardPaymentService {
         }
     }
 
-    private GatewayCardPaymentApproveResponse toApproveResponse(
-            String paymentNo,
-            DummyCard dummyCard,
-            BigDecimal approvedAmount,
-            String message
-    ) {
+    private GatewayCardPaymentApproveResponse toApproveResponse(DummyCardPaymentHistory paymentHistory, String message) {
+        DummyCard dummyCard = paymentHistory.getDummyCard();
         return GatewayCardPaymentApproveResponse.builder()
-                .paymentNo(paymentNo)
+                .paymentNo(paymentHistory.getPaymentNo())
+                .transactionId(paymentHistory.getTransactionId())
                 .userId(dummyCard.getUserId())
                 .cardCompany(dummyCard.getCardCompany())
-                .cardNumberLast4(dummyCard.getCardNumberLast4())
-                .approvedAmount(approvedAmount)
+                .maskedCardNumber(paymentHistory.getMaskedCardNumber())
+                .approvedAmount(paymentHistory.getAmount())
                 .currentMonthUsedAmount(dummyCard.getCurrentMonthUsedAmount())
                 .limitAmount(dummyCard.getLimitAmount())
                 .approved(true)
@@ -231,9 +235,17 @@ public class GatewayCardPaymentService {
     }
 
     private void validateCardNumber(String cardNumber) {
-        if (cardNumber.length() < 12 || cardNumber.length() > 19) {
+        if (cardNumber.length() != 16) {
             throw new IllegalArgumentException("카드번호 형식이 올바르지 않습니다.");
         }
+    }
+
+    private String createTransactionId() {
+        return "CARD-" + UUID.randomUUID();
+    }
+
+    private String maskCardNumber(String cardNumber) {
+        return cardNumber.substring(0, 4) + "-****-****-" + cardNumber.substring(12);
     }
 
     private String sha256(String value) {

@@ -9,6 +9,7 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
@@ -63,6 +64,9 @@ class PaymentControllerTest {
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(BigDecimal.valueOf(180000))
+                .transactionId("CARD-transaction-1")
+                .cardCompany(CardCompany.SHINHAN)
+                .maskedCardNumber("4111-****-****-1111")
                 .build();
         PaymentResponse response = PaymentResponse.builder()
                 .paymentId(1L)
@@ -72,6 +76,9 @@ class PaymentControllerTest {
                 .method(PaymentMethod.CREDIT_CARD)
                 .status(PaymentStatus.PAID)
                 .amount(180000)
+                .cardTransactionId(request.getTransactionId())
+                .cardCompany(request.getCardCompany())
+                .maskedCardNumber(request.getMaskedCardNumber())
                 .build();
 
         given(paymentService.completeCardFromGateway(request)).willReturn(response);
@@ -95,6 +102,9 @@ class PaymentControllerTest {
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(BigDecimal.valueOf(180000))
+                .transactionId("CARD-transaction-1")
+                .cardCompany(CardCompany.SHINHAN)
+                .maskedCardNumber("4111-****-****-1111")
                 .build();
 
         doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
@@ -116,6 +126,9 @@ class PaymentControllerTest {
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(BigDecimal.valueOf(180000))
+                .transactionId("CARD-transaction-1")
+                .cardCompany(CardCompany.SHINHAN)
+                .maskedCardNumber("4111-****-****-1111")
                 .build();
 
         doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))

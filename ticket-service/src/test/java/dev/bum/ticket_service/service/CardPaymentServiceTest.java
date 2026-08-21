@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
@@ -55,13 +56,25 @@ class CardPaymentServiceTest {
         PaymentResponse paymentResponse = paidResponse(PaymentMethod.CREDIT_CARD);
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-        given(paymentCompletionService.complete(org.mockito.ArgumentMatchers.eq(payment), org.mockito.ArgumentMatchers.any()))
+        given(paymentCompletionService.completeCard(
+                org.mockito.ArgumentMatchers.eq(payment),
+                org.mockito.ArgumentMatchers.eq(request.getTransactionId()),
+                org.mockito.ArgumentMatchers.eq(request.getCardCompany()),
+                org.mockito.ArgumentMatchers.eq(request.getMaskedCardNumber()),
+                org.mockito.ArgumentMatchers.any()
+        ))
                 .willReturn(paymentResponse);
 
         PaymentResponse response = cardPaymentService.completeFromGateway(request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
-        then(paymentCompletionService).should().complete(org.mockito.ArgumentMatchers.eq(payment), org.mockito.ArgumentMatchers.any());
+        then(paymentCompletionService).should().completeCard(
+                org.mockito.ArgumentMatchers.eq(payment),
+                org.mockito.ArgumentMatchers.eq(request.getTransactionId()),
+                org.mockito.ArgumentMatchers.eq(request.getCardCompany()),
+                org.mockito.ArgumentMatchers.eq(request.getMaskedCardNumber()),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -141,6 +154,9 @@ class CardPaymentServiceTest {
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .userId("user01")
                 .amount(amount)
+                .transactionId("CARD-transaction-1")
+                .cardCompany(CardCompany.SHINHAN)
+                .maskedCardNumber("4111-****-****-1111")
                 .build();
     }
 

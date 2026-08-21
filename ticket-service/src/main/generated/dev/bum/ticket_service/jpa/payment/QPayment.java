@@ -22,15 +22,11 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public static final QPayment payment = new QPayment("payment");
 
-    public final StringPath accountNumber = createString("accountNumber");
-
     public final NumberPath<Integer> amount = createNumber("amount", Integer.class);
 
-    public final StringPath bankName = createString("bankName");
+    public final QCardPaymentInfo cardInfo;
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
-
-    public final StringPath depositorName = createString("depositorName");
 
     public final DateTimePath<java.time.LocalDateTime> expiresAt = createDateTime("expiresAt", java.time.LocalDateTime.class);
 
@@ -52,6 +48,8 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 
+    public final QVirtualAccountPaymentInfo virtualAccountInfo;
+
     public QPayment(String variable) {
         this(Payment.class, forVariable(variable), INITS);
     }
@@ -70,7 +68,9 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public QPayment(Class<? extends Payment> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
+        this.cardInfo = inits.isInitialized("cardInfo") ? new QCardPaymentInfo(forProperty("cardInfo")) : null;
         this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
+        this.virtualAccountInfo = inits.isInitialized("virtualAccountInfo") ? new QVirtualAccountPaymentInfo(forProperty("virtualAccountInfo")) : null;
     }
 
 }
