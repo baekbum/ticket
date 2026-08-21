@@ -75,11 +75,15 @@ class GatewayCardPaymentServiceTest {
 
         assertThat(response.getApproved()).isTrue();
         assertThat(response.getPaymentNo()).isEqualTo(request.getPaymentNo());
+        assertThat(response.getTransactionId()).startsWith("CARD-");
+        assertThat(response.getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
         assertThat(response.getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
 
         ArgumentCaptor<DummyCardPaymentHistory> historyCaptor = ArgumentCaptor.forClass(DummyCardPaymentHistory.class);
         then(dummyCardPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
+        assertThat(historyCaptor.getValue().getTransactionId()).startsWith("CARD-");
+        assertThat(historyCaptor.getValue().getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
         then(ticketPaymentClient).should().completeCardPayment(any());
     }
 
@@ -120,7 +124,7 @@ class GatewayCardPaymentServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.cancel("ticket-service down");
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -141,7 +145,7 @@ class GatewayCardPaymentServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -151,6 +155,8 @@ class GatewayCardPaymentServiceTest {
 
         assertThat(response.getApproved()).isTrue();
         assertThat(response.getPaymentNo()).isEqualTo(request.getPaymentNo());
+        assertThat(response.getTransactionId()).isEqualTo("CARD-1");
+        assertThat(response.getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
         assertThat(response.getMessage()).isEqualTo("이미 완료된 카드 결제입니다.");
         then(dummyCardJpaRepository).shouldHaveNoInteractions();
         then(passwordEncoder).shouldHaveNoInteractions();
@@ -162,7 +168,7 @@ class GatewayCardPaymentServiceTest {
     void reject_existing_history_without_current_user() {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard(), request.getPaymentNo(), request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard(), request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -232,7 +238,7 @@ class GatewayCardPaymentServiceTest {
         assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.APPROVAL_FAILED);
         assertThat(historyCaptor.getValue().getFailureReason()).isEqualTo("카드 정보가 일치하지 않습니다.");
         assertThat(historyCaptor.getValue().getDummyCard()).isNull();
-        assertThat(historyCaptor.getValue().getCardNumberLast4()).isEqualTo("1111");
+        assertThat(historyCaptor.getValue().getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
         then(ticketPaymentClient).should(never()).completeCardPayment(any());
         then(ticketPaymentClient).should().failCardPayment(any());
     }
@@ -279,3 +285,4 @@ class GatewayCardPaymentServiceTest {
                 .build();
     }
 }
+

@@ -1,5 +1,6 @@
 package dev.bum.common.service.ticket.payment.dto;
 
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import lombok.AllArgsConstructor;
@@ -20,6 +21,9 @@ public class PaymentResponse {
     private PaymentMethod method;
     private PaymentStatus status;
     private Integer amount;
+    private String cardTransactionId;
+    private CardCompany cardCompany;
+    private String maskedCardNumber;
     private String bankName;
     private String accountNumber;
     private String depositorName;

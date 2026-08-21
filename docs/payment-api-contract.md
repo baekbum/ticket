@@ -91,9 +91,10 @@ Content-Type: application/json
 ```json
 {
   "paymentNo": "PAY-...",
+  "transactionId": "CARD-...",
   "userId": "IU",
   "cardCompany": "SHINHAN",
-  "cardNumberLast4": "1111",
+  "maskedCardNumber": "4111-****-****-1111",
   "approvedAmount": 180000,
   "currentMonthUsedAmount": 180000,
   "limitAmount": 1000000,
@@ -107,8 +108,8 @@ Content-Type: application/json
 ```text
 1. paymentNo 중복 이력이 있으면 기존 이력 상태 검증
 2. 새 결제번호면 사용자, 카드번호, CVC, 카드 비밀번호, 금액, 한도 검증
-3. 카드 승인 성공 이력 저장
-4. ticket-service 내부 카드 완료 API 호출
+3. gateway transactionId 생성, 카드번호 마스킹, 카드 승인 성공 이력 저장
+4. transactionId, cardCompany, maskedCardNumber를 포함해 ticket-service 내부 카드 완료 API 호출
 5. 성공 시 gateway card history = TICKET_PAYMENT_COMPLETED
 6. 실패 시 카드 승인 취소, gateway card history = CANCELLED, ticket-service 실패 반영 요청
 ```

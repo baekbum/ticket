@@ -29,10 +29,11 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByReservation(Reservation reservation);
 
-    boolean existsByAccountNumber(String accountNumber);
+    @Query("select count(p) > 0 from Payment p where p.virtualAccountInfo.accountNumber = :accountNumber")
+    boolean existsByAccountNumber(@Param("accountNumber") String accountNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from Payment p where p.accountNumber = :accountNumber")
+    @Query("select p from Payment p where p.virtualAccountInfo.accountNumber = :accountNumber")
     @Observed(name = "ticket.repository.payment.find-by-account-number-for-update", contextualName = "ticket repository payment find by account number for update")
     Optional<Payment> findByAccountNumberForUpdate(@Param("accountNumber") String accountNumber);
 

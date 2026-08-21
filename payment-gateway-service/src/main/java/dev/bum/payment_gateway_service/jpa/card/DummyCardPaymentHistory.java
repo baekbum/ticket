@@ -60,14 +60,18 @@ public class DummyCardPaymentHistory {
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
+    // gateway 카드 승인 거래 식별 번호.
+    @Column(name = "transaction_id", length = 80)
+    private String transactionId;
+
     // 요청 당시 카드사 스냅샷.
     @Enumerated(EnumType.STRING)
     @Column(name = "card_company", nullable = false, length = 30)
     private CardCompany cardCompany;
 
-    // 요청 당시 카드번호 마지막 4자리 스냅샷.
-    @Column(name = "card_number_last4", nullable = false, length = 4)
-    private String cardNumberLast4;
+    // 요청 당시 마스킹 카드번호 스냅샷.
+    @Column(name = "card_number_masked", nullable = false, length = 30)
+    private String maskedCardNumber;
 
     // 요청 금액.
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
@@ -100,13 +104,20 @@ public class DummyCardPaymentHistory {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public static DummyCardPaymentHistory approved(DummyCard dummyCard, String paymentNo, BigDecimal amount) {
+    public static DummyCardPaymentHistory approved(
+            DummyCard dummyCard,
+            String paymentNo,
+            String transactionId,
+            String maskedCardNumber,
+            BigDecimal amount
+    ) {
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
                 .userId(dummyCard.getUserId())
                 .paymentNo(paymentNo)
+                .transactionId(transactionId)
                 .cardCompany(dummyCard.getCardCompany())
-                .cardNumberLast4(dummyCard.getCardNumberLast4())
+                .maskedCardNumber(maskedCardNumber)
                 .amount(amount)
                 .status(CardPaymentHistoryStatus.APPROVED)
                 .approvedAt(LocalDateTime.now())
@@ -118,7 +129,7 @@ public class DummyCardPaymentHistory {
             String userId,
             String paymentNo,
             CardCompany cardCompany,
-            String cardNumberLast4,
+            String maskedCardNumber,
             BigDecimal amount,
             String failureReason
     ) {
@@ -127,7 +138,7 @@ public class DummyCardPaymentHistory {
                 .userId(userId)
                 .paymentNo(paymentNo)
                 .cardCompany(cardCompany)
-                .cardNumberLast4(cardNumberLast4)
+                .maskedCardNumber(maskedCardNumber)
                 .amount(amount)
                 .status(CardPaymentHistoryStatus.APPROVAL_FAILED)
                 .failureReason(failureReason)

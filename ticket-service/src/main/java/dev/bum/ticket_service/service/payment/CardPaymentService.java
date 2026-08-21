@@ -35,7 +35,13 @@ public class CardPaymentService {
             return payment.toResponse();
         }
 
-        return paymentCompletionService.complete(payment, LocalDateTime.now());
+        return paymentCompletionService.completeCard(
+                payment,
+                request.getTransactionId(),
+                request.getCardCompany(),
+                request.getMaskedCardNumber(),
+                LocalDateTime.now()
+        );
     }
 
     public PaymentResponse failFromGateway(CardPaymentFailRequest request) {
