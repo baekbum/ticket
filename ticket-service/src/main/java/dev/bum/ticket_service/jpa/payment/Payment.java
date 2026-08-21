@@ -189,6 +189,10 @@ public class Payment {
         this.status = PaymentStatus.REFUNDED;
     }
 
+    public void partialRefund() {
+        this.status = PaymentStatus.PARTIALLY_REFUNDED;
+    }
+
     public void ready() {
         this.status = PaymentStatus.READY;
         this.paidAt = null;

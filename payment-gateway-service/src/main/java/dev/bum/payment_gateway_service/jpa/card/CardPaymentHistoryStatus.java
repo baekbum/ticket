@@ -15,5 +15,11 @@ public enum CardPaymentHistoryStatus {
     TICKET_PAYMENT_FAILED,
 
     // 카드 승인 이후 취소나 보상 처리로 사용 내역을 취소한 상태.
-    CANCELLED
+    CANCELLED,
+
+    // ticket-service 결제 완료 이후 전체 금액 환불이 완료된 상태.
+    REFUNDED,
+
+    // ticket-service 결제 완료 이후 일부 금액 환불이 완료된 상태.
+    PARTIALLY_REFUNDED
 }
