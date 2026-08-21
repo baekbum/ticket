@@ -17,8 +17,9 @@ import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.controller.event.EventManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.event.event.EventService;
+import dev.bum.ticket_service.service.event.event.EventManagementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,7 +61,10 @@ class EventManagementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
-    private EventService eventService;
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
+    @MockitoBean
+    private EventManagementService eventManagementService;
 
     private final String baseUrl = "/api/v1/manage/event";
 
@@ -88,7 +92,7 @@ class EventManagementControllerTest {
                 "image".getBytes()
         );
 
-        given(eventService.insertBulk(any(), any())).willReturn(response);
+        given(eventManagementService.insertBulk(any(), any())).willReturn(response);
 
         mockMvc.perform(multipart(baseUrl + "/insert/bulk")
                         .file(eventPart)
@@ -98,7 +102,7 @@ class EventManagementControllerTest {
                 .andExpect(jsonPath("$[1].eventId").value(2L))
                 .andExpect(jsonPath("$[0].title").value("IU Concert"));
 
-        then(eventService).should().insertBulk(eq(info), eq(posterPart));
+        then(eventManagementService).should().insertBulk(eq(info), eq(posterPart));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -107,14 +111,14 @@ class EventManagementControllerTest {
     void event_select_by_id() throws Exception {
         EventResponse response = eventResponse(1L, "IU Concert");
 
-        given(eventService.selectById(1L)).willReturn(response);
+        given(eventManagementService.selectById(1L)).willReturn(response);
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventId").value(1L))
                 .andExpect(jsonPath("$.title").value("IU Concert"));
 
-        then(eventService).should().selectById(1L);
+        then(eventManagementService).should().selectById(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -132,7 +136,7 @@ class EventManagementControllerTest {
                 1
         );
 
-        given(eventService.selectByCond(any())).willReturn(response);
+        given(eventManagementService.selectByCond(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/select")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -141,7 +145,7 @@ class EventManagementControllerTest {
                 .andExpect(jsonPath("$.content[0].eventId").value(1L))
                 .andExpect(jsonPath("$.page.totalElements").value(1));
 
-        then(eventService).should().selectByCond(cond);
+        then(eventManagementService).should().selectByCond(cond);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -151,7 +155,7 @@ class EventManagementControllerTest {
         UpdateEventRequest info = updateRequest();
         EventResponse response = eventResponse(1L, "Updated Concert");
 
-        given(eventService.update(1L, info)).willReturn(response);
+        given(eventManagementService.update(1L, info)).willReturn(response);
 
         mockMvc.perform(put(baseUrl + "/update/id/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -160,7 +164,7 @@ class EventManagementControllerTest {
                 .andExpect(jsonPath("$.eventId").value(1L))
                 .andExpect(jsonPath("$.title").value("Updated Concert"));
 
-        then(eventService).should().update(1L, info);
+        then(eventManagementService).should().update(1L, info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -182,14 +186,14 @@ class EventManagementControllerTest {
             return httpRequest;
         });
 
-        given(eventService.update(any(), any(), any())).willReturn(response);
+        given(eventManagementService.update(any(), any(), any())).willReturn(response);
 
         mockMvc.perform(request.file(eventPart).file(posterPart))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventId").value(1L))
                 .andExpect(jsonPath("$.title").value("Updated Concert"));
 
-        then(eventService).should().update(eq(1L), eq(info), eq(posterPart));
+        then(eventManagementService).should().update(eq(1L), eq(info), eq(posterPart));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -198,13 +202,13 @@ class EventManagementControllerTest {
     void event_delete() throws Exception {
         EventResponse response = eventResponse(1L, "IU Concert");
 
-        given(eventService.delete(1L)).willReturn(response);
+        given(eventManagementService.delete(1L)).willReturn(response);
 
         mockMvc.perform(delete(baseUrl + "/delete/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventId").value(1L));
 
-        then(eventService).should().delete(1L);
+        then(eventManagementService).should().delete(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -220,7 +224,7 @@ class EventManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(eventService).should().deleteBulk(info);
+        then(eventManagementService).should().deleteBulk(info);
     }
 
     private MockMultipartFile jsonPart(String name, Object value) throws Exception {
