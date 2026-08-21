@@ -220,6 +220,7 @@ CREATE TABLE payments (
     method VARCHAR(30) NOT NULL,
     status VARCHAR(30) NOT NULL,
     amount INTEGER NOT NULL,
+    refunded_amount INTEGER NOT NULL DEFAULT 0,
     idempotency_key VARCHAR(100),
     card_transaction_id VARCHAR(80),
     card_company VARCHAR(30),
