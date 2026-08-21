@@ -186,8 +186,8 @@ class ReservationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("쿠폰 사용 예약을 전체 취소하면 사용자 쿠폰을 복구")
-    void reservation_cancel_all_restores_used_coupon() {
+    @DisplayName("Repository 취소는 사용자 쿠폰을 복구하지 않는다")
+    void reservation_cancel_all_does_not_restore_used_coupon() {
         UserCoupon userCoupon = userCouponJpaRepository.save(userCoupon("user01", coupon("coupon-1", 10000)));
         entityManager.flush();
         entityManager.clear();
@@ -213,9 +213,9 @@ class ReservationRepositoryImplTest {
         UserCoupon responseUserCoupon = userCouponJpaRepository.findById(userCoupon.getUserCouponId()).orElseThrow();
         Reservation response = reservationRepository.selectById(saved.getReservationId());
 
-        assertThat(response.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-        assertThat(responseUserCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
-        assertThat(responseUserCoupon.getUsedAt()).isNull();
+        assertThat(response.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(responseUserCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
+        assertThat(responseUserCoupon.getUsedAt()).isNotNull();
     }
 
     @Test
@@ -302,7 +302,7 @@ class ReservationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("전체 예약 취소")
+    @DisplayName("Repository 전체 취소는 티켓과 좌석만 취소한다")
     void reservation_cancel_all() {
         Reservation saved = reservationRepository.insert(
                 insertReservationRequest("order-1", "user01", event, seatList.subList(0, 3))
@@ -323,13 +323,13 @@ class ReservationRepositoryImplTest {
         List<Ticket> tickets = ticketJpaRepository.findByReservation(response);
 
         assertThat(cancelledSeats).hasSize(3);
-        assertThat(response.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(response.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(tickets).extracting(Ticket::getStatus).containsOnly(TicketStatus.CANCELLED);
         assertThat(tickets).extracting(ticket -> ticket.getSeat().getStatus()).containsOnly(SeatStatus.AVAILABLE);
     }
 
     @Test
-    @DisplayName("일부 티켓 취소")
+    @DisplayName("Repository 일부 취소는 선택 티켓과 좌석만 취소한다")
     void reservation_cancel_some() {
         Reservation saved = reservationRepository.insert(
                 insertReservationRequest("order-1", "user01", event, seatList.subList(0, 3))
@@ -352,7 +352,7 @@ class ReservationRepositoryImplTest {
         List<Ticket> responseTickets = ticketJpaRepository.findByReservation(response);
 
         assertThat(cancelledSeats).hasSize(1);
-        assertThat(response.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(response.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(responseTickets).extracting(Ticket::getStatus)
                 .containsExactlyInAnyOrder(TicketStatus.CANCELLED, TicketStatus.PENDING_PAYMENT, TicketStatus.PENDING_PAYMENT);
     }

@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
@@ -12,9 +13,14 @@ import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -26,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +46,8 @@ public class ReservationService {
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
     private final CardPaymentRefundService cardPaymentRefundService;
+    private final TicketJpaRepository ticketJpaRepository;
+    private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
 
     /**
      * 로그인 사용자가 본인 예매 기본 정보를 조회한다.
@@ -90,6 +99,7 @@ public class ReservationService {
         refundCardPaymentBeforeFullCancel(reservation, info);
 
         List<Seat> cancelledSeats = repository.cancel(id, info);
+        applyReservationCancelStatus(reservation);
 
         seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
         if (!cancelledSeats.isEmpty()) {
@@ -121,6 +131,34 @@ public class ReservationService {
 
     private boolean isFullCancellation(CancelReservationRequest info) {
         return info.getSelectedTicketIdList() == null || info.getSelectedTicketIdList().isEmpty();
+    }
+
+    private void applyReservationCancelStatus(Reservation reservation) {
+        List<TicketStatus> activeStatuses = List.of(
+                TicketStatus.PENDING_PAYMENT,
+                TicketStatus.PAID
+        );
+
+        boolean hasActiveTicket = ticketJpaRepository.findByReservation(reservation).stream()
+                .anyMatch(ticket -> activeStatuses.contains(ticket.getStatus()));
+
+        if (hasActiveTicket) {
+            reservation.partial_cancel();
+        } else {
+            reservation.cancel();
+            restoreUsedCoupons(reservation);
+        }
+    }
+
+    private void restoreUsedCoupons(Reservation reservation) {
+        LocalDateTime now = LocalDateTime.now();
+        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
+
+        for (ReservationDiscount discount : discounts) {
+            if (discount.getUserCoupon() != null && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
+                discount.getUserCoupon().restore(now);
+            }
+        }
     }
 
     private Sort makeSortInfo(List<String> sorts) {

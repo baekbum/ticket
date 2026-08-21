@@ -18,8 +18,11 @@ import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -59,6 +62,15 @@ class ReservationManagementServiceTest {
 
     @Mock
     private CardPaymentRefundService cardPaymentRefundService;
+
+    @Mock
+    private TicketJpaRepository ticketJpaRepository;
+
+    @Mock
+    private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @Mock
+    private ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
 
     @Test
     @DisplayName("ID로 예약을 조회한다")
@@ -118,9 +130,14 @@ class ReservationManagementServiceTest {
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(
+                ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED),
+                ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PENDING_PAYMENT)
+        ));
 
         reservationManagementService.cancel(1L, info);
 
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
         then(repository).should().cancel(1L, info);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
@@ -142,9 +159,13 @@ class ReservationManagementServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(
+                ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED)
+        ));
 
         reservationManagementService.cancel(1L, info);
 
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
         then(repository).should().cancel(1L, info);
     }
@@ -177,6 +198,17 @@ class ReservationManagementServiceTest {
                         .maskedCardNumber("4111-****-****-1111")
                         .build())
                 .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .build();
+    }
+
+    private Ticket ticket(Long ticketId, Reservation reservation, Event event, Seat seat, TicketStatus status) {
+        return Ticket.builder()
+                .ticketId(ticketId)
+                .userId(reservation.getUserId())
+                .reservation(reservation)
+                .event(event)
+                .seat(seat)
+                .status(status)
                 .build();
     }
 

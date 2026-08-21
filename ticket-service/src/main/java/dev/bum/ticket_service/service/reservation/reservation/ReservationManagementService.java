@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
+import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
@@ -117,6 +118,7 @@ public class ReservationManagementService {
         refundCardPaymentBeforeFullCancel(reservation, info);
 
         List<Seat> cancelledSeats = repository.cancel(id, info);
+        applyReservationCancelStatus(reservation);
 
         seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
         if (!cancelledSeats.isEmpty()) {
@@ -148,6 +150,23 @@ public class ReservationManagementService {
 
     private boolean isFullCancellation(CancelReservationRequest info) {
         return info.getSelectedTicketIdList() == null || info.getSelectedTicketIdList().isEmpty();
+    }
+
+    private void applyReservationCancelStatus(Reservation reservation) {
+        List<TicketStatus> activeStatuses = List.of(
+                TicketStatus.PENDING_PAYMENT,
+                TicketStatus.PAID
+        );
+
+        boolean hasActiveTicket = ticketJpaRepository.findByReservation(reservation).stream()
+                .anyMatch(ticket -> activeStatuses.contains(ticket.getStatus()));
+
+        if (hasActiveTicket) {
+            reservation.partial_cancel();
+        } else {
+            reservation.cancel();
+            restoreUsedCoupons(reservation);
+        }
     }
 
     /**

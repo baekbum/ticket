@@ -204,23 +204,6 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             ticket.getSeat().available();
         }
 
-        // 3. 해당 예매에 속한 전체 티켓 중 유효한 티켓이 하나라도 남아있는지 확인
-        List<TicketStatus> activeStatuses = List.of(
-                TicketStatus.PENDING_PAYMENT,
-                TicketStatus.PAID
-        );
-
-        boolean hasActiveTicket = foundReservation.getTickets().stream()
-                .anyMatch(ticket -> activeStatuses.contains(ticket.getStatus()));
-
-        // 4. 판단 결과에 따라 예매 상태 변경
-        if (hasActiveTicket) {
-            foundReservation.partial_cancel(); // 여전히 유효한 티켓이 있다면 부분 취소
-        } else {
-            foundReservation.cancel();        // 모든 티켓이 취소되었다면 전체 취소
-            restoreUsedCoupons(foundReservation);
-        }
-
         return tickets.stream()
                 .map(Ticket::getSeat)
                 .collect(Collectors.toList());
@@ -353,22 +336,6 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .discountValue(discountSnapshot.getDiscountValue())
                 .discountAmount(discountSnapshot.getDiscountAmount())
                 .build());
-    }
-
-    /**
-     * 취소시 쿠폰을 다시 복구
-     * @param reservation
-     */
-    private void restoreUsedCoupons(Reservation reservation) {
-        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
-        LocalDateTime now = LocalDateTime.now();
-
-        for (ReservationDiscount discount : discounts) {
-            UserCoupon userCoupon = discount.getUserCoupon();
-            if (userCoupon != null && userCoupon.getStatus() == UserCouponStatus.USED) {
-                userCoupon.restore(now);
-            }
-        }
     }
 
     /**
