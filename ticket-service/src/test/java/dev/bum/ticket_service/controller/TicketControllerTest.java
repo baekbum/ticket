@@ -5,6 +5,7 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.controller.ticket.TicketController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.ticket.TicketService;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,9 @@ class TicketControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
 
     @MockitoBean
     private TicketService ticketService;
