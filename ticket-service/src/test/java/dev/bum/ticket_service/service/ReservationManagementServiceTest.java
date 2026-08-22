@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -16,10 +17,12 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
@@ -188,6 +191,7 @@ class ReservationManagementServiceTest {
         Ticket secondTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
         Ticket firstCancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
         Ticket secondCancelledTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.CANCELLED);
+        UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
@@ -195,12 +199,44 @@ class ReservationManagementServiceTest {
                 .willReturn(List.of(firstTicket, secondTicket))
                 .willReturn(List.of(firstCancelledTicket, secondCancelledTicket));
         given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(reservationDiscountJpaRepository.findByReservation(reservation))
+                .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
+        assertThat(userCoupon.getUsedAt()).isNull();
+        then(cardPaymentRefundService).should().refundAll(payment);
+        then(repository).should().cancel(1L, info);
+    }
+
+    @Test
+    @DisplayName("부분 환불 이력이 있는 예매의 마지막 티켓 취소는 쿠폰을 복구하지 않는다")
+    void do_not_restore_coupon_when_last_ticket_cancel_after_partial_refund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
+        Payment payment = cardPayment(reservation, PaymentStatus.PARTIALLY_REFUNDED, 125000);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(2L))
+                .build();
+        List<Seat> cancelledSeats = List.of(seat(2L, event(), "VIP", 1, 2));
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        Ticket cancelledTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.CANCELLED);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation))
+                .willReturn(List.of(remainingTicket))
+                .willReturn(List.of(cancelledTicket));
+        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
-        then(repository).should().cancel(1L, info);
+        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
     }
 
     private Reservation reservation(Long reservationId, String orderId, String userId, Event event) {
@@ -219,18 +255,40 @@ class ReservationManagementServiceTest {
     }
 
     private Payment cardPayment(Reservation reservation) {
+        return cardPayment(reservation, PaymentStatus.PAID, 0);
+    }
+
+    private Payment cardPayment(Reservation reservation, PaymentStatus status, Integer refundedAmount) {
         return Payment.builder()
                 .reservation(reservation)
                 .paymentNo("PAY-1")
                 .method(PaymentMethod.CREDIT_CARD)
-                .status(PaymentStatus.PAID)
+                .status(status)
                 .amount(250000)
+                .refundedAmount(refundedAmount)
                 .cardInfo(CardPaymentInfo.builder()
                         .transactionId("CARD-1")
                         .cardCompany(CardCompany.SHINHAN)
                         .maskedCardNumber("4111-****-****-1111")
                         .build())
                 .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .build();
+    }
+
+    private UserCoupon usedUserCoupon() {
+        return UserCoupon.builder()
+                .userId("user01")
+                .status(UserCouponStatus.USED)
+                .issuedAt(LocalDateTime.of(2026, 8, 1, 10, 0))
+                .usedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .expiresAt(LocalDateTime.of(2026, 12, 31, 23, 59))
+                .build();
+    }
+
+    private ReservationDiscount reservationDiscount(Reservation reservation, UserCoupon userCoupon) {
+        return ReservationDiscount.builder()
+                .reservation(reservation)
+                .userCoupon(userCoupon)
                 .build();
     }
 

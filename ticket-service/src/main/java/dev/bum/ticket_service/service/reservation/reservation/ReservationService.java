@@ -98,10 +98,10 @@ public class ReservationService {
     }
 
     private void cancel(long id, Reservation reservation, CancelReservationRequest info) {
-        refundCardPaymentBeforeCancel(reservation, info);
+        boolean restoreCouponOnCancel = refundPaymentBeforeCancel(reservation, info);
 
         List<Seat> cancelledSeats = repository.cancel(id, info);
-        applyReservationCancelStatus(reservation);
+        applyReservationCancelStatus(reservation, restoreCouponOnCancel);
 
         seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
         if (!cancelledSeats.isEmpty()) {
@@ -117,28 +117,38 @@ public class ReservationService {
     /**
      * 카드 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
      */
-    private void refundCardPaymentBeforeCancel(Reservation reservation, CancelReservationRequest info) {
+    private boolean refundPaymentBeforeCancel(Reservation reservation, CancelReservationRequest info) {
         if (reservation.getStatus() != ReservationStatus.PAID
                 && reservation.getStatus() != ReservationStatus.PARTIALLY_CANCELLED) {
-            return;
+            return false;
         }
 
-        paymentJpaRepository.findByReservation(reservation)
-                .filter(payment -> payment.getMethod() == PaymentMethod.CREDIT_CARD)
-                .filter(payment -> payment.getStatus() == PaymentStatus.PAID
-                        || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED)
-                .ifPresent(payment -> {
+        return paymentJpaRepository.findByReservation(reservation)
+                .map(payment -> {
+                    boolean restoreCouponOnCancel = payment.getStatus() == PaymentStatus.PAID;
+
+                    if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
+                        return restoreCouponOnCancel;
+                    }
+
+                    if (payment.getStatus() != PaymentStatus.PAID
+                            && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
+                        return false;
+                    }
+
                     List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
                     List<Ticket> activeTickets = selectActiveTickets(tickets);
                     List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
 
                     if (isFullCancellation(activeTickets, selectedTickets)) {
                         cardPaymentRefundService.refundAll(payment);
-                        return;
+                        return restoreCouponOnCancel;
                     }
 
                     cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRemainingAmount(), activeTickets, selectedTickets));
-                });
+                    return false;
+                })
+                .orElse(false);
     }
 
     private boolean isFullCancellation(List<Ticket> activeTickets, List<Ticket> selectedTickets) {
@@ -204,7 +214,7 @@ public class ReservationService {
         return ticket.getStatus() == TicketStatus.PENDING_PAYMENT || ticket.getStatus() == TicketStatus.PAID;
     }
 
-    private void applyReservationCancelStatus(Reservation reservation) {
+    private void applyReservationCancelStatus(Reservation reservation, boolean restoreCouponOnCancel) {
         List<TicketStatus> activeStatuses = List.of(
                 TicketStatus.PENDING_PAYMENT,
                 TicketStatus.PAID
@@ -217,7 +227,9 @@ public class ReservationService {
             reservation.partial_cancel();
         } else {
             reservation.cancel();
-            restoreUsedCoupons(reservation);
+            if (restoreCouponOnCancel) {
+                restoreUsedCoupons(reservation);
+            }
         }
     }
 
