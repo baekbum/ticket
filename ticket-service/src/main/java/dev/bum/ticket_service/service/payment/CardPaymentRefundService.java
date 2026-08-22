@@ -31,6 +31,18 @@ public class CardPaymentRefundService {
         payment.refund();
     }
 
+    public void refundPartial(Payment payment, int refundAmount) {
+        validateRefundableCardPayment(payment);
+        paymentGatewayCardClient.refund(
+                GatewayCardPaymentRefundRequest.builder()
+                        .paymentNo(payment.getPaymentNo())
+                        .transactionId(payment.getCardTransactionId())
+                        .refundAmount(BigDecimal.valueOf(refundAmount))
+                        .build()
+        );
+        payment.partialRefund(refundAmount);
+    }
+
     private void validateRefundableCardPayment(Payment payment) {
         if (payment == null) {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
@@ -38,7 +50,7 @@ public class CardPaymentRefundService {
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제가 아닙니다.");
         }
-        if (payment.getStatus() != PaymentStatus.PAID) {
+        if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 결제 상태입니다.");
         }
         if (!StringUtils.hasText(payment.getCardTransactionId())) {

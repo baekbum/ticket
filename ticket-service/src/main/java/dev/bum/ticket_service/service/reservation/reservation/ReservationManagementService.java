@@ -35,6 +35,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -115,7 +117,7 @@ public class ReservationManagementService {
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancel(long id, CancelReservationRequest info) {
         Reservation reservation = repository.selectById(id);
-        refundCardPaymentBeforeFullCancel(reservation, info);
+        refundCardPaymentBeforeCancel(reservation, info);
 
         List<Seat> cancelledSeats = repository.cancel(id, info);
         applyReservationCancelStatus(reservation);
@@ -132,24 +134,78 @@ public class ReservationManagementService {
     }
 
     /**
-     * 카드 결제 완료 예매를 전체 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
+     * 카드 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
      */
-    private void refundCardPaymentBeforeFullCancel(Reservation reservation, CancelReservationRequest info) {
-        if (!isFullCancellation(info)) {
-            return;
-        }
-        if (reservation.getStatus() != ReservationStatus.PAID) {
+    private void refundCardPaymentBeforeCancel(Reservation reservation, CancelReservationRequest info) {
+        if (reservation.getStatus() != ReservationStatus.PAID
+                && reservation.getStatus() != ReservationStatus.PARTIALLY_CANCELLED) {
             return;
         }
 
         paymentJpaRepository.findByReservation(reservation)
                 .filter(payment -> payment.getMethod() == PaymentMethod.CREDIT_CARD)
-                .filter(payment -> payment.getStatus() == PaymentStatus.PAID)
-                .ifPresent(cardPaymentRefundService::refundAll);
+                .filter(payment -> payment.getStatus() == PaymentStatus.PAID
+                        || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED)
+                .ifPresent(payment -> {
+                    List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
+                    List<Ticket> activeTickets = selectActiveTickets(tickets);
+                    List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
+                    if (isFullCancellation(activeTickets, selectedTickets)) {
+                        cardPaymentRefundService.refundAll(payment);
+                        return;
+                    }
+
+                    cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRemainingAmount(), activeTickets, selectedTickets));
+                });
     }
 
-    private boolean isFullCancellation(CancelReservationRequest info) {
-        return info.getSelectedTicketIdList() == null || info.getSelectedTicketIdList().isEmpty();
+    private boolean isFullCancellation(List<Ticket> activeTickets, List<Ticket> selectedTickets) {
+        return selectedTickets.size() == activeTickets.size();
+    }
+
+    private List<Ticket> selectActiveTickets(List<Ticket> tickets) {
+        return tickets.stream()
+                .filter(this::isActiveTicket)
+                .toList();
+    }
+
+    private List<Ticket> selectTicketsForCancel(List<Ticket> activeTickets, List<Long> selectedTicketIdList) {
+        if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
+            throw new IllegalArgumentException("취소할 티켓을 선택해야 합니다.");
+        }
+
+        List<Ticket> selectedTickets = activeTickets.stream()
+                .filter(ticket -> selectedTicketIdList.contains(ticket.getTicketId()))
+                .toList();
+
+        if (selectedTickets.size() != selectedTicketIdList.size()) {
+            throw new IllegalArgumentException("선택한 티켓 중 취소 가능한 예매 티켓이 아닌 항목이 있습니다.");
+        }
+
+        return selectedTickets;
+    }
+
+    private int calculatePartialRefundAmount(Integer remainingPaymentAmount, List<Ticket> activeTickets, List<Ticket> selectedTickets) {
+        int totalTicketAmount = activeTickets.stream()
+                .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
+                .sum();
+        int selectedTicketAmount = selectedTickets.stream()
+                .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
+                .sum();
+
+        if (totalTicketAmount <= 0 || selectedTicketAmount <= 0) {
+            throw new IllegalArgumentException("부분 환불 금액을 계산할 수 없습니다.");
+        }
+
+        // 부분 취소 시 쿠폰은 복구하지 않으므로, 남은 실결제금액을 남은 활성 티켓 정가 비율로 배분해 환불한다.
+        return BigDecimal.valueOf(remainingPaymentAmount)
+                .multiply(BigDecimal.valueOf(selectedTicketAmount))
+                .divide(BigDecimal.valueOf(totalTicketAmount), 0, RoundingMode.DOWN)
+                .intValueExact();
+    }
+
+    private boolean isActiveTicket(Ticket ticket) {
+        return ticket.getStatus() == TicketStatus.PENDING_PAYMENT || ticket.getStatus() == TicketStatus.PAID;
     }
 
     private void applyReservationCancelStatus(Reservation reservation) {

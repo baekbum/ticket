@@ -41,6 +41,7 @@ CREATE TABLE dummy_card_payment_histories (
     card_company VARCHAR(30) NOT NULL,
     card_number_masked VARCHAR(30) NOT NULL,
     amount NUMERIC(15, 2) NOT NULL,
+    refunded_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
     status VARCHAR(40) NOT NULL,
     failure_reason VARCHAR(500),
     approved_at TIMESTAMP NOT NULL,

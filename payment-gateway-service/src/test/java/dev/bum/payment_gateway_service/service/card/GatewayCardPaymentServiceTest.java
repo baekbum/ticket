@@ -75,8 +75,8 @@ class GatewayCardPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("카드 전체 환불 금액이 승인 금액과 다르면 거부한다")
-    void reject_card_refund_amount_mismatch() {
+    @DisplayName("카드 부분 환불 요청 시 승인 금액 일부를 원복하고 부분 환불 상태로 변경한다")
+    void partial_refund_card_payment_success() {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
@@ -86,12 +86,36 @@ class GatewayCardPaymentServiceTest {
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNoAndTransactionId("PAY-1", "CARD-1"))
                 .willReturn(Optional.of(paymentHistory));
 
-        assertThatThrownBy(() -> gatewayCardPaymentService.refund(refundRequest(BigDecimal.valueOf(9000))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("전체 환불 금액은 승인 금액과 일치해야 합니다.");
+        GatewayCardPaymentRefundResponse response = gatewayCardPaymentService.refund(refundRequest(BigDecimal.valueOf(4000)));
 
-        assertThat(paymentHistory.getStatus()).isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
-        assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
+        assertThat(response.getStatus()).isEqualTo(CardPaymentHistoryStatus.PARTIALLY_REFUNDED);
+        assertThat(response.getRefundedAmount()).isEqualByComparingTo("4000");
+        assertThat(paymentHistory.getStatus()).isEqualTo(CardPaymentHistoryStatus.PARTIALLY_REFUNDED);
+        assertThat(paymentHistory.getRefundedAmount()).isEqualByComparingTo("4000");
+        assertThat(paymentHistory.getRemainingAmount()).isEqualByComparingTo("6000");
+        assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
+    }
+
+    @Test
+    @DisplayName("카드 환불 금액이 남은 승인 금액을 초과하면 거부한다")
+    void reject_card_refund_amount_exceeding_remaining_amount() {
+        DummyCard dummyCard = dummyCard();
+        dummyCard.approve(BigDecimal.valueOf(10000));
+        DummyCardPaymentHistory paymentHistory =
+                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+        paymentHistory.completeTicketPayment(null);
+        paymentHistory.refund(BigDecimal.valueOf(4000));
+        dummyCard.cancelApproval(BigDecimal.valueOf(4000));
+
+        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNoAndTransactionId("PAY-1", "CARD-1"))
+                .willReturn(Optional.of(paymentHistory));
+
+        assertThatThrownBy(() -> gatewayCardPaymentService.refund(refundRequest(BigDecimal.valueOf(7000))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
+
+        assertThat(paymentHistory.getStatus()).isEqualTo(CardPaymentHistoryStatus.PARTIALLY_REFUNDED);
+        assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
     }
 
     @Test

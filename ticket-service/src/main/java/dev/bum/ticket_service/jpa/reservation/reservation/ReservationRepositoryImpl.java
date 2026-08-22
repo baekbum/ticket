@@ -190,10 +190,11 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         // 1. 예매, 티켓 정보 조회.
         Reservation foundReservation = selectById(id);
         List<Long> selectedTicketIdList = info.getSelectedTicketIdList();
+        if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
+            throw new IllegalArgumentException("취소할 티켓을 선택해야 합니다.");
+        }
 
-        List<Ticket> tickets = selectedTicketIdList.isEmpty()
-                ? ticketRepository.selectByReservation(foundReservation)
-                : ticketRepository.selectByIdList(selectedTicketIdList);
+        List<Ticket> tickets = ticketRepository.selectByIdList(selectedTicketIdList);
 
         // 2. 티켓과 좌석 상태 변경
         for (Ticket ticket : tickets) {

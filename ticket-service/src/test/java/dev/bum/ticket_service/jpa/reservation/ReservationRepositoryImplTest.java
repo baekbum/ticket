@@ -200,10 +200,12 @@ class ReservationRepositoryImplTest {
         ));
         entityManager.flush();
         entityManager.clear();
+        Reservation reservation = reservationRepository.selectById(saved.getReservationId());
+        List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
                 .eventId(event.getEventId())
-                .selectedTicketIdList(new ArrayList<>())
+                .selectedTicketIdList(tickets.stream().map(Ticket::getTicketId).toList())
                 .build();
 
         reservationRepository.cancel(saved.getReservationId(), info);
@@ -309,10 +311,12 @@ class ReservationRepositoryImplTest {
         );
         entityManager.flush();
         entityManager.clear();
+        Reservation reservation = reservationRepository.selectById(saved.getReservationId());
+        List<Ticket> savedTickets = ticketJpaRepository.findByReservation(reservation);
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
                 .eventId(event.getEventId())
-                .selectedTicketIdList(new ArrayList<>())
+                .selectedTicketIdList(savedTickets.stream().map(Ticket::getTicketId).toList())
                 .build();
 
         List<Seat> cancelledSeats = reservationRepository.cancel(saved.getReservationId(), info);

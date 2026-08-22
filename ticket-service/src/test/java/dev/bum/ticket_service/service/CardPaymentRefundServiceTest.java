@@ -49,6 +49,23 @@ class CardPaymentRefundServiceTest {
     }
 
     @Test
+    @DisplayName("카드 부분 환불 요청 후 결제를 부분 환불 상태로 변경한다")
+    void refund_partial_card_payment() {
+        Payment payment = cardPayment();
+
+        cardPaymentRefundService.refundPartial(payment, 125000);
+
+        ArgumentCaptor<GatewayCardPaymentRefundRequest> captor = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
+        then(paymentGatewayCardClient).should().refund(captor.capture());
+        assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getTransactionId()).isEqualTo("CARD-1");
+        assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("125000");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(125000);
+        assertThat(payment.getRemainingAmount()).isEqualTo(125000);
+    }
+
+    @Test
     @DisplayName("카드 결제 완료 상태가 아니면 전체 환불할 수 없다")
     void reject_not_paid_card_payment() {
         Payment payment = cardPayment(PaymentStatus.FAILED);

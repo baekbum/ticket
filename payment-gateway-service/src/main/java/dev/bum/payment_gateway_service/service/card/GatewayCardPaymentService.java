@@ -108,14 +108,16 @@ public class GatewayCardPaymentService {
 
         validateRefundableHistory(paymentHistory, request);
         paymentHistory.getDummyCard().cancelApproval(request.getRefundAmount());
-        paymentHistory.refund();
+        paymentHistory.refund(request.getRefundAmount());
 
         return GatewayCardPaymentRefundResponse.builder()
                 .paymentNo(paymentHistory.getPaymentNo())
                 .transactionId(paymentHistory.getTransactionId())
                 .refundedAmount(request.getRefundAmount())
                 .status(paymentHistory.getStatus())
-                .message("카드 결제 전체 환불이 완료되었습니다.")
+                .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
+                        ? "카드 결제 전체 환불이 완료되었습니다."
+                        : "카드 결제 부분 환불이 완료되었습니다.")
                 .build();
     }
 
@@ -160,14 +162,15 @@ public class GatewayCardPaymentService {
         if (paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED) {
             throw new IllegalArgumentException("이미 환불 완료된 카드 결제입니다.");
         }
-        if (paymentHistory.getStatus() != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
+        if (paymentHistory.getStatus() != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED
+                && paymentHistory.getStatus() != CardPaymentHistoryStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 카드 결제 상태입니다.");
         }
         if (paymentHistory.getDummyCard() == null) {
             throw new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다.");
         }
-        if (paymentHistory.getAmount().compareTo(request.getRefundAmount()) != 0) {
-            throw new IllegalArgumentException("전체 환불 금액은 승인 금액과 일치해야 합니다.");
+        if (request.getRefundAmount().compareTo(paymentHistory.getRemainingAmount()) > 0) {
+            throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
         }
     }
 

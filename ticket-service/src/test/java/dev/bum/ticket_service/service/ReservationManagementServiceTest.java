@@ -145,6 +145,35 @@ class ReservationManagementServiceTest {
     }
 
     @Test
+    @DisplayName("카드 결제 완료 예매 부분 취소는 선택 티켓 비율만큼 부분 환불한다")
+    void refund_card_payment_before_partial_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
+        Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        Ticket cancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation))
+                .willReturn(List.of(selectedTicket, remainingTicket))
+                .willReturn(List.of(cancelledTicket, remainingTicket));
+        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        then(cardPaymentRefundService).should().refundPartial(payment, 125000);
+        then(repository).should().cancel(1L, info);
+    }
+
+    @Test
     @DisplayName("카드 결제 완료 예매 전체 취소는 gateway 환불 후 예매를 취소한다")
     void refund_card_payment_before_full_reservation_cancel() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
@@ -152,16 +181,20 @@ class ReservationManagementServiceTest {
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
                 .eventId(1L)
-                .selectedTicketIdList(List.of())
+                .selectedTicketIdList(List.of(1L, 2L))
                 .build();
         List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
+        Ticket firstTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+        Ticket secondTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        Ticket firstCancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
+        Ticket secondCancelledTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.CANCELLED);
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation))
+                .willReturn(List.of(firstTicket, secondTicket))
+                .willReturn(List.of(firstCancelledTicket, secondCancelledTicket));
         given(repository.cancel(1L, info)).willReturn(cancelledSeats);
-        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(
-                ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED)
-        ));
 
         reservationManagementService.cancel(1L, info);
 
