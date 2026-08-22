@@ -129,22 +129,20 @@ class ReservationManagementServiceTest {
                 .eventId(1L)
                 .selectedTicketIdList(List.of(1L))
                 .build();
-        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
+        Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PENDING_PAYMENT);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
-        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(
-                ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED),
-                ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PENDING_PAYMENT)
-        ));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
-        then(repository).should().cancel(1L, info);
-        then(seatCacheService).should().syncAvailableSeatsAfterCommit(cancelledSeats);
-        then(seatCacheService).should().updateUserPurchaseLimit(cancelledSeats.get(0).getEvent(), "user01", 1, "SUB");
+        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
+        then(seatCacheService).should().updateUserPurchaseLimit(selectedTicket.getSeat().getEvent(), "user01", 1, "SUB");
     }
 
     @Test
@@ -157,23 +155,18 @@ class ReservationManagementServiceTest {
                 .eventId(1L)
                 .selectedTicketIdList(List.of(1L))
                 .build();
-        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
         Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
         Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
-        Ticket cancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
-        given(ticketJpaRepository.findByReservation(reservation))
-                .willReturn(List.of(selectedTicket, remainingTicket))
-                .willReturn(List.of(cancelledTicket, remainingTicket));
-        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundPartial(payment, 125000);
-        then(repository).should().cancel(1L, info);
     }
 
     @Test
@@ -186,29 +179,24 @@ class ReservationManagementServiceTest {
                 .eventId(1L)
                 .selectedTicketIdList(List.of(1L, 2L))
                 .build();
-        List<Seat> cancelledSeats = List.of(seat(1L, event(), "VIP", 1, 1));
         Ticket firstTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
         Ticket secondTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
-        Ticket firstCancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
-        Ticket secondCancelledTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.CANCELLED);
         UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
-        given(ticketJpaRepository.findByReservation(reservation))
-                .willReturn(List.of(firstTicket, secondTicket))
-                .willReturn(List.of(firstCancelledTicket, secondCancelledTicket));
-        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(secondTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment);
-        then(repository).should().cancel(1L, info);
     }
 
     @Test
@@ -221,20 +209,16 @@ class ReservationManagementServiceTest {
                 .eventId(1L)
                 .selectedTicketIdList(List.of(2L))
                 .build();
-        List<Seat> cancelledSeats = List.of(seat(2L, event(), "VIP", 1, 2));
         Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
-        Ticket cancelledTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.CANCELLED);
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
-        given(ticketJpaRepository.findByReservation(reservation))
-                .willReturn(List.of(remainingTicket))
-                .willReturn(List.of(cancelledTicket));
-        given(repository.cancel(1L, info)).willReturn(cancelledSeats);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
         then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
     }

@@ -27,7 +27,6 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.QTicket;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import jakarta.persistence.EntityManager;
@@ -44,7 +43,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -179,35 +177,6 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         long totalCount = (total != null) ? total : 0L;
 
         return new PageImpl<>(content, pageable, totalCount);
-    }
-
-    /**
-     * 예매 취소 메서드
-     * @param id
-     */
-    @Override
-    public List<Seat> cancel(long id, CancelReservationRequest info) {
-        // 1. 예매, 티켓 정보 조회.
-        Reservation foundReservation = selectById(id);
-        List<Long> selectedTicketIdList = info.getSelectedTicketIdList();
-        if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
-            throw new IllegalArgumentException("취소할 티켓을 선택해야 합니다.");
-        }
-
-        List<Ticket> tickets = ticketRepository.selectByIdList(selectedTicketIdList);
-
-        // 2. 티켓과 좌석 상태 변경
-        for (Ticket ticket : tickets) {
-            // 티켓 상태를 cancelled로 변경
-            ticket.cancel();
-
-            // 좌석 상태를 available로 변경
-            ticket.getSeat().available();
-        }
-
-        return tickets.stream()
-                .map(Ticket::getSeat)
-                .collect(Collectors.toList());
     }
 
     /**
