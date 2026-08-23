@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.service.payment;
 
-import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountRefundRequest;
@@ -22,17 +22,15 @@ public class VirtualAccountPaymentRefundService {
 
     public void refundAll(
             Payment payment,
-            BankCompany refundBankCompany,
-            String refundAccountNumber,
-            String refundAccountHolder
+            RefundAccountRequest refundAccount
     ) {
-        validateRefundableVirtualAccountPayment(payment, refundBankCompany, refundAccountNumber, refundAccountHolder);
+        validateRefundableVirtualAccountPayment(payment, refundAccount);
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
                         .paymentNo(payment.getPaymentNo())
-                        .refundBankCompany(refundBankCompany)
-                        .refundAccountNumber(refundAccountNumber)
-                        .refundAccountHolder(refundAccountHolder)
+                        .refundBankCompany(refundAccount.getBankCompany())
+                        .refundAccountNumber(refundAccount.getAccountNumber())
+                        .refundAccountHolder(refundAccount.getAccountHolder())
                         .refundAmount(BigDecimal.valueOf(payment.getRefundableAmount()))
                         .build()
         );
@@ -42,17 +40,15 @@ public class VirtualAccountPaymentRefundService {
     public void refundPartial(
             Payment payment,
             int refundAmount,
-            BankCompany refundBankCompany,
-            String refundAccountNumber,
-            String refundAccountHolder
+            RefundAccountRequest refundAccount
     ) {
-        validateRefundableVirtualAccountPayment(payment, refundBankCompany, refundAccountNumber, refundAccountHolder);
+        validateRefundableVirtualAccountPayment(payment, refundAccount);
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
                         .paymentNo(payment.getPaymentNo())
-                        .refundBankCompany(refundBankCompany)
-                        .refundAccountNumber(refundAccountNumber)
-                        .refundAccountHolder(refundAccountHolder)
+                        .refundBankCompany(refundAccount.getBankCompany())
+                        .refundAccountNumber(refundAccount.getAccountNumber())
+                        .refundAccountHolder(refundAccount.getAccountHolder())
                         .refundAmount(BigDecimal.valueOf(refundAmount))
                         .build()
         );
@@ -61,9 +57,7 @@ public class VirtualAccountPaymentRefundService {
 
     private void validateRefundableVirtualAccountPayment(
             Payment payment,
-            BankCompany refundBankCompany,
-            String refundAccountNumber,
-            String refundAccountHolder
+            RefundAccountRequest refundAccount
     ) {
         if (payment == null) {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
@@ -74,13 +68,16 @@ public class VirtualAccountPaymentRefundService {
         if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 결제 상태입니다.");
         }
-        if (refundBankCompany == null) {
+        if (refundAccount == null) {
+            throw new IllegalArgumentException("환불 계좌 정보를 입력해야 합니다.");
+        }
+        if (refundAccount.getBankCompany() == null) {
             throw new IllegalArgumentException("환불 은행을 입력해야 합니다.");
         }
-        if (!StringUtils.hasText(refundAccountNumber)) {
+        if (!StringUtils.hasText(refundAccount.getAccountNumber())) {
             throw new IllegalArgumentException("환불 계좌번호를 입력해야 합니다.");
         }
-        if (!StringUtils.hasText(refundAccountHolder)) {
+        if (!StringUtils.hasText(refundAccount.getAccountHolder())) {
             throw new IllegalArgumentException("환불 계좌 예금주명을 입력해야 합니다.");
         }
         if (payment.getRefundableAmount() <= 0) {

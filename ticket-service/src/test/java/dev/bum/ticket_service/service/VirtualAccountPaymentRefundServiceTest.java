@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service;
 
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountRefundRequest;
@@ -35,7 +36,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_all_virtual_account_payment() {
         Payment payment = virtualAccountPayment();
 
-        virtualAccountPaymentRefundService.refundAll(payment, BankCompany.KB, "123-456-7890", "홍길동");
+        virtualAccountPaymentRefundService.refundAll(payment, refundAccount());
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
@@ -54,7 +55,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_partial_virtual_account_payment() {
         Payment payment = virtualAccountPayment();
 
-        virtualAccountPaymentRefundService.refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount());
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
@@ -73,7 +74,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_all_remaining_virtual_account_payment() {
         Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
 
-        virtualAccountPaymentRefundService.refundAll(payment, BankCompany.KB, "123-456-7890", "홍길동");
+        virtualAccountPaymentRefundService.refundAll(payment, refundAccount());
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
@@ -88,7 +89,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_partial_remaining_virtual_account_payment() {
         Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
 
-        virtualAccountPaymentRefundService.refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount());
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
@@ -100,7 +101,13 @@ class VirtualAccountPaymentRefundServiceTest {
     void reject_missing_refund_account_number() {
         Payment payment = virtualAccountPayment();
 
-        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundAll(payment, BankCompany.KB, null, "홍길동"))
+        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundAll(
+                payment,
+                RefundAccountRequest.builder()
+                        .bankCompany(BankCompany.KB)
+                        .accountHolder("홍길동")
+                        .build()
+        ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불 계좌번호를 입력해야 합니다.");
 
@@ -112,7 +119,13 @@ class VirtualAccountPaymentRefundServiceTest {
     void reject_missing_refund_account_holder() {
         Payment payment = virtualAccountPayment();
 
-        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundAll(payment, BankCompany.KB, "123-456-7890", null))
+        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundAll(
+                payment,
+                RefundAccountRequest.builder()
+                        .bankCompany(BankCompany.KB)
+                        .accountNumber("123-456-7890")
+                        .build()
+        ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불 계좌 예금주명을 입력해야 합니다.");
 
@@ -131,6 +144,14 @@ class VirtualAccountPaymentRefundServiceTest {
                 .amount(250000)
                 .refundedAmount(refundedAmount)
                 .requestedAt(LocalDateTime.of(2026, 8, 23, 12, 0))
+                .build();
+    }
+
+    private RefundAccountRequest refundAccount() {
+        return RefundAccountRequest.builder()
+                .bankCompany(BankCompany.KB)
+                .accountNumber("123-456-7890")
+                .accountHolder("홍길동")
                 .build();
     }
 }

@@ -158,18 +158,14 @@ public class ReservationService {
                         if (fullCancellation) {
                             virtualAccountPaymentRefundService.refundAll(
                                     payment,
-                                    info.getRefundBankCompany(),
-                                    info.getRefundAccountNumber(),
-                                    info.getRefundAccountHolder()
+                                    info.getRefundAccount()
                             );
                             return;
                         } else {
                             virtualAccountPaymentRefundService.refundPartial(
                                     payment,
                                     calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets),
-                                    info.getRefundBankCompany(),
-                                    info.getRefundAccountNumber(),
-                                    info.getRefundAccountHolder()
+                                    info.getRefundAccount()
                             );
                             return;
                         }

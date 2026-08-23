@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
@@ -213,9 +214,7 @@ class ReservationManagementServiceTest {
                 .userId("user01")
                 .eventId(1L)
                 .selectedTicketIdList(List.of(1L, 2L))
-                .refundBankCompany(BankCompany.KB)
-                .refundAccountNumber("123-456-7890")
-                .refundAccountHolder("홍길동")
+                .refundAccount(refundAccount())
                 .build();
         Ticket firstTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
         Ticket secondTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
@@ -229,7 +228,7 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(secondTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
-        then(virtualAccountPaymentRefundService).should().refundAll(payment, BankCompany.KB, "123-456-7890", "홍길동");
+        then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(cardPaymentRefundService).shouldHaveNoInteractions();
     }
 
@@ -242,9 +241,7 @@ class ReservationManagementServiceTest {
                 .userId("user01")
                 .eventId(1L)
                 .selectedTicketIdList(List.of(1L))
-                .refundBankCompany(BankCompany.KB)
-                .refundAccountNumber("123-456-7890")
-                .refundAccountHolder("홍길동")
+                .refundAccount(refundAccount())
                 .build();
         Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
         Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
@@ -257,7 +254,7 @@ class ReservationManagementServiceTest {
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
-        then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+        then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, refundAccount());
     }
 
     @Test
@@ -328,6 +325,14 @@ class ReservationManagementServiceTest {
                 .status(PaymentStatus.PAID)
                 .amount(250000)
                 .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .build();
+    }
+
+    private RefundAccountRequest refundAccount() {
+        return RefundAccountRequest.builder()
+                .bankCompany(BankCompany.KB)
+                .accountNumber("123-456-7890")
+                .accountHolder("홍길동")
                 .build();
     }
 
