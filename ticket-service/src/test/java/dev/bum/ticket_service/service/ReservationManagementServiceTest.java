@@ -176,6 +176,31 @@ class ReservationManagementServiceTest {
     }
 
     @Test
+    @DisplayName("카드 결제 완료 예매 부분 취소는 쿠폰을 복구하지 않는다")
+    void do_not_restore_coupon_when_card_payment_partial_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+        Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        UserCoupon userCoupon = usedUserCoupon();
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
+        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("카드 결제 완료 예매 전체 취소는 gateway 환불 후 예매를 취소한다")
     void refund_card_payment_before_full_reservation_cancel() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
@@ -218,16 +243,21 @@ class ReservationManagementServiceTest {
                 .build();
         Ticket firstTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
         Ticket secondTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
+        given(reservationDiscountJpaRepository.findByReservation(reservation))
+                .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(secondTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
+        assertThat(userCoupon.getUsedAt()).isNull();
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(cardPaymentRefundService).shouldHaveNoInteractions();
     }
@@ -258,6 +288,32 @@ class ReservationManagementServiceTest {
     }
 
     @Test
+    @DisplayName("무통장 결제 완료 예매 부분 취소는 쿠폰을 복구하지 않는다")
+    void do_not_restore_coupon_when_virtual_account_payment_partial_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = virtualAccountPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .refundAccount(refundAccount())
+                .build();
+        Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+        UserCoupon userCoupon = usedUserCoupon();
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
+        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("부분 환불 이력이 있는 예매의 마지막 티켓 취소는 쿠폰을 복구하지 않는다")
     void do_not_restore_coupon_when_last_ticket_cancel_after_partial_refund() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
@@ -278,6 +334,31 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
+        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("무통장 부분 환불 이력이 있는 예매의 마지막 티켓 취소는 쿠폰을 복구하지 않는다")
+    void do_not_restore_coupon_when_last_ticket_cancel_after_virtual_account_partial_refund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.PARTIALLY_REFUNDED, 125000);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(2L))
+                .refundAccount(refundAccount())
+                .build();
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
     }
 
@@ -318,12 +399,17 @@ class ReservationManagementServiceTest {
     }
 
     private Payment virtualAccountPayment(Reservation reservation) {
+        return virtualAccountPayment(reservation, PaymentStatus.PAID, 0);
+    }
+
+    private Payment virtualAccountPayment(Reservation reservation, PaymentStatus status, Integer refundedAmount) {
         return Payment.builder()
                 .reservation(reservation)
                 .paymentNo("PAY-1")
                 .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.PAID)
+                .status(status)
                 .amount(250000)
+                .refundedAmount(refundedAmount)
                 .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
                 .build();
     }
