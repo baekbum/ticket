@@ -20,24 +20,26 @@ public class VirtualAccountPaymentRefundService {
 
     private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
 
-    public void refundAll(
+    public int refundAll(
             Payment payment,
             RefundAccountRequest refundAccount
     ) {
         validateRefundableVirtualAccountPayment(payment, refundAccount);
+        int refundAmount = payment.getRefundableAmount();
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
                         .paymentNo(payment.getPaymentNo())
                         .refundBankCompany(refundAccount.getBankCompany())
                         .refundAccountNumber(refundAccount.getAccountNumber())
                         .refundAccountHolder(refundAccount.getAccountHolder())
-                        .refundAmount(BigDecimal.valueOf(payment.getRefundableAmount()))
+                        .refundAmount(BigDecimal.valueOf(refundAmount))
                         .build()
         );
         payment.refund();
+        return refundAmount;
     }
 
-    public void refundPartial(
+    public int refundPartial(
             Payment payment,
             int refundAmount,
             RefundAccountRequest refundAccount
@@ -53,6 +55,7 @@ public class VirtualAccountPaymentRefundService {
                         .build()
         );
         payment.partialRefund(refundAmount);
+        return refundAmount;
     }
 
     private void validateRefundableVirtualAccountPayment(

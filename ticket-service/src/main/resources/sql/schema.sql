@@ -245,7 +245,42 @@ CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, st
 
 
 -- ==========================================
--- 11. Tickets
+-- 11. Payment refund histories
+-- ==========================================
+CREATE TABLE payment_refund_histories (
+    payment_refund_history_id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL,
+    reservation_id BIGINT NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    refund_amount INTEGER NOT NULL,
+    refunded_amount_after INTEGER NOT NULL,
+    refundable_amount_after INTEGER NOT NULL,
+    payment_status_after VARCHAR(30) NOT NULL,
+    full_cancellation BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_payment_refund_histories_payment_id ON payment_refund_histories(payment_id);
+CREATE INDEX idx_payment_refund_histories_reservation_id ON payment_refund_histories(reservation_id);
+
+
+-- ==========================================
+-- 12. Payment refund history tickets
+-- ==========================================
+CREATE TABLE payment_refund_history_tickets (
+    payment_refund_history_ticket_id BIGSERIAL PRIMARY KEY,
+    payment_refund_history_id BIGINT NOT NULL,
+    ticket_id BIGINT NOT NULL,
+    ticket_price INTEGER NOT NULL
+);
+
+CREATE INDEX idx_payment_refund_history_tickets_history_id ON payment_refund_history_tickets(payment_refund_history_id);
+CREATE INDEX idx_payment_refund_history_tickets_ticket_id ON payment_refund_history_tickets(ticket_id);
+
+
+-- ==========================================
+-- 13. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,
@@ -264,7 +299,7 @@ CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
 
 
 -- ==========================================
--- 12. Seat cache sync failures
+-- 14. Seat cache sync failures
 -- ==========================================
 CREATE TABLE seat_cache_sync_failures (
     id BIGSERIAL PRIMARY KEY,

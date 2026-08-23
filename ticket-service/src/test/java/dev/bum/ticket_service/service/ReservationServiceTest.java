@@ -19,6 +19,8 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
@@ -34,6 +36,7 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,6 +51,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -65,6 +70,9 @@ class ReservationServiceTest {
 
     @Mock
     private PaymentJpaRepository paymentJpaRepository;
+
+    @Mock
+    private PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
 
     @Mock
     private CardPaymentRefundService cardPaymentRefundService;
@@ -166,13 +174,23 @@ class ReservationServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+        willAnswer(invocation -> {
+            payment.partialRefund(125000);
+            return 125000;
+        }).given(cardPaymentRefundService).refundPartial(payment, 125000);
 
         reservationService.cancelMyReservation("user01", 1L, info);
 
+        ArgumentCaptor<PaymentRefundHistory> refundHistoryCaptor = ArgumentCaptor.forClass(PaymentRefundHistory.class);
         assertThat(info.getUserId()).isEqualTo("user01");
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundPartial(payment, 125000);
+        then(paymentRefundHistoryJpaRepository).should().save(refundHistoryCaptor.capture());
+        assertThat(refundHistoryCaptor.getValue().getRefundAmount()).isEqualTo(125000);
+        assertThat(refundHistoryCaptor.getValue().getPaymentStatusAfter()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
+        assertThat(refundHistoryCaptor.getValue().getTickets()).hasSize(1);
+        assertThat(refundHistoryCaptor.getValue().getTickets().get(0).getTicket()).isEqualTo(selectedTicket);
     }
 
     @Test
@@ -219,6 +237,7 @@ class ReservationServiceTest {
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
+        willReturn(250000).given(cardPaymentRefundService).refundAll(payment);
 
         reservationService.cancelMyReservation("user01", 1L, info);
 
@@ -229,6 +248,7 @@ class ReservationServiceTest {
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment);
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test
@@ -251,6 +271,7 @@ class ReservationServiceTest {
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
+        willReturn(250000).given(virtualAccountPaymentRefundService).refundAll(payment, refundAccount());
 
         reservationService.cancelMyReservation("user01", 1L, info);
 
@@ -261,6 +282,7 @@ class ReservationServiceTest {
         assertThat(userCoupon.getUsedAt()).isNull();
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(cardPaymentRefundService).shouldHaveNoInteractions();
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test
@@ -280,12 +302,14 @@ class ReservationServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+        willReturn(125000).given(virtualAccountPaymentRefundService).refundPartial(payment, 125000, refundAccount());
 
         reservationService.cancelMyReservation("user01", 1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, refundAccount());
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test

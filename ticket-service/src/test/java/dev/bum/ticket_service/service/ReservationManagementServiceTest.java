@@ -19,6 +19,8 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
@@ -51,6 +53,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willReturn;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationManagementServiceTest {
@@ -66,6 +69,9 @@ class ReservationManagementServiceTest {
 
     @Mock
     private PaymentJpaRepository paymentJpaRepository;
+
+    @Mock
+    private PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
 
     @Mock
     private CardPaymentRefundService cardPaymentRefundService;
@@ -168,12 +174,14 @@ class ReservationManagementServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+        willReturn(125000).given(cardPaymentRefundService).refundPartial(payment, 125000);
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundPartial(payment, 125000);
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test
@@ -220,6 +228,7 @@ class ReservationManagementServiceTest {
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
+        willReturn(250000).given(cardPaymentRefundService).refundAll(payment);
 
         reservationManagementService.cancel(1L, info);
 
@@ -229,6 +238,7 @@ class ReservationManagementServiceTest {
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment);
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test
@@ -251,6 +261,7 @@ class ReservationManagementServiceTest {
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
+        willReturn(250000).given(virtualAccountPaymentRefundService).refundAll(payment, refundAccount());
 
         reservationManagementService.cancel(1L, info);
 
@@ -261,6 +272,7 @@ class ReservationManagementServiceTest {
         assertThat(userCoupon.getUsedAt()).isNull();
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(cardPaymentRefundService).shouldHaveNoInteractions();
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test
@@ -280,12 +292,14 @@ class ReservationManagementServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+        willReturn(125000).given(virtualAccountPaymentRefundService).refundPartial(payment, 125000, refundAccount());
 
         reservationManagementService.cancel(1L, info);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, refundAccount());
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test

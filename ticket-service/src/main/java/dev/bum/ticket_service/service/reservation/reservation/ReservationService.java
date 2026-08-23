@@ -10,7 +10,10 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
@@ -49,6 +52,7 @@ public class ReservationService {
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
+    private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
     private final CardPaymentRefundService cardPaymentRefundService;
     private final VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
     private final TicketJpaRepository ticketJpaRepository;
@@ -146,33 +150,49 @@ public class ReservationService {
                     }
 
                     if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
+                        int refundAmount;
+
                         if (fullCancellation) {
-                            cardPaymentRefundService.refundAll(payment);
-                            return;
+                            refundAmount = cardPaymentRefundService.refundAll(payment);
                         } else {
-                            cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets));
-                            return;
+                            refundAmount = cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets));
                         }
 
+                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        return;
                     }
 
                     if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
+                        int refundAmount;
+
                         if (fullCancellation) {
-                            virtualAccountPaymentRefundService.refundAll(
+                            refundAmount = virtualAccountPaymentRefundService.refundAll(
                                     payment,
                                     info.getRefundAccount()
                             );
-                            return;
                         } else {
-                            virtualAccountPaymentRefundService.refundPartial(
+                            refundAmount = virtualAccountPaymentRefundService.refundPartial(
                                     payment,
                                     calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets),
                                     info.getRefundAccount()
                             );
-                            return;
                         }
+
+                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        return;
                     }
         });
+    }
+
+    private void savePaymentRefundHistory(
+            Payment payment,
+            List<Ticket> selectedTickets,
+            int refundAmount,
+            boolean fullCancellation
+    ) {
+        paymentRefundHistoryJpaRepository.save(
+                PaymentRefundHistory.create(payment, selectedTickets, refundAmount, fullCancellation)
+        );
     }
 
     private void validateCancelableReservation(Reservation reservation) {

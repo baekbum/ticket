@@ -19,19 +19,21 @@ public class CardPaymentRefundService {
 
     private final PaymentGatewayCardClient paymentGatewayCardClient;
 
-    public void refundAll(Payment payment) {
+    public int refundAll(Payment payment) {
         validateRefundableCardPayment(payment);
+        int refundAmount = payment.getRefundableAmount();
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
                         .paymentNo(payment.getPaymentNo())
                         .transactionId(payment.getCardTransactionId())
-                        .refundAmount(BigDecimal.valueOf(payment.getRefundableAmount()))
+                        .refundAmount(BigDecimal.valueOf(refundAmount))
                         .build()
         );
         payment.refund();
+        return refundAmount;
     }
 
-    public void refundPartial(Payment payment, int refundAmount) {
+    public int refundPartial(Payment payment, int refundAmount) {
         validateRefundableCardPayment(payment);
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
@@ -41,6 +43,7 @@ public class CardPaymentRefundService {
                         .build()
         );
         payment.partialRefund(refundAmount);
+        return refundAmount;
     }
 
     private void validateRefundableCardPayment(Payment payment) {
