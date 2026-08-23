@@ -25,7 +25,7 @@ public class CardPaymentRefundService {
                 GatewayCardPaymentRefundRequest.builder()
                         .paymentNo(payment.getPaymentNo())
                         .transactionId(payment.getCardTransactionId())
-                        .refundAmount(BigDecimal.valueOf(payment.getRemainingAmount()))
+                        .refundAmount(BigDecimal.valueOf(payment.getRefundableAmount()))
                         .build()
         );
         payment.refund();
@@ -56,7 +56,7 @@ public class CardPaymentRefundService {
         if (!StringUtils.hasText(payment.getCardTransactionId())) {
             throw new IllegalArgumentException("카드 거래번호가 없습니다.");
         }
-        if (payment.getRemainingAmount() <= 0) {
+        if (payment.getRefundableAmount() <= 0) {
             throw new IllegalArgumentException("환불 가능한 금액이 없습니다.");
         }
     }

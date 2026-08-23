@@ -21,7 +21,7 @@ class PaymentTest {
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
-        assertThat(payment.getRemainingAmount()).isZero();
+        assertThat(payment.getRefundableAmount()).isZero();
     }
 
     @Test
@@ -33,7 +33,7 @@ class PaymentTest {
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(120000);
-        assertThat(payment.getRemainingAmount()).isEqualTo(130000);
+        assertThat(payment.getRefundableAmount()).isEqualTo(130000);
     }
 
     @Test
@@ -46,12 +46,12 @@ class PaymentTest {
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
-        assertThat(payment.getRemainingAmount()).isZero();
+        assertThat(payment.getRefundableAmount()).isZero();
     }
 
     @Test
     @DisplayName("남은 결제 금액보다 큰 금액은 환불할 수 없다")
-    void reject_refund_amount_exceeding_remaining_amount() {
+    void reject_refund_amount_exceeding_refundable_amount() {
         Payment payment = payment(250000);
 
         assertThatThrownBy(() -> payment.partialRefund(250001))

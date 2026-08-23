@@ -176,7 +176,7 @@ public class DummyCardPaymentHistory {
     public void refund(BigDecimal refundAmount) {
         validateRefundAmount(refundAmount);
         this.refundedAmount = getRefundedAmount().add(refundAmount);
-        this.status = getRemainingAmount().compareTo(BigDecimal.ZERO) == 0
+        this.status = getRefundableAmount().compareTo(BigDecimal.ZERO) == 0
                 ? CardPaymentHistoryStatus.REFUNDED
                 : CardPaymentHistoryStatus.PARTIALLY_REFUNDED;
         this.failureReason = null;
@@ -186,7 +186,7 @@ public class DummyCardPaymentHistory {
         return refundedAmount != null ? refundedAmount : BigDecimal.ZERO;
     }
 
-    public BigDecimal getRemainingAmount() {
+    public BigDecimal getRefundableAmount() {
         return amount.subtract(getRefundedAmount());
     }
 
@@ -194,7 +194,7 @@ public class DummyCardPaymentHistory {
         if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
         }
-        if (refundAmount.compareTo(getRemainingAmount()) > 0) {
+        if (refundAmount.compareTo(getRefundableAmount()) > 0) {
             throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
         }
     }

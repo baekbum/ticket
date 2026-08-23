@@ -169,7 +169,7 @@ public class GatewayCardPaymentService {
         if (paymentHistory.getDummyCard() == null) {
             throw new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다.");
         }
-        if (request.getRefundAmount().compareTo(paymentHistory.getRemainingAmount()) > 0) {
+        if (request.getRefundAmount().compareTo(paymentHistory.getRefundableAmount()) > 0) {
             throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
         }
     }

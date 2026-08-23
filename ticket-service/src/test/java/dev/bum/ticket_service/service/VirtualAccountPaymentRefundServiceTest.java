@@ -46,7 +46,53 @@ class VirtualAccountPaymentRefundServiceTest {
         assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("250000");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
-        assertThat(payment.getRemainingAmount()).isZero();
+        assertThat(payment.getRefundableAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("무통장 부분 환불 요청 후 결제를 부분 환불 상태로 변경한다")
+    void refund_partial_virtual_account_payment() {
+        Payment payment = virtualAccountPayment();
+
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+
+        ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
+        then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
+        assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getRefundBankCompany()).isEqualTo(BankCompany.KB);
+        assertThat(captor.getValue().getRefundAccountNumber()).isEqualTo("123-456-7890");
+        assertThat(captor.getValue().getRefundAccountHolder()).isEqualTo("홍길동");
+        assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("125000");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(125000);
+        assertThat(payment.getRefundableAmount()).isEqualTo(125000);
+    }
+
+    @Test
+    @DisplayName("무통장 부분 환불 이력이 있는 결제의 남은 금액 전체 환불을 처리한다")
+    void refund_all_remaining_virtual_account_payment() {
+        Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
+
+        virtualAccountPaymentRefundService.refundAll(payment, BankCompany.KB, "123-456-7890", "홍길동");
+
+        ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
+        then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
+        assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("125000");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(250000);
+        assertThat(payment.getRefundableAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("무통장 부분 환불 금액이 남은 결제 금액과 같으면 전체 환불 상태로 변경한다")
+    void refund_partial_remaining_virtual_account_payment() {
+        Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
+
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(250000);
+        assertThat(payment.getRefundableAmount()).isZero();
     }
 
     @Test
@@ -74,11 +120,16 @@ class VirtualAccountPaymentRefundServiceTest {
     }
 
     private Payment virtualAccountPayment() {
+        return virtualAccountPayment(PaymentStatus.PAID, 0);
+    }
+
+    private Payment virtualAccountPayment(PaymentStatus status, Integer refundedAmount) {
         return Payment.builder()
                 .paymentNo("PAY-1")
                 .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.PAID)
+                .status(status)
                 .amount(250000)
+                .refundedAmount(refundedAmount)
                 .requestedAt(LocalDateTime.of(2026, 8, 23, 12, 0))
                 .build();
     }

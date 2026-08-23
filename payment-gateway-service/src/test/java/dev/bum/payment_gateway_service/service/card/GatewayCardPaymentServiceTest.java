@@ -92,13 +92,13 @@ class GatewayCardPaymentServiceTest {
         assertThat(response.getRefundedAmount()).isEqualByComparingTo("4000");
         assertThat(paymentHistory.getStatus()).isEqualTo(CardPaymentHistoryStatus.PARTIALLY_REFUNDED);
         assertThat(paymentHistory.getRefundedAmount()).isEqualByComparingTo("4000");
-        assertThat(paymentHistory.getRemainingAmount()).isEqualByComparingTo("6000");
+        assertThat(paymentHistory.getRefundableAmount()).isEqualByComparingTo("6000");
         assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
     }
 
     @Test
     @DisplayName("카드 환불 금액이 남은 승인 금액을 초과하면 거부한다")
-    void reject_card_refund_amount_exceeding_remaining_amount() {
+    void reject_card_refund_amount_exceeding_refundable_amount() {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =

@@ -227,8 +227,8 @@ public class GatewayVirtualAccountService {
         if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
             throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
         }
-        if (virtualAccount.getAmount().compareTo(request.getRefundAmount()) != 0) {
-            throw new IllegalArgumentException("환불 금액이 결제 금액과 일치하지 않습니다.");
+        if (request.getRefundAmount().compareTo(virtualAccount.getAmount()) > 0) {
+            throw new IllegalArgumentException("환불 금액이 결제 금액을 초과했습니다.");
         }
     }
 

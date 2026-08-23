@@ -234,6 +234,33 @@ class ReservationManagementServiceTest {
     }
 
     @Test
+    @DisplayName("무통장 결제 완료 예매 부분 취소는 선택 티켓 비율만큼 부분 환불한다")
+    void refund_virtual_account_payment_before_partial_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = virtualAccountPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .refundBankCompany(BankCompany.KB)
+                .refundAccountNumber("123-456-7890")
+                .refundAccountHolder("홍길동")
+                .build();
+        Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+        Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+
+        reservationManagementService.cancel(1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
+    }
+
+    @Test
     @DisplayName("부분 환불 이력이 있는 예매의 마지막 티켓 취소는 쿠폰을 복구하지 않는다")
     void do_not_restore_coupon_when_last_ticket_cancel_after_partial_refund() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);

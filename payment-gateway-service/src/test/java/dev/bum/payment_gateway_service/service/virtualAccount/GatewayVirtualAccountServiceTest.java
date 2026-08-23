@@ -162,6 +162,22 @@ class GatewayVirtualAccountServiceTest {
     }
 
     @Test
+    @DisplayName("무통장 부분 환불 요청은 성공 로그 기준으로 환불 완료 응답을 반환한다")
+    void refund_partial_virtual_account() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountRefundResponse response = gatewayVirtualAccountService.refund(request);
+
+        assertThat(response.getPaymentNo()).isEqualTo("PAY-20260727120000-abcdef123456");
+        assertThat(response.getRefundedAmount()).isEqualByComparingTo("90000");
+        assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
+    }
+
+    @Test
     @DisplayName("입금 완료 반영 전 가상계좌는 환불할 수 없다")
     void reject_refund_not_completed_virtual_account() {
         DummyVirtualAccount virtualAccount = virtualAccount();

@@ -45,7 +45,7 @@ class CardPaymentRefundServiceTest {
         assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("250000");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
-        assertThat(payment.getRemainingAmount()).isZero();
+        assertThat(payment.getRefundableAmount()).isZero();
     }
 
     @Test
@@ -62,7 +62,7 @@ class CardPaymentRefundServiceTest {
         assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("125000");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(125000);
-        assertThat(payment.getRemainingAmount()).isEqualTo(125000);
+        assertThat(payment.getRefundableAmount()).isEqualTo(125000);
     }
 
     @Test

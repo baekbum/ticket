@@ -136,7 +136,7 @@ public class Payment {
                 .status(this.status)
                 .amount(this.amount)
                 .refundedAmount(getRefundedAmount())
-                .remainingAmount(getRemainingAmount())
+                .refundableAmount(getRefundableAmount())
                 .cardTransactionId(getCardTransactionId())
                 .cardCompany(getCardCompany())
                 .maskedCardNumber(getMaskedCardNumber())
@@ -200,7 +200,7 @@ public class Payment {
     public void partialRefund(Integer refundAmount) {
         validateRefundAmount(refundAmount);
         this.refundedAmount = getRefundedAmount() + refundAmount;
-        this.status = getRemainingAmount() == 0
+        this.status = getRefundableAmount() == 0
                 ? PaymentStatus.REFUNDED
                 : PaymentStatus.PARTIALLY_REFUNDED;
     }
@@ -244,7 +244,7 @@ public class Payment {
         return refundedAmount != null ? refundedAmount : 0;
     }
 
-    public Integer getRemainingAmount() {
+    public Integer getRefundableAmount() {
         return this.amount - getRefundedAmount();
     }
 
@@ -252,7 +252,7 @@ public class Payment {
         if (refundAmount == null || refundAmount <= 0) {
             throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
         }
-        if (refundAmount > getRemainingAmount()) {
+        if (refundAmount > getRefundableAmount()) {
             throw new IllegalArgumentException("환불 금액이 남은 결제 금액을 초과했습니다.");
         }
     }

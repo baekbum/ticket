@@ -235,8 +235,8 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("무통장 결제 완료 본인 예매 부분 취소는 아직 지원하지 않는다")
-    void reject_virtual_account_payment_partial_my_reservation_cancel() {
+    @DisplayName("무통장 결제 완료 본인 예매 부분 취소는 선택 티켓 비율만큼 부분 환불한다")
+    void refund_virtual_account_payment_before_partial_my_reservation_cancel() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
         Payment payment = virtualAccountPayment(reservation);
         CancelReservationRequest info = CancelReservationRequest.builder()
@@ -254,13 +254,11 @@ class ReservationServiceTest {
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
-        assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("무통장 부분 환불은 아직 지원하지 않습니다.");
+        reservationService.cancelMyReservation("user01", 1L, info);
 
-        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
-        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.PAID);
-        then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, BankCompany.KB, "123-456-7890", "홍길동");
     }
 
     @Test

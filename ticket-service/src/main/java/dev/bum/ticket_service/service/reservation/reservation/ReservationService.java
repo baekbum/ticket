@@ -148,7 +148,7 @@ public class ReservationService {
                             cardPaymentRefundService.refundAll(payment);
                             return;
                         } else {
-                            cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRemainingAmount(), activeTickets, selectedTickets));
+                            cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets));
                             return;
                         }
 
@@ -164,7 +164,14 @@ public class ReservationService {
                             );
                             return;
                         } else {
-                            throw new IllegalArgumentException("무통장 부분 환불은 아직 지원하지 않습니다.");
+                            virtualAccountPaymentRefundService.refundPartial(
+                                    payment,
+                                    calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets),
+                                    info.getRefundBankCompany(),
+                                    info.getRefundAccountNumber(),
+                                    info.getRefundAccountHolder()
+                            );
+                            return;
                         }
                     }
                 });

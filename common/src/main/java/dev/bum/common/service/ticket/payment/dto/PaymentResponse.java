@@ -22,7 +22,7 @@ public class PaymentResponse {
     private PaymentStatus status;
     private Integer amount;
     private Integer refundedAmount;
-    private Integer remainingAmount;
+    private Integer refundableAmount;
     private String cardTransactionId;
     private CardCompany cardCompany;
     private String maskedCardNumber;
