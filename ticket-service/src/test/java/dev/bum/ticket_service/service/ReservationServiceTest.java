@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -26,6 +27,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +67,9 @@ class ReservationServiceTest {
 
     @Mock
     private CardPaymentRefundService cardPaymentRefundService;
+
+    @Mock
+    private VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
 
     @Mock
     private TicketJpaRepository ticketJpaRepository;
@@ -201,6 +206,64 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("무통장 결제 완료 본인 예매 전체 취소는 gateway 환불 후 예매를 취소한다")
+    void refund_virtual_account_payment_before_full_my_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = virtualAccountPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L, 2L))
+                .refundBankCompany(BankCompany.KB)
+                .refundAccountNumber("123-456-7890")
+                .refundAccountHolder("홍길동")
+                .build();
+        Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
+
+        reservationService.cancelMyReservation("user01", 1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(secondTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        then(virtualAccountPaymentRefundService).should().refundAll(payment, BankCompany.KB, "123-456-7890", "홍길동");
+        then(cardPaymentRefundService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("무통장 결제 완료 본인 예매 부분 취소는 아직 지원하지 않는다")
+    void reject_virtual_account_payment_partial_my_reservation_cancel() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = virtualAccountPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .refundBankCompany(BankCompany.KB)
+                .refundAccountNumber("123-456-7890")
+                .refundAccountHolder("홍길동")
+                .build();
+        Ticket selectedTicket = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
+
+        assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("무통장 부분 환불은 아직 지원하지 않습니다.");
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.PAID);
+        then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("부분 환불 이력이 있는 본인 예매의 마지막 티켓 취소는 쿠폰을 복구하지 않는다")
     void do_not_restore_coupon_when_last_ticket_cancel_after_partial_refund() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
@@ -276,6 +339,17 @@ class ReservationServiceTest {
                         .cardCompany(CardCompany.SHINHAN)
                         .maskedCardNumber("4111-****-****-1111")
                         .build())
+                .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
+                .build();
+    }
+
+    private Payment virtualAccountPayment(Reservation reservation) {
+        return Payment.builder()
+                .reservation(reservation)
+                .paymentNo("PAY-1")
+                .method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.PAID)
+                .amount(250000)
                 .requestedAt(LocalDateTime.of(2026, 9, 1, 10, 0))
                 .build();
     }

@@ -8,6 +8,8 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountD
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueException;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
@@ -16,6 +18,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPay
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class GatewayVirtualAccountService {
 
     private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
@@ -55,6 +59,43 @@ public class GatewayVirtualAccountService {
                 ? "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
                 : "가상계좌 입금은 완료되었지만 ticket-service 결제 완료 반영에 실패했습니다.";
         return toDepositResponse(virtualAccount, message);
+    }
+
+    public GatewayVirtualAccountRefundResponse refund(GatewayVirtualAccountRefundRequest request) {
+        try {
+            DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())
+                    .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
+
+            validateRefund(virtualAccount, request);
+            log.info(
+                    "무통장 환불 성공: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}",
+                    request.getPaymentNo(),
+                    request.getRefundBankCompany(),
+                    request.getRefundAccountNumber(),
+                    request.getRefundAccountHolder(),
+                    request.getRefundAmount()
+            );
+
+            return GatewayVirtualAccountRefundResponse.builder()
+                    .paymentNo(request.getPaymentNo())
+                    .refundBankCompany(request.getRefundBankCompany())
+                    .refundAccountNumber(request.getRefundAccountNumber())
+                    .refundAccountHolder(request.getRefundAccountHolder())
+                    .refundedAmount(request.getRefundAmount())
+                    .message("무통장 환불 입금이 완료되었습니다.")
+                    .build();
+        } catch (RuntimeException e) {
+            log.warn(
+                    "무통장 환불 실패: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}, reason={}",
+                    request.getPaymentNo(),
+                    request.getRefundBankCompany(),
+                    request.getRefundAccountNumber(),
+                    request.getRefundAccountHolder(),
+                    request.getRefundAmount(),
+                    e.getMessage()
+            );
+            throw e;
+        }
     }
 
     private GatewayVirtualAccountIssueResponse issueNewVirtualAccount(GatewayVirtualAccountIssueRequest request) {
@@ -179,6 +220,15 @@ public class GatewayVirtualAccountService {
         }
         if (virtualAccount.getAmount().compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private void validateRefund(DummyVirtualAccount virtualAccount, GatewayVirtualAccountRefundRequest request) {
+        if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
+            throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
+        }
+        if (virtualAccount.getAmount().compareTo(request.getRefundAmount()) != 0) {
+            throw new IllegalArgumentException("환불 금액이 결제 금액과 일치하지 않습니다.");
         }
     }
 

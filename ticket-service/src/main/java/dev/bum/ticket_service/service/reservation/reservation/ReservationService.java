@@ -19,6 +19,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class ReservationService {
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
     private final CardPaymentRefundService cardPaymentRefundService;
+    private final VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
 
@@ -104,7 +106,7 @@ public class ReservationService {
         boolean fullCancellation = isFullCancellation(activeTickets, selectedTickets);
         boolean restoreCouponOnCancel = fullCancellation && reservation.getStatus() == ReservationStatus.PAID;
 
-        refundPaymentBeforeCancel(reservation, activeTickets, selectedTickets, fullCancellation);
+        refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
         List<Seat> cancelledSeats = cancelTickets(selectedTickets);
         applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
 
@@ -120,10 +122,11 @@ public class ReservationService {
     }
 
     /**
-     * 카드 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
+     * 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
      */
     private void refundPaymentBeforeCancel(
             Reservation reservation,
+            CancelReservationRequest info,
             List<Ticket> activeTickets,
             List<Ticket> selectedTickets,
             boolean fullCancellation
@@ -135,21 +138,35 @@ public class ReservationService {
 
         paymentJpaRepository.findByReservation(reservation)
                 .ifPresent(payment -> {
-                    if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-                        return;
-                    }
-
                     if (payment.getStatus() != PaymentStatus.PAID
                             && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
                         return;
                     }
 
-                    if (fullCancellation) {
-                        cardPaymentRefundService.refundAll(payment);
-                        return;
+                    if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
+                        if (fullCancellation) {
+                            cardPaymentRefundService.refundAll(payment);
+                            return;
+                        } else {
+                            cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRemainingAmount(), activeTickets, selectedTickets));
+                            return;
+                        }
+
                     }
 
-                    cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRemainingAmount(), activeTickets, selectedTickets));
+                    if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
+                        if (fullCancellation) {
+                            virtualAccountPaymentRefundService.refundAll(
+                                    payment,
+                                    info.getRefundBankCompany(),
+                                    info.getRefundAccountNumber(),
+                                    info.getRefundAccountHolder()
+                            );
+                            return;
+                        } else {
+                            throw new IllegalArgumentException("무통장 부분 환불은 아직 지원하지 않습니다.");
+                        }
+                    }
                 });
     }
 
