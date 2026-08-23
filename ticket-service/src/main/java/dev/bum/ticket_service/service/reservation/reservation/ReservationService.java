@@ -37,6 +37,7 @@ import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 @Slf4j
@@ -100,6 +101,7 @@ public class ReservationService {
     }
 
     private void cancel(long id, Reservation reservation, CancelReservationRequest info) {
+        validateCancelableReservation(reservation);
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
@@ -170,7 +172,14 @@ public class ReservationService {
                             return;
                         }
                     }
-                });
+        });
+    }
+
+    private void validateCancelableReservation(Reservation reservation) {
+        if (reservation.getStatus() == ReservationStatus.CANCELLED
+                || reservation.getStatus() == ReservationStatus.EXPIRED) {
+            throw new IllegalArgumentException("이미 취소되었거나 만료된 예매입니다.");
+        }
     }
 
     private boolean isFullCancellation(List<Ticket> activeTickets, List<Ticket> selectedTickets) {
@@ -186,6 +195,9 @@ public class ReservationService {
     private List<Ticket> selectTicketsForCancel(List<Ticket> activeTickets, List<Long> selectedTicketIdList) {
         if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
             throw new IllegalArgumentException("취소할 티켓을 선택해야 합니다.");
+        }
+        if (selectedTicketIdList.size() != new HashSet<>(selectedTicketIdList).size()) {
+            throw new IllegalArgumentException("취소할 티켓이 중복 선택되었습니다.");
         }
 
         List<Ticket> selectedTickets = activeTickets.stream()

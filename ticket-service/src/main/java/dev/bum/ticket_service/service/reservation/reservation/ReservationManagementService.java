@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
@@ -119,6 +120,7 @@ public class ReservationManagementService {
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancel(long id, CancelReservationRequest info) {
         Reservation reservation = repository.selectById(id);
+        validateCancelableReservation(reservation);
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
@@ -189,7 +191,14 @@ public class ReservationManagementService {
                             return;
                         }
                     }
-                });
+        });
+    }
+
+    private void validateCancelableReservation(Reservation reservation) {
+        if (reservation.getStatus() == ReservationStatus.CANCELLED
+                || reservation.getStatus() == ReservationStatus.EXPIRED) {
+            throw new IllegalArgumentException("이미 취소되었거나 만료된 예매입니다.");
+        }
     }
 
     private boolean isFullCancellation(List<Ticket> activeTickets, List<Ticket> selectedTickets) {
@@ -205,6 +214,9 @@ public class ReservationManagementService {
     private List<Ticket> selectTicketsForCancel(List<Ticket> activeTickets, List<Long> selectedTicketIdList) {
         if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
             throw new IllegalArgumentException("취소할 티켓을 선택해야 합니다.");
+        }
+        if (selectedTicketIdList.size() != new HashSet<>(selectedTicketIdList).size()) {
+            throw new IllegalArgumentException("취소할 티켓이 중복 선택되었습니다.");
         }
 
         List<Ticket> selectedTickets = activeTickets.stream()

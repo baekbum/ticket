@@ -45,6 +45,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -360,6 +361,75 @@ class ReservationManagementServiceTest {
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
         then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 취소된 예매는 다시 취소할 수 없고 환불을 요청하지 않는다")
+    void reject_cancelled_reservation_cancel_before_refund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.CANCELLED);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+
+        given(repository.selectById(1L)).willReturn(reservation);
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, info))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 취소되었거나 만료된 예매입니다.");
+
+        then(ticketJpaRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(cardPaymentRefundService).shouldHaveNoInteractions();
+        then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 취소된 티켓을 선택하면 gateway 환불 전에 차단한다")
+    void reject_cancelled_ticket_selection_before_refund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L))
+                .build();
+        Ticket cancelledTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
+        Ticket activeTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(cancelledTicket, activeTicket));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, info))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("선택한 티켓 중 취소 가능한 예매 티켓이 아닌 항목이 있습니다.");
+
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(cardPaymentRefundService).shouldHaveNoInteractions();
+        then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("같은 티켓을 중복 선택하면 gateway 환불 전에 차단한다")
+    void reject_duplicate_ticket_selection_before_refund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L, 1L))
+                .build();
+        Ticket ticket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, info))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("취소할 티켓이 중복 선택되었습니다.");
+
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(cardPaymentRefundService).shouldHaveNoInteractions();
+        then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
     }
 
     private Reservation reservation(Long reservationId, String orderId, String userId, Event event) {
