@@ -31,6 +31,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -72,6 +73,9 @@ class ReservationManagementServiceTest {
 
     @Mock
     private PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
+
+    @Mock
+    private PaymentRefundProcessService paymentRefundProcessService;
 
     @Mock
     private CardPaymentRefundService cardPaymentRefundService;

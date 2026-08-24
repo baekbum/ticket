@@ -245,7 +245,36 @@ CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, st
 
 
 -- ==========================================
--- 11. Payment refund histories
+-- 11. Payment refund processes
+-- ==========================================
+CREATE TABLE payment_refund_processes (
+    payment_refund_process_id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL,
+    reservation_id BIGINT NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    refund_amount INTEGER NOT NULL,
+    full_cancellation BOOLEAN NOT NULL,
+    selected_ticket_ids VARCHAR(1000) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    refund_bank_company VARCHAR(30),
+    refund_account_number_masked VARCHAR(50),
+    refund_account_holder VARCHAR(50),
+    failure_reason VARCHAR(1000),
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_tried_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_payment_refund_processes_payment_id ON payment_refund_processes(payment_id);
+CREATE INDEX idx_payment_refund_processes_reservation_id ON payment_refund_processes(reservation_id);
+CREATE INDEX idx_payment_refund_processes_status ON payment_refund_processes(status);
+
+
+-- ==========================================
+-- 12. Payment refund histories
 -- ==========================================
 CREATE TABLE payment_refund_histories (
     payment_refund_history_id BIGSERIAL PRIMARY KEY,
@@ -266,7 +295,7 @@ CREATE INDEX idx_payment_refund_histories_reservation_id ON payment_refund_histo
 
 
 -- ==========================================
--- 12. Payment refund history tickets
+-- 13. Payment refund history tickets
 -- ==========================================
 CREATE TABLE payment_refund_history_tickets (
     payment_refund_history_ticket_id BIGSERIAL PRIMARY KEY,
@@ -280,7 +309,7 @@ CREATE INDEX idx_payment_refund_history_tickets_ticket_id ON payment_refund_hist
 
 
 -- ==========================================
--- 13. Tickets
+-- 14. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,

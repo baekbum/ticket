@@ -22,6 +22,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
@@ -33,6 +34,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -53,6 +56,7 @@ public class ReservationService {
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
+    private final PaymentRefundProcessService paymentRefundProcessService;
     private final CardPaymentRefundService cardPaymentRefundService;
     private final VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
     private final TicketJpaRepository ticketJpaRepository;
@@ -112,25 +116,32 @@ public class ReservationService {
         boolean fullCancellation = isFullCancellation(activeTickets, selectedTickets);
         boolean restoreCouponOnCancel = fullCancellation && reservation.getStatus() == ReservationStatus.PAID;
 
-        refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
-        List<Seat> cancelledSeats = cancelTickets(selectedTickets);
-        applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
+        Long paymentRefundProcessId = null;
+        try {
+            paymentRefundProcessId = refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
+            List<Seat> cancelledSeats = cancelTickets(selectedTickets);
+            applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
+            registerRefundProcessCompletion(paymentRefundProcessId);
 
-        seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
-        if (!cancelledSeats.isEmpty()) {
-            seatCacheService.updateUserPurchaseLimit(
-                    cancelledSeats.get(0).getEvent(),
-                    info.getUserId(),
-                    cancelledSeats.size(),
-                    "SUB"
-            );
+            seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
+            if (!cancelledSeats.isEmpty()) {
+                seatCacheService.updateUserPurchaseLimit(
+                        cancelledSeats.get(0).getEvent(),
+                        info.getUserId(),
+                        cancelledSeats.size(),
+                        "SUB"
+                );
+            }
+        } catch (RuntimeException e) {
+            markLocalFailed(paymentRefundProcessId, e);
+            throw e;
         }
     }
 
     /**
      * 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
      */
-    private void refundPaymentBeforeCancel(
+    private Long refundPaymentBeforeCancel(
             Reservation reservation,
             CancelReservationRequest info,
             List<Ticket> activeTickets,
@@ -139,49 +150,127 @@ public class ReservationService {
     ) {
         if (reservation.getStatus() != ReservationStatus.PAID
                 && reservation.getStatus() != ReservationStatus.PARTIALLY_CANCELLED) {
-            return;
+            return null;
         }
 
-        paymentJpaRepository.findByReservation(reservation)
-                .ifPresent(payment -> {
+        return paymentJpaRepository.findByReservation(reservation)
+                .map(payment -> {
                     if (payment.getStatus() != PaymentStatus.PAID
                             && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
-                        return;
+                        return null;
                     }
 
                     if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
-                        int refundAmount;
+                        int refundAmount = fullCancellation
+                                ? payment.getRefundableAmount()
+                                : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
 
-                        if (fullCancellation) {
-                            refundAmount = cardPaymentRefundService.refundAll(payment);
-                        } else {
-                            refundAmount = cardPaymentRefundService.refundPartial(payment, calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets));
-                        }
+                        Long paymentRefundProcessId = paymentRefundProcessService.create(payment, selectedTickets, refundAmount, fullCancellation, null);
+
+                        refundCardPayment(payment, refundAmount, fullCancellation, paymentRefundProcessId);
 
                         savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
-                        return;
+                        return paymentRefundProcessId;
                     }
 
                     if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
-                        int refundAmount;
+                        int refundAmount = fullCancellation
+                                ? payment.getRefundableAmount()
+                                : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
 
-                        if (fullCancellation) {
-                            refundAmount = virtualAccountPaymentRefundService.refundAll(
-                                    payment,
-                                    info.getRefundAccount()
-                            );
-                        } else {
-                            refundAmount = virtualAccountPaymentRefundService.refundPartial(
-                                    payment,
-                                    calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets),
-                                    info.getRefundAccount()
-                            );
-                        }
+                        Long paymentRefundProcessId = paymentRefundProcessService.create(payment, selectedTickets, refundAmount, fullCancellation, info.getRefundAccount());
+
+                        refundVirtualAccountPayment(payment, info, refundAmount, fullCancellation, paymentRefundProcessId);
 
                         savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
-                        return;
+                        return paymentRefundProcessId;
                     }
+
+                    return null;
+        }).orElse(null);
+    }
+
+    private void refundCardPayment(
+            Payment payment,
+            int refundAmount,
+            boolean fullCancellation,
+            Long paymentRefundProcessId
+    ) {
+        try {
+            if (fullCancellation) {
+                cardPaymentRefundService.refundAll(payment);
+            } else {
+                cardPaymentRefundService.refundPartial(payment, refundAmount);
+            }
+
+            markGatewaySucceeded(paymentRefundProcessId);
+        } catch (RuntimeException e) {
+            markGatewayFailed(paymentRefundProcessId, e);
+            throw e;
+        }
+    }
+
+    private void refundVirtualAccountPayment(
+            Payment payment,
+            CancelReservationRequest info,
+            int refundAmount,
+            boolean fullCancellation,
+            Long paymentRefundProcessId
+    ) {
+        try {
+            if (fullCancellation) {
+                virtualAccountPaymentRefundService.refundAll(payment, info.getRefundAccount());
+            } else {
+                virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount());
+            }
+
+            markGatewaySucceeded(paymentRefundProcessId);
+        } catch (RuntimeException e) {
+            markGatewayFailed(paymentRefundProcessId, e);
+            throw e;
+        }
+    }
+
+    private void registerRefundProcessCompletion(Long paymentRefundProcessId) {
+        if (paymentRefundProcessId == null) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            paymentRefundProcessService.markLocalSucceeded(paymentRefundProcessId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                paymentRefundProcessService.markLocalSucceeded(paymentRefundProcessId);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    paymentRefundProcessService.markLocalFailed(paymentRefundProcessId, null);
+                }
+            }
         });
+    }
+
+    private void markLocalFailed(Long paymentRefundProcessId, RuntimeException e) {
+        if (paymentRefundProcessId != null) {
+            paymentRefundProcessService.markLocalFailed(paymentRefundProcessId, e);
+        }
+    }
+
+    private void markGatewaySucceeded(Long paymentRefundProcessId) {
+        if (paymentRefundProcessId != null) {
+            paymentRefundProcessService.markGatewaySucceeded(paymentRefundProcessId);
+        }
+    }
+
+    private void markGatewayFailed(Long paymentRefundProcessId, RuntimeException e) {
+        if (paymentRefundProcessId != null) {
+            paymentRefundProcessService.markGatewayFailed(paymentRefundProcessId, e);
+        }
     }
 
     private void savePaymentRefundHistory(
