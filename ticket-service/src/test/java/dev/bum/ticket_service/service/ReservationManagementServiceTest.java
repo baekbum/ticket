@@ -106,6 +106,32 @@ class ReservationManagementServiceTest {
     }
 
     @Test
+    @DisplayName("예매 상세 조회는 환불 이력을 함께 반환한다")
+    void reservation_select_detail_with_refund_histories() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
+        Payment payment = cardPayment(reservation);
+        Ticket ticket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
+        payment.partialRefund(125000);
+        PaymentRefundHistory refundHistory = PaymentRefundHistory.create(payment, List.of(ticket), 125000, false);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+        given(reservationDeliveryJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.empty());
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentRefundHistoryJpaRepository.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation))
+                .willReturn(List.of(refundHistory));
+
+        var response = reservationManagementService.selectDetailById(1L);
+
+        assertThat(response.getRefundHistories()).hasSize(1);
+        assertThat(response.getRefundHistories().get(0).getRefundAmount()).isEqualTo(125000);
+        assertThat(response.getRefundHistories().get(0).getPaymentStatusAfter()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
+        assertThat(response.getRefundHistories().get(0).getTickets()).hasSize(1);
+        assertThat(response.getRefundHistories().get(0).getTickets().get(0).getTicketId()).isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("조건으로 예약 목록을 조회한다")
     void reservation_select_by_cond() {
         ReservationCondRequest cond = ReservationCondRequest.builder()

@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -41,6 +42,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentRefundHistory {
+
+    private static final java.time.format.DateTimeFormatter DATE_TIME_FORMATTER =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -122,5 +126,28 @@ public class PaymentRefundHistory {
     private void addTicket(Ticket ticket) {
         PaymentRefundHistoryTicket historyTicket = PaymentRefundHistoryTicket.create(this, ticket);
         this.tickets.add(historyTicket);
+    }
+
+    public PaymentRefundHistoryResponse toResponse() {
+        return PaymentRefundHistoryResponse.builder()
+                .paymentRefundHistoryId(this.paymentRefundHistoryId)
+                .paymentId(this.payment != null ? this.payment.getPaymentId() : null)
+                .reservationId(this.reservation != null ? this.reservation.getReservationId() : null)
+                .paymentNo(this.paymentNo)
+                .method(this.method)
+                .refundAmount(this.refundAmount)
+                .refundedAmountAfter(this.refundedAmountAfter)
+                .refundableAmountAfter(this.refundableAmountAfter)
+                .paymentStatusAfter(this.paymentStatusAfter)
+                .fullCancellation(this.fullCancellation)
+                .tickets(this.tickets.stream()
+                        .map(PaymentRefundHistoryTicket::toResponse)
+                        .toList())
+                .createdAt(formatDateTime(this.createdAt))
+                .build();
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 }

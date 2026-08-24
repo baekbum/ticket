@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryTicketResponse;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -51,6 +52,14 @@ public class PaymentRefundHistoryTicket {
                 .paymentRefundHistory(paymentRefundHistory)
                 .ticket(ticket)
                 .ticketPrice(ticket.getPrice())
+                .build();
+    }
+
+    public PaymentRefundHistoryTicketResponse toResponse() {
+        return PaymentRefundHistoryTicketResponse.builder()
+                .paymentRefundHistoryTicketId(this.paymentRefundHistoryTicketId)
+                .ticketId(this.ticket != null ? this.ticket.getTicketId() : null)
+                .ticketPrice(this.ticketPrice)
                 .build();
     }
 }

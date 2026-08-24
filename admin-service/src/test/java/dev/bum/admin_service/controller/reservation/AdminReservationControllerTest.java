@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.feign.reservation.ReservationServiceClient;
 import dev.bum.admin_service.security.SecurityConfig;
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +67,28 @@ class AdminReservationControllerTest {
                 .andExpect(jsonPath("$.reservationId").value(1L));
 
         then(reservationServiceClient).should().selectById(1L);
+    }
+
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @Test
+    @DisplayName("예매 상세 조회")
+    void reservation_select_detail_by_id() throws Exception {
+        ReservationDetailResponse response = ReservationDetailResponse.builder()
+                .reservation(reservationResponse())
+                .refundHistories(List.of(PaymentRefundHistoryResponse.builder()
+                        .paymentRefundHistoryId(1L)
+                        .refundAmount(125000)
+                        .build()))
+                .build();
+        given(reservationServiceClient.selectDetailById(1L)).willReturn(response);
+
+        mockMvc.perform(get(baseUrl + "/select/detail/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservation.reservationId").value(1L))
+                .andExpect(jsonPath("$.refundHistories[0].paymentRefundHistoryId").value(1L))
+                .andExpect(jsonPath("$.refundHistories[0].refundAmount").value(125000));
+
+        then(reservationServiceClient).should().selectDetailById(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
