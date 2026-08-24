@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.jpa.payment;
 
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
+import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -43,6 +44,9 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentRefundProcess {
+
+    private static final java.time.format.DateTimeFormatter DATE_TIME_FORMATTER =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -160,6 +164,29 @@ public class PaymentRefundProcess {
         return retryCount != null ? retryCount : 0;
     }
 
+    public PaymentRefundProcessResponse toResponse() {
+        return PaymentRefundProcessResponse.builder()
+                .paymentRefundProcessId(this.paymentRefundProcessId)
+                .paymentId(this.payment != null ? this.payment.getPaymentId() : null)
+                .reservationId(this.reservation != null ? this.reservation.getReservationId() : null)
+                .paymentNo(this.paymentNo)
+                .method(this.method)
+                .refundAmount(this.refundAmount)
+                .fullCancellation(this.fullCancellation)
+                .selectedTicketIds(this.selectedTicketIds)
+                .status(this.status != null ? this.status.name() : null)
+                .refundBankCompany(this.refundBankCompany)
+                .refundAccountNumberMasked(this.refundAccountNumberMasked)
+                .refundAccountHolder(this.refundAccountHolder)
+                .failureReason(this.failureReason)
+                .retryCount(getRetryCount())
+                .lastTriedAt(formatDateTime(this.lastTriedAt))
+                .completedAt(formatDateTime(this.completedAt))
+                .createdAt(formatDateTime(this.createdAt))
+                .updatedAt(formatDateTime(this.updatedAt))
+                .build();
+    }
+
     private static String formatTicketIds(List<Ticket> tickets) {
         return tickets.stream()
                 .map(Ticket::getTicketId)
@@ -179,6 +206,10 @@ public class PaymentRefundProcess {
 
         String lastDigits = normalizedAccountNumber.substring(normalizedAccountNumber.length() - 4);
         return "*".repeat(normalizedAccountNumber.length() - 4) + lastDigits;
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 
     private String trimFailureReason(String failureReason) {
