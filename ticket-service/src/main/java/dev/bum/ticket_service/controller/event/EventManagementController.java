@@ -8,7 +8,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
-import dev.bum.ticket_service.service.event.event.EventService;
+import dev.bum.ticket_service.service.event.event.EventManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EventManagementController {
 
-    private final EventService eventService;
+    private final EventManagementService eventManagementService;
     private final ObjectMapper objectMapper;
 
     @PostMapping(value = "/insert/bulk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -41,22 +41,22 @@ public class EventManagementController {
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventService.insertBulk(readEvent(event, InsertEventBulkRequest.class), posterImage));
+        return ResponseEntity.ok(eventManagementService.insertBulk(readEvent(event, InsertEventBulkRequest.class), posterImage));
     }
 
     @GetMapping("/select/id/{eventId}")
     public ResponseEntity<EventResponse> selectById(@PathVariable("eventId") Long eventId) {
-        return ResponseEntity.ok(eventService.selectById(eventId));
+        return ResponseEntity.ok(eventManagementService.selectById(eventId));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<EventResponse>> selectByCond(@RequestBody EventCondRequest cond) {
-        return ResponseEntity.ok(eventService.selectByCond(cond));
+        return ResponseEntity.ok(eventManagementService.selectByCond(cond));
     }
 
     @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<EventResponse> update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info) {
-        return ResponseEntity.ok(eventService.update(eventId, info));
+        return ResponseEntity.ok(eventManagementService.update(eventId, info));
     }
 
     @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -65,17 +65,17 @@ public class EventManagementController {
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
-        return ResponseEntity.ok(eventService.update(eventId, readEvent(event, UpdateEventRequest.class), posterImage));
+        return ResponseEntity.ok(eventManagementService.update(eventId, readEvent(event, UpdateEventRequest.class), posterImage));
     }
 
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
-        return ResponseEntity.ok(eventService.delete(eventId));
+        return ResponseEntity.ok(eventManagementService.delete(eventId));
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteEventBulkRequest info) {
-        eventService.deleteBulk(info);
+        eventManagementService.deleteBulk(info);
         return ResponseEntity.ok().build();
     }
 

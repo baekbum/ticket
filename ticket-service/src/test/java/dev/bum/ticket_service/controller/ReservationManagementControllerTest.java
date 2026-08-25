@@ -9,8 +9,9 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.controller.reservation.reservation.ReservationManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +47,10 @@ class ReservationManagementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
-    private ReservationService reservationService;
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
+    @MockitoBean
+    private ReservationManagementService reservationManagementService;
 
     private final String baseUrl = "/api/v1/manage/reservation";
 
@@ -62,13 +66,13 @@ class ReservationManagementControllerTest {
     @DisplayName("관리자가 예약을 ID로 조회한다")
     void reservation_select_by_id() throws Exception {
         ReservationResponse response = reservationResponse(1L, 2);
-        given(reservationService.selectById(1L)).willReturn(response);
+        given(reservationManagementService.selectById(1L)).willReturn(response);
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reservationId").value(1L));
 
-        then(reservationService).should().selectById(1L);
+        then(reservationManagementService).should().selectById(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -90,7 +94,7 @@ class ReservationManagementControllerTest {
                 1
         );
 
-        given(reservationService.selectByCond(any())).willReturn(response);
+        given(reservationManagementService.selectByCond(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/select")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -98,7 +102,7 @@ class ReservationManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].reservationId").value(1L));
 
-        then(reservationService).should().selectByCond(cond);
+        then(reservationManagementService).should().selectByCond(cond);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -112,7 +116,7 @@ class ReservationManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(reservationService).should().cancel(1L, info);
+        then(reservationManagementService).should().cancel(1L, info);
     }
 
     private CancelReservationRequest cancelRequest(String userId) {

@@ -12,6 +12,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.controller.seat.SeatController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.seat.SeatService;
@@ -50,6 +51,9 @@ class SeatControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
 
     @MockitoBean
     private SeatService seatService;

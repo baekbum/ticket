@@ -9,6 +9,8 @@
     serviceName: null,
     actorId: null,
     action: null,
+    targetType: null,
+    targetId: null,
     result: null
   };
   let serverTotalPages = 1;
@@ -76,6 +78,30 @@
       'ticket-service': '티켓'
     };
     return displayNames[serviceName] || serviceName || '-';
+  }
+
+  function renderContextFilter() {
+    const area = document.getElementById('audit-context-filter');
+    if (!area) return;
+
+    if (!currentSearchFilters.targetType && !currentSearchFilters.targetId) {
+      area.style.display = 'none';
+      area.innerHTML = '';
+      return;
+    }
+
+    area.style.display = 'flex';
+    area.innerHTML = `
+      <span>
+        대상 필터 적용 중:
+        <strong>${escapeHtml(currentSearchFilters.targetType || '-')}</strong>
+        /
+        <strong>${escapeHtml(currentSearchFilters.targetId || '-')}</strong>
+      </span>
+      <button class="btn btn-sm btn-outline" onclick="clearAuditTargetFilter()">
+        필터 해제
+      </button>
+    `;
   }
 
   function buildCond(pageZeroIndexed) {
@@ -160,9 +186,12 @@
       serviceName: inputValue('audit-search-service-name') || null,
       actorId: inputValue('audit-search-actor-id') || null,
       action: inputValue('audit-search-action') || null,
+      targetType: currentSearchFilters.targetType,
+      targetId: currentSearchFilters.targetId,
       result: inputValue('audit-search-result') || null
     };
     syncAuditResultFilters();
+    renderContextFilter();
     loadAuditLogList(0);
   };
 
@@ -173,6 +202,8 @@
       serviceName: null,
       actorId: null,
       action: null,
+      targetType: null,
+      targetId: null,
       result: null
     };
     setValue('audit-search-period', '');
@@ -183,8 +214,42 @@
     setValue('audit-search-action', '');
     setValue('audit-search-result', '');
     syncAuditResultFilters();
+    renderContextFilter();
     loadAuditLogList(0);
   };
+
+  window.clearAuditTargetFilter = function () {
+    currentSearchFilters.targetType = null;
+    currentSearchFilters.targetId = null;
+    renderContextFilter();
+    loadAuditLogList(0);
+  };
+
+  function applyAuditSearchContext(context) {
+    if (!context) return;
+
+    currentSearchFilters = {
+      occurredFrom: context.occurredFrom || null,
+      occurredTo: context.occurredTo || null,
+      serviceName: context.serviceName || null,
+      actorId: context.actorId || null,
+      action: context.action || null,
+      targetType: context.targetType || null,
+      targetId: context.targetId || null,
+      result: context.result || null
+    };
+
+    setValue('audit-search-period', '');
+    setValue('audit-search-from', '');
+    setValue('audit-search-to', '');
+    setValue('audit-search-service-name', currentSearchFilters.serviceName);
+    setValue('audit-search-actor-id', currentSearchFilters.actorId);
+    setValue('audit-search-action', currentSearchFilters.action);
+    setValue('audit-search-result', currentSearchFilters.result);
+    syncAuditResultFilters();
+    renderContextFilter();
+    loadAuditLogList(0);
+  }
 
   window.applyAuditLogPeriodPreset = function () {
     const preset = inputValue('audit-search-period');
@@ -277,6 +342,12 @@
     getTotalPages: () => serverTotalPages
   });
 
+  window.addEventListener('admin:fragment-loaded', event => {
+    if (event.detail?.menuName !== 'auditLog') return;
+    applyAuditSearchContext(event.detail?.context?.auditSearch);
+  });
+
   setValue('audit-search-period', '7days');
+  renderContextFilter();
   applyAuditLogPeriodPreset();
 })();

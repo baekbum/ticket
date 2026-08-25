@@ -64,6 +64,8 @@ public class ViewController {
             return "fragment/fragment-reservation";
         } else if ("reservationDelivery".equals(menuName)) {
             return "fragment/fragment-reservation-delivery";
+        } else if ("paymentRefundProcess".equals(menuName)) {
+            return "fragment/fragment-payment-refund-process";
         } else if ("coupon".equals(menuName)) {
             return "fragment/fragment-coupon";
         } else if ("userCoupon".equals(menuName)) {

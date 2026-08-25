@@ -8,6 +8,8 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountI
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
@@ -141,6 +143,55 @@ class GatewayVirtualAccountServiceTest {
     }
 
     @Test
+    @DisplayName("무통장 환불 요청은 성공 로그 기준으로 환불 완료 응답을 반환한다")
+    void refund_virtual_account() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180000));
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountRefundResponse response = gatewayVirtualAccountService.refund(request);
+
+        assertThat(response.getPaymentNo()).isEqualTo("PAY-20260727120000-abcdef123456");
+        assertThat(response.getRefundBankCompany()).isEqualTo(BankCompany.KB);
+        assertThat(response.getRefundAccountNumber()).isEqualTo("123-456-7890");
+        assertThat(response.getRefundAccountHolder()).isEqualTo("홍길동");
+        assertThat(response.getRefundedAmount()).isEqualByComparingTo("180000");
+        assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
+    }
+
+    @Test
+    @DisplayName("무통장 부분 환불 요청은 성공 로그 기준으로 환불 완료 응답을 반환한다")
+    void refund_partial_virtual_account() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountRefundResponse response = gatewayVirtualAccountService.refund(request);
+
+        assertThat(response.getPaymentNo()).isEqualTo("PAY-20260727120000-abcdef123456");
+        assertThat(response.getRefundedAmount()).isEqualByComparingTo("90000");
+        assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
+    }
+
+    @Test
+    @DisplayName("입금 완료 반영 전 가상계좌는 환불할 수 없다")
+    void reject_refund_not_completed_virtual_account() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180000));
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("환불할 수 없는 가상계좌 상태입니다.");
+    }
+
+    @Test
     @DisplayName("입금 금액이 다르면 입금 상태로 변경하지 않는다")
     void reject_deposit_amount_mismatch() {
         DummyVirtualAccount virtualAccount = virtualAccount();
@@ -211,6 +262,16 @@ class GatewayVirtualAccountServiceTest {
                 .build();
     }
 
+    private GatewayVirtualAccountRefundRequest refundRequest(BigDecimal amount) {
+        return GatewayVirtualAccountRefundRequest.builder()
+                .paymentNo("PAY-20260727120000-abcdef123456")
+                .refundBankCompany(BankCompany.KB)
+                .refundAccountNumber("123-456-7890")
+                .refundAccountHolder("홍길동")
+                .refundAmount(amount)
+                .build();
+    }
+
     private DummyVirtualAccount virtualAccount() {
         return DummyVirtualAccount.issue(
                 "PAY-20260727120000-abcdef123456",
@@ -219,6 +280,13 @@ class GatewayVirtualAccountServiceTest {
                 BigDecimal.valueOf(180000),
                 LocalDateTime.of(2099, 7, 27, 23, 59, 59)
         );
+    }
+
+    private DummyVirtualAccount completedVirtualAccount() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        virtualAccount.deposit("아이유", LocalDateTime.of(2026, 8, 19, 12, 0));
+        virtualAccount.completeTicketPayment(LocalDateTime.of(2026, 8, 19, 12, 1));
+        return virtualAccount;
     }
 
     private PaymentResponse paymentResponse() {

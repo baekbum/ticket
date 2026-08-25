@@ -24,15 +24,6 @@ public class TicketService {
     private final ReservationRepository reservationRepository;
 
     /**
-     * 관리자 기준으로 예매 ID에 연결된 모든 티켓 목록을 조회한다.
-     */
-    public List<TicketResponse> selectByReservationId(long reservationId) {
-        Reservation reservation = reservationRepository.selectById(reservationId);
-
-        return selectTicketsByReservation(reservation);
-    }
-
-    /**
      * 로그인 사용자가 본인 예매에 연결된 티켓 목록을 조회한다.
      */
     public List<TicketResponse> selectMyTicketsByReservationId(String currentUserId, long reservationId) {

@@ -77,6 +77,11 @@ public class DummyCardPaymentHistory {
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
+    // 누적 환불 금액.
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+
     // payment-gateway와 ticket-service 연동 처리 상태.
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
@@ -160,5 +165,37 @@ public class DummyCardPaymentHistory {
     public void cancel(String failureReason) {
         this.status = CardPaymentHistoryStatus.CANCELLED;
         this.failureReason = failureReason;
+    }
+
+    public void refund() {
+        this.refundedAmount = this.amount;
+        this.status = CardPaymentHistoryStatus.REFUNDED;
+        this.failureReason = null;
+    }
+
+    public void refund(BigDecimal refundAmount) {
+        validateRefundAmount(refundAmount);
+        this.refundedAmount = getRefundedAmount().add(refundAmount);
+        this.status = getRefundableAmount().compareTo(BigDecimal.ZERO) == 0
+                ? CardPaymentHistoryStatus.REFUNDED
+                : CardPaymentHistoryStatus.PARTIALLY_REFUNDED;
+        this.failureReason = null;
+    }
+
+    public BigDecimal getRefundedAmount() {
+        return refundedAmount != null ? refundedAmount : BigDecimal.ZERO;
+    }
+
+    public BigDecimal getRefundableAmount() {
+        return amount.subtract(getRefundedAmount());
+    }
+
+    private void validateRefundAmount(BigDecimal refundAmount) {
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
+        }
+        if (refundAmount.compareTo(getRefundableAmount()) > 0) {
+            throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
+        }
     }
 }

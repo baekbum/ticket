@@ -27,7 +27,6 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.QTicket;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import jakarta.persistence.EntityManager;
@@ -44,7 +43,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -182,51 +180,6 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     }
 
     /**
-     * 예매 취소 메서드
-     * @param id
-     */
-    @Override
-    public List<Seat> cancel(long id, CancelReservationRequest info) {
-        // 1. 예매, 티켓 정보 조회.
-        Reservation foundReservation = selectById(id);
-        List<Long> selectedTicketIdList = info.getSelectedTicketIdList();
-
-        List<Ticket> tickets = selectedTicketIdList.isEmpty()
-                ? ticketRepository.selectByReservation(foundReservation)
-                : ticketRepository.selectByIdList(selectedTicketIdList);
-
-        // 2. 티켓과 좌석 상태 변경
-        for (Ticket ticket : tickets) {
-            // 티켓 상태를 cancelled로 변경
-            ticket.cancel();
-
-            // 좌석 상태를 available로 변경
-            ticket.getSeat().available();
-        }
-
-        // 3. 해당 예매에 속한 전체 티켓 중 유효한 티켓이 하나라도 남아있는지 확인
-        List<TicketStatus> activeStatuses = List.of(
-                TicketStatus.PENDING_PAYMENT,
-                TicketStatus.PAID
-        );
-
-        boolean hasActiveTicket = foundReservation.getTickets().stream()
-                .anyMatch(ticket -> activeStatuses.contains(ticket.getStatus()));
-
-        // 4. 판단 결과에 따라 예매 상태 변경
-        if (hasActiveTicket) {
-            foundReservation.partial_cancel(); // 여전히 유효한 티켓이 있다면 부분 취소
-        } else {
-            foundReservation.cancel();        // 모든 티켓이 취소되었다면 전체 취소
-            restoreUsedCoupons(foundReservation);
-        }
-
-        return tickets.stream()
-                .map(Ticket::getSeat)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * 선택한 좌석의 총 가격을 계산
      * @param seats
      * @return
@@ -353,22 +306,6 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .discountValue(discountSnapshot.getDiscountValue())
                 .discountAmount(discountSnapshot.getDiscountAmount())
                 .build());
-    }
-
-    /**
-     * 취소시 쿠폰을 다시 복구
-     * @param reservation
-     */
-    private void restoreUsedCoupons(Reservation reservation) {
-        List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
-        LocalDateTime now = LocalDateTime.now();
-
-        for (ReservationDiscount discount : discounts) {
-            UserCoupon userCoupon = discount.getUserCoupon();
-            if (userCoupon != null && userCoupon.getStatus() == UserCouponStatus.USED) {
-                userCoupon.restore(now);
-            }
-        }
     }
 
     /**

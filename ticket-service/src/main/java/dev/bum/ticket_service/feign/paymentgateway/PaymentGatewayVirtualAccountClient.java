@@ -9,4 +9,7 @@ public interface PaymentGatewayVirtualAccountClient {
 
     @PostMapping("/api/v1/payments/virtual-account/issue")
     GatewayVirtualAccountIssueResponse issue(@RequestBody GatewayVirtualAccountIssueRequest request);
+
+    @PostMapping("/api/v1/payments/virtual-account/refund")
+    GatewayVirtualAccountRefundResponse refund(@RequestBody GatewayVirtualAccountRefundRequest request);
 }

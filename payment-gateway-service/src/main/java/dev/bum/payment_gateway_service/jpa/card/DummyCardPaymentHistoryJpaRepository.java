@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<DummyCardPaymentHistory, Long> {
 
     Optional<DummyCardPaymentHistory> findByPaymentNo(String paymentNo);
+
+    Optional<DummyCardPaymentHistory> findByPaymentNoAndTransactionId(String paymentNo, String transactionId);
 }

@@ -40,6 +40,8 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final StringPath paymentNo = createString("paymentNo");
 
+    public final NumberPath<Integer> refundedAmount = createNumber("refundedAmount", Integer.class);
+
     public final DateTimePath<java.time.LocalDateTime> requestedAt = createDateTime("requestedAt", java.time.LocalDateTime.class);
 
     public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;

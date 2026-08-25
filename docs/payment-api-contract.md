@@ -114,6 +114,34 @@ Content-Type: application/json
 6. 실패 시 카드 승인 취소, gateway card history = CANCELLED, ticket-service 실패 반영 요청
 ```
 
+## Gateway 카드 전체 환불
+
+ticket-service가 카드 결제 완료 예매를 전체 취소할 때 사용한다. 예매/티켓/좌석 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
+
+```http
+POST /payment-gateway/api/v1/payments/card/refund
+Content-Type: application/json
+```
+
+```json
+{
+  "paymentNo": "PAY-...",
+  "transactionId": "CARD-...",
+  "refundAmount": 250000
+}
+```
+
+처리 규칙:
+
+```text
+1. paymentNo + transactionId로 gateway 카드 승인 이력 조회
+2. gateway card history = TICKET_PAYMENT_COMPLETED 상태 검증
+3. 전체 환불 금액이 승인 금액과 일치하는지 검증
+4. DummyCard.currentMonthUsedAmount에서 환불 금액 차감
+5. gateway card history = REFUNDED
+6. ticket-service는 환불 성공 후 Payment.status=REFUNDED, 예매/티켓=CANCELLED, 좌석=AVAILABLE 반영
+```
+
 ## Gateway 가상계좌 입금
 
 ```http

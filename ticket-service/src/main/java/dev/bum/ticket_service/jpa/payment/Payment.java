@@ -79,6 +79,11 @@ public class Payment {
     @Column(nullable = false)
     private Integer amount;
 
+    // 결제 완료 이후 누적 환불 금액.
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false)
+    private Integer refundedAmount = 0;
+
     // 같은 결제 요청이 중복 처리되지 않도록 클라이언트나 서버가 발급하는 멱등성 키.
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
@@ -130,6 +135,8 @@ public class Payment {
                 .method(this.method)
                 .status(this.status)
                 .amount(this.amount)
+                .refundedAmount(getRefundedAmount())
+                .refundableAmount(getRefundableAmount())
                 .cardTransactionId(getCardTransactionId())
                 .cardCompany(getCardCompany())
                 .maskedCardNumber(getMaskedCardNumber())
@@ -186,11 +193,21 @@ public class Payment {
     }
 
     public void refund() {
+        this.refundedAmount = this.amount;
         this.status = PaymentStatus.REFUNDED;
+    }
+
+    public void partialRefund(Integer refundAmount) {
+        validateRefundAmount(refundAmount);
+        this.refundedAmount = getRefundedAmount() + refundAmount;
+        this.status = getRefundableAmount() == 0
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.PARTIALLY_REFUNDED;
     }
 
     public void ready() {
         this.status = PaymentStatus.READY;
+        this.refundedAmount = 0;
         this.paidAt = null;
         this.expiresAt = null;
     }
@@ -221,5 +238,22 @@ public class Payment {
 
     public String getDepositorName() {
         return virtualAccountInfo != null ? virtualAccountInfo.getDepositorName() : null;
+    }
+
+    public Integer getRefundedAmount() {
+        return refundedAmount != null ? refundedAmount : 0;
+    }
+
+    public Integer getRefundableAmount() {
+        return this.amount - getRefundedAmount();
+    }
+
+    private void validateRefundAmount(Integer refundAmount) {
+        if (refundAmount == null || refundAmount <= 0) {
+            throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
+        }
+        if (refundAmount > getRefundableAmount()) {
+            throw new IllegalArgumentException("환불 금액이 남은 결제 금액을 초과했습니다.");
+        }
     }
 }

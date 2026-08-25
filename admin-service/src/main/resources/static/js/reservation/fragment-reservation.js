@@ -96,7 +96,8 @@
       FAILED: '결제 실패',
       CANCELLED: '결제 취소',
       EXPIRED: '만료',
-      REFUNDED: '환불 완료'
+      REFUNDED: '환불 완료',
+      PARTIALLY_REFUNDED: '부분 환불'
     };
     return labels[status] || status || '-';
   }
@@ -109,7 +110,8 @@
       FAILED: 'badge-cancelled',
       CANCELLED: 'badge-cancelled',
       EXPIRED: 'badge-expired',
-      REFUNDED: 'badge-partial'
+      REFUNDED: 'badge-partial',
+      PARTIALLY_REFUNDED: 'badge-partial'
     };
     return `<span class="badge ${classMap[status] || 'badge-expired'}">${escapeHtml(paymentStatusLabel(status))}</span>`;
   }
@@ -335,6 +337,7 @@
     const reservation = detail?.reservation || {};
     const tickets = Array.isArray(detail?.tickets) ? detail.tickets : [];
     const discounts = Array.isArray(detail?.discounts) ? detail.discounts : [];
+    const refundHistories = Array.isArray(detail?.refundHistories) ? detail.refundHistories : [];
     const delivery = detail?.delivery;
     const payment = detail?.payment;
 
@@ -353,6 +356,7 @@
     renderDetailDiscounts(discounts);
     renderDetailDelivery(delivery);
     renderDetailPayment(payment, detail);
+    renderDetailRefundHistories(refundHistories);
 
     document.getElementById('reservation-detail-loading').style.display = 'none';
     document.getElementById('reservation-detail-body').style.display = 'grid';
@@ -450,6 +454,39 @@
       ['완료일', payment.paidAt],
       ['만료일', payment.expiresAt]
     ].map(([label, value, html]) => detailItem(label, value, html)).join('');
+  }
+
+  function renderDetailRefundHistories(refundHistories) {
+    const totalRefundAmount = refundHistories.reduce((sum, history) => sum + Number(history.refundAmount || 0), 0);
+    document.getElementById('detail-refund-summary').textContent =
+      `${refundHistories.length.toLocaleString()}건 / ${money(totalRefundAmount)}`;
+
+    const tbody = document.getElementById('detail-refund-history-body');
+    if (refundHistories.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="detail-empty-cell">환불 이력이 없습니다.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = refundHistories.map(history => `
+      <tr>
+        <td>#${escapeHtml(history.paymentRefundHistoryId)}</td>
+        <td>${escapeHtml(history.method || '-')}</td>
+        <td class="number-cell">${money(history.refundAmount)}</td>
+        <td class="number-cell">${money(history.refundedAmountAfter)}</td>
+        <td class="number-cell">${money(history.refundableAmountAfter)}</td>
+        <td>${paymentStatusBadge(history.paymentStatusAfter)}</td>
+        <td>${history.fullCancellation ? '전체 취소' : '부분 취소'}</td>
+        <td title="${escapeHtml(formatRefundTickets(history.tickets))}">${escapeHtml(formatRefundTickets(history.tickets))}</td>
+        <td>${escapeHtml(history.createdAt || '-')}</td>
+      </tr>
+    `).join('');
+  }
+
+  function formatRefundTickets(tickets) {
+    if (!Array.isArray(tickets) || tickets.length === 0) return '-';
+    return tickets
+      .map(ticket => `#${ticket.ticketId}(${money(ticket.ticketPrice)})`)
+      .join(', ');
   }
 
   function detailItem(label, value, html = false) {

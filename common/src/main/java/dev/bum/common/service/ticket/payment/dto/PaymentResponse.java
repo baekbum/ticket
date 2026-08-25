@@ -21,6 +21,8 @@ public class PaymentResponse {
     private PaymentMethod method;
     private PaymentStatus status;
     private Integer amount;
+    private Integer refundedAmount;
+    private Integer refundableAmount;
     private String cardTransactionId;
     private CardCompany cardCompany;
     private String maskedCardNumber;

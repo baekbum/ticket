@@ -42,27 +42,6 @@ class TicketServiceTest {
     private ReservationRepository reservationRepository;
 
     @Test
-    @DisplayName("예약 ID로 티켓 목록 조회")
-    void ticket_select_by_reservation_id() {
-        Event event = event();
-        Reservation reservation = reservation(1L, event);
-        Ticket firstTicket = ticket(1L, reservation, event, seat(1L, event, "VIP", 1, 1));
-        Ticket secondTicket = ticket(2L, reservation, event, seat(2L, event, "VIP", 1, 2));
-
-        given(reservationRepository.selectById(1L)).willReturn(reservation);
-        given(ticketRepository.selectByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
-
-        List<TicketResponse> response = ticketService.selectByReservationId(1L);
-
-        assertThat(response).hasSize(2);
-        assertThat(response.get(0).getTicketId()).isEqualTo(1L);
-        assertThat(response.get(0).getSeatId()).isEqualTo(1L);
-        assertThat(response.get(0).getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT.name());
-        then(reservationRepository).should().selectById(1L);
-        then(ticketRepository).should().selectByReservation(reservation);
-    }
-
-    @Test
     @DisplayName("본인 예약 ID로 티켓 목록 조회")
     void ticket_select_my_tickets_by_reservation_id() {
         Event event = event();
