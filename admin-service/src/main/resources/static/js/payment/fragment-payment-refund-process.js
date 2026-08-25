@@ -249,6 +249,20 @@
     );
   };
 
+  window.openRefundProcessAuditLog = function () {
+    if (!currentDetailProcess) return;
+
+    const paymentRefundProcessId = currentDetailProcess.paymentRefundProcessId;
+    closeRefundProcessDetailModal();
+    window.switchMenuWithContext('auditLog', {
+      auditSearch: {
+        serviceName: 'ticket-service',
+        targetType: 'PAYMENT_REFUND_PROCESS',
+        targetId: String(paymentRefundProcessId)
+      }
+    });
+  };
+
   async function processManualAction(url, payload, successMessage) {
     try {
       const options = { method: 'PUT', headers };
