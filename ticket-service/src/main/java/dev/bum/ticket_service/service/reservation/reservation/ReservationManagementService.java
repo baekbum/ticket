@@ -27,6 +27,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -185,9 +186,14 @@ public class ReservationManagementService {
                         int refundAmount = fullCancellation
                                 ? payment.getRefundableAmount()
                                 : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
-                        Long paymentRefundProcessId = paymentRefundProcessService.create(payment, selectedTickets, refundAmount, fullCancellation, null);
+                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(payment, selectedTickets, refundAmount, fullCancellation, null);
+                        Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
 
-                        refundCardPayment(payment, refundAmount, fullCancellation, paymentRefundProcessId);
+                        if (gatewayAttempt.isGatewayRequired()) {
+                            refundCardPayment(payment, refundAmount, fullCancellation, paymentRefundProcessId);
+                        } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
+                            applyPaymentRefund(payment, refundAmount, fullCancellation);
+                        }
 
                         savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
@@ -197,9 +203,14 @@ public class ReservationManagementService {
                         int refundAmount = fullCancellation
                                 ? payment.getRefundableAmount()
                                 : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
-                        Long paymentRefundProcessId = paymentRefundProcessService.create(payment, selectedTickets, refundAmount, fullCancellation, info.getRefundAccount());
+                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(payment, selectedTickets, refundAmount, fullCancellation, info.getRefundAccount());
+                        Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
 
-                        refundVirtualAccountPayment(payment, info, refundAmount, fullCancellation, paymentRefundProcessId);
+                        if (gatewayAttempt.isGatewayRequired()) {
+                            refundVirtualAccountPayment(payment, info, refundAmount, fullCancellation, paymentRefundProcessId);
+                        } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
+                            applyPaymentRefund(payment, refundAmount, fullCancellation);
+                        }
 
                         savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
@@ -299,6 +310,14 @@ public class ReservationManagementService {
         paymentRefundHistoryJpaRepository.save(
                 PaymentRefundHistory.create(payment, selectedTickets, refundAmount, fullCancellation)
         );
+    }
+
+    private void applyPaymentRefund(Payment payment, int refundAmount, boolean fullCancellation) {
+        if (fullCancellation) {
+            payment.refund();
+            return;
+        }
+        payment.partialRefund(refundAmount);
     }
 
     private void validateCancelableReservation(Reservation reservation) {

@@ -31,10 +31,12 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,11 +52,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationManagementServiceTest {
@@ -91,6 +96,12 @@ class ReservationManagementServiceTest {
 
     @Mock
     private ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyBoolean(), any()))
+                .thenReturn(new PaymentRefundProcessGatewayAttempt(1L, true, false));
+    }
 
     @Test
     @DisplayName("ID로 예약을 조회한다")

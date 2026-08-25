@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -78,5 +79,22 @@ class AdminPaymentRefundProcessControllerTest {
                 .andExpect(jsonPath("$.content[0].status").value("GATEWAY_FAILED"));
 
         then(paymentRefundProcessServiceClient).should().selectByCond(cond);
+    }
+
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @Test
+    @DisplayName("관리자가 로컬 환불 반영을 수동 완료 처리한다")
+    void payment_refund_process_complete_local() throws Exception {
+        PaymentRefundProcessResponse response = PaymentRefundProcessResponse.builder()
+                .paymentRefundProcessId(1L)
+                .status("LOCAL_SUCCEEDED")
+                .build();
+        given(paymentRefundProcessServiceClient.completeLocal(1L)).willReturn(response);
+
+        mockMvc.perform(put(baseUrl + "/local-complete/id/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("LOCAL_SUCCEEDED"));
+
+        then(paymentRefundProcessServiceClient).should().completeLocal(1L);
     }
 }

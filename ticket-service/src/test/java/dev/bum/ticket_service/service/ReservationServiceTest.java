@@ -30,10 +30,12 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,11 +53,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
@@ -89,6 +95,12 @@ class ReservationServiceTest {
 
     @Mock
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyBoolean(), any()))
+                .thenReturn(new PaymentRefundProcessGatewayAttempt(1L, true, false));
+    }
 
     @Test
     @DisplayName("본인 예약을 ID로 조회한다")
@@ -252,6 +264,36 @@ class ReservationServiceTest {
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment);
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
+    }
+
+    @Test
+    @DisplayName("gateway 환불 성공 후 본인 예매 취소 재요청은 gateway 재호출 없이 로컬 상태를 반영한다")
+    void complete_local_state_without_gateway_call_when_gateway_already_succeeded() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("other-user")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L, 2L))
+                .build();
+        Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
+        given(paymentRefundProcessService.startGatewayAttempt(payment, List.of(firstTicket, secondTicket), 250000, true, null))
+                .willReturn(new PaymentRefundProcessGatewayAttempt(1L, false, true));
+
+        reservationService.cancelMyReservation("user01", 1L, info);
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(250000);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(secondTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+        then(cardPaymentRefundService).should(never()).refundAll(payment);
         then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 

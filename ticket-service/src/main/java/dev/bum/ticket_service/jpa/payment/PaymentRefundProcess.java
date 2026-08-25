@@ -142,6 +142,22 @@ public class PaymentRefundProcess {
         this.lastTriedAt = LocalDateTime.now();
     }
 
+    public void gatewayRetryRequested() {
+        this.status = PaymentRefundProcessStatus.REQUESTED;
+        this.failureReason = null;
+        this.lastTriedAt = LocalDateTime.now();
+    }
+
+    public void updateRefundAccount(RefundAccountRequest refundAccount) {
+        if (refundAccount == null) {
+            return;
+        }
+
+        this.refundBankCompany = refundAccount.getBankCompany();
+        this.refundAccountNumberMasked = maskAccountNumber(refundAccount.getAccountNumber());
+        this.refundAccountHolder = refundAccount.getAccountHolder();
+    }
+
     public void gatewayFailed(String failureReason) {
         this.status = PaymentRefundProcessStatus.GATEWAY_FAILED;
         this.failureReason = trimFailureReason(failureReason);
