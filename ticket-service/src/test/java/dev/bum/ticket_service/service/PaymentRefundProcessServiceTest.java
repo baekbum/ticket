@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
@@ -174,6 +175,7 @@ class PaymentRefundProcessServiceTest {
         assertThat(AuditContext.getAfterData()).containsEntry("status", "LOCAL_SUCCEEDED");
         then(paymentRefundHistoryJpaRepository).should().save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getRefundAmount()).isEqualTo(250000);
+        assertThat(historyCaptor.getValue().getPaymentRefundProcess()).isEqualTo(process);
     }
 
     @Test
@@ -197,6 +199,27 @@ class PaymentRefundProcessServiceTest {
         assertThat(AuditContext.getBeforeData()).containsEntry("status", "LOCAL_FAILED");
         assertThat(AuditContext.getAfterData()).containsEntry("status", "LOCAL_SUCCEEDED");
         then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
+    }
+
+    @Test
+    @DisplayName("이미 환불 이력이 저장된 환불 프로세스는 중복 이력 저장을 차단한다")
+    void prevent_duplicate_refund_history() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
+
+        given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
+        given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
+        given(paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)).willReturn(true);
+
+        assertThatThrownBy(() -> paymentRefundProcessService.completeLocal(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("이미 환불 이력이 저장된 환불 처리입니다.");
+
+        then(paymentRefundHistoryJpaRepository).should().existsByPaymentRefundProcess(process);
+        then(paymentRefundHistoryJpaRepository).shouldHaveNoMoreInteractions();
+        assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
     }
 
     private PaymentRefundProcess refundProcess(

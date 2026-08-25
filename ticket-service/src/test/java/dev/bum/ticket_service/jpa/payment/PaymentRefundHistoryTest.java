@@ -29,16 +29,19 @@ class PaymentRefundHistoryTest {
         Payment payment = cardPayment(reservation);
         Ticket firstTicket = ticket(1L, reservation);
         Ticket secondTicket = ticket(2L, reservation);
+        PaymentRefundProcess process = paymentRefundProcess(payment, List.of(firstTicket, secondTicket));
 
         payment.partialRefund(125000);
 
         PaymentRefundHistory history = PaymentRefundHistory.create(
+                process,
                 payment,
                 List.of(firstTicket, secondTicket),
                 125000,
                 false
         );
 
+        assertThat(history.getPaymentRefundProcess()).isEqualTo(process);
         assertThat(history.getPayment()).isEqualTo(payment);
         assertThat(history.getReservation()).isEqualTo(reservation);
         assertThat(history.getPaymentNo()).isEqualTo("PAY-1");
@@ -51,6 +54,10 @@ class PaymentRefundHistoryTest {
         assertThat(history.getTickets()).hasSize(2);
         assertThat(history.getTickets().get(0).getTicket()).isEqualTo(firstTicket);
         assertThat(history.getTickets().get(0).getTicketPrice()).isEqualTo(150000);
+    }
+
+    private PaymentRefundProcess paymentRefundProcess(Payment payment, List<Ticket> tickets) {
+        return PaymentRefundProcess.create(payment, tickets, 125000, false, null);
     }
 
     private Payment cardPayment(Reservation reservation) {

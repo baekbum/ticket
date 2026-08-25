@@ -278,6 +278,7 @@ CREATE INDEX idx_payment_refund_processes_status ON payment_refund_processes(sta
 -- ==========================================
 CREATE TABLE payment_refund_histories (
     payment_refund_history_id BIGSERIAL PRIMARY KEY,
+    payment_refund_process_id BIGINT NOT NULL,
     payment_id BIGINT NOT NULL,
     reservation_id BIGINT NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
@@ -287,7 +288,9 @@ CREATE TABLE payment_refund_histories (
     refundable_amount_after INTEGER NOT NULL,
     payment_status_after VARCHAR(30) NOT NULL,
     full_cancellation BOOLEAN NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_payment_refund_histories_process_id UNIQUE (payment_refund_process_id)
 );
 
 CREATE INDEX idx_payment_refund_histories_payment_id ON payment_refund_histories(payment_id);

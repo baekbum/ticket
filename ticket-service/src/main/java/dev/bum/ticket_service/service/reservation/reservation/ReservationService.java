@@ -12,8 +12,6 @@ import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
@@ -56,7 +54,6 @@ public class ReservationService {
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
-    private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
     private final PaymentRefundProcessService paymentRefundProcessService;
     private final CardPaymentRefundService cardPaymentRefundService;
     private final VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
@@ -175,7 +172,7 @@ public class ReservationService {
                             applyPaymentRefund(payment, refundAmount, fullCancellation);
                         }
 
-                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
                     }
 
@@ -193,7 +190,7 @@ public class ReservationService {
                             applyPaymentRefund(payment, refundAmount, fullCancellation);
                         }
 
-                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
                     }
 
@@ -285,14 +282,13 @@ public class ReservationService {
     }
 
     private void savePaymentRefundHistory(
+            Long paymentRefundProcessId,
             Payment payment,
             List<Ticket> selectedTickets,
             int refundAmount,
             boolean fullCancellation
     ) {
-        paymentRefundHistoryJpaRepository.save(
-                PaymentRefundHistory.create(payment, selectedTickets, refundAmount, fullCancellation)
-        );
+        paymentRefundProcessService.savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
     }
 
     private void applyPaymentRefund(Payment payment, int refundAmount, boolean fullCancellation) {

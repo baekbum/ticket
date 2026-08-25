@@ -195,7 +195,7 @@ public class ReservationManagementService {
                             applyPaymentRefund(payment, refundAmount, fullCancellation);
                         }
 
-                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
                     }
 
@@ -212,7 +212,7 @@ public class ReservationManagementService {
                             applyPaymentRefund(payment, refundAmount, fullCancellation);
                         }
 
-                        savePaymentRefundHistory(payment, selectedTickets, refundAmount, fullCancellation);
+                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         return paymentRefundProcessId;
                     }
 
@@ -302,14 +302,13 @@ public class ReservationManagementService {
     }
 
     private void savePaymentRefundHistory(
+            Long paymentRefundProcessId,
             Payment payment,
             List<Ticket> selectedTickets,
             int refundAmount,
             boolean fullCancellation
     ) {
-        paymentRefundHistoryJpaRepository.save(
-                PaymentRefundHistory.create(payment, selectedTickets, refundAmount, fullCancellation)
-        );
+        paymentRefundProcessService.savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
     }
 
     private void applyPaymentRefund(Payment payment, int refundAmount, boolean fullCancellation) {

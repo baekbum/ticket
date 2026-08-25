@@ -10,4 +10,6 @@ public interface PaymentRefundHistoryJpaRepository extends JpaRepository<Payment
 
     @EntityGraph(attributePaths = {"tickets", "tickets.ticket"})
     List<PaymentRefundHistory> findByReservationOrderByPaymentRefundHistoryIdDesc(Reservation reservation);
+
+    boolean existsByPaymentRefundProcess(PaymentRefundProcess paymentRefundProcess);
 }

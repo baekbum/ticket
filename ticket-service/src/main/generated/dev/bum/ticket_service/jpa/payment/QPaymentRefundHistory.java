@@ -34,6 +34,8 @@ public class QPaymentRefundHistory extends EntityPathBase<PaymentRefundHistory> 
 
     public final NumberPath<Long> paymentRefundHistoryId = createNumber("paymentRefundHistoryId", Long.class);
 
+    public final QPaymentRefundProcess paymentRefundProcess;
+
     public final EnumPath<dev.bum.common.service.ticket.payment.enums.PaymentStatus> paymentStatusAfter = createEnum("paymentStatusAfter", dev.bum.common.service.ticket.payment.enums.PaymentStatus.class);
 
     public final NumberPath<Integer> refundableAmountAfter = createNumber("refundableAmountAfter", Integer.class);
@@ -65,6 +67,7 @@ public class QPaymentRefundHistory extends EntityPathBase<PaymentRefundHistory> 
     public QPaymentRefundHistory(Class<? extends PaymentRefundHistory> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.payment = inits.isInitialized("payment") ? new QPayment(forProperty("payment"), inits.get("payment")) : null;
+        this.paymentRefundProcess = inits.isInitialized("paymentRefundProcess") ? new QPaymentRefundProcess(forProperty("paymentRefundProcess"), inits.get("paymentRefundProcess")) : null;
         this.reservation = inits.isInitialized("reservation") ? new dev.bum.ticket_service.jpa.reservation.reservation.QReservation(forProperty("reservation"), inits.get("reservation")) : null;
     }
 

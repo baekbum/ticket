@@ -145,6 +145,22 @@ public class PaymentRefundProcessService {
                 .ifPresent(process -> process.localFailed(messageOf(throwable)));
     }
 
+    @Transactional
+    public void savePaymentRefundHistory(
+            Long paymentRefundProcessId,
+            Payment payment,
+            List<Ticket> selectedTickets,
+            int refundAmount,
+            boolean fullCancellation
+    ) {
+        if (paymentRefundProcessId == null) {
+            return;
+        }
+
+        PaymentRefundProcess process = findById(paymentRefundProcessId);
+        savePaymentRefundHistory(process, payment, selectedTickets, refundAmount, fullCancellation);
+    }
+
     @AuditLog(action = "PAYMENT_REFUND_PROCESS_LOCAL_COMPLETE", targetType = "PAYMENT_REFUND_PROCESS")
     @Transactional
     public PaymentRefundProcessResponse completeLocal(Long paymentRefundProcessId) {
@@ -220,9 +236,7 @@ public class PaymentRefundProcessService {
 
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
             applyReservationCancelStatus(reservation, process.isFullCancellation(), restoreCouponOnCancel);
-            paymentRefundHistoryJpaRepository.save(
-                    PaymentRefundHistory.create(payment, selectedTickets, process.getRefundAmount(), process.isFullCancellation())
-            );
+            savePaymentRefundHistory(process, payment, selectedTickets, process.getRefundAmount(), process.isFullCancellation());
             process.localSucceeded();
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
@@ -251,6 +265,22 @@ public class PaymentRefundProcessService {
         if (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED) {
             payment.partialRefund(process.getRefundAmount());
         }
+    }
+
+    private void savePaymentRefundHistory(
+            PaymentRefundProcess process,
+            Payment payment,
+            List<Ticket> selectedTickets,
+            int refundAmount,
+            boolean fullCancellation
+    ) {
+        if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)) {
+            throw new IllegalStateException("이미 환불 이력이 저장된 환불 처리입니다.");
+        }
+
+        paymentRefundHistoryJpaRepository.save(
+                PaymentRefundHistory.create(process, payment, selectedTickets, refundAmount, fullCancellation)
+        );
     }
 
     private List<Ticket> selectProcessTickets(PaymentRefundProcess process, Reservation reservation) {

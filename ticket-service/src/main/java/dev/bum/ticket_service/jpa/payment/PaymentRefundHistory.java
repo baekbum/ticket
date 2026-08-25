@@ -18,7 +18,9 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,6 +37,9 @@ import java.util.List;
         indexes = {
                 @Index(name = "idx_payment_refund_histories_payment_id", columnList = "payment_id"),
                 @Index(name = "idx_payment_refund_histories_reservation_id", columnList = "reservation_id")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_payment_refund_histories_process_id", columnNames = "payment_refund_process_id")
         }
 )
 @Getter
@@ -50,6 +55,11 @@ public class PaymentRefundHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_refund_history_id")
     private Long paymentRefundHistoryId;
+
+    // 환불 처리 프로세스. 하나의 환불 처리에는 하나의 환불 이력만 저장한다.
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_refund_process_id", nullable = false)
+    private PaymentRefundProcess paymentRefundProcess;
 
     // 환불이 발생한 결제 원본.
     @ManyToOne(fetch = FetchType.LAZY)
@@ -102,12 +112,14 @@ public class PaymentRefundHistory {
     private LocalDateTime createdAt;
 
     public static PaymentRefundHistory create(
+            PaymentRefundProcess paymentRefundProcess,
             Payment payment,
             List<Ticket> tickets,
             Integer refundAmount,
             boolean fullCancellation
     ) {
         PaymentRefundHistory history = PaymentRefundHistory.builder()
+                .paymentRefundProcess(paymentRefundProcess)
                 .payment(payment)
                 .reservation(payment.getReservation())
                 .paymentNo(payment.getPaymentNo())
