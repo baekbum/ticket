@@ -8,6 +8,8 @@ import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
+import dev.bum.ticket_service.audit.AuditDataMapper;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
@@ -143,6 +145,7 @@ public class PaymentRefundProcessService {
                 .ifPresent(process -> process.localFailed(messageOf(throwable)));
     }
 
+    @AuditLog(action = "PAYMENT_REFUND_PROCESS_LOCAL_COMPLETE", targetType = "PAYMENT_REFUND_PROCESS")
     @Transactional
     public PaymentRefundProcessResponse completeLocal(Long paymentRefundProcessId) {
         PaymentRefundProcess process = findById(paymentRefundProcessId);
@@ -151,7 +154,9 @@ public class PaymentRefundProcessService {
             throw new IllegalArgumentException("gateway 환불 성공 이후 로컬 반영이 완료되지 않은 환불 처리만 수동 완료 처리할 수 있습니다.");
         }
 
+        PaymentRefundProcessStatus beforeStatus = process.getStatus();
         completeLocal(process, true);
+        AuditDataMapper.setFieldChange("status", beforeStatus, process.getStatus());
         return process.toResponse();
     }
 

@@ -9,6 +9,8 @@ import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
+import dev.bum.ticket_service.audit.AuditContext;
+import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.Payment;
@@ -27,6 +29,7 @@ import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +38,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -71,6 +75,23 @@ class PaymentRefundProcessServiceTest {
 
     @Mock
     private SeatCacheService seatCacheService;
+
+    @AfterEach
+    void tearDown() {
+        AuditContext.clear();
+    }
+
+    @Test
+    @DisplayName("관리자 로컬 수동 완료 메서드는 감사 로그 대상이다")
+    void complete_local_has_audit_log() throws NoSuchMethodException {
+        Method method = PaymentRefundProcessService.class.getMethod("completeLocal", Long.class);
+
+        AuditLog auditLog = method.getAnnotation(AuditLog.class);
+
+        assertThat(auditLog).isNotNull();
+        assertThat(auditLog.action()).isEqualTo("PAYMENT_REFUND_PROCESS_LOCAL_COMPLETE");
+        assertThat(auditLog.targetType()).isEqualTo("PAYMENT_REFUND_PROCESS");
+    }
 
     @Test
     @DisplayName("GATEWAY_FAILED 환불 프로세스는 사용자 재요청 시 REQUESTED 상태로 gateway 재시도 대상이 된다")
@@ -149,6 +170,8 @@ class PaymentRefundProcessServiceTest {
         assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(secondTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertThat(AuditContext.getBeforeData()).containsEntry("status", "GATEWAY_SUCCEEDED");
+        assertThat(AuditContext.getAfterData()).containsEntry("status", "LOCAL_SUCCEEDED");
         then(paymentRefundHistoryJpaRepository).should().save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getRefundAmount()).isEqualTo(250000);
     }
@@ -171,6 +194,8 @@ class PaymentRefundProcessServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertThat(AuditContext.getBeforeData()).containsEntry("status", "LOCAL_FAILED");
+        assertThat(AuditContext.getAfterData()).containsEntry("status", "LOCAL_SUCCEEDED");
         then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
