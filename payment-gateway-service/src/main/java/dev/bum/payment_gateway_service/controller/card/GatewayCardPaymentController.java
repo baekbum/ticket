@@ -2,6 +2,8 @@ package dev.bum.payment_gateway_service.controller.card;
 
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
+import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
+import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundResponse;
 import dev.bum.payment_gateway_service.service.card.GatewayCardPaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,5 +27,12 @@ public class GatewayCardPaymentController {
             @Valid @RequestBody GatewayCardPaymentApproveRequest request
     ) {
         return ResponseEntity.ok(gatewayCardPaymentService.approve(currentUserId, request));
+    }
+
+    @PostMapping("/refund")
+    public ResponseEntity<GatewayCardPaymentRefundResponse> refund(
+            @Valid @RequestBody GatewayCardPaymentRefundRequest request
+    ) {
+        return ResponseEntity.ok(gatewayCardPaymentService.refund(request));
     }
 }

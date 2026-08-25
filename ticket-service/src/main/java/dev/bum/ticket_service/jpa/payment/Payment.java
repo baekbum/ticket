@@ -1,10 +1,14 @@
 package dev.bum.ticket_service.jpa.payment;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -75,21 +79,32 @@ public class Payment {
     @Column(nullable = false)
     private Integer amount;
 
+    // 결제 완료 이후 누적 환불 금액.
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false)
+    private Integer refundedAmount = 0;
+
     // 같은 결제 요청이 중복 처리되지 않도록 클라이언트나 서버가 발급하는 멱등성 키.
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
 
-    // 무통장 입금 시 안내할 은행명.
-    @Column(name = "bank_name", length = 50)
-    private String bankName;
+    // 카드 승인 결과 스냅샷. 카드 결제에서만 사용한다.
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "transactionId", column = @Column(name = "card_transaction_id", length = 80)),
+            @AttributeOverride(name = "cardCompany", column = @Column(name = "card_company", length = 30)),
+            @AttributeOverride(name = "maskedCardNumber", column = @Column(name = "card_number_masked", length = 30))
+    })
+    private CardPaymentInfo cardInfo;
 
-    // 무통장 입금 시 안내할 가상/입금 계좌 번호.
-    @Column(name = "account_number", length = 50)
-    private String accountNumber;
-
-    // 가상계좌 입금 확인 이후 은행 콜백으로 전달된 실제 입금자명.
-    @Column(name = "depositor_name", length = 50)
-    private String depositorName;
+    // 가상계좌 발급/입금 결과 스냅샷. 무통장 결제에서만 사용한다.
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "bankName", column = @Column(name = "bank_name", length = 50)),
+            @AttributeOverride(name = "accountNumber", column = @Column(name = "account_number", length = 50)),
+            @AttributeOverride(name = "depositorName", column = @Column(name = "depositor_name", length = 50))
+    })
+    private VirtualAccountPaymentInfo virtualAccountInfo;
 
     // 결제 요청이 생성된 시각.
     @Column(nullable = false)
@@ -120,9 +135,14 @@ public class Payment {
                 .method(this.method)
                 .status(this.status)
                 .amount(this.amount)
-                .bankName(this.bankName)
-                .accountNumber(this.accountNumber)
-                .depositorName(this.depositorName)
+                .refundedAmount(getRefundedAmount())
+                .refundableAmount(getRefundableAmount())
+                .cardTransactionId(getCardTransactionId())
+                .cardCompany(getCardCompany())
+                .maskedCardNumber(getMaskedCardNumber())
+                .bankName(getBankName())
+                .accountNumber(getAccountNumber())
+                .depositorName(getDepositorName())
                 .requestedAt(formatDateTime(this.requestedAt))
                 .paidAt(formatDateTime(this.paidAt))
                 .expiresAt(formatDateTime(this.expiresAt))
@@ -131,9 +151,20 @@ public class Payment {
 
     public void waitDeposit(String bankName, String accountNumber, LocalDateTime expiresAt) {
         this.status = PaymentStatus.WAITING_DEPOSIT;
-        this.bankName = bankName;
-        this.accountNumber = accountNumber;
+        if (this.virtualAccountInfo == null) {
+            this.virtualAccountInfo = new VirtualAccountPaymentInfo();
+        }
+        this.virtualAccountInfo.issue(bankName, accountNumber);
         this.expiresAt = expiresAt;
+    }
+
+    public void completeCard(String transactionId, CardCompany cardCompany, String maskedCardNumber, LocalDateTime paidAt) {
+        this.cardInfo = CardPaymentInfo.builder()
+                .transactionId(transactionId)
+                .cardCompany(cardCompany)
+                .maskedCardNumber(maskedCardNumber)
+                .build();
+        complete(paidAt);
     }
 
     public void complete(LocalDateTime paidAt) {
@@ -142,7 +173,10 @@ public class Payment {
     }
 
     public void completeDeposit(String depositorName, LocalDateTime paidAt) {
-        this.depositorName = depositorName;
+        if (this.virtualAccountInfo == null) {
+            this.virtualAccountInfo = new VirtualAccountPaymentInfo();
+        }
+        this.virtualAccountInfo.deposit(depositorName);
         complete(paidAt);
     }
 
@@ -159,16 +193,67 @@ public class Payment {
     }
 
     public void refund() {
+        this.refundedAmount = this.amount;
         this.status = PaymentStatus.REFUNDED;
+    }
+
+    public void partialRefund(Integer refundAmount) {
+        validateRefundAmount(refundAmount);
+        this.refundedAmount = getRefundedAmount() + refundAmount;
+        this.status = getRefundableAmount() == 0
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.PARTIALLY_REFUNDED;
     }
 
     public void ready() {
         this.status = PaymentStatus.READY;
+        this.refundedAmount = 0;
         this.paidAt = null;
         this.expiresAt = null;
     }
 
     private String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
+    }
+
+    public String getCardTransactionId() {
+        return cardInfo != null ? cardInfo.getTransactionId() : null;
+    }
+
+    public CardCompany getCardCompany() {
+        return cardInfo != null ? cardInfo.getCardCompany() : null;
+    }
+
+    public String getMaskedCardNumber() {
+        return cardInfo != null ? cardInfo.getMaskedCardNumber() : null;
+    }
+
+    public String getBankName() {
+        return virtualAccountInfo != null ? virtualAccountInfo.getBankName() : null;
+    }
+
+    public String getAccountNumber() {
+        return virtualAccountInfo != null ? virtualAccountInfo.getAccountNumber() : null;
+    }
+
+    public String getDepositorName() {
+        return virtualAccountInfo != null ? virtualAccountInfo.getDepositorName() : null;
+    }
+
+    public Integer getRefundedAmount() {
+        return refundedAmount != null ? refundedAmount : 0;
+    }
+
+    public Integer getRefundableAmount() {
+        return this.amount - getRefundedAmount();
+    }
+
+    private void validateRefundAmount(Integer refundAmount) {
+        if (refundAmount == null || refundAmount <= 0) {
+            throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
+        }
+        if (refundAmount > getRefundableAmount()) {
+            throw new IllegalArgumentException("환불 금액이 남은 결제 금액을 초과했습니다.");
+        }
     }
 }

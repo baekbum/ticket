@@ -16,7 +16,7 @@ import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.ticket_service.service.seat.SeatCacheSyncFailureService;
-import dev.bum.ticket_service.service.seat.SeatService;
+import dev.bum.ticket_service.service.seat.SeatManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,63 +38,63 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class SeatManagementController {
 
-    private final SeatService seatService;
+    private final SeatManagementService seatManagementService;
     private final SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     @PostMapping("/insert")
     public ResponseEntity<Void> insert(@Valid @RequestBody InsertSeatRequest info) {
-        seatService.insert(info);
+        seatManagementService.insert(info);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/insert/group")
     public ResponseEntity<Void> insertByGroup(@Valid @RequestBody InsertSeatGroupRequest info) {
-        seatService.insertByEventGroupCode(info);
+        seatManagementService.insertByEventGroupCode(info);
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/select/id/{seatId}")
     public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
-        return ResponseEntity.ok(seatService.selectById(id));
+        return ResponseEntity.ok(seatManagementService.selectById(id));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(@RequestBody SeatCondRequest cond) {
-        return ResponseEntity.ok(seatService.selectByCond(cond));
+        return ResponseEntity.ok(seatManagementService.selectByCond(cond));
     }
 
     @PostMapping("/test/select")
     public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCondWithCacheStatus(@RequestBody SeatCondRequest cond) {
-        return ResponseEntity.ok(seatService.selectByCondWithCacheStatus(cond));
+        return ResponseEntity.ok(seatManagementService.selectByCondWithCacheStatus(cond));
     }
 
     @PutMapping("/update")
     public ResponseEntity<Void> update(@Valid @RequestBody UpdateSeatRequest info) {
-        seatService.update(info);
+        seatManagementService.update(info);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete/id/{seatId}")
     public ResponseEntity<Void> delete(@PathVariable("seatId") Long seatId) {
-        seatService.delete(seatId);
+        seatManagementService.delete(seatId);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete")
     public ResponseEntity<Void> deleteBySeatIdList(@RequestBody DeleteSeatRequest info) {
-        seatService.deleteBySeatIdList(info);
+        seatManagementService.deleteBySeatIdList(info);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteSeatRequest info) {
-        seatService.deleteBySeatIdList(info);
+        seatManagementService.deleteBySeatIdList(info);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete/area/{areaId}")
     public ResponseEntity<Void> deleteByAreaId(@PathVariable("areaId") Long areaId) {
-        seatService.deleteByAreaId(areaId);
+        seatManagementService.deleteByAreaId(areaId);
         return ResponseEntity.ok().build();
     }
 
@@ -103,7 +103,7 @@ public class SeatManagementController {
             @PathVariable("eventId") Long eventId,
             @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
     ) {
-        return ResponseEntity.ok(seatService.warmUpEventSeatsToCache(eventId, mode));
+        return ResponseEntity.ok(seatManagementService.warmUpEventSeatsToCache(eventId, mode));
     }
 
     @PostMapping("/cache/warm-up/area/{areaId}")
@@ -111,17 +111,17 @@ public class SeatManagementController {
             @PathVariable("areaId") Long areaId,
             @RequestParam(value = "mode", defaultValue = "MISSING_ONLY") SeatCacheWarmUpMode mode
     ) {
-        return ResponseEntity.ok(seatService.warmUpAreaSeatsToCache(areaId, mode));
+        return ResponseEntity.ok(seatManagementService.warmUpAreaSeatsToCache(areaId, mode));
     }
 
     @DeleteMapping("/cache/event/{eventId}")
     public ResponseEntity<String> deleteEventSeatCache(@PathVariable("eventId") Long eventId) {
-        return ResponseEntity.ok(seatService.deleteEventSeatsFromCache(eventId));
+        return ResponseEntity.ok(seatManagementService.deleteEventSeatsFromCache(eventId));
     }
 
     @DeleteMapping("/cache/area/{areaId}")
     public ResponseEntity<String> deleteAreaSeatCache(@PathVariable("areaId") Long areaId) {
-        return ResponseEntity.ok(seatService.deleteAreaSeatsFromCache(areaId));
+        return ResponseEntity.ok(seatManagementService.deleteAreaSeatsFromCache(areaId));
     }
 
     @GetMapping("/cache/inspect/event/{eventId}")
@@ -133,7 +133,7 @@ public class SeatManagementController {
             @RequestParam(value = "limit", defaultValue = "100") int limit,
             @RequestParam(value = "mode", defaultValue = "SEAT") SeatRedisInspectMode mode
     ) {
-        return ResponseEntity.ok(seatService.inspectEventSeatCache(eventId, zone, row, col, limit, mode));
+        return ResponseEntity.ok(seatManagementService.inspectEventSeatCache(eventId, zone, row, col, limit, mode));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-lock")
@@ -141,22 +141,22 @@ public class SeatManagementController {
             @PathVariable("seatId") Long seatId,
             @AuthenticationPrincipal String currentUserId
     ) {
-        return ResponseEntity.ok(seatService.lockSeatCacheForUser(seatId, currentUserId));
+        return ResponseEntity.ok(seatManagementService.lockSeatCacheForUser(seatId, currentUserId));
     }
 
     @PostMapping("/cache/seat/{seatId}/test-unlock")
     public ResponseEntity<String> unlockSeatCache(@PathVariable("seatId") Long seatId) {
-        return ResponseEntity.ok(seatService.unlockSeatCache(seatId));
+        return ResponseEntity.ok(seatManagementService.unlockSeatCache(seatId));
     }
 
     @PostMapping("/cache/event/{eventId}/test-unlock")
     public ResponseEntity<String> unlockEventSeatCache(@PathVariable("eventId") Long eventId) {
-        return ResponseEntity.ok(seatService.unlockEventSeatCache(eventId));
+        return ResponseEntity.ok(seatManagementService.unlockEventSeatCache(eventId));
     }
 
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(@RequestBody SeatOccupyRequest request) {
-        return ResponseEntity.ok(seatService.occupySeat(request));
+        return ResponseEntity.ok(seatManagementService.occupySeat(request));
     }
 
     @PostMapping("/cache/sync-failures/select")

@@ -10,6 +10,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.VirtualAccountPaymentInfo;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
@@ -166,8 +167,10 @@ class PaymentCompletionServiceTest {
                 .method(PaymentMethod.BANK_TRANSFER)
                 .status(PaymentStatus.WAITING_DEPOSIT)
                 .amount(180000)
-                .bankName("KB국민은행")
-                .accountNumber("1111-2222-3333-4444")
+                .virtualAccountInfo(VirtualAccountPaymentInfo.builder()
+                        .bankName("KB국민은행")
+                        .accountNumber("1111-2222-3333-4444")
+                        .build())
                 .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
                 .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
                 .build();

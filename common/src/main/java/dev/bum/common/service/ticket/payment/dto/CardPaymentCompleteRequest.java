@@ -1,5 +1,6 @@
 package dev.bum.common.service.ticket.payment.dto;
 
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -25,4 +26,13 @@ public class CardPaymentCompleteRequest {
     @NotNull
     @Positive
     private BigDecimal amount;
+
+    @NotBlank
+    private String transactionId;
+
+    @NotNull
+    private CardCompany cardCompany;
+
+    @NotBlank
+    private String maskedCardNumber;
 }

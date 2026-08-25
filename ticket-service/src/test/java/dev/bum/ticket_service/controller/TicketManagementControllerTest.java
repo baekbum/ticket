@@ -5,8 +5,9 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.controller.ticket.TicketManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.ticket.TicketService;
+import dev.bum.ticket_service.service.ticket.TicketManagementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,10 @@ class TicketManagementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
-    private TicketService ticketService;
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
+    @MockitoBean
+    private TicketManagementService ticketManagementService;
 
     private final String baseUrl = "/api/v1/manage/ticket";
 
@@ -63,7 +67,7 @@ class TicketManagementControllerTest {
                 ticketResponse(2L, 2L, "VIP", 1, 2)
         );
 
-        given(ticketService.selectByReservationId(1L)).willReturn(response);
+        given(ticketManagementService.selectByReservationId(1L)).willReturn(response);
 
         mockMvc.perform(get(baseUrl + "/reservation/1"))
                 .andExpect(status().isOk())
@@ -73,7 +77,7 @@ class TicketManagementControllerTest {
                 .andExpect(jsonPath("$[0].status").value(TicketStatus.PENDING_PAYMENT.name()))
                 .andExpect(jsonPath("$[1].ticketId").value(2L));
 
-        then(ticketService).should().selectByReservationId(1L);
+        then(ticketManagementService).should().selectByReservationId(1L);
     }
 
     private TicketResponse ticketResponse(long ticketId, long seatId, String zone, int row, int col) {

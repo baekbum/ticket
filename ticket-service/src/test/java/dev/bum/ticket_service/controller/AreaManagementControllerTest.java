@@ -12,8 +12,9 @@ import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.controller.area.AreaManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.area.AreaService;
+import dev.bum.ticket_service.service.area.AreaManagementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +54,10 @@ class AreaManagementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
-    private AreaService areaService;
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
+    @MockitoBean
+    private AreaManagementService areaManagementService;
 
     private final String baseUrl = "/api/v1/manage/area";
 
@@ -70,7 +74,7 @@ class AreaManagementControllerTest {
     void area_insert_svg() throws Exception {
         MockMultipartFile eventGroupCodePart = new MockMultipartFile("eventGroupCode", "", "text/plain", "IU_2026".getBytes());
         MockMultipartFile svgFile = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml", "<svg/>".getBytes());
-        given(areaService.insertSvgByEventGroupCode(eq("IU_2026"), any(), eq(true))).willReturn(List.of(areaResponse(1L, "VIP")));
+        given(areaManagementService.insertSvgByEventGroupCode(eq("IU_2026"), any(), eq(true))).willReturn(List.of(areaResponse(1L, "VIP")));
 
         mockMvc.perform(multipart(baseUrl + "/insert/svg/group")
                         .file(eventGroupCodePart)
@@ -80,7 +84,7 @@ class AreaManagementControllerTest {
                 .andExpect(jsonPath("$[0].areaName").value("VIP"))
                 .andExpect(jsonPath("$[0].layoutKey").value("VIP"));
 
-        then(areaService).should().insertSvgByEventGroupCode(eq("IU_2026"), eq(svgFile), eq(true));
+        then(areaManagementService).should().insertSvgByEventGroupCode(eq("IU_2026"), eq(svgFile), eq(true));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -93,27 +97,27 @@ class AreaManagementControllerTest {
                 .originalFileName("layout.svg")
                 .svgText("<svg/>")
                 .build();
-        given(areaService.selectLayout(1L)).willReturn(response);
+        given(areaManagementService.selectLayout(1L)).willReturn(response);
 
         mockMvc.perform(get(baseUrl + "/layout/event/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layoutId").value(1L));
 
-        then(areaService).should().selectLayout(1L);
+        then(areaManagementService).should().selectLayout(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
     @DisplayName("ID로 구역 조회")
     void area_select_by_id() throws Exception {
-        given(areaService.selectById(1L)).willReturn(areaResponse(1L, "VIP"));
+        given(areaManagementService.selectById(1L)).willReturn(areaResponse(1L, "VIP"));
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.areaId").value(1L))
                 .andExpect(jsonPath("$.layoutKey").value("VIP"));
 
-        then(areaService).should().selectById(1L);
+        then(areaManagementService).should().selectById(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -122,7 +126,7 @@ class AreaManagementControllerTest {
     void area_select_by_cond() throws Exception {
         AreaCondRequest cond = AreaCondRequest.builder().eventId(1L).build();
         CustomPageResponse<AreaResponse> response = CustomPageResponse.of(List.of(areaResponse(1L, "VIP")), 10, 0, 1, 1);
-        given(areaService.selectByCond(any())).willReturn(response);
+        given(areaManagementService.selectByCond(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/select")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,7 +134,7 @@ class AreaManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].areaId").value(1L));
 
-        then(areaService).should().selectByCond(cond);
+        then(areaManagementService).should().selectByCond(cond);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -138,7 +142,7 @@ class AreaManagementControllerTest {
     @DisplayName("구역 수정")
     void area_update() throws Exception {
         UpdateAreaRequest info = UpdateAreaRequest.builder().areaName("VIP-A").build();
-        given(areaService.update(1L, info)).willReturn(areaResponse(1L, "VIP-A"));
+        given(areaManagementService.update(1L, info)).willReturn(areaResponse(1L, "VIP-A"));
 
         mockMvc.perform(put(baseUrl + "/update/id/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -146,20 +150,20 @@ class AreaManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.areaName").value("VIP-A"));
 
-        then(areaService).should().update(1L, info);
+        then(areaManagementService).should().update(1L, info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
     @DisplayName("구역 삭제")
     void area_delete() throws Exception {
-        given(areaService.delete(1L)).willReturn(areaResponse(1L, "VIP"));
+        given(areaManagementService.delete(1L)).willReturn(areaResponse(1L, "VIP"));
 
         mockMvc.perform(delete(baseUrl + "/delete/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.areaId").value(1L));
 
-        then(areaService).should().delete(1L);
+        then(areaManagementService).should().delete(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -173,7 +177,7 @@ class AreaManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(areaService).should().deleteBulk(info);
+        then(areaManagementService).should().deleteBulk(info);
     }
 
     private AreaResponse areaResponse(Long areaId, String areaName) {

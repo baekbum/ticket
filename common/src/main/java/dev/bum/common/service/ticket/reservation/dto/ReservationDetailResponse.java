@@ -1,6 +1,7 @@
 package dev.bum.common.service.ticket.reservation.dto;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryResponse;
 import dev.bum.common.service.ticket.ticket.dto.TicketResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +27,9 @@ public class ReservationDetailResponse {
 
     private ReservationDeliveryResponse delivery;
     private PaymentResponse payment;
+
+    @Builder.Default
+    private List<PaymentRefundHistoryResponse> refundHistories = new ArrayList<>();
 
     private Integer totalTicketAmount;
     private Integer totalDiscountAmount;

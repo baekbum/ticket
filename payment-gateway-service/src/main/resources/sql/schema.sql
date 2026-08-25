@@ -37,9 +37,11 @@ CREATE TABLE dummy_card_payment_histories (
     dummy_card_id BIGINT,
     user_id VARCHAR(50) NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
+    transaction_id VARCHAR(80),
     card_company VARCHAR(30) NOT NULL,
-    card_number_last4 VARCHAR(4) NOT NULL,
+    card_number_masked VARCHAR(30) NOT NULL,
     amount NUMERIC(15, 2) NOT NULL,
+    refunded_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
     status VARCHAR(40) NOT NULL,
     failure_reason VARCHAR(500),
     approved_at TIMESTAMP NOT NULL,
@@ -50,7 +52,7 @@ CREATE TABLE dummy_card_payment_histories (
     CONSTRAINT fk_dummy_card_payment_histories_dummy_card_id FOREIGN KEY (dummy_card_id) REFERENCES dummy_cards(dummy_card_id),
     CONSTRAINT uk_dummy_card_payment_histories_payment_no UNIQUE (payment_no),
     CONSTRAINT chk_dummy_card_payment_histories_amount CHECK (amount > 0),
-    CONSTRAINT chk_dummy_card_payment_histories_card_number_last4 CHECK (card_number_last4 ~ '^[0-9]{4}$')
+    CONSTRAINT chk_dummy_card_payment_histories_card_number_masked CHECK (card_number_masked ~ '^[0-9*]{4}-[0-9*]{4}-[0-9*]{4}-[0-9*]{4}$')
 );
 
 CREATE INDEX idx_dummy_card_payment_histories_user_id ON dummy_card_payment_histories(user_id);

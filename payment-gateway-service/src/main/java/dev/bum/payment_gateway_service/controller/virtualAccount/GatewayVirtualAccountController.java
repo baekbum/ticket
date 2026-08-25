@@ -4,6 +4,8 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountD
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,5 +34,12 @@ public class GatewayVirtualAccountController {
             @Valid @RequestBody GatewayVirtualAccountDepositRequest request
     ) {
         return ResponseEntity.ok(gatewayVirtualAccountService.deposit(request));
+    }
+
+    @PostMapping("/refund")
+    public ResponseEntity<GatewayVirtualAccountRefundResponse> refund(
+            @Valid @RequestBody GatewayVirtualAccountRefundRequest request
+    ) {
+        return ResponseEntity.ok(gatewayVirtualAccountService.refund(request));
     }
 }

@@ -1,0 +1,105 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/payment/fragment-payment-refund-process.css}">
+
+<div class="frag-header">
+  <h2>환불 처리 현황</h2>
+  <p class="sub-txt">환불 요청의 gateway 처리와 로컬 DB 반영 상태를 조회합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="number" class="search-input" id="refund-process-search-id" placeholder="프로세스 ID" min="1">
+    <input type="number" class="search-input" id="refund-process-search-reservation-id" placeholder="예매 ID" min="1">
+    <input type="text" class="search-input" id="refund-process-search-payment-no" placeholder="결제 번호">
+    <select class="search-input" id="refund-process-search-method">
+      <option value="">전체 수단</option>
+      <option value="CREDIT_CARD">카드</option>
+      <option value="BANK_TRANSFER">무통장</option>
+    </select>
+    <select class="search-input" id="refund-process-search-status">
+      <option value="">전체 상태</option>
+      <option value="REQUESTED">REQUESTED</option>
+      <option value="GATEWAY_SUCCEEDED">GATEWAY_SUCCEEDED</option>
+      <option value="GATEWAY_FAILED">GATEWAY_FAILED</option>
+      <option value="LOCAL_SUCCEEDED">LOCAL_SUCCEEDED</option>
+      <option value="LOCAL_FAILED">LOCAL_FAILED</option>
+    </select>
+    <button class="btn" onclick="triggerRefundProcessSearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetRefundProcessSearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+  <div class="toolbar-right"></div>
+</div>
+
+<div class="table-wrap">
+  <table class="payment-refund-process-table">
+    <colgroup>
+      <col style="width:70px;">
+      <col style="width:110px;">
+      <col style="width:110px;">
+      <col style="width:160px;">
+      <col style="width:120px;">
+      <col style="width:120px;">
+      <col style="width:180px;">
+      <col style="width:120px;">
+      <col style="width:160px;">
+      <col style="width:120px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>프로세스 ID</th>
+      <th>예매 ID</th>
+      <th>결제 번호</th>
+      <th>결제 수단</th>
+      <th>환불 금액</th>
+      <th>상태</th>
+      <th>재시도</th>
+      <th>생성일</th>
+      <th>관리</th>
+    </tr>
+    </thead>
+    <tbody id="payment-refund-process-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="refund-process-detail-modal">
+  <div class="f-modal-content refund-process-detail-content">
+    <p class="modal-title">환불 처리 상세</p>
+    <p class="modal-subtitle">환불 처리 상태와 실패 사유를 확인한 뒤 필요한 수동 작업을 실행합니다.</p>
+    <div class="modal-divider"></div>
+
+    <input type="hidden" id="refund-process-detail-id">
+
+    <section class="detail-section">
+      <div class="detail-section-head"><h3>기본 정보</h3></div>
+      <div class="refund-process-detail-grid" id="refund-process-basic-grid"></div>
+    </section>
+
+    <section class="detail-section">
+      <div class="detail-section-head"><h3>환불 정보</h3></div>
+      <div class="refund-process-detail-grid" id="refund-process-refund-grid"></div>
+    </section>
+
+    <section class="detail-section">
+      <div class="detail-section-head"><h3>처리 상태</h3></div>
+      <div class="refund-process-detail-grid" id="refund-process-status-grid"></div>
+    </section>
+
+    <div class="form-row modal-actions">
+      <button class="btn btn-secondary" onclick="closeRefundProcessDetailModal()">닫기</button>
+      <button class="btn btn-outline" id="refund-process-audit-log-btn" onclick="openRefundProcessAuditLog()">
+        <i class="ti ti-history"></i>감사 로그 보기
+      </button>
+      <button class="btn" id="refund-process-local-complete-btn" onclick="completeRefundProcessLocal()">
+        <i class="ti ti-check"></i>로컬 반영 완료 처리
+      </button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/payment/fragment-payment-refund-process.js}"></script>

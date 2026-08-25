@@ -91,9 +91,10 @@ Content-Type: application/json
 ```json
 {
   "paymentNo": "PAY-...",
+  "transactionId": "CARD-...",
   "userId": "IU",
   "cardCompany": "SHINHAN",
-  "cardNumberLast4": "1111",
+  "maskedCardNumber": "4111-****-****-1111",
   "approvedAmount": 180000,
   "currentMonthUsedAmount": 180000,
   "limitAmount": 1000000,
@@ -107,10 +108,38 @@ Content-Type: application/json
 ```text
 1. paymentNo 중복 이력이 있으면 기존 이력 상태 검증
 2. 새 결제번호면 사용자, 카드번호, CVC, 카드 비밀번호, 금액, 한도 검증
-3. 카드 승인 성공 이력 저장
-4. ticket-service 내부 카드 완료 API 호출
+3. gateway transactionId 생성, 카드번호 마스킹, 카드 승인 성공 이력 저장
+4. transactionId, cardCompany, maskedCardNumber를 포함해 ticket-service 내부 카드 완료 API 호출
 5. 성공 시 gateway card history = TICKET_PAYMENT_COMPLETED
 6. 실패 시 카드 승인 취소, gateway card history = CANCELLED, ticket-service 실패 반영 요청
+```
+
+## Gateway 카드 전체 환불
+
+ticket-service가 카드 결제 완료 예매를 전체 취소할 때 사용한다. 예매/티켓/좌석 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
+
+```http
+POST /payment-gateway/api/v1/payments/card/refund
+Content-Type: application/json
+```
+
+```json
+{
+  "paymentNo": "PAY-...",
+  "transactionId": "CARD-...",
+  "refundAmount": 250000
+}
+```
+
+처리 규칙:
+
+```text
+1. paymentNo + transactionId로 gateway 카드 승인 이력 조회
+2. gateway card history = TICKET_PAYMENT_COMPLETED 상태 검증
+3. 전체 환불 금액이 승인 금액과 일치하는지 검증
+4. DummyCard.currentMonthUsedAmount에서 환불 금액 차감
+5. gateway card history = REFUNDED
+6. ticket-service는 환불 성공 후 Payment.status=REFUNDED, 예매/티켓=CANCELLED, 좌석=AVAILABLE 반영
 ```
 
 ## Gateway 가상계좌 입금

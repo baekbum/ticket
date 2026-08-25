@@ -60,18 +60,27 @@ public class DummyCardPaymentHistory {
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
+    // gateway 카드 승인 거래 식별 번호.
+    @Column(name = "transaction_id", length = 80)
+    private String transactionId;
+
     // 요청 당시 카드사 스냅샷.
     @Enumerated(EnumType.STRING)
     @Column(name = "card_company", nullable = false, length = 30)
     private CardCompany cardCompany;
 
-    // 요청 당시 카드번호 마지막 4자리 스냅샷.
-    @Column(name = "card_number_last4", nullable = false, length = 4)
-    private String cardNumberLast4;
+    // 요청 당시 마스킹 카드번호 스냅샷.
+    @Column(name = "card_number_masked", nullable = false, length = 30)
+    private String maskedCardNumber;
 
     // 요청 금액.
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
+
+    // 누적 환불 금액.
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
 
     // payment-gateway와 ticket-service 연동 처리 상태.
     @Enumerated(EnumType.STRING)
@@ -100,13 +109,20 @@ public class DummyCardPaymentHistory {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public static DummyCardPaymentHistory approved(DummyCard dummyCard, String paymentNo, BigDecimal amount) {
+    public static DummyCardPaymentHistory approved(
+            DummyCard dummyCard,
+            String paymentNo,
+            String transactionId,
+            String maskedCardNumber,
+            BigDecimal amount
+    ) {
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
                 .userId(dummyCard.getUserId())
                 .paymentNo(paymentNo)
+                .transactionId(transactionId)
                 .cardCompany(dummyCard.getCardCompany())
-                .cardNumberLast4(dummyCard.getCardNumberLast4())
+                .maskedCardNumber(maskedCardNumber)
                 .amount(amount)
                 .status(CardPaymentHistoryStatus.APPROVED)
                 .approvedAt(LocalDateTime.now())
@@ -118,7 +134,7 @@ public class DummyCardPaymentHistory {
             String userId,
             String paymentNo,
             CardCompany cardCompany,
-            String cardNumberLast4,
+            String maskedCardNumber,
             BigDecimal amount,
             String failureReason
     ) {
@@ -127,7 +143,7 @@ public class DummyCardPaymentHistory {
                 .userId(userId)
                 .paymentNo(paymentNo)
                 .cardCompany(cardCompany)
-                .cardNumberLast4(cardNumberLast4)
+                .maskedCardNumber(maskedCardNumber)
                 .amount(amount)
                 .status(CardPaymentHistoryStatus.APPROVAL_FAILED)
                 .failureReason(failureReason)
@@ -149,5 +165,37 @@ public class DummyCardPaymentHistory {
     public void cancel(String failureReason) {
         this.status = CardPaymentHistoryStatus.CANCELLED;
         this.failureReason = failureReason;
+    }
+
+    public void refund() {
+        this.refundedAmount = this.amount;
+        this.status = CardPaymentHistoryStatus.REFUNDED;
+        this.failureReason = null;
+    }
+
+    public void refund(BigDecimal refundAmount) {
+        validateRefundAmount(refundAmount);
+        this.refundedAmount = getRefundedAmount().add(refundAmount);
+        this.status = getRefundableAmount().compareTo(BigDecimal.ZERO) == 0
+                ? CardPaymentHistoryStatus.REFUNDED
+                : CardPaymentHistoryStatus.PARTIALLY_REFUNDED;
+        this.failureReason = null;
+    }
+
+    public BigDecimal getRefundedAmount() {
+        return refundedAmount != null ? refundedAmount : BigDecimal.ZERO;
+    }
+
+    public BigDecimal getRefundableAmount() {
+        return amount.subtract(getRefundedAmount());
+    }
+
+    private void validateRefundAmount(BigDecimal refundAmount) {
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
+        }
+        if (refundAmount.compareTo(getRefundableAmount()) > 0) {
+            throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
+        }
     }
 }

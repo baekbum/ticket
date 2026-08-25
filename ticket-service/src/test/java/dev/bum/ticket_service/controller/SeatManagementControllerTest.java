@@ -18,8 +18,10 @@ import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.seat.vo.UpdateSeatAreaConfig;
 import dev.bum.ticket_service.controller.seat.SeatManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.seat.SeatService;
+import dev.bum.ticket_service.service.seat.SeatCacheSyncFailureService;
+import dev.bum.ticket_service.service.seat.SeatManagementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,7 +63,13 @@ class SeatManagementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
-    private SeatService seatService;
+    private InternalServiceTokenValidator internalServiceTokenValidator;
+
+    @MockitoBean
+    private SeatManagementService seatManagementService;
+
+    @MockitoBean
+    private SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     private final String baseUrl = "/api/v1/manage/seat";
 
@@ -83,20 +91,20 @@ class SeatManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(seatService).should().insert(info);
+        then(seatManagementService).should().insert(info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
     @DisplayName("ID로 좌석 조회")
     void seat_select_by_id() throws Exception {
-        given(seatService.selectById(1L)).willReturn(seatResponse());
+        given(seatManagementService.selectById(1L)).willReturn(seatResponse());
 
         mockMvc.perform(get(baseUrl + "/select/id/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seatId").value(1L));
 
-        then(seatService).should().selectById(1L);
+        then(seatManagementService).should().selectById(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -105,7 +113,7 @@ class SeatManagementControllerTest {
     void seat_select_by_cond() throws Exception {
         SeatCondRequest cond = SeatCondRequest.builder().eventId(1L).build();
         CustomPageResponse<SeatResponse> response = CustomPageResponse.of(List.of(seatResponse()), 10, 0, 1, 1);
-        given(seatService.selectByCond(any())).willReturn(response);
+        given(seatManagementService.selectByCond(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/select")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -113,7 +121,7 @@ class SeatManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].seatId").value(1L));
 
-        then(seatService).should().selectByCond(cond);
+        then(seatManagementService).should().selectByCond(cond);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -127,7 +135,7 @@ class SeatManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(seatService).should().update(info);
+        then(seatManagementService).should().update(info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -137,7 +145,7 @@ class SeatManagementControllerTest {
         mockMvc.perform(delete(baseUrl + "/delete/id/1"))
                 .andExpect(status().isOk());
 
-        then(seatService).should().delete(1L);
+        then(seatManagementService).should().delete(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -151,7 +159,7 @@ class SeatManagementControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(seatService).should().deleteBySeatIdList(info);
+        then(seatManagementService).should().deleteBySeatIdList(info);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -161,47 +169,47 @@ class SeatManagementControllerTest {
         mockMvc.perform(delete(baseUrl + "/delete/area/1"))
                 .andExpect(status().isOk());
 
-        then(seatService).should().deleteByAreaId(1L);
+        then(seatManagementService).should().deleteByAreaId(1L);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
     @DisplayName("이벤트 좌석 캐시 warm-up")
     void warm_up_event_seats() throws Exception {
-        given(seatService.warmUpEventSeatsToCache(1L, SeatCacheWarmUpMode.OVERWRITE)).willReturn("warmed");
+        given(seatManagementService.warmUpEventSeatsToCache(1L, SeatCacheWarmUpMode.OVERWRITE)).willReturn("warmed");
 
         mockMvc.perform(post(baseUrl + "/cache/warm-up/event/1")
                         .param("mode", "OVERWRITE"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("warmed"));
 
-        then(seatService).should().warmUpEventSeatsToCache(1L, SeatCacheWarmUpMode.OVERWRITE);
+        then(seatManagementService).should().warmUpEventSeatsToCache(1L, SeatCacheWarmUpMode.OVERWRITE);
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test
     @DisplayName("이벤트 좌석 캐시 삭제")
     void delete_event_seat_cache() throws Exception {
-        given(seatService.deleteEventSeatsFromCache(1L)).willReturn("deleted");
+        given(seatManagementService.deleteEventSeatsFromCache(1L)).willReturn("deleted");
 
         mockMvc.perform(delete(baseUrl + "/cache/event/1"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("deleted"));
 
-        then(seatService).should().deleteEventSeatsFromCache(1L);
+        then(seatManagementService).should().deleteEventSeatsFromCache(1L);
     }
 
     @Test
     @DisplayName("좌석 캐시 잠금 테스트")
     void lock_seat_cache_for_current_user() throws Exception {
-        given(seatService.lockSeatCacheForUser(1L, "admin")).willReturn("locked");
+        given(seatManagementService.lockSeatCacheForUser(1L, "admin")).willReturn("locked");
 
         mockMvc.perform(post(baseUrl + "/cache/seat/1/test-lock")
                         .with(authentication(adminAuthentication())))
                 .andExpect(status().isOk())
                 .andExpect(content().string("locked"));
 
-        then(seatService).should().lockSeatCacheForUser(1L, "admin");
+        then(seatManagementService).should().lockSeatCacheForUser(1L, "admin");
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -216,7 +224,7 @@ class SeatManagementControllerTest {
                 .seats(request.getSeats())
                 .expiresAt(LocalDateTime.of(2026, 1, 1, 12, 0))
                 .build();
-        given(seatService.occupySeat(any())).willReturn(response);
+        given(seatManagementService.occupySeat(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/occupy")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -224,7 +232,7 @@ class SeatManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value("order-id"));
 
-        then(seatService).should().occupySeat(request);
+        then(seatManagementService).should().occupySeat(request);
     }
 
     private InsertSeatRequest insertRequest() {
