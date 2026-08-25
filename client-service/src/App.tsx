@@ -21,6 +21,13 @@ type TokenResponse = {
   refreshToken: string;
 };
 
+type TicketingEvent = {
+  title: string;
+  subtitle: string;
+  date: string;
+  posterUrl: string;
+};
+
 const initialLoginForm: LoginForm = {
   userId: '',
   password: '',
@@ -38,76 +45,37 @@ const initialSignupForm: SignupForm = {
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 
-const heroEvents = [
-  {
-    title: '뮤지컬 엘리자벳',
-    subtitle: '죽음마저 사랑에 빠지게 한 아름다운 황후',
-    date: '2026.08.16 - 11.15',
-    tone: 'violet',
-  },
-  {
-    title: 'JAY PARK WORLD TOUR',
-    subtitle: 'SERENADES & BODY ROLLS IN SEOUL',
-    date: '2026.08.29',
-    tone: 'red',
-  },
-  {
-    title: 'ENHYPEN House of Vampire',
-    subtitle: '몰입형 영상 전시',
-    date: '2026.08.13 - 09.27',
-    tone: 'dark',
-  },
-  {
-    title: '뮤지컬 헬스키친',
-    subtitle: '브로드웨이 히트 뮤지컬',
-    date: '2026.09.04',
-    tone: 'yellow',
-  },
-  {
-    title: '별 사이를 걷는 회고록',
-    subtitle: '인터랙티브 전시',
-    date: '2026.07.31',
-    tone: 'blue',
-  },
+const heroEvents: TicketingEvent[] = [
   {
     title: 'Ticksy Live Festa',
     subtitle: '여름밤 야외 페스티벌',
-    date: '2026.08.02',
-    tone: 'green',
+    date: '2026.09.05',
+    posterUrl: '/ticket/uploads/events/posters/sample/ticksy-live-festa.png',
   },
   {
     title: '서울 오케스트라 갈라',
     subtitle: '클래식 대표 레퍼토리',
-    date: '2026.08.11',
-    tone: 'navy',
+    date: '2026.09.11',
+    posterUrl: '/ticket/uploads/events/posters/sample/seoul-orchestra-gala.png',
   },
   {
     title: '팬미팅 스페셜 데이',
     subtitle: '아티스트와 만나는 하루',
-    date: '2026.08.24',
-    tone: 'pink',
+    date: '2026.09.20',
+    posterUrl: '/ticket/uploads/events/posters/sample/fanmeeting-special-day.png',
   },
   {
     title: '아트 뮤지엄 나이트',
     subtitle: '전시와 공연의 만남',
-    date: '2026.09.01',
-    tone: 'orange',
+    date: '2026.10.03',
+    posterUrl: '/ticket/uploads/events/posters/sample/art-museum-night.png',
   },
   {
     title: '락 온 더 스테이지',
     subtitle: '강렬한 밴드 라이브',
-    date: '2026.09.12',
-    tone: 'black',
+    date: '2026.10.10',
+    posterUrl: '/ticket/uploads/events/posters/sample/rock-on-the-stage.png',
   },
-];
-
-const rankingEvents = [
-  '서울 재즈 나이트',
-  '오픈 예정 공연',
-  '이 주의 추천공연',
-  '클래식 썸머 갈라',
-  '인디 라이브 페스타',
-  '아트&뮤직 익스피리언스',
 ];
 
 function App() {
@@ -236,9 +204,9 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         </button>
         <div className="poster-rail">
           {visiblePosters.map((event, index) => (
-            <article className={`poster-card ${event.tone}`} key={`${event.title}-${index}`}>
+            <article className="poster-card" key={`${event.title}-${index}`}>
               <div className="poster-art">
-                <span>{event.title.slice(0, 2)}</span>
+                <img src={event.posterUrl} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
               <p>{event.subtitle}</p>
@@ -266,11 +234,14 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             <button type="button">이 주의 추천공연</button>
           </div>
           <div className="mini-poster-grid">
-            {rankingEvents.slice(0, 4).map((eventName, index) => (
-              <div className="mini-poster" key={eventName}>
-                <div>{index + 1}</div>
-                <strong>{eventName}</strong>
-                <span>Ticksy 단독 더미 데이터</span>
+            {heroEvents.slice(0, 4).map((event, index) => (
+              <div className="mini-poster" key={event.title}>
+                <div>
+                  <img src={event.posterUrl} alt="" />
+                  <span className="mini-poster-rank">{index + 1}</span>
+                </div>
+                <strong>{event.title}</strong>
+                <span className="mini-poster-description">{event.subtitle}</span>
               </div>
             ))}
           </div>
