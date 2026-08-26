@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -225,6 +226,50 @@ class EventRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("공연 일시가 지난 이벤트는 마감 상태로 변경")
+    void close_events_after_event_date_time() {
+        jpaRepository.deleteAll();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 20, 0, 0);
+        Event onSaleEvent = jpaRepository.save(event("Past", "On Sale", "Venue 1", LocalDateTime.of(2026, 9, 19, 18, 0)));
+        Event saleEndedEvent = jpaRepository.save(event("Past", "Sale Ended", "Venue 2", LocalDateTime.of(2026, 9, 19, 19, 0), EventStatus.SALE_ENDED));
+        Event soldOutEvent = jpaRepository.save(event("Past", "Sold Out", "Venue 3", LocalDateTime.of(2026, 9, 19, 20, 0), EventStatus.SOLD_OUT));
+        Event cancelledEvent = jpaRepository.save(event("Past", "Cancelled", "Venue 4", LocalDateTime.of(2026, 9, 19, 21, 0), EventStatus.CANCELLED));
+
+        int updatedCount = jpaRepository.closeEventsAfterEventDateTime(
+                List.of(EventStatus.ON_SALE, EventStatus.SALE_ENDED, EventStatus.SOLD_OUT),
+                EventStatus.CLOSED,
+                now
+        );
+
+        assertThat(updatedCount).isEqualTo(3);
+        assertThat(jpaRepository.findById(onSaleEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.CLOSED);
+        assertThat(jpaRepository.findById(saleEndedEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.CLOSED);
+        assertThat(jpaRepository.findById(soldOutEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.CLOSED);
+        assertThat(jpaRepository.findById(cancelledEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("판매 종료 시각이 지난 판매중 이벤트는 판매 종료 상태로 변경")
+    void end_sales_after_sale_end_at() {
+        jpaRepository.deleteAll();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 23, 0, 0);
+        Event onSaleEvent = jpaRepository.save(event("Sale", "Expired", "Venue 1", LocalDateTime.of(2026, 9, 23, 18, 0)));
+        Event soldOutEvent = jpaRepository.save(event("Sale", "Sold Out", "Venue 2", LocalDateTime.of(2026, 9, 23, 19, 0), EventStatus.SOLD_OUT));
+        Event cancelledEvent = jpaRepository.save(event("Sale", "Cancelled", "Venue 3", LocalDateTime.of(2026, 9, 23, 20, 0), EventStatus.CANCELLED));
+
+        int updatedCount = jpaRepository.endSalesAfterSaleEndAt(
+                EventStatus.ON_SALE,
+                EventStatus.SALE_ENDED,
+                now
+        );
+
+        assertThat(updatedCount).isEqualTo(1);
+        assertThat(jpaRepository.findById(onSaleEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.SALE_ENDED);
+        assertThat(jpaRepository.findById(soldOutEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.SOLD_OUT);
+        assertThat(jpaRepository.findById(cancelledEvent.getEventId()).orElseThrow().getStatus()).isEqualTo(EventStatus.CANCELLED);
+    }
+
+    @Test
     @DisplayName("이벤트 삭제")
     void event_delete() {
         Event saved = jpaRepository.save(event("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2026, 11, 1, 19, 0)));
@@ -237,6 +282,10 @@ class EventRepositoryImplTest {
     }
 
     private Event event(String artistName, String title, String venue, LocalDateTime eventDateTime) {
+        return event(artistName, title, venue, eventDateTime, EventStatus.ON_SALE);
+    }
+
+    private Event event(String artistName, String title, String venue, LocalDateTime eventDateTime, EventStatus status) {
         return Event.builder()
                 .artistName(artistName)
                 .title(title)
@@ -252,7 +301,7 @@ class EventRepositoryImplTest {
                 .ageLimit(12)
                 .totalSeats(30000)
                 .availableSeats(30000)
-                .status(EventStatus.ON_SALE)
+                .status(status)
                 .maxTicketsPerPerson(4)
                 .genre(EventGenre.CONCERT)
                 .region(EventRegion.SEOUL)

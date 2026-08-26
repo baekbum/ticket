@@ -829,6 +829,7 @@
     letter-spacing: 0.2px;
   }
   .badge-sale    { background: #eef4ff; color: #2c69d4; }
+  .badge-sale-ended { background: #fff7e6; color: #b26a00; }
   .badge-soldout { background: #fff1f0; color: var(--red); }
   .badge-closed  { background: #f4f3f8; color: var(--text-muted); }
 
