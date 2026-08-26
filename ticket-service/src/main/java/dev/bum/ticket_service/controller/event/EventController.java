@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @Slf4j
 @RequestMapping("/api/v1/event")
 @RestController
@@ -29,5 +31,10 @@ public class EventController {
     @GetMapping("/select")
     public ResponseEntity<CustomPageResponse<EventResponse>> selectByCond(@ModelAttribute EventCondRequest cond) {
         return ResponseEntity.ok(eventService.selectVisibleByCond(cond));
+    }
+
+    @GetMapping("/on-sale/soonest")
+    public ResponseEntity<List<EventResponse>> selectSoonestOnSale() {
+        return ResponseEntity.ok(eventService.selectSoonestOnSale());
     }
 }

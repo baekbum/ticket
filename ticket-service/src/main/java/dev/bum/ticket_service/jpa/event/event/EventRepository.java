@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EventRepository {
@@ -13,6 +14,7 @@ public interface EventRepository {
     void isExist(EventCondRequest cond);
     Event selectById(Long id);
     List<Event> selectByEventGroupCode(String eventGroupCode);
+    List<Event> selectSoonestOnSale(LocalDateTime now, int limit);
     Page<Event> selectByCond(EventCondRequest cond, Pageable pageable);
     Event update(Long id, UpdateEventRequest info);
     Event delete(Long id);

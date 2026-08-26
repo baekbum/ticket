@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +24,8 @@ import java.util.List;
 @Transactional
 @RequiredArgsConstructor
 public class EventService {
+
+    private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
 
     private final EventRepository repository;
 
@@ -55,6 +58,15 @@ public class EventService {
                 eventPage.getTotalElements(),
                 eventPage.getTotalPages()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventResponse> selectSoonestOnSale() {
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectSoonestOnSale(now, SOONEST_ON_SALE_EVENT_LIMIT).stream()
+                .map(Event::toResponse)
+                .toList();
     }
 
     /**

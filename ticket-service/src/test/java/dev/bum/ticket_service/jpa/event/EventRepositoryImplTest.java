@@ -187,6 +187,23 @@ class EventRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("판매중인 예정 이벤트를 공연 일시가 빠른 순으로 제한 조회")
+    void event_select_soonest_on_sale() {
+        jpaRepository.deleteAll();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 18, 12, 0);
+        jpaRepository.save(event("Past", "Past Event", "Past Venue", LocalDateTime.of(2026, 9, 18, 11, 0)));
+        Event first = jpaRepository.save(event("First", "First Event", "Venue 1", LocalDateTime.of(2026, 9, 18, 18, 0)));
+        Event second = jpaRepository.save(event("Second", "Second Event", "Venue 2", LocalDateTime.of(2026, 9, 19, 18, 0)));
+        jpaRepository.save(event("Cancelled", "Cancelled Event", "Venue 3", LocalDateTime.of(2026, 9, 18, 16, 0), EventStatus.CANCELLED));
+        jpaRepository.save(event("Sold Out", "Sold Out Event", "Venue 4", LocalDateTime.of(2026, 9, 18, 17, 0), EventStatus.SOLD_OUT));
+
+        List<Event> response = eventRepository.selectSoonestOnSale(now, 2);
+
+        assertThat(response).extracting(Event::getEventId)
+                .containsExactly(first.getEventId(), second.getEventId());
+    }
+
+    @Test
     @DisplayName("洹몃９ 肄붾뱶濡?媛숈? 怨듭뿰 ?뚯감 議고쉶")
     void event_select_by_group_code() {
         Event saved = jpaRepository.save(event("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 19, 17, 0)));

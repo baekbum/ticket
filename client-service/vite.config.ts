@@ -11,6 +11,10 @@ export default defineConfig({
         target: 'http://localhost:8090',
         changeOrigin: true,
       },
+      '/ticket': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -173,7 +173,7 @@ button {
 
 .carousel-arrow {
   position: absolute;
-  top: 142px;
+  top: 128px;
   z-index: 2;
   display: grid;
   width: 54px;
@@ -192,6 +192,28 @@ button {
     transform 160ms ease,
     box-shadow 160ms ease;
   pointer-events: none;
+}
+
+.poster-empty,
+.mini-poster-empty {
+  margin: 0;
+  color: #777777;
+  font-weight: 800;
+}
+
+.poster-empty {
+  grid-column: 1 / -1;
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #dddddd;
+  background: #fafafa;
+}
+
+.mini-poster-empty {
+  grid-column: 1 / -1;
+  padding: 30px 0;
+  text-align: center;
 }
 
 .poster-carousel:hover .carousel-arrow,
@@ -516,7 +538,7 @@ button {
   }
 
   .carousel-arrow {
-    top: 130px;
+    top: 118px;
     opacity: 1;
     pointer-events: auto;
   }

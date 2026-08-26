@@ -22,9 +22,10 @@ type TokenResponse = {
 };
 
 type TicketingEvent = {
+  eventId: number;
+  artistName: string;
   title: string;
-  subtitle: string;
-  date: string;
+  eventDateTime: string;
   posterUrl: string;
 };
 
@@ -44,129 +45,6 @@ const initialSignupForm: SignupForm = {
 };
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
-
-const heroEvents: TicketingEvent[] = [
-  {
-    title: 'Ticksy Live Festa',
-    subtitle: '여름밤 야외 페스티벌',
-    date: '2026.09.05',
-    posterUrl: '/ticket/uploads/events/posters/26_08/5538216b-3edb-45de-90fe-5daab2bb8e53.png',
-  },
-  {
-    title: '서울 오케스트라 갈라',
-    subtitle: '클래식 대표 레퍼토리',
-    date: '2026.09.11',
-    posterUrl: '/ticket/uploads/events/posters/26_08/e7ee6313-d421-492a-b85c-ff82cad4c705.png',
-  },
-  {
-    title: '팬미팅 스페셜 데이',
-    subtitle: '아티스트와 만나는 하루',
-    date: '2026.09.20',
-    posterUrl: '/ticket/uploads/events/posters/26_08/36af27d1-24c4-4e8d-82e1-271fc0813a5d.png',
-  },
-  {
-    title: '아트 뮤지엄 나이트',
-    subtitle: '전시와 공연의 만남',
-    date: '2026.10.03',
-    posterUrl: '/ticket/uploads/events/posters/26_08/6d90e499-383f-4f9a-8fc9-bf02da28c55c.png',
-  },
-  {
-    title: '락 온 더 스테이지',
-    subtitle: '강렬한 밴드 라이브',
-    date: '2026.10.10',
-    posterUrl: '/ticket/uploads/events/posters/26_08/f11c36e3-9b14-46d9-81af-32115b58c820.png',
-  },
-  {
-    title: '달빛 오페라 하우스',
-    subtitle: '달빛 아래 펼쳐지는 감성 뮤지컬',
-    date: '2026.09.07',
-    posterUrl: '/ticket/uploads/events/posters/26_08/470a73ab-e05b-4241-9402-becfb3b166ad.png',
-  },
-  {
-    title: '한강 재즈 브리즈',
-    subtitle: '도심 야경과 함께하는 재즈 라이브',
-    date: '2026.09.13',
-    posterUrl: '/ticket/uploads/events/posters/26_08/c3df9b69-fc21-4ee6-a506-85b0a0cc2cc3.png',
-  },
-  {
-    title: '네온 스타라이트',
-    subtitle: '빛과 퍼포먼스가 만나는 팝 콘서트',
-    date: '2026.09.18',
-    posterUrl: '/ticket/uploads/events/posters/26_08/e7df47ec-c5c4-4ab5-bb20-18cf1fbd664a.png',
-  },
-  {
-    title: '비밀의 서재',
-    subtitle: '오래된 서재에서 시작되는 미스터리',
-    date: '2026.09.22',
-    posterUrl: '/ticket/uploads/events/posters/26_08/8543cb08-1e95-4a3d-83dc-b94795d5077a.png',
-  },
-  {
-    title: '숲속 가족 음악회',
-    subtitle: '아이와 함께 즐기는 가족 공연',
-    date: '2026.09.27',
-    posterUrl: '/ticket/uploads/events/posters/26_08/4d0228ed-3f49-4a93-9e9e-c973892a2829.png',
-  },
-  {
-    title: '블루 웨이브 댄스',
-    subtitle: '물결처럼 흐르는 컨템포러리 댄스',
-    date: '2026.10.04',
-    posterUrl: '/ticket/uploads/events/posters/26_08/c5a5e8ef-64ff-4cfa-84d1-1442f44ed388.png',
-  },
-  {
-    title: '인디 루프 클럽',
-    subtitle: '홍대 감성 인디 밴드 릴레이',
-    date: '2026.10.09',
-    posterUrl: '/ticket/uploads/events/posters/26_08/2ebf0552-8903-44ec-8190-2ffc46e4d4b2.png',
-  },
-  {
-    title: '미라클 일루전 쇼',
-    subtitle: '마술과 미디어 아트의 결합',
-    date: '2026.10.12',
-    posterUrl: '/ticket/uploads/events/posters/26_08/acfa0164-136e-4b98-b1b8-b8c0dae8b848.png',
-  },
-  {
-    title: '골든 트롯 스테이지',
-    subtitle: '화려한 무대의 트롯 라이브',
-    date: '2026.10.18',
-    posterUrl: '/ticket/uploads/events/posters/26_08/606d9c40-e10a-4ed4-b424-e916528c8928.png',
-  },
-  {
-    title: '서울 일렉트로 밤',
-    subtitle: '레이저와 비트의 일렉트로닉 나이트',
-    date: '2026.10.24',
-    posterUrl: '/ticket/uploads/events/posters/26_08/a21db955-fe31-49b1-9d12-ce3d0de7aed4.png',
-  },
-  {
-    title: '빛의 정원 전시',
-    subtitle: '빛과 공간을 체험하는 미디어 전시',
-    date: '2026.10.31',
-    posterUrl: '/ticket/uploads/events/posters/26_08/5c9b1293-2e91-4cad-83f9-c6deeb9b47ea.png',
-  },
-  {
-    title: '가을 발라드 편지',
-    subtitle: '가을밤 피아노와 보컬의 감성 무대',
-    date: '2026.11.01',
-    posterUrl: '/ticket/uploads/events/posters/26_08/0ef18535-3e57-4f97-9580-fefefb3a854c.png',
-  },
-  {
-    title: '국악 달마당',
-    subtitle: '전통 악기와 현대 무대의 만남',
-    date: '2026.11.07',
-    posterUrl: '/ticket/uploads/events/posters/26_08/3d1b79f6-664a-4567-a08c-349b2d302dad.png',
-  },
-  {
-    title: '스탠드업 웃음 공장',
-    subtitle: '개성 있는 코미디언들의 라이브 쇼',
-    date: '2026.11.14',
-    posterUrl: '/ticket/uploads/events/posters/26_08/24f84d82-d7bc-47d7-a2a5-55b62b209339.png',
-  },
-  {
-    title: '우주 탐험대',
-    subtitle: '아이들이 떠나는 우주 가족 뮤지컬',
-    date: '2026.11.21',
-    posterUrl: '/ticket/uploads/events/posters/26_08/5aa80d1c-b491-49b8-8650-337037a9292a.png',
-  },
-];
 
 function App() {
   const [page, setPage] = useState<Page>('home');
@@ -244,11 +122,31 @@ function Header({
 }
 
 function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const [soonestOnSaleEvents, setSoonestOnSaleEvents] = useState<TicketingEvent[]>([]);
   const [posterStartIndex, setPosterStartIndex] = useState(0);
   const [visiblePosterCount, setVisiblePosterCount] = useState(5);
-  const visiblePosters = Array.from({ length: visiblePosterCount }, (_, index) => {
-    return heroEvents[(posterStartIndex + index) % heroEvents.length];
-  });
+  const visiblePosters =
+    soonestOnSaleEvents.length > 0
+      ? Array.from({ length: Math.min(visiblePosterCount, soonestOnSaleEvents.length) }, (_, index) => {
+          return soonestOnSaleEvents[(posterStartIndex + index) % soonestOnSaleEvents.length];
+        })
+      : [];
+
+  useEffect(() => {
+    async function loadSoonestOnSaleEvents() {
+      try {
+        const events = await request<TicketingEvent[]>('/ticket/api/v1/event/on-sale/soonest', {
+          method: 'GET',
+        });
+        setSoonestOnSaleEvents(events);
+        setPosterStartIndex(0);
+      } catch {
+        setSoonestOnSaleEvents([]);
+      }
+    }
+
+    loadSoonestOnSaleEvents();
+  }, []);
 
   useEffect(() => {
     function syncVisiblePosterCount() {
@@ -273,11 +171,15 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
   function movePosters(direction: 'prev' | 'next') {
     setPosterStartIndex((currentIndex) => {
-      if (direction === 'next') {
-        return (currentIndex + 1) % heroEvents.length;
+      if (soonestOnSaleEvents.length === 0) {
+        return 0;
       }
 
-      return (currentIndex - 1 + heroEvents.length) % heroEvents.length;
+      if (direction === 'next') {
+        return (currentIndex + 1) % soonestOnSaleEvents.length;
+      }
+
+      return (currentIndex - 1 + soonestOnSaleEvents.length) % soonestOnSaleEvents.length;
     });
   }
 
@@ -293,16 +195,19 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           ‹
         </button>
         <div className="poster-rail">
-          {visiblePosters.map((event, index) => (
-            <article className="poster-card" key={`${event.title}-${index}`}>
+          {visiblePosters.map((event) => (
+            <article className="poster-card" key={event.eventId}>
               <div className="poster-art">
                 <img src={event.posterUrl} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
-              <p>{event.subtitle}</p>
-              <small>{event.date}</small>
+              <p>{event.artistName}</p>
+              <small>{event.eventDateTime}</small>
             </article>
           ))}
+          {visiblePosters.length === 0 && (
+            <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
+          )}
         </div>
         <button
           className="carousel-arrow carousel-arrow-right"
@@ -324,16 +229,19 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             <button type="button">이 주의 추천공연</button>
           </div>
           <div className="mini-poster-grid">
-            {heroEvents.slice(0, 4).map((event, index) => (
-              <div className="mini-poster" key={event.title}>
+            {soonestOnSaleEvents.slice(0, 4).map((event, index) => (
+              <div className="mini-poster" key={event.eventId}>
                 <div>
                   <img src={event.posterUrl} alt="" />
                   <span className="mini-poster-rank">{index + 1}</span>
                 </div>
                 <strong>{event.title}</strong>
-                <span className="mini-poster-description">{event.subtitle}</span>
+                <span className="mini-poster-description">{event.artistName}</span>
               </div>
             ))}
+            {soonestOnSaleEvents.length === 0 && (
+              <p className="mini-poster-empty">판매 중인 예정 공연이 없습니다.</p>
+            )}
           </div>
         </article>
 
@@ -588,3 +496,4 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
 }
 
 export default App;
+

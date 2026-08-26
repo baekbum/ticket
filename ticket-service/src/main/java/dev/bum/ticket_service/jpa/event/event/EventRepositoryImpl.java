@@ -98,6 +98,22 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
+    public List<Event> selectSoonestOnSale(LocalDateTime now, int limit) {
+        event = QEvent.event;
+
+        return queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now)
+                )
+                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .limit(limit)
+                .fetch();
+    }
+
+    @Override
     public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
         event = QEvent.event;
 
