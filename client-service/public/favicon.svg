@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tickey">
+  <rect width="64" height="64" rx="16" fill="#00c73c"/>
+  <path fill="#ffffff" d="M15 20a5 5 0 0 1 5-5h24a5 5 0 0 1 5 5v5a7 7 0 0 0 0 14v5a5 5 0 0 1-5 5H20a5 5 0 0 1-5-5v-5a7 7 0 0 0 0-14v-5z"/>
+  <path fill="#00c73c" d="M28 20h8v5h-8v-5zm0 9h8v5h-8v-5zm0 9h8v6h-8v-6z"/>
+  <circle cx="44" cy="20" r="4" fill="#ff2d2d"/>
+</svg>
