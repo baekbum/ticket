@@ -135,7 +135,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   useEffect(() => {
     async function loadSoonestOnSaleEvents() {
       try {
-        const events = await request<TicketingEvent[]>('/ticket/api/v1/event/on-sale/soonest', {
+        const events = await request<TicketingEvent[]>('/client-api/api/v1/event/on-sale/soonest', {
           method: 'GET',
         });
         setSoonestOnSaleEvents(events);

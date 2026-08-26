@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -34,6 +35,53 @@ public class SecurityConfig {
     private String activeProfile;
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/uploads/**", "/actuator/health", "/actuator/prometheus", "/h2-console/**")
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {
+                    localCorsConfig.ifPresent(config ->
+                            cors.configurationSource(config.corsConfigurationSource())
+                    );
+
+                    if (localCorsConfig.isEmpty()) {
+                        cors.disable();
+                    }
+                })
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    public SecurityFilterChain publicEventFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/*/event/**")
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {
+                    localCorsConfig.ifPresent(config ->
+                            cors.configurationSource(config.corsConfigurationSource())
+                    );
+
+                    if (localCorsConfig.isEmpty()) {
+                        cors.disable();
+                    }
+                })
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/api/*/event/**").permitAll()
+                        .anyRequest().hasAnyRole("USER", "ADMIN")
+                );
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -48,10 +96,6 @@ public class SecurityConfig {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. 공통 인프라 통로 개방
-                        .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         // 내부 payment-gateway와 통신할 때 보안 강화를 위해 조건 추가
                         .requestMatchers("/api/*/payments/internal/**").hasRole("INTERNAL_SERVICE")
 
