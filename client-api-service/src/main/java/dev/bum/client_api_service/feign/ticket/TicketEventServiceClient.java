@@ -1,6 +1,6 @@
 package dev.bum.client_api_service.feign.ticket;
 
-import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 
@@ -10,5 +10,5 @@ import java.util.List;
 public interface TicketEventServiceClient {
 
     @GetMapping("/on-sale/soonest")
-    List<EventResponse> selectSoonestOnSale();
+    List<EventCardResponse> selectSoonestOnSaleCards();
 }

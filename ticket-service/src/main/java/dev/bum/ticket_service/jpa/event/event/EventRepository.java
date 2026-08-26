@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.event.event;
 
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
@@ -14,7 +15,7 @@ public interface EventRepository {
     void isExist(EventCondRequest cond);
     Event selectById(Long id);
     List<Event> selectByEventGroupCode(String eventGroupCode);
-    List<Event> selectSoonestOnSale(LocalDateTime now, int limit);
+    List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit);
     Page<Event> selectByCond(EventCondRequest cond, Pageable pageable);
     Event update(Long id, UpdateEventRequest info);
     Event delete(Long id);

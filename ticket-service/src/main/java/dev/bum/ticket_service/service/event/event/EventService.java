@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.event.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
@@ -61,12 +62,10 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> selectSoonestOnSale() {
+    public List<EventCardResponse> selectSoonestOnSaleCards() {
         LocalDateTime now = LocalDateTime.now();
 
-        return repository.selectSoonestOnSale(now, SOONEST_ON_SALE_EVENT_LIMIT).stream()
-                .map(Event::toResponse)
-                .toList();
+        return repository.selectSoonestOnSaleCards(now, SOONEST_ON_SALE_EVENT_LIMIT);
     }
 
     /**

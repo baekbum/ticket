@@ -22,11 +22,12 @@ type TokenResponse = {
 };
 
 type TicketingEvent = {
-  eventId: number;
+  eventGroupCode: string;
   artistName: string;
   title: string;
-  eventDateTime: string;
   posterUrl: string;
+  eventStartDate: string;
+  eventEndDate: string;
 };
 
 const initialLoginForm: LoginForm = {
@@ -183,6 +184,18 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     });
   }
 
+  function formatEventDateRange(event: TicketingEvent) {
+    if (!event.eventStartDate) {
+      return '';
+    }
+
+    if (!event.eventEndDate || event.eventStartDate === event.eventEndDate) {
+      return event.eventStartDate;
+    }
+
+    return `${event.eventStartDate} ~ ${event.eventEndDate}`;
+  }
+
   return (
     <>
       <section className="poster-carousel" aria-label="주요 공연">
@@ -192,17 +205,17 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           aria-label="이전 공연 보기"
           onClick={() => movePosters('prev')}
         >
-          ‹
+          <span aria-hidden="true">‹</span>
         </button>
         <div className="poster-rail">
           {visiblePosters.map((event) => (
-            <article className="poster-card" key={event.eventId}>
+            <article className="poster-card" key={event.eventGroupCode}>
               <div className="poster-art">
                 <img src={event.posterUrl} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
               <p>{event.artistName}</p>
-              <small>{event.eventDateTime}</small>
+              <small>{formatEventDateRange(event)}</small>
             </article>
           ))}
           {visiblePosters.length === 0 && (
@@ -215,7 +228,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           aria-label="다음 공연 보기"
           onClick={() => movePosters('next')}
         >
-          ›
+          <span aria-hidden="true">›</span>
         </button>
       </section>
 
@@ -230,7 +243,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </div>
           <div className="mini-poster-grid">
             {soonestOnSaleEvents.slice(0, 4).map((event, index) => (
-              <div className="mini-poster" key={event.eventId}>
+              <div className="mini-poster" key={event.eventGroupCode}>
                 <div>
                   <img src={event.posterUrl} alt="" />
                   <span className="mini-poster-rank">{index + 1}</span>

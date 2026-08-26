@@ -175,10 +175,11 @@ button {
   position: absolute;
   top: 128px;
   z-index: 2;
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 54px;
   height: 54px;
-  place-items: center;
   border: 1px solid #dddddd;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
@@ -192,6 +193,12 @@ button {
     transform 160ms ease,
     box-shadow 160ms ease;
   pointer-events: none;
+}
+
+.carousel-arrow span {
+  display: block;
+  line-height: 0;
+  transform: translateY(-2px);
 }
 
 .poster-empty,

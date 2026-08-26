@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.controller.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.ticket_service.service.event.event.EventService;
@@ -34,7 +35,7 @@ public class EventController {
     }
 
     @GetMapping("/on-sale/soonest")
-    public ResponseEntity<List<EventResponse>> selectSoonestOnSale() {
-        return ResponseEntity.ok(eventService.selectSoonestOnSale());
+    public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {
+        return ResponseEntity.ok(eventService.selectSoonestOnSaleCards());
     }
 }

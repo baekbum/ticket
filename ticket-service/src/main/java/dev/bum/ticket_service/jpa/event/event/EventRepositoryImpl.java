@@ -2,10 +2,13 @@ package dev.bum.ticket_service.jpa.event.event;
 
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.DateTimeExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
@@ -29,7 +32,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Repository
@@ -98,19 +104,67 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public List<Event> selectSoonestOnSale(LocalDateTime now, int limit) {
+    public List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit) {
         event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
 
-        return queryFactory
-                .select(event)
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
                 .from(event)
                 .where(
                         event.status.eq(EventStatus.ON_SALE),
                         event.eventDateTime.goe(now)
                 )
-                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .groupBy(event.eventGroupCode)
+                .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
                 .limit(limit)
                 .fetch();
+
+        List<String> eventGroupCodes = groups.stream()
+                .map(group -> group.get(event.eventGroupCode))
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (eventGroupCodes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Event> representativeEvents = new LinkedHashMap<>();
+        queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now),
+                        event.eventGroupCode.in(eventGroupCodes)
+                )
+                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .fetch()
+                .forEach(onSaleEvent -> representativeEvents.putIfAbsent(onSaleEvent.getEventGroupCode(), onSaleEvent));
+
+        return groups.stream()
+                .map(group -> {
+                    String eventGroupCode = group.get(event.eventGroupCode);
+                    Event representativeEvent = representativeEvents.get(eventGroupCode);
+                    LocalDateTime start = group.get(startDateTime);
+                    LocalDateTime end = group.get(endDateTime);
+
+                    if (representativeEvent == null || start == null || end == null) {
+                        return null;
+                    }
+
+                    return EventCardResponse.builder()
+                            .eventGroupCode(eventGroupCode)
+                            .artistName(representativeEvent.getArtistName())
+                            .title(representativeEvent.getTitle())
+                            .posterUrl(representativeEvent.getPosterUrl())
+                            .eventStartDate(start.toLocalDate())
+                            .eventEndDate(end.toLocalDate())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

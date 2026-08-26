@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.jpa.event;
 
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
@@ -187,20 +188,23 @@ class EventRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("판매중인 예정 이벤트를 공연 일시가 빠른 순으로 제한 조회")
+    @DisplayName("판매중인 예정 이벤트를 그룹별 공연 기간이 빠른 순으로 제한 조회")
     void event_select_soonest_on_sale() {
         jpaRepository.deleteAll();
         LocalDateTime now = LocalDateTime.of(2026, 9, 18, 12, 0);
         jpaRepository.save(event("Past", "Past Event", "Past Venue", LocalDateTime.of(2026, 9, 18, 11, 0)));
         Event first = jpaRepository.save(event("First", "First Event", "Venue 1", LocalDateTime.of(2026, 9, 18, 18, 0)));
+        jpaRepository.save(event("First", "First Event", "Venue 1", LocalDateTime.of(2026, 9, 20, 18, 0)));
         Event second = jpaRepository.save(event("Second", "Second Event", "Venue 2", LocalDateTime.of(2026, 9, 19, 18, 0)));
         jpaRepository.save(event("Cancelled", "Cancelled Event", "Venue 3", LocalDateTime.of(2026, 9, 18, 16, 0), EventStatus.CANCELLED));
         jpaRepository.save(event("Sold Out", "Sold Out Event", "Venue 4", LocalDateTime.of(2026, 9, 18, 17, 0), EventStatus.SOLD_OUT));
 
-        List<Event> response = eventRepository.selectSoonestOnSale(now, 2);
+        List<EventCardResponse> response = eventRepository.selectSoonestOnSaleCards(now, 2);
 
-        assertThat(response).extracting(Event::getEventId)
-                .containsExactly(first.getEventId(), second.getEventId());
+        assertThat(response).extracting(EventCardResponse::getEventGroupCode)
+                .containsExactly(first.getEventGroupCode(), second.getEventGroupCode());
+        assertThat(response.get(0).getEventStartDate()).isEqualTo(LocalDate.of(2026, 9, 18));
+        assertThat(response.get(0).getEventEndDate()).isEqualTo(LocalDate.of(2026, 9, 20));
     }
 
     @Test
