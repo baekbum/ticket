@@ -56,6 +56,8 @@ function App() {
       {page === 'home' && <HomePage onNavigate={setPage} />}
       {page === 'login' && <LoginPage onNavigate={setPage} />}
       {page === 'signup' && <SignupPage onNavigate={setPage} />}
+      <SiteFooter />
+      <TopButton />
     </main>
   );
 }
@@ -487,6 +489,63 @@ function AuthLayout({
   );
 }
 
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <nav className="footer-links" aria-label="서비스 정책">
+          <button type="button">회사소개</button>
+          <button type="button">이용약관</button>
+          <button type="button">개인정보처리방침</button>
+          <button type="button">청소년보호정책</button>
+          <button type="button">티켓판매안내</button>
+          <button type="button">고객센터</button>
+        </nav>
+
+        <div className="footer-content">
+          <div className="footer-company">
+            <strong>Tickey</strong>
+            <p>
+              주식회사 티키 · 대표이사 백범 · 사업자등록번호 214-88-73021 ·
+              통신판매업신고 2026-서울강남-04812
+            </p>
+            <p>
+              서울특별시 강남구 테헤란로 427, 12층 · 개인정보보호책임자 이서연 ·
+              이메일 help@tickey.example
+            </p>
+            <p>
+              Tickey는 통신판매중개자로서 공연 주최사가 등록한 상품 정보 및 거래에 대한
+              책임은 각 판매자에게 있습니다.
+            </p>
+          </div>
+
+          <div className="footer-contact">
+            <span>고객센터</span>
+            <strong>1588-4926</strong>
+            <p>평일 09:00 - 18:00</p>
+            <p>점심 12:30 - 13:30 · 주말/공휴일 휴무</p>
+          </div>
+        </div>
+
+        <p className="footer-copy">© Tickey Corp. All rights reserved.</p>
+      </div>
+    </footer>
+  );
+}
+
+function TopButton() {
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  return (
+    <button className="top-button" type="button" onClick={scrollToTop} aria-label="맨 위로 이동">
+      <span className="top-button-chevron" aria-hidden="true" />
+      <span>TOP</span>
+    </button>
+  );
+}
+
 async function request<T = unknown>(url: string, options: RequestInit): Promise<T> {
   const response = await fetch(url, {
     headers: {
@@ -509,4 +568,5 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
 }
 
 export default App;
+
 
