@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import './App.css';
 
 type Page = 'home' | 'login' | 'signup';
@@ -128,12 +129,20 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [soonestOnSaleEvents, setSoonestOnSaleEvents] = useState<TicketingEvent[]>([]);
   const [posterStartIndex, setPosterStartIndex] = useState(0);
   const [visiblePosterCount, setVisiblePosterCount] = useState(5);
+  const [isPosterSliding, setIsPosterSliding] = useState(false);
+  const activePosterCount = Math.min(visiblePosterCount, soonestOnSaleEvents.length);
+  const displayPosterCount =
+    soonestOnSaleEvents.length > activePosterCount ? activePosterCount + 1 : activePosterCount;
   const visiblePosters =
     soonestOnSaleEvents.length > 0
-      ? Array.from({ length: Math.min(visiblePosterCount, soonestOnSaleEvents.length) }, (_, index) => {
+      ? Array.from({ length: displayPosterCount }, (_, index) => {
           return soonestOnSaleEvents[(posterStartIndex + index) % soonestOnSaleEvents.length];
         })
       : [];
+  const posterGapCount = Math.max(activePosterCount - 1, 0);
+  const posterRailStyle = {
+    '--poster-card-width': `calc((100% - ${posterGapCount * 22}px) / ${activePosterCount || 1})`,
+  } as CSSProperties;
 
   useEffect(() => {
     async function loadSoonestOnSaleEvents() {
@@ -172,18 +181,50 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     return () => window.removeEventListener('resize', syncVisiblePosterCount);
   }, []);
 
-  function movePosters(direction: 'prev' | 'next') {
-    setPosterStartIndex((currentIndex) => {
-      if (soonestOnSaleEvents.length === 0) {
-        return 0;
-      }
+  useEffect(() => {
+    if (soonestOnSaleEvents.length <= activePosterCount || isPosterSliding) {
+      return;
+    }
 
+    const rotationTimer = window.setInterval(() => {
+      movePosters('next');
+    }, 5000);
+
+    return () => window.clearInterval(rotationTimer);
+  }, [activePosterCount, isPosterSliding, soonestOnSaleEvents.length]);
+
+  function movePosters(direction: 'prev' | 'next') {
+    if (soonestOnSaleEvents.length <= 1 || isPosterSliding) {
+      return;
+    }
+
+    if (soonestOnSaleEvents.length <= activePosterCount) {
+      setPosterStartIndex((currentIndex) => {
+        if (direction === 'next') {
+          return (currentIndex + 1) % soonestOnSaleEvents.length;
+        }
+
+        return (currentIndex - 1 + soonestOnSaleEvents.length) % soonestOnSaleEvents.length;
+      });
+      return;
+    }
+
+    if (direction === 'prev') {
+      setPosterStartIndex((currentIndex) => (currentIndex - 1 + soonestOnSaleEvents.length) % soonestOnSaleEvents.length);
+      return;
+    }
+
+    setIsPosterSliding(true);
+    window.setTimeout(() => {
+      setPosterStartIndex((currentIndex) => {
       if (direction === 'next') {
         return (currentIndex + 1) % soonestOnSaleEvents.length;
       }
 
       return (currentIndex - 1 + soonestOnSaleEvents.length) % soonestOnSaleEvents.length;
-    });
+      });
+      setIsPosterSliding(false);
+    }, 420);
   }
 
   function formatEventDateRange(event: TicketingEvent) {
@@ -207,9 +248,13 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           aria-label="이전 공연 보기"
           onClick={() => movePosters('prev')}
         >
-          <span aria-hidden="true">‹</span>
+          <ArrowIcon direction="left" />
         </button>
-        <div className="poster-rail">
+        <div className="poster-viewport">
+          <div
+            className={`poster-rail${isPosterSliding ? ' poster-rail-sliding' : ''}`}
+            style={posterRailStyle}
+          >
           {visiblePosters.map((event) => (
             <article className="poster-card" key={event.eventGroupCode}>
               <div className="poster-art">
@@ -223,6 +268,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           {visiblePosters.length === 0 && (
             <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
           )}
+          </div>
         </div>
         <button
           className="carousel-arrow carousel-arrow-right"
@@ -230,7 +276,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           aria-label="다음 공연 보기"
           onClick={() => movePosters('next')}
         >
-          <span aria-hidden="true">›</span>
+          <ArrowIcon direction="right" />
         </button>
       </section>
 
@@ -269,6 +315,16 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         </aside>
       </section>
     </>
+  );
+}
+
+function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
+  const points = direction === 'left' ? '38 10 14 32 38 54' : '26 10 50 32 26 54';
+
+  return (
+    <svg className="carousel-arrow-icon" viewBox="0 0 64 64" aria-hidden="true">
+      <polyline points={points} />
+    </svg>
   );
 }
 

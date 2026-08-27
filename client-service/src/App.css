@@ -166,28 +166,38 @@ button {
   padding: 0 24px;
 }
 
+.poster-viewport {
+  overflow: hidden;
+}
+
 .poster-rail {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(190px, 1fr));
+  display: flex;
   gap: 22px;
+  transform: translateX(0);
+}
+
+.poster-rail-sliding {
+  transform: translateX(calc((var(--poster-card-width) + 22px) * -1));
+  transition: transform 420ms ease;
 }
 
 .carousel-arrow {
   position: absolute;
-  top: 128px;
+  top: 150px;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 54px;
-  border: 1px solid #dddddd;
+  width: 112px;
+  height: 112px;
+  border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #333333;
-  font-size: 42px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffffff;
+  font-size: 0;
   line-height: 1;
   opacity: 0;
+  overflow: visible;
   transform: translateY(-50%);
   transition:
     opacity 160ms ease,
@@ -196,10 +206,18 @@ button {
   pointer-events: none;
 }
 
-.carousel-arrow span {
-  display: block;
-  line-height: 0;
-  transform: translateY(-2px);
+.carousel-arrow-icon {
+  width: 64px;
+  height: 64px;
+  overflow: visible;
+}
+
+.carousel-arrow-icon polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
 }
 
 .poster-empty,
@@ -231,19 +249,21 @@ button {
 }
 
 .carousel-arrow:hover {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
   transform: translateY(-50%) scale(1.04);
 }
 
 .carousel-arrow-left {
-  left: 8px;
+  left: 70px;
 }
 
 .carousel-arrow-right {
-  right: 8px;
+  right: 70px;
 }
 
 .poster-card {
+  flex: 0 0 var(--poster-card-width);
   min-width: 0;
   text-align: center;
 }
@@ -687,9 +707,24 @@ button {
   }
 
   .carousel-arrow {
-    top: 118px;
+    top: 130px;
+    width: 84px;
+    height: 84px;
     opacity: 1;
     pointer-events: auto;
+  }
+
+  .carousel-arrow-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .carousel-arrow-left {
+    left: 40px;
+  }
+
+  .carousel-arrow-right {
+    right: 40px;
   }
 
   .poster-art {
