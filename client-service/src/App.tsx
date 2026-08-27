@@ -646,7 +646,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
         <form className="signup-form" onSubmit={submitSignup}>
           <label className="signup-field">
-            <span>ID</span>
+            <span>
+              <em>*</em>ID
+            </span>
             <div className="signup-id-row">
               <input
                 autoComplete="username"
@@ -669,7 +671,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           )}
 
           <label className="signup-field">
-            <span>Password</span>
+            <span>
+              <em>*</em>Password
+            </span>
             <input
               autoComplete="new-password"
               minLength={8}
@@ -681,7 +685,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             />
           </label>
           <label className="signup-field">
-            <span>Password 확인</span>
+            <span>
+              <em>*</em>Password 확인
+            </span>
             <input
               autoComplete="new-password"
               minLength={8}
@@ -696,7 +702,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </label>
 
           <label className="signup-field">
-            <span>이름</span>
+            <span>
+              <em>*</em>이름
+            </span>
             <input
               autoComplete="name"
               placeholder="이름 입력"
@@ -706,7 +714,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             />
           </label>
           <label className="signup-field">
-            <span>핸드폰 번호</span>
+            <span>
+              <em>*</em>핸드폰 번호
+            </span>
             <input
               autoComplete="tel"
               placeholder="010-0000-0000"
@@ -718,7 +728,9 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             />
           </label>
           <label className="signup-field">
-            <span>이메일</span>
+            <span>
+              <em>*</em>이메일
+            </span>
             <input
               autoComplete="email"
               placeholder="tickey@example.com"

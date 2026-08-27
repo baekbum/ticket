@@ -762,6 +762,12 @@ button {
   font-weight: 800;
 }
 
+.signup-field em {
+  margin-right: 4px;
+  color: #00c73c;
+  font-style: normal;
+}
+
 .signup-field input {
   width: 100%;
   height: 44px;
