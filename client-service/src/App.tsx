@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './App.css';
 
@@ -10,11 +10,11 @@ type LoginForm = {
 };
 
 type SignupForm = LoginForm & {
+  passwordConfirm: string;
   name: string;
   phoneNumber: string;
   email: string;
   birthDate: string;
-  address: string;
 };
 
 type TokenResponse = {
@@ -39,14 +39,15 @@ const initialLoginForm: LoginForm = {
 const initialSignupForm: SignupForm = {
   userId: '',
   password: '',
+  passwordConfirm: '',
   name: '',
   phoneNumber: '',
   email: '',
   birthDate: '',
-  address: '',
 };
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
+const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
 function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
@@ -70,8 +71,46 @@ function getUrlForPage(page: Page) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCalendarMonthFromValue(value: string) {
+  const [year, month] = value.split('-').map(Number);
+  const today = new Date();
+
+  if (!year || !month) {
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }
+
+  return new Date(year, month - 1, 1);
+}
+
+function getCalendarDays(monthDate: Date) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startDate = new Date(year, month, 1 - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+
+    return {
+      date,
+      dateText: formatDateInput(date),
+      isCurrentMonth: date.getMonth() === month,
+    };
+  });
+}
+
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
+  const isAuthPage = page === 'login' || page === 'signup';
 
   useEffect(() => {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
@@ -105,12 +144,12 @@ function App() {
 
   return (
     <main className="app-shell">
-      {page !== 'login' && <Header currentPage={page} onNavigate={navigateToPage} />}
+      {!isAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
       {page === 'home' && <HomePage onNavigate={navigateToPage} />}
       {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
-      {page !== 'login' && <SiteFooter />}
-      {page !== 'login' && <TopButton />}
+      {!isAuthPage && <SiteFooter />}
+      {!isAuthPage && <TopButton />}
     </main>
   );
 }
@@ -477,23 +516,114 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [signupForm, setSignupForm] = useState<SignupForm>(initialSignupForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingUserId, setIsCheckingUserId] = useState(false);
+  const [isUserIdChecked, setIsUserIdChecked] = useState(false);
+  const [userIdCheckMessage, setUserIdCheckMessage] = useState('');
   const [message, setMessage] = useState('');
+  const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
+  const [birthDateCalendarMonth, setBirthDateCalendarMonth] = useState(() =>
+    getCalendarMonthFromValue(initialSignupForm.birthDate),
+  );
+  const birthDateCalendarRef = useRef<HTMLDivElement>(null);
+  const birthDateCalendarDays = getCalendarDays(birthDateCalendarMonth);
+  const birthDateMonthLabel = `${birthDateCalendarMonth.getFullYear()}.${String(
+    birthDateCalendarMonth.getMonth() + 1,
+  ).padStart(2, '0')}`;
+
+  useEffect(() => {
+    function closeCalendarOnOutsideClick(event: MouseEvent) {
+      if (
+        birthDateCalendarRef.current &&
+        !birthDateCalendarRef.current.contains(event.target as Node)
+      ) {
+        setIsBirthDateCalendarOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', closeCalendarOnOutsideClick);
+
+    return () => document.removeEventListener('mousedown', closeCalendarOnOutsideClick);
+  }, []);
+
+  function updateSignupForm(nextForm: SignupForm) {
+    if (nextForm.userId !== signupForm.userId) {
+      setIsUserIdChecked(false);
+      setUserIdCheckMessage('');
+    }
+
+    setSignupForm(nextForm);
+  }
+
+  async function checkUserIdDuplication() {
+    if (!signupForm.userId.trim()) {
+      setUserIdCheckMessage('아이디를 먼저 입력해 주세요.');
+      return;
+    }
+
+    setIsCheckingUserId(true);
+    setUserIdCheckMessage('');
+
+    try {
+      await request(`/client-api/api/v1/user/check/duplication/${encodeURIComponent(signupForm.userId)}`, {
+        method: 'GET',
+      });
+
+      setIsUserIdChecked(true);
+      setUserIdCheckMessage('사용 가능한 아이디입니다.');
+    } catch (error) {
+      setIsUserIdChecked(false);
+      setUserIdCheckMessage(error instanceof Error ? error.message : '이미 사용 중인 아이디입니다.');
+    } finally {
+      setIsCheckingUserId(false);
+    }
+  }
+
+  function openBirthDatePicker() {
+    setBirthDateCalendarMonth(getCalendarMonthFromValue(signupForm.birthDate));
+    setIsBirthDateCalendarOpen((isOpen) => !isOpen);
+  }
+
+  function moveBirthDateCalendarMonth(monthOffset: number) {
+    setBirthDateCalendarMonth(
+      (monthDate) => new Date(monthDate.getFullYear(), monthDate.getMonth() + monthOffset, 1),
+    );
+  }
+
+  function selectBirthDate(date: Date) {
+    setSignupForm({ ...signupForm, birthDate: formatDateInput(date) });
+    setIsBirthDateCalendarOpen(false);
+  }
 
   async function submitSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSubmitting(true);
     setMessage('');
 
+    if (!isUserIdChecked) {
+      setMessage('아이디 중복체크를 진행해 주세요.');
+      return;
+    }
+
+    if (signupForm.password !== signupForm.passwordConfirm) {
+      setMessage('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
+      const { passwordConfirm, ...requestBody } = signupForm;
+
       await request('/client-api/api/v1/user/signup', {
         method: 'POST',
         body: JSON.stringify({
-          ...signupForm,
-          birthDate: signupForm.birthDate || null,
+          ...requestBody,
+          birthDate: requestBody.birthDate || null,
         }),
       });
 
       setSignupForm(initialSignupForm);
+      setIsUserIdChecked(false);
+      setUserIdCheckMessage('');
       setMessage('회원가입이 완료되었습니다. 로그인해 주세요.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
@@ -503,55 +633,83 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   }
 
   return (
-    <AuthLayout
-      title="회원가입"
-      description="공연 예매에 필요한 기본 정보를 입력하세요."
-      footer={
-        <>
-          이미 계정이 있나요?
-          <button type="button" onClick={() => onNavigate('login')}>
-            로그인
-          </button>
-        </>
-      }
-    >
-      <form className="auth-form" onSubmit={submitSignup}>
-        <div className="field-row">
-          <label>
-            아이디
+    <section className="signup-page">
+      <button className="login-logo" type="button" onClick={() => onNavigate('home')}>
+        Tickey
+      </button>
+
+      <div className="signup-box">
+        <div className="signup-heading">
+          <h1>회원가입</h1>
+          <p>Tickey 예매 서비스를 위한 기본 정보를 입력해 주세요.</p>
+        </div>
+
+        <form className="signup-form" onSubmit={submitSignup}>
+          <label className="signup-field">
+            <span>ID</span>
+            <div className="signup-id-row">
+              <input
+                autoComplete="username"
+                placeholder="아이디 입력"
+                required
+                value={signupForm.userId}
+                onChange={(event) =>
+                  updateSignupForm({ ...signupForm, userId: event.target.value })
+                }
+              />
+              <button disabled={isCheckingUserId} type="button" onClick={checkUserIdDuplication}>
+                {isCheckingUserId ? '확인 중' : '중복체크'}
+              </button>
+            </div>
+          </label>
+          {userIdCheckMessage && (
+            <p className={isUserIdChecked ? 'signup-check-message success' : 'signup-check-message'}>
+              {userIdCheckMessage}
+            </p>
+          )}
+
+          <label className="signup-field">
+            <span>Password</span>
             <input
-              autoComplete="username"
+              autoComplete="new-password"
+              minLength={8}
+              placeholder="비밀번호 입력"
               required
-              value={signupForm.userId}
-              onChange={(event) => setSignupForm({ ...signupForm, userId: event.target.value })}
+              type="password"
+              value={signupForm.password}
+              onChange={(event) => setSignupForm({ ...signupForm, password: event.target.value })}
             />
           </label>
-          <label>
-            이름
+          <label className="signup-field">
+            <span>Password 확인</span>
+            <input
+              autoComplete="new-password"
+              minLength={8}
+              placeholder="비밀번호 재입력"
+              required
+              type="password"
+              value={signupForm.passwordConfirm}
+              onChange={(event) =>
+                setSignupForm({ ...signupForm, passwordConfirm: event.target.value })
+              }
+            />
+          </label>
+
+          <label className="signup-field">
+            <span>이름</span>
             <input
               autoComplete="name"
+              placeholder="이름 입력"
               required
               value={signupForm.name}
               onChange={(event) => setSignupForm({ ...signupForm, name: event.target.value })}
             />
           </label>
-        </div>
-        <label>
-          비밀번호
-          <input
-            autoComplete="new-password"
-            minLength={8}
-            required
-            type="password"
-            value={signupForm.password}
-            onChange={(event) => setSignupForm({ ...signupForm, password: event.target.value })}
-          />
-        </label>
-        <div className="field-row">
-          <label>
-            휴대폰 번호
+          <label className="signup-field">
+            <span>핸드폰 번호</span>
             <input
               autoComplete="tel"
+              placeholder="010-0000-0000"
               required
               value={signupForm.phoneNumber}
               onChange={(event) =>
@@ -559,65 +717,88 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
               }
             />
           </label>
-          <label>
-            이메일
+          <label className="signup-field">
+            <span>이메일</span>
             <input
               autoComplete="email"
+              placeholder="tickey@example.com"
               required
               type="email"
               value={signupForm.email}
               onChange={(event) => setSignupForm({ ...signupForm, email: event.target.value })}
             />
           </label>
-        </div>
-        <div className="field-row">
-          <label>
-            생년월일
-            <input
-              type="date"
-              value={signupForm.birthDate}
-              onChange={(event) => setSignupForm({ ...signupForm, birthDate: event.target.value })}
-            />
+          <label className="signup-field">
+            <span>생년월일</span>
+            <div className="signup-date-input" ref={birthDateCalendarRef}>
+              <input
+                inputMode="numeric"
+                pattern="\d{4}-\d{2}-\d{2}"
+                placeholder="YYYY-MM-DD"
+                value={signupForm.birthDate}
+                onChange={(event) =>
+                  setSignupForm({ ...signupForm, birthDate: event.target.value })
+                }
+              />
+              <button type="button" onClick={openBirthDatePicker} aria-label="생년월일 선택" />
+              {isBirthDateCalendarOpen && (
+                <div className="signup-calendar" role="dialog" aria-label="생년월일 달력">
+                  <div className="signup-calendar-header">
+                    <button
+                      type="button"
+                      onClick={() => moveBirthDateCalendarMonth(-1)}
+                      aria-label="이전 달"
+                    >
+                      ‹
+                    </button>
+                    <strong>{birthDateMonthLabel}</strong>
+                    <button
+                      type="button"
+                      onClick={() => moveBirthDateCalendarMonth(1)}
+                      aria-label="다음 달"
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <div className="signup-calendar-weekdays">
+                    {calendarWeekdays.map((weekday) => (
+                      <span key={weekday}>{weekday}</span>
+                    ))}
+                  </div>
+                  <div className="signup-calendar-days">
+                    {birthDateCalendarDays.map(({ date, dateText, isCurrentMonth }) => (
+                      <button
+                        className={[
+                          isCurrentMonth ? '' : 'muted',
+                          signupForm.birthDate === dateText ? 'selected' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        type="button"
+                        key={dateText}
+                        onClick={() => selectBirthDate(date)}
+                      >
+                        {date.getDate()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </label>
-          <label>
-            주소
-            <input
-              autoComplete="street-address"
-              value={signupForm.address}
-              onChange={(event) => setSignupForm({ ...signupForm, address: event.target.value })}
-            />
-          </label>
-        </div>
-        <button className="submit-button" disabled={isSubmitting} type="submit">
-          {isSubmitting ? '처리 중...' : '회원가입'}
-        </button>
-        {message && <p className="form-message">{message}</p>}
-      </form>
-    </AuthLayout>
-  );
-}
 
-function AuthLayout({
-  title,
-  description,
-  children,
-  footer,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-  footer: ReactNode;
-}) {
-  return (
-    <section className="auth-page">
-      <div className="auth-copy">
-        <p className="section-kicker">Ticksy Account</p>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      <div className="auth-card">
-        {children}
-        <div className="auth-footer">{footer}</div>
+          <button className="signup-submit-button" disabled={isSubmitting} type="submit">
+            {isSubmitting ? '처리 중...' : '가입하기'}
+          </button>
+          {message && <p className="form-message">{message}</p>}
+        </form>
+
+        <div className="signup-links">
+          <span>이미 계정이 있나요?</span>
+          <button type="button" onClick={() => onNavigate('login')}>
+            로그인
+          </button>
+        </div>
       </div>
     </section>
   );

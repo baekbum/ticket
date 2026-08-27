@@ -712,6 +712,295 @@ button {
   font-size: 12px;
 }
 
+.signup-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  padding: 42px 22px 56px;
+  background: #ffffff;
+}
+
+.signup-box {
+  box-sizing: border-box;
+  width: min(540px, 100%);
+  margin-top: 28px;
+  padding: 42px 58px 34px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+}
+
+.signup-heading {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.signup-heading h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.signup-heading p {
+  margin: 9px 0 0;
+  color: #777777;
+  font-size: 13px;
+}
+
+.signup-form {
+  display: grid;
+  gap: 15px;
+}
+
+.signup-field {
+  display: grid;
+  gap: 7px;
+  color: #222222;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.signup-field input {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 1px solid #dddddd;
+  color: #222222;
+  font-size: 14px;
+  outline: none;
+}
+
+.signup-field input::placeholder {
+  color: #b8b8b8;
+}
+
+.signup-field input:focus {
+  border-bottom-color: #00c73c;
+}
+
+.signup-date-input {
+  position: relative;
+}
+
+.signup-date-input input {
+  padding-right: 34px;
+}
+
+.signup-date-input > button {
+  position: absolute;
+  right: 2px;
+  bottom: 12px;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid #9aa4a0;
+  border-radius: 5px;
+  padding: 0;
+  pointer-events: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.signup-date-input > button::before {
+  position: absolute;
+  top: 4px;
+  left: 2px;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: #9aa4a0;
+  content: '';
+}
+
+.signup-date-input > button::after {
+  position: absolute;
+  top: -4px;
+  left: 4px;
+  width: 8px;
+  height: 5px;
+  border-color: #9aa4a0;
+  border-style: solid;
+  border-width: 0 1.5px;
+  content: '';
+}
+
+.signup-date-input > button:hover,
+.signup-date-input:focus-within > button,
+.signup-date-input:focus-within > button::after {
+  border-color: #00c73c;
+}
+
+.signup-date-input > button:hover::before,
+.signup-date-input:focus-within > button::before {
+  background: #00c73c;
+}
+
+.signup-date-input > button:hover::after {
+  border-color: #00c73c;
+}
+
+.signup-calendar {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 20;
+  width: 260px;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid #d9e2dc;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(20, 35, 28, 0.14);
+}
+
+.signup-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.signup-calendar-header button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: #f4f7f5;
+  color: #333333;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.signup-calendar-header button:hover {
+  background: #e9f8ee;
+  color: #00a832;
+}
+
+.signup-calendar-header strong {
+  color: #222222;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.signup-calendar-weekdays,
+.signup-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.signup-calendar-weekdays {
+  margin-bottom: 7px;
+}
+
+.signup-calendar-weekdays span {
+  color: #9aa4a0;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.signup-calendar-days {
+  gap: 4px;
+}
+
+.signup-calendar-days button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #333333;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.signup-calendar-days button:hover {
+  background: #effaf3;
+  color: #00a832;
+}
+
+.signup-calendar-days button.muted {
+  color: #c2c8c5;
+}
+
+.signup-calendar-days button.selected {
+  background: #00c73c;
+  color: #ffffff;
+}
+
+.signup-id-row {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  gap: 10px;
+  align-items: end;
+}
+
+.signup-id-row button {
+  height: 38px;
+  border: 1px solid #00c73c;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #00a832;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.signup-id-row button:disabled,
+.signup-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.signup-check-message {
+  margin: -7px 0 0;
+  color: #e05656;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signup-check-message.success {
+  color: #00a832;
+}
+
+.signup-submit-button {
+  width: 100%;
+  min-height: 45px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 5px;
+  background: #00c73c;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.signup-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: #777777;
+  font-size: 13px;
+}
+
+.signup-links button {
+  border: 0;
+  background: transparent;
+  color: #00a832;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .site-footer {
   margin-top: 36px;
   border-top: 1px solid #d8d8d8;
@@ -942,6 +1231,20 @@ button {
   .login-form > input {
     height: 47px;
     font-size: 14px;
+  }
+
+  .signup-page {
+    padding: 34px 16px 42px;
+  }
+
+  .signup-box {
+    margin-top: 24px;
+    padding: 34px 25px 29px;
+  }
+
+  .signup-id-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .login-links,
