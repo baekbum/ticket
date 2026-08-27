@@ -239,6 +239,10 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     return `${event.eventStartDate} ~ ${event.eventEndDate}`;
   }
 
+  function handlePosterClick(event: TicketingEvent) {
+    window.location.hash = `event-${encodeURIComponent(event.eventGroupCode)}`;
+  }
+
   return (
     <>
       <section className="poster-carousel" aria-label="주요 공연">
@@ -256,14 +260,20 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             style={posterRailStyle}
           >
           {visiblePosters.map((event) => (
-            <article className="poster-card" key={event.eventGroupCode}>
+            <button
+              className="poster-card"
+              type="button"
+              key={event.eventGroupCode}
+              onClick={() => handlePosterClick(event)}
+              aria-label={`${event.title} 공연 상세 보기`}
+            >
               <div className="poster-art">
                 <img src={event.posterUrl} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
               <p>{event.artistName}</p>
               <small>{formatEventDateRange(event)}</small>
-            </article>
+            </button>
           ))}
           {visiblePosters.length === 0 && (
             <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>

@@ -265,7 +265,23 @@ button {
 .poster-card {
   flex: 0 0 var(--poster-card-width);
   min-width: 0;
+  padding: 8px 8px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: center;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.poster-card:hover,
+.poster-card:focus-visible {
+  background: #111111;
+  color: #ffffff;
+  outline: none;
+  transform: translateY(-4px);
 }
 
 .poster-art {
@@ -282,6 +298,15 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.poster-card:hover .poster-art img,
+.poster-card:focus-visible .poster-art img {
+  opacity: 0.82;
+  transform: scale(1.035);
 }
 
 .poster-card strong {
@@ -307,6 +332,13 @@ button {
   display: block;
   margin-top: 8px;
   color: #999999;
+}
+
+.poster-card:hover p,
+.poster-card:hover small,
+.poster-card:focus-visible p,
+.poster-card:focus-visible small {
+  color: #d7d7d7;
 }
 
 .content-grid {
