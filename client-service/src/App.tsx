@@ -105,10 +105,6 @@ function Header({
             ⌕
           </button>
         </div>
-        <div className="ad-banner">
-          <strong>Ticksy Pick</strong>
-          <span>이번 주 오픈 공연 한눈에 보기</span>
-        </div>
       </div>
 
       <nav className="category-nav" aria-label="공연 카테고리">
