@@ -48,17 +48,69 @@ const initialSignupForm: SignupForm = {
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 
+function getPageFromLocation(): Page {
+  const page = new URLSearchParams(window.location.search).get('page');
+
+  if (page === 'login' || page === 'signup') {
+    return page;
+  }
+
+  return 'home';
+}
+
+function getUrlForPage(page: Page) {
+  const url = new URL(window.location.href);
+
+  if (page === 'home') {
+    url.searchParams.delete('page');
+  } else {
+    url.searchParams.set('page', page);
+  }
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function App() {
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<Page>(() => getPageFromLocation());
+
+  useEffect(() => {
+    window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
+
+    function handlePopState() {
+      setPage(getPageFromLocation());
+    }
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  function navigateToPage(nextPage: Page) {
+    setPage(nextPage);
+
+    const nextUrl = getUrlForPage(nextPage);
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl === currentUrl) {
+      return;
+    }
+
+    if (page === 'login' && nextPage === 'home') {
+      window.history.replaceState({ page: nextPage }, '', nextUrl);
+      return;
+    }
+
+    window.history.pushState({ page: nextPage }, '', nextUrl);
+  }
 
   return (
     <main className="app-shell">
-      <Header currentPage={page} onNavigate={setPage} />
-      {page === 'home' && <HomePage onNavigate={setPage} />}
-      {page === 'login' && <LoginPage onNavigate={setPage} />}
-      {page === 'signup' && <SignupPage onNavigate={setPage} />}
-      <SiteFooter />
-      <TopButton />
+      {page !== 'login' && <Header currentPage={page} onNavigate={navigateToPage} />}
+      {page === 'home' && <HomePage onNavigate={navigateToPage} />}
+      {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
+      {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
+      {page !== 'login' && <SiteFooter />}
+      {page !== 'login' && <TopButton />}
     </main>
   );
 }
@@ -361,44 +413,64 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   }
 
   return (
-    <AuthLayout
-      title="로그인"
-      description="Ticksy 계정으로 예매와 마이티켓 서비스를 이용하세요."
-      footer={
-        <>
-          아직 계정이 없나요?
-          <button type="button" onClick={() => onNavigate('signup')}>
-            회원가입
-          </button>
-        </>
-      }
-    >
-      <form className="auth-form" onSubmit={submitLogin}>
-        <label>
-          아이디
+    <section className="login-page">
+      <button className="login-logo" type="button" onClick={() => onNavigate('home')}>
+        Tickey
+      </button>
+
+      <div className="login-box">
+        <form className="login-form" onSubmit={submitLogin}>
           <input
             autoComplete="username"
+            placeholder="아이디 입력"
             required
             value={loginForm.userId}
             onChange={(event) => setLoginForm({ ...loginForm, userId: event.target.value })}
           />
-        </label>
-        <label>
-          비밀번호
           <input
             autoComplete="current-password"
+            placeholder="비밀번호 입력"
             required
             type="password"
             value={loginForm.password}
             onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
           />
-        </label>
-        <button className="submit-button" disabled={isSubmitting} type="submit">
+
+          <label className="login-remember">
+            <input type="checkbox" />
+            <span>로그인 상태 유지</span>
+          </label>
+
+          <button className="login-submit-button" disabled={isSubmitting} type="submit">
           {isSubmitting ? '처리 중...' : '로그인'}
-        </button>
-        {message && <p className="form-message">{message}</p>}
-      </form>
-    </AuthLayout>
+          </button>
+
+          {message && <p className="form-message">{message}</p>}
+        </form>
+
+        <div className="login-links">
+          <button type="button">아이디 찾기</button>
+          <span aria-hidden="true" />
+          <button type="button">비밀번호 찾기</button>
+          <span aria-hidden="true" />
+          <button type="button" onClick={() => onNavigate('signup')}>
+            회원가입
+          </button>
+        </div>
+      </div>
+
+      <footer className="login-footer">
+        <nav aria-label="로그인 페이지 정책">
+          <button type="button">이용약관</button>
+          <span aria-hidden="true" />
+          <button type="button">위치기반서비스이용약관</button>
+          <span aria-hidden="true" />
+          <button type="button">개인정보처리방침</button>
+        </nav>
+        <p>문의전화 : 1588-4926 (평일 09:00-18:00, 유료)</p>
+        <p>© Tickey Corp.</p>
+      </footer>
+    </section>
   );
 }
 
