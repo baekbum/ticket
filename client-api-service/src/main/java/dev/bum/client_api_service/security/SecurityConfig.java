@@ -76,6 +76,27 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
+    public SecurityFilterChain publicUserFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/*/user/signup", "/api/*/user/check/duplication/**")
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {
+                    localCorsConfig.ifPresent(config ->
+                            cors.configurationSource(config.corsConfigurationSource())
+                    );
+
+                    if (localCorsConfig.isEmpty()) {
+                        cors.disable();
+                    }
+                })
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(4)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())

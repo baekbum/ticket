@@ -519,6 +519,8 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [isCheckingUserId, setIsCheckingUserId] = useState(false);
   const [isUserIdChecked, setIsUserIdChecked] = useState(false);
   const [userIdCheckMessage, setUserIdCheckMessage] = useState('');
+  const [isSignupPasswordVisible, setIsSignupPasswordVisible] = useState(false);
+  const [isSignupSuccessAlertOpen, setIsSignupSuccessAlertOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
   const [birthDateCalendarMonth, setBirthDateCalendarMonth] = useState(() =>
@@ -624,7 +626,8 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       setSignupForm(initialSignupForm);
       setIsUserIdChecked(false);
       setUserIdCheckMessage('');
-      setMessage('회원가입이 완료되었습니다. 로그인해 주세요.');
+      setIsSignupPasswordVisible(false);
+      setIsSignupSuccessAlertOpen(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
     } finally {
@@ -674,15 +677,31 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             <span>
               <em>*</em>Password
             </span>
-            <input
-              autoComplete="new-password"
-              minLength={8}
-              placeholder="비밀번호 입력"
-              required
-              type="password"
-              value={signupForm.password}
-              onChange={(event) => setSignupForm({ ...signupForm, password: event.target.value })}
-            />
+            <div className="signup-password-input">
+              <input
+                autoComplete="new-password"
+                minLength={8}
+                placeholder="비밀번호 입력"
+                required
+                type={isSignupPasswordVisible ? 'text' : 'password'}
+                value={signupForm.password}
+                onChange={(event) =>
+                  setSignupForm({ ...signupForm, password: event.target.value })
+                }
+              />
+              <button
+                className={isSignupPasswordVisible ? 'visible' : ''}
+                type="button"
+                onClick={() => setIsSignupPasswordVisible((isVisible) => !isVisible)}
+                aria-label={isSignupPasswordVisible ? '비밀번호 숨기기' : '비밀번호 보기'}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.8 12s3.4-5.2 9.2-5.2S21.2 12 21.2 12 17.8 17.2 12 17.2 2.8 12 2.8 12Z" />
+                  <circle cx="12" cy="12" r="2.8" />
+                  {!isSignupPasswordVisible && <line x1="4.5" y1="19.5" x2="19.5" y2="4.5" />}
+                </svg>
+              </button>
+            </div>
           </label>
           <label className="signup-field">
             <span>
@@ -693,7 +712,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
               minLength={8}
               placeholder="비밀번호 재입력"
               required
-              type="password"
+              type={isSignupPasswordVisible ? 'text' : 'password'}
               value={signupForm.passwordConfirm}
               onChange={(event) =>
                 setSignupForm({ ...signupForm, passwordConfirm: event.target.value })
@@ -812,6 +831,18 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </button>
         </div>
       </div>
+
+      {isSignupSuccessAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert">
+            <strong>회원가입이 완료되었습니다.</strong>
+            <p>로그인 화면으로 이동해서 Tickey 서비스를 이용해 주세요.</p>
+            <button type="button" onClick={() => onNavigate('login')}>
+              로그인 화면으로 이동
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -884,14 +915,29 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || `요청 실패: ${response.status}`);
+    let errorMessage = errorText;
+
+    try {
+      const errorBody = JSON.parse(errorText) as { message?: string };
+      errorMessage = errorBody.message || errorText;
+    } catch {
+      errorMessage = errorText;
+    }
+
+    throw new Error(errorMessage || `요청 실패: ${response.status}`);
   }
 
   if (response.status === 204) {
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  const responseText = await response.text();
+
+  if (!responseText) {
+    return undefined as T;
+  }
+
+  return JSON.parse(responseText) as T;
 }
 
 export default App;

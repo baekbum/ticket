@@ -787,6 +787,58 @@ button {
   border-bottom-color: #00c73c;
 }
 
+.signup-password-input input::-ms-reveal,
+.signup-password-input input::-ms-clear {
+  display: none;
+}
+
+.signup-password-input {
+  position: relative;
+}
+
+.signup-password-input input {
+  padding-right: 38px;
+}
+
+.signup-password-input button {
+  position: absolute;
+  right: 2px;
+  bottom: 11px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.signup-password-input button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #9aa4a0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transition: stroke 0.18s ease;
+}
+
+.signup-password-input button svg circle {
+  fill: #9aa4a0;
+  stroke: none;
+  transition: fill 0.18s ease;
+}
+
+.signup-password-input button:hover svg,
+.signup-password-input button.visible svg {
+  stroke: #00c73c;
+}
+
+.signup-password-input button:hover svg circle,
+.signup-password-input button.visible svg circle {
+  fill: #00c73c;
+}
+
 .signup-date-input {
   position: relative;
 }
@@ -1003,6 +1055,53 @@ button {
   background: transparent;
   color: #00a832;
   font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.signup-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 20, 0.36);
+}
+
+.signup-alert {
+  width: min(360px, 100%);
+  box-sizing: border-box;
+  padding: 30px 28px 26px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 22px 54px rgba(20, 35, 28, 0.22);
+  text-align: center;
+}
+
+.signup-alert strong {
+  display: block;
+  color: #222222;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.signup-alert p {
+  margin: 12px 0 24px;
+  color: #666666;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.signup-alert button {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: #00c73c;
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
 }
