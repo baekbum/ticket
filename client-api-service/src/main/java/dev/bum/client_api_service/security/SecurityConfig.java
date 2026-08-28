@@ -81,7 +81,9 @@ public class SecurityConfig {
                 .securityMatcher(
                         "/api/*/user/signup",
                         "/api/*/user/check/duplication/**",
-                        "/api/*/user/find/id/**"
+                        "/api/*/user/find/id/**",
+                        "/api/*/user/find/password/**",
+                        "/api/*/user/reset/password"
                 )
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {

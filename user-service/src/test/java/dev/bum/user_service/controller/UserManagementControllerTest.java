@@ -73,7 +73,7 @@ class UserManagementControllerTest {
                         .with(authentication(adminAuthentication("admin"))))
                 .andExpect(status().isOk());
 
-        then(userService).should().isDuplicated("IU");
+        then(userService).should().validateIsUserIdDuplicated("IU");
     }
 
     @Test

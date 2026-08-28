@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './App.css';
 
-type Page = 'home' | 'login' | 'signup' | 'findId';
+type Page = 'home' | 'login' | 'signup' | 'findId' | 'findPassword';
 type FindIdMethod = 'phone' | 'email';
 
 type LoginForm = {
@@ -25,6 +25,10 @@ type TokenResponse = {
 
 type FindUserIdResponse = {
   maskedUserId: string;
+};
+
+type FindPasswordResponse = {
+  resetToken: string;
 };
 
 type TicketingEvent = {
@@ -57,13 +61,22 @@ const initialFindIdForm = {
   email: '',
 };
 
+const initialFindPasswordForm = {
+  userId: '',
+  name: '',
+  phoneNumber: '',
+  email: '',
+  password: '',
+  passwordConfirm: '',
+};
+
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
 function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
 
-  if (page === 'login' || page === 'signup' || page === 'findId') {
+  if (page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword') {
     return page;
   }
 
@@ -121,7 +134,8 @@ function getCalendarDays(monthDate: Date) {
 
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
-  const isFullAuthPage = page === 'login' || page === 'signup' || page === 'findId';
+  const isFullAuthPage =
+    page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword';
 
   useEffect(() => {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
@@ -160,6 +174,7 @@ function App() {
       {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
+      {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
       {!isFullAuthPage && <SiteFooter />}
       {!isFullAuthPage && <TopButton />}
     </main>
@@ -504,7 +519,9 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             아이디 찾기
           </button>
           <span aria-hidden="true" />
-          <button type="button">비밀번호 찾기</button>
+          <button type="button" onClick={() => onNavigate('findPassword')}>
+            비밀번호 찾기
+          </button>
           <span aria-hidden="true" />
           <button type="button" onClick={() => onNavigate('signup')}>
             회원가입
@@ -675,6 +692,279 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             <p>입력한 이름과 인증 정보가 가입 정보와 일치하지 않습니다.</p>
             <button type="button" onClick={() => setIsFindIdFailedAlertOpen(false)}>
               다시 입력하기
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const [findPasswordMethod, setFindPasswordMethod] = useState<FindIdMethod>('phone');
+  const [findPasswordForm, setFindPasswordForm] = useState(initialFindPasswordForm);
+  const [resetToken, setResetToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isFailAlertOpen, setIsFailAlertOpen] = useState(false);
+  const [isSuccessAlertOpen, setIsSuccessAlertOpen] = useState(false);
+
+  async function submitFindPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const response = await request<FindPasswordResponse>(
+        `/client-api/api/v1/user/find/password/${findPasswordMethod}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            userId: findPasswordForm.userId,
+            name: findPasswordForm.name,
+            phoneNumber:
+              findPasswordMethod === 'phone' ? findPasswordForm.phoneNumber : undefined,
+            email: findPasswordMethod === 'email' ? findPasswordForm.email : undefined,
+          }),
+        },
+      );
+
+      setResetToken(response.resetToken);
+    } catch {
+      setIsFailAlertOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function submitResetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (findPasswordForm.password !== findPasswordForm.passwordConfirm) {
+      setIsFailAlertOpen(true);
+      return;
+    }
+
+    setIsResetting(true);
+
+    try {
+      await request('/client-api/api/v1/user/reset/password', {
+        method: 'POST',
+        body: JSON.stringify({
+          resetToken,
+          password: findPasswordForm.password,
+        }),
+      });
+
+      setIsSuccessAlertOpen(true);
+    } catch {
+      setIsFailAlertOpen(true);
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
+  function changeFindPasswordMethod(method: FindIdMethod) {
+    setFindPasswordMethod(method);
+    setFindPasswordForm(initialFindPasswordForm);
+    setResetToken('');
+    setIsFailAlertOpen(false);
+  }
+
+  return (
+    <section className="find-id-page">
+      <button className="login-logo" type="button" onClick={() => onNavigate('home')}>
+        Tickey
+      </button>
+
+      <div className="find-id-box">
+        <div className="find-id-heading">
+          <h1>비밀번호 찾기</h1>
+          <p>
+            {resetToken
+              ? '새 비밀번호를 입력해 주세요.'
+              : '가입 시 등록한 정보로 비밀번호를 재설정하세요.'}
+          </p>
+        </div>
+
+        {!resetToken ? (
+          <>
+            <div className="find-id-tabs" role="tablist" aria-label="비밀번호 찾기 방법">
+              <button
+                className={findPasswordMethod === 'phone' ? 'active' : ''}
+                type="button"
+                onClick={() => changeFindPasswordMethod('phone')}
+              >
+                휴대폰 번호로 인증
+              </button>
+              <button
+                className={findPasswordMethod === 'email' ? 'active' : ''}
+                type="button"
+                onClick={() => changeFindPasswordMethod('email')}
+              >
+                이메일로 인증
+              </button>
+            </div>
+
+            <form className="find-id-form" onSubmit={submitFindPassword}>
+              <label className="signup-field">
+                <span>
+                  <em>*</em>ID
+                </span>
+                <input
+                  autoComplete="username"
+                  placeholder="아이디 입력"
+                  required
+                  value={findPasswordForm.userId}
+                  onChange={(event) =>
+                    setFindPasswordForm({ ...findPasswordForm, userId: event.target.value })
+                  }
+                />
+              </label>
+              <label className="signup-field">
+                <span>
+                  <em>*</em>이름
+                </span>
+                <input
+                  autoComplete="name"
+                  placeholder="이름 입력"
+                  required
+                  value={findPasswordForm.name}
+                  onChange={(event) =>
+                    setFindPasswordForm({ ...findPasswordForm, name: event.target.value })
+                  }
+                />
+              </label>
+
+              {findPasswordMethod === 'phone' ? (
+                <label className="signup-field">
+                  <span>
+                    <em>*</em>휴대폰 번호
+                  </span>
+                  <input
+                    autoComplete="tel"
+                    placeholder="010-0000-0000"
+                    required
+                    value={findPasswordForm.phoneNumber}
+                    onChange={(event) =>
+                      setFindPasswordForm({
+                        ...findPasswordForm,
+                        phoneNumber: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+              ) : (
+                <label className="signup-field">
+                  <span>
+                    <em>*</em>이메일
+                  </span>
+                  <input
+                    autoComplete="email"
+                    placeholder="tickey@example.com"
+                    required
+                    type="email"
+                    value={findPasswordForm.email}
+                    onChange={(event) =>
+                      setFindPasswordForm({ ...findPasswordForm, email: event.target.value })
+                    }
+                  />
+                </label>
+              )}
+
+              <button className="find-id-submit-button" disabled={isSubmitting} type="submit">
+                {isSubmitting ? '확인 중...' : '확인하기'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <form className="find-id-form" onSubmit={submitResetPassword}>
+            <label className="signup-field">
+              <span>
+                <em>*</em>새 비밀번호
+              </span>
+              <div className="signup-password-input">
+                <input
+                  autoComplete="new-password"
+                  minLength={8}
+                  placeholder="새 비밀번호 입력"
+                  required
+                  type={isPasswordVisible ? 'text' : 'password'}
+                  value={findPasswordForm.password}
+                  onChange={(event) =>
+                    setFindPasswordForm({ ...findPasswordForm, password: event.target.value })
+                  }
+                />
+                <button
+                  className={isPasswordVisible ? 'visible' : ''}
+                  type="button"
+                  onClick={() => setIsPasswordVisible((isVisible) => !isVisible)}
+                  aria-label={isPasswordVisible ? '비밀번호 숨기기' : '비밀번호 보기'}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2.8 12s3.4-5.2 9.2-5.2S21.2 12 21.2 12 17.8 17.2 12 17.2 2.8 12 2.8 12Z" />
+                    <circle cx="12" cy="12" r="2.8" />
+                    {!isPasswordVisible && <line x1="4.5" y1="19.5" x2="19.5" y2="4.5" />}
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <label className="signup-field">
+              <span>
+                <em>*</em>새 비밀번호 확인
+              </span>
+              <input
+                autoComplete="new-password"
+                minLength={8}
+                placeholder="새 비밀번호 재입력"
+                required
+                type={isPasswordVisible ? 'text' : 'password'}
+                value={findPasswordForm.passwordConfirm}
+                onChange={(event) =>
+                  setFindPasswordForm({
+                    ...findPasswordForm,
+                    passwordConfirm: event.target.value,
+                  })
+                }
+              />
+            </label>
+
+            <button className="find-id-submit-button" disabled={isResetting} type="submit">
+              {isResetting ? '변경 중...' : '비밀번호 변경'}
+            </button>
+          </form>
+        )}
+
+        <div className="find-id-links">
+          <button type="button" onClick={() => onNavigate('login')}>
+            로그인
+          </button>
+          <span aria-hidden="true" />
+          <button type="button" onClick={() => onNavigate('findId')}>
+            아이디 찾기
+          </button>
+        </div>
+      </div>
+
+      {isFailAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert find-id-fail-alert">
+            <strong>정보가 일치하지 않습니다.</strong>
+            <p>입력한 정보가 가입 정보와 일치하지 않거나 요청이 만료되었습니다.</p>
+            <button type="button" onClick={() => setIsFailAlertOpen(false)}>
+              다시 입력하기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isSuccessAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert">
+            <strong>비밀번호가 변경되었습니다.</strong>
+            <p>새 비밀번호로 로그인해 주세요.</p>
+            <button type="button" onClick={() => onNavigate('login')}>
+              로그인 화면으로 이동
             </button>
           </div>
         </div>

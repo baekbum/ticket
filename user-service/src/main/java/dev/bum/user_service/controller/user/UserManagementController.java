@@ -25,7 +25,7 @@ public class UserManagementController {
      */
     @GetMapping("/check/duplication/{userId}")
     public ResponseEntity<Void> isDuplicated(@PathVariable("userId") String userId) {
-        userService.isDuplicated(userId);
+        userService.validateIsUserIdDuplicated(userId);
         log.info("[ID 중복 체크 완료 userId: {}]", userId);
         return ResponseEntity.ok().build();
     }

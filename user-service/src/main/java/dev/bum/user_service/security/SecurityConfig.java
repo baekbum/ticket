@@ -37,7 +37,13 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain publicUserFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/*/signup", "/api/*/check/duplication/**", "/api/*/find/id/**")
+                .securityMatcher(
+                        "/api/*/signup",
+                        "/api/*/check/duplication/**",
+                        "/api/*/find/id/**",
+                        "/api/*/find/password/**",
+                        "/api/*/reset/password"
+                )
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {
                     localCorsConfig.ifPresent(config ->

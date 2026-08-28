@@ -1,9 +1,12 @@
 package dev.bum.client_api_service.controller.user;
 
 import dev.bum.client_api_service.feign.user.UserServiceClient;
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordResponse;
 import dev.bum.common.service.user.user.dto.FindUserIdRequest;
 import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import feign.FeignException;
 import jakarta.validation.Valid;
@@ -68,6 +71,45 @@ public class ClientUserController {
         try {
             FindUserIdResponse response = userServiceClient.findUserIdByEmail(request);
             return ResponseEntity.ok(response);
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/find/password/phone")
+    public ResponseEntity<?> findPasswordByPhoneNumber(@Valid @RequestBody FindPasswordRequest request) {
+        try {
+            FindPasswordResponse response = userServiceClient.findPasswordByPhoneNumber(request);
+            return ResponseEntity.ok(response);
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/find/password/email")
+    public ResponseEntity<?> findPasswordByEmail(@Valid @RequestBody FindPasswordRequest request) {
+        try {
+            FindPasswordResponse response = userServiceClient.findPasswordByEmail(request);
+            return ResponseEntity.ok(response);
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/reset/password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        try {
+            userServiceClient.resetPassword(request);
+            return ResponseEntity.ok().build();
         } catch (FeignException e) {
             return ResponseEntity
                     .status(HttpStatusCode.valueOf(e.status()))

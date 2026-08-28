@@ -1,8 +1,11 @@
 package dev.bum.client_api_service.feign.user;
 
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordResponse;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.FindUserIdRequest;
 import dev.bum.common.service.user.user.dto.FindUserIdResponse;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -25,4 +28,13 @@ public interface UserServiceClient {
 
     @PostMapping("/find/id/email")
     FindUserIdResponse findUserIdByEmail(@Valid @RequestBody FindUserIdRequest request);
+
+    @PostMapping("/find/password/phone")
+    FindPasswordResponse findPasswordByPhoneNumber(@Valid @RequestBody FindPasswordRequest request);
+
+    @PostMapping("/find/password/email")
+    FindPasswordResponse findPasswordByEmail(@Valid @RequestBody FindPasswordRequest request);
+
+    @PostMapping("/reset/password")
+    void resetPassword(@Valid @RequestBody ResetPasswordRequest request);
 }

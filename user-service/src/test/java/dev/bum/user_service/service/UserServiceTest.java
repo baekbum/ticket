@@ -338,9 +338,9 @@ class UserServiceTest {
     void is_duplicated() {
         String userId = "IU";
 
-        userService.isDuplicated(userId);
+        userService.validateIsUserIdDuplicated(userId);
 
-        then(userRepository).should().isExist(userId);
+        then(userRepository).should().validateIsUserIdDuplicated(userId);
     }
 
     @Test
