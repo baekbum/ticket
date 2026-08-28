@@ -1,6 +1,8 @@
 package dev.bum.client_api_service.feign.user;
 
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -17,4 +19,10 @@ public interface UserServiceClient {
 
     @PostMapping("/signup")
     UserResponse signUp(@Valid @RequestBody InsertUserRequest request);
+
+    @PostMapping("/find/id/phone")
+    FindUserIdResponse findUserIdByPhoneNumber(@Valid @RequestBody FindUserIdRequest request);
+
+    @PostMapping("/find/id/email")
+    FindUserIdResponse findUserIdByEmail(@Valid @RequestBody FindUserIdRequest request);
 }

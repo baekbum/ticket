@@ -1,6 +1,8 @@
 package dev.bum.user_service.controller.user;
 
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
@@ -36,6 +38,16 @@ public class UserController {
     @PostMapping("/signup")
     public ResponseEntity<UserResponse> signUp(@Valid @RequestBody InsertUserRequest info) {
         return ResponseEntity.ok(userService.insert(info));
+    }
+
+    @PostMapping("/find/id/phone")
+    public ResponseEntity<FindUserIdResponse> findUserIdByPhoneNumber(@Valid @RequestBody FindUserIdRequest request) {
+        return ResponseEntity.ok(userService.findUserIdByPhoneNumber(request));
+    }
+
+    @PostMapping("/find/id/email")
+    public ResponseEntity<FindUserIdResponse> findUserIdByEmail(@Valid @RequestBody FindUserIdRequest request) {
+        return ResponseEntity.ok(userService.findUserIdByEmail(request));
     }
 
     @GetMapping("/select/me")

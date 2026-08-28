@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './App.css';
 
-type Page = 'home' | 'login' | 'signup';
+type Page = 'home' | 'login' | 'signup' | 'findId';
+type FindIdMethod = 'phone' | 'email';
 
 type LoginForm = {
   userId: string;
@@ -20,6 +21,10 @@ type SignupForm = LoginForm & {
 type TokenResponse = {
   accessToken: string;
   refreshToken: string;
+};
+
+type FindUserIdResponse = {
+  maskedUserId: string;
 };
 
 type TicketingEvent = {
@@ -46,13 +51,19 @@ const initialSignupForm: SignupForm = {
   birthDate: '',
 };
 
+const initialFindIdForm = {
+  name: '',
+  phoneNumber: '',
+  email: '',
+};
+
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
 function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
 
-  if (page === 'login' || page === 'signup') {
+  if (page === 'login' || page === 'signup' || page === 'findId') {
     return page;
   }
 
@@ -110,7 +121,7 @@ function getCalendarDays(monthDate: Date) {
 
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
-  const isAuthPage = page === 'login' || page === 'signup';
+  const isFullAuthPage = page === 'login' || page === 'signup' || page === 'findId';
 
   useEffect(() => {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
@@ -144,12 +155,13 @@ function App() {
 
   return (
     <main className="app-shell">
-      {!isAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
+      {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
       {page === 'home' && <HomePage onNavigate={navigateToPage} />}
       {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
-      {!isAuthPage && <SiteFooter />}
-      {!isAuthPage && <TopButton />}
+      {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
+      {!isFullAuthPage && <SiteFooter />}
+      {!isFullAuthPage && <TopButton />}
     </main>
   );
 }
@@ -488,7 +500,9 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         </form>
 
         <div className="login-links">
-          <button type="button">아이디 찾기</button>
+          <button type="button" onClick={() => onNavigate('findId')}>
+            아이디 찾기
+          </button>
           <span aria-hidden="true" />
           <button type="button">비밀번호 찾기</button>
           <span aria-hidden="true" />
@@ -509,6 +523,162 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         <p>문의전화 : 1588-4926 (평일 09:00-18:00, 유료)</p>
         <p>© Tickey Corp.</p>
       </footer>
+    </section>
+  );
+}
+
+function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const [findIdMethod, setFindIdMethod] = useState<FindIdMethod>('phone');
+  const [findIdForm, setFindIdForm] = useState(initialFindIdForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [foundUserId, setFoundUserId] = useState('');
+  const [isFindIdFailedAlertOpen, setIsFindIdFailedAlertOpen] = useState(false);
+
+  async function submitFindId(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const response = await request<FindUserIdResponse>(
+        `/client-api/api/v1/user/find/id/${findIdMethod}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: findIdForm.name,
+            phoneNumber: findIdMethod === 'phone' ? findIdForm.phoneNumber : undefined,
+            email: findIdMethod === 'email' ? findIdForm.email : undefined,
+          }),
+        },
+      );
+
+      setFoundUserId(response.maskedUserId);
+    } catch {
+      setIsFindIdFailedAlertOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function changeFindIdMethod(method: FindIdMethod) {
+    setFindIdMethod(method);
+    setFindIdForm(initialFindIdForm);
+    setFoundUserId('');
+    setIsFindIdFailedAlertOpen(false);
+  }
+
+  return (
+    <section className="find-id-page">
+      <button className="login-logo" type="button" onClick={() => onNavigate('home')}>
+        Tickey
+      </button>
+
+      <div className="find-id-box">
+        <div className="find-id-heading">
+          <h1>아이디 찾기</h1>
+          <p>가입 시 등록한 정보로 Tickey 아이디를 확인하세요.</p>
+        </div>
+
+        <div className="find-id-tabs" role="tablist" aria-label="아이디 찾기 방법">
+          <button
+            className={findIdMethod === 'phone' ? 'active' : ''}
+            type="button"
+            onClick={() => changeFindIdMethod('phone')}
+          >
+            휴대폰 번호로 인증
+          </button>
+          <button
+            className={findIdMethod === 'email' ? 'active' : ''}
+            type="button"
+            onClick={() => changeFindIdMethod('email')}
+          >
+            이메일로 인증
+          </button>
+        </div>
+
+        <form className="find-id-form" onSubmit={submitFindId}>
+          <label className="signup-field">
+            <span>
+              <em>*</em>이름
+            </span>
+            <input
+              autoComplete="name"
+              placeholder="이름 입력"
+              required
+              value={findIdForm.name}
+              onChange={(event) => setFindIdForm({ ...findIdForm, name: event.target.value })}
+            />
+          </label>
+
+          {findIdMethod === 'phone' ? (
+            <label className="signup-field">
+              <span>
+                <em>*</em>휴대폰 번호
+              </span>
+              <input
+                autoComplete="tel"
+                placeholder="010-0000-0000"
+                required
+                value={findIdForm.phoneNumber}
+                onChange={(event) =>
+                  setFindIdForm({ ...findIdForm, phoneNumber: event.target.value })
+                }
+              />
+            </label>
+          ) : (
+            <label className="signup-field">
+              <span>
+                <em>*</em>이메일
+              </span>
+              <input
+                autoComplete="email"
+                placeholder="tickey@example.com"
+                required
+                type="email"
+                value={findIdForm.email}
+                onChange={(event) => setFindIdForm({ ...findIdForm, email: event.target.value })}
+              />
+            </label>
+          )}
+
+          <button className="find-id-submit-button" disabled={isSubmitting} type="submit">
+            {isSubmitting ? '조회 중...' : '조회하기'}
+          </button>
+        </form>
+
+        <div className="find-id-links">
+          <button type="button" onClick={() => onNavigate('login')}>
+            로그인
+          </button>
+          <span aria-hidden="true" />
+          <button type="button" onClick={() => onNavigate('signup')}>
+            회원가입
+          </button>
+        </div>
+      </div>
+
+      {foundUserId && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert">
+            <strong>아이디를 찾았습니다.</strong>
+            <p>회원님의 아이디는 {foundUserId} 입니다.</p>
+            <button type="button" onClick={() => onNavigate('login')}>
+              로그인 화면으로 이동
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isFindIdFailedAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert find-id-fail-alert">
+            <strong>정보가 일치하지 않습니다.</strong>
+            <p>입력한 이름과 인증 정보가 가입 정보와 일치하지 않습니다.</p>
+            <button type="button" onClick={() => setIsFindIdFailedAlertOpen(false)}>
+              다시 입력하기
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

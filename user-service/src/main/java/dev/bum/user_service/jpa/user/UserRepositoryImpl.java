@@ -75,6 +75,18 @@ public class UserRepositoryImpl implements UserRepository {
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
     }
 
+    @Override
+    public User selectByNameAndPhoneNumber(String name, String phoneNumber) {
+        return jpaRepository.findByNameAndPhoneNumber(name, phoneNumber)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
+    }
+
+    @Override
+    public User selectByNameAndEmail(String name, String email) {
+        return jpaRepository.findByNameAndEmail(name, email)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
+    }
+
     /**
      * 조건을 통해 유저 검색
      * @param cond

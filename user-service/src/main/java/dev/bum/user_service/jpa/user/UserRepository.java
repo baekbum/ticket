@@ -10,6 +10,8 @@ public interface UserRepository {
     User insert(InsertUserRequest info);
     void isExist(String userId);
     User selectById(String userId);
+    User selectByNameAndPhoneNumber(String name, String phoneNumber);
+    User selectByNameAndEmail(String name, String email);
     Page<User> selectByCond(UserCondRequest cond, Pageable pageable);
     User update(String userId, UpdateUserRequest info);
     User delete(String userId);

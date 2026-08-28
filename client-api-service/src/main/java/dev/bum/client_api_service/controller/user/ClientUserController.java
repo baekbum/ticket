@@ -1,6 +1,8 @@
 package dev.bum.client_api_service.controller.user;
 
 import dev.bum.client_api_service.feign.user.UserServiceClient;
+import dev.bum.common.service.user.user.dto.FindUserIdRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import feign.FeignException;
@@ -40,6 +42,32 @@ public class ClientUserController {
     public ResponseEntity<?> signUp(@Valid @RequestBody InsertUserRequest request) {
         try {
             return ResponseEntity.ok(userServiceClient.signUp(request));
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/find/id/phone")
+    public ResponseEntity<?> findUserIdByPhoneNumber(@Valid @RequestBody FindUserIdRequest request) {
+        try {
+            FindUserIdResponse response = userServiceClient.findUserIdByPhoneNumber(request);
+            return ResponseEntity.ok(response);
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
+
+    @PostMapping("/find/id/email")
+    public ResponseEntity<?> findUserIdByEmail(@Valid @RequestBody FindUserIdRequest request) {
+        try {
+            FindUserIdResponse response = userServiceClient.findUserIdByEmail(request);
+            return ResponseEntity.ok(response);
         } catch (FeignException e) {
             return ResponseEntity
                     .status(HttpStatusCode.valueOf(e.status()))

@@ -1059,6 +1059,112 @@ button {
   cursor: pointer;
 }
 
+.find-id-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  padding: 49px 22px 58px;
+  background: #ffffff;
+}
+
+.find-id-box {
+  box-sizing: border-box;
+  width: min(497px, 100%);
+  min-height: 390px;
+  margin-top: 34px;
+  padding: 52px 68px 34px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+}
+
+.find-id-heading {
+  margin-bottom: 26px;
+  text-align: center;
+}
+
+.find-id-heading h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.find-id-heading p {
+  margin: 9px 0 0;
+  color: #777777;
+  font-size: 13px;
+}
+
+.find-id-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 26px;
+  border-bottom: 1px solid #dddddd;
+}
+
+.find-id-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #888888;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.find-id-tabs button.active {
+  border-bottom-color: #00c73c;
+  color: #222222;
+}
+
+.find-id-form {
+  display: grid;
+  gap: 15px;
+}
+
+.find-id-submit-button {
+  width: 100%;
+  min-height: 45px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 5px;
+  background: #00c73c;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.find-id-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.find-id-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 13px;
+  margin-top: 25px;
+}
+
+.find-id-links button {
+  border: 0;
+  background: transparent;
+  color: #333333;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.find-id-links span {
+  width: 1px;
+  height: 14px;
+  background: #dddddd;
+}
+
 .signup-alert-backdrop {
   position: fixed;
   inset: 0;
@@ -1104,6 +1210,10 @@ button {
   font-size: 14px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.find-id-fail-alert button {
+  background: #222222;
 }
 
 .site-footer {
@@ -1352,8 +1462,19 @@ button {
     gap: 8px;
   }
 
+  .find-id-page {
+    padding: 36px 16px 43px;
+  }
+
+  .find-id-box {
+    min-height: auto;
+    margin-top: 27px;
+    padding: 42px 25px 29px;
+  }
+
   .login-links,
-  .login-footer nav {
+  .login-footer nav,
+  .find-id-links {
     flex-wrap: wrap;
   }
 }
