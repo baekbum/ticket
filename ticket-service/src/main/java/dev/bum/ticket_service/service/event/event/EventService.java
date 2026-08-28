@@ -27,6 +27,7 @@ import java.util.List;
 public class EventService {
 
     private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
+    private static final int HOME_TAB_EVENT_LIMIT = 4;
 
     private final EventRepository repository;
 
@@ -66,6 +67,27 @@ public class EventService {
         LocalDateTime now = LocalDateTime.now();
 
         return repository.selectSoonestOnSaleCards(now, SOONEST_ON_SALE_EVENT_LIMIT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectFestivalCards() {
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectFestivalCards(now, HOME_TAB_EVENT_LIMIT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectOpenSoonCards() {
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectOpenSoonCards(now, now.plusDays(10), HOME_TAB_EVENT_LIMIT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectWeeklyRecommendedCards() {
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectWeeklyRecommendedCards(now, now.plusDays(14), HOME_TAB_EVENT_LIMIT);
     }
 
     /**

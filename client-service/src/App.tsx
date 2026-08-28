@@ -4,6 +4,7 @@ import './App.css';
 
 type Page = 'home' | 'login' | 'signup' | 'findId' | 'findPassword';
 type FindIdMethod = 'phone' | 'email';
+type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 
 type LoginForm = {
   userId: string;
@@ -72,6 +73,26 @@ const initialFindPasswordForm = {
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
+const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string; emptyMessage: string }> = [
+  {
+    key: 'festival',
+    label: '페스티벌',
+    endpoint: '/client-api/api/v1/event/cards/festival',
+    emptyMessage: '판매 중인 페스티벌 공연이 없습니다.',
+  },
+  {
+    key: 'openSoon',
+    label: '오픈 예정 공연',
+    endpoint: '/client-api/api/v1/event/cards/open-soon',
+    emptyMessage: '10일 안에 오픈 예정인 공연이 없습니다.',
+  },
+  {
+    key: 'weekly',
+    label: '이 주의 추천공연',
+    endpoint: '/client-api/api/v1/event/cards/weekly',
+    emptyMessage: '2주 안에 진행되는 추천 공연이 없습니다.',
+  },
+];
 
 function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
@@ -170,7 +191,7 @@ function App() {
   return (
     <main className="app-shell">
       {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
-      {page === 'home' && <HomePage onNavigate={navigateToPage} />}
+      {page === 'home' && <HomePage />}
       {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
@@ -239,8 +260,10 @@ function Header({
   );
 }
 
-function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+function HomePage() {
   const [soonestOnSaleEvents, setSoonestOnSaleEvents] = useState<TicketingEvent[]>([]);
+  const [homeEventTab, setHomeEventTab] = useState<HomeEventTab>('festival');
+  const [homeTabEvents, setHomeTabEvents] = useState<TicketingEvent[]>([]);
   const [posterStartIndex, setPosterStartIndex] = useState(0);
   const [visiblePosterCount, setVisiblePosterCount] = useState(5);
   const [isPosterSliding, setIsPosterSliding] = useState(false);
@@ -273,6 +296,28 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
     loadSoonestOnSaleEvents();
   }, []);
+
+  useEffect(() => {
+    async function loadHomeTabEvents() {
+      const selectedTab = homeEventTabs.find((tab) => tab.key === homeEventTab);
+
+      if (!selectedTab) {
+        setHomeTabEvents([]);
+        return;
+      }
+
+      try {
+        const events = await request<TicketingEvent[]>(selectedTab.endpoint, {
+          method: 'GET',
+        });
+        setHomeTabEvents(events);
+      } catch {
+        setHomeTabEvents([]);
+      }
+    }
+
+    loadHomeTabEvents();
+  }, [homeEventTab]);
 
   useEffect(() => {
     function syncVisiblePosterCount() {
@@ -357,6 +402,8 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     window.location.hash = `event-${encodeURIComponent(event.eventGroupCode)}`;
   }
 
+  const selectedHomeEventTab = homeEventTabs.find((tab) => tab.key === homeEventTab);
+
   return (
     <>
       <section className="poster-carousel" aria-label="주요 공연">
@@ -407,14 +454,19 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       <section className="content-grid">
         <article className="wide-panel">
           <div className="section-tabs">
-            <button className="active-tab" type="button">
-              페스티벌
-            </button>
-            <button type="button">오픈 예정 공연</button>
-            <button type="button">이 주의 추천공연</button>
+            {homeEventTabs.map((tab) => (
+              <button
+                className={homeEventTab === tab.key ? 'active-tab' : ''}
+                type="button"
+                key={tab.key}
+                onClick={() => setHomeEventTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
           <div className="mini-poster-grid">
-            {soonestOnSaleEvents.slice(0, 4).map((event, index) => (
+            {homeTabEvents.map((event, index) => (
               <div className="mini-poster" key={event.eventGroupCode}>
                 <div>
                   <img src={event.posterUrl} alt="" />
@@ -424,8 +476,10 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                 <span className="mini-poster-description">{event.artistName}</span>
               </div>
             ))}
-            {soonestOnSaleEvents.length === 0 && (
-              <p className="mini-poster-empty">판매 중인 예정 공연이 없습니다.</p>
+            {homeTabEvents.length === 0 && (
+              <p className="mini-poster-empty">
+                {selectedHomeEventTab?.emptyMessage || '표시할 공연이 없습니다.'}
+              </p>
             )}
           </div>
         </article>

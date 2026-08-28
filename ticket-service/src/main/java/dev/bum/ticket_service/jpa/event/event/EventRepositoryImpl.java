@@ -32,6 +32,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +143,129 @@ public class EventRepositoryImpl implements EventRepository {
                 .orderBy(event.eventDateTime.asc(), event.eventId.asc())
                 .fetch()
                 .forEach(onSaleEvent -> representativeEvents.putIfAbsent(onSaleEvent.getEventGroupCode(), onSaleEvent));
+
+        return groups.stream()
+                .map(group -> {
+                    String eventGroupCode = group.get(event.eventGroupCode);
+                    Event representativeEvent = representativeEvents.get(eventGroupCode);
+                    LocalDateTime start = group.get(startDateTime);
+                    LocalDateTime end = group.get(endDateTime);
+
+                    if (representativeEvent == null || start == null || end == null) {
+                        return null;
+                    }
+
+                    return EventCardResponse.builder()
+                            .eventGroupCode(eventGroupCode)
+                            .artistName(representativeEvent.getArtistName())
+                            .title(representativeEvent.getTitle())
+                            .posterUrl(representativeEvent.getPosterUrl())
+                            .eventStartDate(start.toLocalDate())
+                            .eventEndDate(end.toLocalDate())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.theme.eq(EventTheme.FESTIVAL),
+                        event.eventDateTime.goe(now)
+                )
+                .groupBy(event.eventGroupCode)
+                .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                .limit(limit)
+                .fetch();
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
+    @Override
+    public List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+        DateTimeExpression<LocalDateTime> firstSaleStartAt = event.saleStartAt.min();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime, firstSaleStartAt)
+                .from(event)
+                .where(
+                        event.saleStartAt.goe(now),
+                        event.saleStartAt.loe(deadline),
+                        event.eventDateTime.goe(now)
+                )
+                .groupBy(event.eventGroupCode)
+                .orderBy(firstSaleStartAt.asc(), event.eventGroupCode.asc())
+                .limit(limit)
+                .fetch();
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
+    @Override
+    public List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now),
+                        event.eventDateTime.loe(deadline)
+                )
+                .groupBy(event.eventGroupCode)
+                .fetch();
+
+        Collections.shuffle(groups);
+
+        return toEventCardResponses(
+                groups.stream().limit(limit).toList(),
+                startDateTime,
+                endDateTime,
+                event.eventDateTime.goe(now)
+        );
+    }
+
+    private List<EventCardResponse> toEventCardResponses(
+            List<Tuple> groups,
+            DateTimeExpression<LocalDateTime> startDateTime,
+            DateTimeExpression<LocalDateTime> endDateTime,
+            BooleanExpression eventDateTimeCondition
+    ) {
+        List<String> eventGroupCodes = groups.stream()
+                .map(group -> group.get(event.eventGroupCode))
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (eventGroupCodes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Event> representativeEvents = new LinkedHashMap<>();
+        queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        eventDateTimeCondition,
+                        event.eventGroupCode.in(eventGroupCodes)
+                )
+                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .fetch()
+                .forEach(selectedEvent -> representativeEvents.putIfAbsent(selectedEvent.getEventGroupCode(), selectedEvent));
 
         return groups.stream()
                 .map(group -> {

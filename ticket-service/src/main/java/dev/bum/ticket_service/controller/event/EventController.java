@@ -38,4 +38,19 @@ public class EventController {
     public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {
         return ResponseEntity.ok(eventService.selectSoonestOnSaleCards());
     }
+
+    @GetMapping("/cards/festival")
+    public ResponseEntity<List<EventCardResponse>> selectFestivalCards() {
+        return ResponseEntity.ok(eventService.selectFestivalCards());
+    }
+
+    @GetMapping("/cards/open-soon")
+    public ResponseEntity<List<EventCardResponse>> selectOpenSoonCards() {
+        return ResponseEntity.ok(eventService.selectOpenSoonCards());
+    }
+
+    @GetMapping("/cards/weekly")
+    public ResponseEntity<List<EventCardResponse>> selectWeeklyRecommendedCards() {
+        return ResponseEntity.ok(eventService.selectWeeklyRecommendedCards());
+    }
 }

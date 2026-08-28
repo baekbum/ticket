@@ -21,4 +21,19 @@ public class ClientEventController {
     public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {
         return ResponseEntity.ok(ticketEventServiceClient.selectSoonestOnSaleCards());
     }
+
+    @GetMapping("/cards/festival")
+    public ResponseEntity<List<EventCardResponse>> selectFestivalCards() {
+        return ResponseEntity.ok(ticketEventServiceClient.selectFestivalCards());
+    }
+
+    @GetMapping("/cards/open-soon")
+    public ResponseEntity<List<EventCardResponse>> selectOpenSoonCards() {
+        return ResponseEntity.ok(ticketEventServiceClient.selectOpenSoonCards());
+    }
+
+    @GetMapping("/cards/weekly")
+    public ResponseEntity<List<EventCardResponse>> selectWeeklyRecommendedCards() {
+        return ResponseEntity.ok(ticketEventServiceClient.selectWeeklyRecommendedCards());
+    }
 }

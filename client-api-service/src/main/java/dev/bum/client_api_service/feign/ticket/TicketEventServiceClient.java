@@ -11,4 +11,13 @@ public interface TicketEventServiceClient {
 
     @GetMapping("/on-sale/soonest")
     List<EventCardResponse> selectSoonestOnSaleCards();
+
+    @GetMapping("/cards/festival")
+    List<EventCardResponse> selectFestivalCards();
+
+    @GetMapping("/cards/open-soon")
+    List<EventCardResponse> selectOpenSoonCards();
+
+    @GetMapping("/cards/weekly")
+    List<EventCardResponse> selectWeeklyRecommendedCards();
 }

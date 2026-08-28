@@ -16,6 +16,9 @@ public interface EventRepository {
     Event selectById(Long id);
     List<Event> selectByEventGroupCode(String eventGroupCode);
     List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit);
+    List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit);
+    List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit);
+    List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit);
     Page<Event> selectByCond(EventCondRequest cond, Pageable pageable);
     Event update(Long id, UpdateEventRequest info);
     Event delete(Long id);
