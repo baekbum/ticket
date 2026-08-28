@@ -430,13 +430,6 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </div>
         </article>
 
-        <aside className="side-panel">
-          <h2>빠른 예매</h2>
-          <p>로그인하면 예매 내역과 관심 공연을 바로 확인할 수 있습니다.</p>
-          <button type="button" onClick={() => onNavigate('login')}>
-            로그인하고 시작하기
-          </button>
-        </aside>
       </section>
     </>
   );

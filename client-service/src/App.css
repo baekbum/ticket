@@ -322,8 +322,7 @@ button {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
   max-width: 1280px;
   margin: 0 auto;
   padding: 0 24px 60px;
