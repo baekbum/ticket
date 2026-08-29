@@ -1,10 +1,12 @@
 package dev.bum.client_api_service.controller.event;
 
 import dev.bum.client_api_service.feign.ticket.TicketEventServiceClient;
+import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,6 +22,11 @@ public class ClientEventController {
     @GetMapping("/on-sale/soonest")
     public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {
         return ResponseEntity.ok(ticketEventServiceClient.selectSoonestOnSaleCards());
+    }
+
+    @GetMapping("/select/group/{eventGroupCode}")
+    public ResponseEntity<EventBookingDetailResponse> selectByEventGroupCode(@PathVariable("eventGroupCode") String eventGroupCode) {
+        return ResponseEntity.ok(ticketEventServiceClient.selectByEventGroupCode(eventGroupCode));
     }
 
     @GetMapping("/cards/festival")

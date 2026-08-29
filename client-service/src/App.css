@@ -370,19 +370,22 @@ button {
   gap: 8px;
 }
 
-.mini-poster div {
+.mini-poster-image {
   position: relative;
   display: grid;
   height: 150px;
   place-items: center;
   overflow: hidden;
+  border: 0;
+  padding: 0;
   background: #111111;
   color: #ffffff;
   font-size: 42px;
   font-weight: 950;
+  cursor: pointer;
 }
 
-.mini-poster div::after {
+.mini-poster-image::after {
   position: absolute;
   inset: 0;
   content: "";
@@ -413,6 +416,185 @@ button {
 .side-panel p {
   color: #777777;
   line-height: 1.6;
+}
+
+.event-detail-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 34px 24px 80px;
+}
+
+.event-detail-header {
+  margin-bottom: 24px;
+}
+
+.event-detail-header p {
+  margin: 0 0 8px;
+  color: #00a832;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.event-detail-header h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.event-booking-panel {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 42px;
+  padding: 34px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+}
+
+.event-detail-poster {
+  overflow: hidden;
+  border-radius: 4px;
+  background: #111111;
+}
+
+.event-detail-poster img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.event-detail-info h2 {
+  margin: 0 0 22px;
+  color: #222222;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.event-detail-info dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid #eeeeee;
+}
+
+.event-detail-info dl div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.event-detail-info dt {
+  color: #777777;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.event-detail-info dd {
+  margin: 0;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.event-schedule-box {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #e4e4e4;
+  background: #fafafa;
+}
+
+.event-schedule-box strong {
+  display: block;
+  margin-bottom: 12px;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.event-schedule-box ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-schedule-box li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: #333333;
+  font-size: 14px;
+}
+
+.event-schedule-box small {
+  color: #00a832;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.booking-action-button {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: #00c73c;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.booking-action-button.disabled {
+  background: #333333;
+  cursor: not-allowed;
+}
+
+.event-description-panel {
+  margin-top: 28px;
+  padding: 30px 34px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+}
+
+.event-description-panel h2 {
+  margin: 0 0 14px;
+  color: #222222;
+  font-size: 22px;
+}
+
+.event-description-panel p {
+  margin: 0;
+  color: #555555;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.event-detail-state {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  color: #555555;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.event-detail-state button {
+  min-width: 180px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: #00c73c;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .side-panel {
@@ -1368,6 +1550,14 @@ button {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .event-booking-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .event-detail-poster {
+    max-width: 360px;
+  }
+
   .category-nav {
     justify-content: flex-start;
     overflow-x: auto;
@@ -1414,6 +1604,20 @@ button {
 
   .poster-art {
     height: 260px;
+  }
+
+  .event-detail-page {
+    padding: 26px 16px 58px;
+  }
+
+  .event-booking-panel,
+  .event-description-panel {
+    padding: 24px 20px;
+  }
+
+  .event-detail-info dl div {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   .footer-inner {

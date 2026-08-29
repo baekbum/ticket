@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './App.css';
 
-type Page = 'home' | 'login' | 'signup' | 'findId' | 'findPassword';
+type Page = 'home' | 'login' | 'signup' | 'findId' | 'findPassword' | 'eventDetail';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 
@@ -39,6 +39,36 @@ type TicketingEvent = {
   posterUrl: string;
   eventStartDate: string;
   eventEndDate: string;
+};
+
+type EventDetail = {
+  eventGroupCode: string;
+  artistName: string;
+  title: string;
+  description: string;
+  venue: string;
+  venueAddress: string;
+  posterUrl: string;
+  eventDateRange: string;
+  saleStartAt: string;
+  saleEndAt: string;
+  runningMinutes: number;
+  ageLimit: number;
+  totalSeats: number;
+  availableSeats: number;
+  status: 'ON_SALE' | 'SALE_ENDED' | 'SOLD_OUT' | 'CLOSED' | 'CANCELLED';
+  maxTicketsPerPerson: number;
+  ticketLimitScope: 'PER_EVENT' | 'PER_GROUP';
+  bookingStatus: 'ON_SALE' | 'OPEN_SOON' | 'CLOSED';
+  bookingMessage: string;
+  schedules: EventSchedule[];
+};
+
+type EventSchedule = {
+  eventId: number;
+  eventDateTime: string;
+  availableSeats: number;
+  status: 'ON_SALE' | 'SALE_ENDED' | 'SOLD_OUT' | 'CLOSED' | 'CANCELLED';
 };
 
 const initialLoginForm: LoginForm = {
@@ -97,7 +127,13 @@ const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string;
 function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
 
-  if (page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword') {
+  if (
+    page === 'login' ||
+    page === 'signup' ||
+    page === 'findId' ||
+    page === 'findPassword' ||
+    page === 'eventDetail'
+  ) {
     return page;
   }
 
@@ -109,6 +145,10 @@ function getUrlForPage(page: Page) {
 
   if (page === 'home') {
     url.searchParams.delete('page');
+    url.searchParams.delete('eventGroupCode');
+  } else if (page !== 'eventDetail') {
+    url.searchParams.set('page', page);
+    url.searchParams.delete('eventGroupCode');
   } else {
     url.searchParams.set('page', page);
   }
@@ -155,6 +195,9 @@ function getCalendarDays(monthDate: Date) {
 
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
+  const [selectedEventGroupCode, setSelectedEventGroupCode] = useState(
+    () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
+  );
   const isFullAuthPage =
     page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword';
 
@@ -163,6 +206,7 @@ function App() {
 
     function handlePopState() {
       setPage(getPageFromLocation());
+      setSelectedEventGroupCode(new URLSearchParams(window.location.search).get('eventGroupCode') || '');
     }
 
     window.addEventListener('popstate', handlePopState);
@@ -188,10 +232,27 @@ function App() {
     window.history.pushState({ page: nextPage }, '', nextUrl);
   }
 
+  function navigateToEventDetail(eventGroupCode: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'eventDetail');
+    url.searchParams.set('eventGroupCode', eventGroupCode);
+
+    setPage('eventDetail');
+    setSelectedEventGroupCode(eventGroupCode);
+    window.history.pushState(
+      { page: 'eventDetail', eventGroupCode },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }
+
   return (
     <main className="app-shell">
       {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
-      {page === 'home' && <HomePage />}
+      {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
+      {page === 'eventDetail' && (
+        <EventDetailPage eventGroupCode={selectedEventGroupCode} onNavigate={navigateToPage} />
+      )}
       {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
@@ -260,7 +321,7 @@ function Header({
   );
 }
 
-function HomePage() {
+function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) => void }) {
   const [soonestOnSaleEvents, setSoonestOnSaleEvents] = useState<TicketingEvent[]>([]);
   const [homeEventTab, setHomeEventTab] = useState<HomeEventTab>('festival');
   const [homeTabEvents, setHomeTabEvents] = useState<TicketingEvent[]>([]);
@@ -399,7 +460,7 @@ function HomePage() {
   }
 
   function handlePosterClick(event: TicketingEvent) {
-    window.location.hash = `event-${encodeURIComponent(event.eventGroupCode)}`;
+    onSelectEvent(event.eventGroupCode);
   }
 
   const selectedHomeEventTab = homeEventTabs.find((tab) => tab.key === homeEventTab);
@@ -468,10 +529,15 @@ function HomePage() {
           <div className="mini-poster-grid">
             {homeTabEvents.map((event, index) => (
               <div className="mini-poster" key={event.eventGroupCode}>
-                <div>
+                <button
+                  className="mini-poster-image"
+                  type="button"
+                  onClick={() => handlePosterClick(event)}
+                  aria-label={`${event.title} 공연 상세 보기`}
+                >
                   <img src={event.posterUrl} alt="" />
                   <span className="mini-poster-rank">{index + 1}</span>
-                </div>
+                </button>
                 <strong>{event.title}</strong>
                 <span className="mini-poster-description">{event.artistName}</span>
               </div>
@@ -486,6 +552,136 @@ function HomePage() {
 
       </section>
     </>
+  );
+}
+
+function EventDetailPage({
+  eventGroupCode,
+  onNavigate,
+}: {
+  eventGroupCode: string;
+  onNavigate: (page: Page) => void;
+}) {
+  const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadEventDetail() {
+      if (!eventGroupCode) {
+        setEventDetail(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const detail = await request<EventDetail>(
+          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          {
+            method: 'GET',
+          },
+        );
+        setEventDetail(detail);
+      } catch {
+        setEventDetail(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadEventDetail();
+  }, [eventGroupCode]);
+
+  if (isLoading) {
+    return <section className="event-detail-state">공연 정보를 불러오는 중입니다.</section>;
+  }
+
+  if (!eventDetail) {
+    return (
+      <section className="event-detail-state">
+        <p>공연 정보를 찾을 수 없습니다.</p>
+        <button type="button" onClick={() => onNavigate('home')}>
+          메인으로 돌아가기
+        </button>
+      </section>
+    );
+  }
+
+  const isBookable = eventDetail.bookingStatus === 'ON_SALE';
+
+  return (
+    <section className="event-detail-page">
+      <div className="event-detail-header">
+        <p>공연 상세</p>
+        <h1>{eventDetail.title}</h1>
+      </div>
+
+      <article className="event-booking-panel">
+        <div className="event-detail-poster">
+          <img src={eventDetail.posterUrl} alt={`${eventDetail.title} 포스터`} />
+        </div>
+
+        <div className="event-detail-info">
+          <h2>{eventDetail.title}</h2>
+          <dl>
+            <div>
+              <dt>아티스트</dt>
+              <dd>{eventDetail.artistName}</dd>
+            </div>
+            <div>
+              <dt>공연기간</dt>
+              <dd>{eventDetail.eventDateRange}</dd>
+            </div>
+            <div>
+              <dt>공연장</dt>
+              <dd>{eventDetail.venue}</dd>
+            </div>
+            <div>
+              <dt>주소</dt>
+              <dd>{eventDetail.venueAddress}</dd>
+            </div>
+            <div>
+              <dt>공연시간</dt>
+              <dd>{eventDetail.runningMinutes}분</dd>
+            </div>
+            <div>
+              <dt>관람등급</dt>
+              <dd>{eventDetail.ageLimit === 0 ? '전체 관람가' : `${eventDetail.ageLimit}세 이상`}</dd>
+            </div>
+            <div>
+              <dt>예매가능좌석</dt>
+              <dd>{eventDetail.availableSeats.toLocaleString()}석</dd>
+            </div>
+          </dl>
+
+          <div className="event-schedule-box">
+            <strong>공연 회차</strong>
+            <ul>
+              {eventDetail.schedules.map((schedule) => (
+                <li key={schedule.eventId}>
+                  <span>{schedule.eventDateTime}</span>
+                  <small>{schedule.availableSeats.toLocaleString()}석</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <button
+            className={isBookable ? 'booking-action-button' : 'booking-action-button disabled'}
+            disabled={!isBookable}
+            type="button"
+          >
+            {eventDetail.bookingMessage}
+          </button>
+        </div>
+      </article>
+
+      <section className="event-description-panel">
+        <h2>공연 소개</h2>
+        <p>{eventDetail.description}</p>
+      </section>
+    </section>
   );
 }
 

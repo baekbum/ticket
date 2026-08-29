@@ -1,9 +1,11 @@
 package dev.bum.ticket_service.service.event.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventScheduleResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -17,8 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -28,6 +33,7 @@ public class EventService {
 
     private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
     private static final int HOME_TAB_EVENT_LIMIT = 4;
+    private static final DateTimeFormatter BOOKING_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
 
     private final EventRepository repository;
 
@@ -41,6 +47,74 @@ public class EventService {
             throw new EventNotExistException("노출 가능한 이벤트 정보가 존재하지 않습니다.");
         }
         return event.toResponse();
+    }
+
+    @Transactional(readOnly = true)
+    public EventBookingDetailResponse selectBookingDetailByEventGroupCode(String eventGroupCode) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Event> events = repository.selectByEventGroupCode(eventGroupCode).stream()
+                .sorted(Comparator.comparing(Event::getEventDateTime))
+                .toList();
+        Event representativeEvent = events.get(0);
+        EventResponse representativeResponse = representativeEvent.toResponse();
+        LocalDateTime eventStartDateTime = events.get(0).getEventDateTime();
+        LocalDateTime eventEndDateTime = events.get(events.size() - 1).getEventDateTime();
+        LocalDateTime saleStartAt = events.stream()
+                .map(Event::getSaleStartAt)
+                .filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(null);
+        boolean isClosed = events.stream()
+                .allMatch(event -> event.getStatus() == EventStatus.CLOSED || event.getEventDateTime().isBefore(now));
+        boolean isOnSale = events.stream()
+                .anyMatch(event ->
+                        event.getStatus() == EventStatus.ON_SALE &&
+                                event.getSaleStartAt() != null &&
+                                event.getSaleEndAt() != null &&
+                                !event.getSaleStartAt().isAfter(now) &&
+                                !event.getSaleEndAt().isBefore(now) &&
+                                !event.getEventDateTime().isBefore(now)
+                );
+        String bookingStatus = "CLOSED";
+        String bookingMessage = "종료된 공연입니다.";
+
+        if (isOnSale) {
+            bookingStatus = "ON_SALE";
+            bookingMessage = "예매하기";
+        } else if (!isClosed && saleStartAt != null && saleStartAt.isAfter(now)) {
+            bookingStatus = "OPEN_SOON";
+            bookingMessage = saleStartAt.format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH시 mm분")) + " 오픈 예정";
+        }
+
+        return EventBookingDetailResponse.builder()
+                .eventGroupCode(representativeEvent.getEventGroupCode())
+                .artistName(representativeEvent.getArtistName())
+                .title(representativeEvent.getTitle())
+                .description(representativeEvent.getDescription())
+                .venue(representativeEvent.getVenue())
+                .venueAddress(representativeEvent.getVenueAddress())
+                .posterUrl(representativeEvent.getPosterUrl())
+                .eventDateRange(formatEventDateRange(eventStartDateTime, eventEndDateTime))
+                .saleStartAt(representativeResponse.getSaleStartAt())
+                .saleEndAt(representativeResponse.getSaleEndAt())
+                .runningMinutes(representativeEvent.getRunningMinutes())
+                .ageLimit(representativeEvent.getAgeLimit())
+                .totalSeats(events.stream().map(Event::getTotalSeats).filter(Objects::nonNull).mapToInt(Integer::intValue).sum())
+                .availableSeats(events.stream().map(Event::getAvailableSeats).filter(Objects::nonNull).mapToInt(Integer::intValue).sum())
+                .status(representativeEvent.getStatus())
+                .maxTicketsPerPerson(representativeEvent.getMaxTicketsPerPerson())
+                .ticketLimitScope(representativeEvent.getTicketLimitScope())
+                .bookingStatus(bookingStatus)
+                .bookingMessage(bookingMessage)
+                .schedules(events.stream()
+                        .map(event -> EventScheduleResponse.builder()
+                                .eventId(event.getEventId())
+                                .eventDateTime(event.toResponse().getEventDateTime())
+                                .availableSeats(event.getAvailableSeats())
+                                .status(event.getStatus())
+                                .build())
+                        .toList())
+                .build();
     }
 
     /**
@@ -113,6 +187,14 @@ public class EventService {
         }
 
         return sort;
+    }
+
+    private String formatEventDateRange(LocalDateTime start, LocalDateTime end) {
+        if (start.toLocalDate().equals(end.toLocalDate())) {
+            return start.format(BOOKING_DATE_FORMATTER);
+        }
+
+        return start.format(BOOKING_DATE_FORMATTER) + " ~ " + end.format(BOOKING_DATE_FORMATTER);
     }
 
 }

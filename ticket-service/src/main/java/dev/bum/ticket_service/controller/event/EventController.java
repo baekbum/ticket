@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.controller.event;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
@@ -27,6 +28,11 @@ public class EventController {
     @GetMapping("/select/id/{eventId}")
     public ResponseEntity<EventResponse> selectById(@PathVariable("eventId") Long eventId) {
         return ResponseEntity.ok(eventService.selectVisibleById(eventId));
+    }
+
+    @GetMapping("/select/group/{eventGroupCode}")
+    public ResponseEntity<EventBookingDetailResponse> selectByEventGroupCode(@PathVariable("eventGroupCode") String eventGroupCode) {
+        return ResponseEntity.ok(eventService.selectBookingDetailByEventGroupCode(eventGroupCode));
     }
 
     @GetMapping("/select")

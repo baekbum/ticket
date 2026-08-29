@@ -1,8 +1,10 @@
 package dev.bum.client_api_service.feign.ticket;
 
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 
@@ -11,6 +13,9 @@ public interface TicketEventServiceClient {
 
     @GetMapping("/on-sale/soonest")
     List<EventCardResponse> selectSoonestOnSaleCards();
+
+    @GetMapping("/select/group/{eventGroupCode}")
+    EventBookingDetailResponse selectByEventGroupCode(@PathVariable("eventGroupCode") String eventGroupCode);
 
     @GetMapping("/cards/festival")
     List<EventCardResponse> selectFestivalCards();
