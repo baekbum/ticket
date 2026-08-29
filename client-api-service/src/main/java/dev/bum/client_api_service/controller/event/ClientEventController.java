@@ -3,6 +3,7 @@ package dev.bum.client_api_service.controller.event;
 import dev.bum.client_api_service.feign.ticket.TicketEventServiceClient;
 import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -52,5 +53,15 @@ public class ClientEventController {
             @RequestParam(name = "size", defaultValue = "5") int size
     ) {
         return ResponseEntity.ok(ticketEventServiceClient.selectConcertCards(sort, page, size));
+    }
+
+    @GetMapping("/cards/genre/{genre}")
+    public ResponseEntity<List<EventCardResponse>> selectGenreCards(
+            @PathVariable("genre") EventGenre genre,
+            @RequestParam(name = "sort", defaultValue = "soonest") String sort,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "5") int size
+    ) {
+        return ResponseEntity.ok(ticketEventServiceClient.selectGenreCards(genre, sort, page, size));
     }
 }

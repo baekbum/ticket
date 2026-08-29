@@ -2,6 +2,7 @@ package dev.bum.client_api_service.feign.ticket;
 
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,14 @@ public interface TicketEventServiceClient {
 
     @GetMapping("/cards/concert")
     List<EventCardResponse> selectConcertCards(
+            @RequestParam("sort") String sort,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size
+    );
+
+    @GetMapping("/cards/genre/{genre}")
+    List<EventCardResponse> selectGenreCards(
+            @PathVariable("genre") EventGenre genre,
             @RequestParam("sort") String sort,
             @RequestParam("page") int page,
             @RequestParam("size") int size

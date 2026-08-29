@@ -2,10 +2,19 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './App.css';
 
-type Page = 'home' | 'login' | 'signup' | 'findId' | 'findPassword' | 'eventDetail' | 'concertList';
+type Page =
+  | 'home'
+  | 'login'
+  | 'signup'
+  | 'findId'
+  | 'findPassword'
+  | 'eventDetail'
+  | 'concertList'
+  | 'musicalPlayList';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 type ConcertSort = 'soonest' | 'latest';
+type EventGenre = 'CONCERT' | 'MUSICAL_PLAY';
 
 type LoginForm = {
   userId: string;
@@ -111,6 +120,22 @@ const initialFindPasswordForm = {
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
+const categoryPageConfigs: Record<'concertList' | 'musicalPlayList', {
+  label: string;
+  genre: EventGenre;
+  emptyMessage: string;
+}> = {
+  concertList: {
+    label: '콘서트',
+    genre: 'CONCERT',
+    emptyMessage: '현재 예매 가능한 콘서트가 없습니다.',
+  },
+  musicalPlayList: {
+    label: '뮤지컬/연극',
+    genre: 'MUSICAL_PLAY',
+    emptyMessage: '현재 예매 가능한 뮤지컬/연극 공연이 없습니다.',
+  },
+};
 const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string; emptyMessage: string }> = [
   {
     key: 'festival',
@@ -141,7 +166,8 @@ function getPageFromLocation(): Page {
     page === 'findId' ||
     page === 'findPassword' ||
     page === 'eventDetail' ||
-    page === 'concertList'
+    page === 'concertList' ||
+    page === 'musicalPlayList'
   ) {
     return page;
   }
@@ -311,7 +337,13 @@ function App() {
     <main className="app-shell">
       {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
-      {page === 'concertList' && <ConcertListPage onSelectEvent={navigateToEventDetail} />}
+      {(page === 'concertList' || page === 'musicalPlayList') && (
+        <CategoryEventListPage
+          key={page}
+          config={categoryPageConfigs[page]}
+          onSelectEvent={navigateToEventDetail}
+        />
+      )}
       {page === 'eventDetail' && (
         <EventDetailPage eventGroupCode={selectedEventGroupCode} onNavigate={navigateToPage} />
       )}
@@ -372,12 +404,19 @@ function Header({
       <nav className="category-nav" aria-label="공연 카테고리">
         {categories.map((category) => (
           <button
-            className={currentPage === 'concertList' && category === '콘서트' ? 'active-category' : ''}
+            className={
+              (currentPage === 'concertList' && category === '콘서트') ||
+              (currentPage === 'musicalPlayList' && category === '뮤지컬/연극')
+                ? 'active-category'
+                : ''
+            }
             type="button"
             key={category}
             onClick={() => {
               if (category === '콘서트') {
                 onNavigate('concertList');
+              } else if (category === '뮤지컬/연극') {
+                onNavigate('musicalPlayList');
               }
             }}
           >
@@ -626,72 +665,88 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   );
 }
 
-function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) => void }) {
-  const concertPageSize = 5;
-  const [concerts, setConcerts] = useState<TicketingEvent[]>([]);
-  const [concertSort, setConcertSort] = useState<ConcertSort>('soonest');
-  const [concertPage, setConcertPage] = useState(0);
-  const [hasMoreConcerts, setHasMoreConcerts] = useState(true);
+function CategoryEventListPage({
+  config,
+  onSelectEvent,
+}: {
+  config: {
+    label: string;
+    genre: EventGenre;
+    emptyMessage: string;
+  };
+  onSelectEvent: (eventGroupCode: string) => void;
+}) {
+  const eventPageSize = 5;
+  const [events, setEvents] = useState<TicketingEvent[]>([]);
+  const [eventSort, setEventSort] = useState<ConcertSort>('soonest');
+  const [eventPage, setEventPage] = useState(0);
+  const [hasMoreEvents, setHasMoreEvents] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const concertLoaderRef = useRef<HTMLDivElement | null>(null);
+  const eventLoaderRef = useRef<HTMLDivElement | null>(null);
 
-  function changeConcertSort(nextSort: ConcertSort) {
-    if (nextSort === concertSort) {
+  function changeEventSort(nextSort: ConcertSort) {
+    if (nextSort === eventSort) {
       return;
     }
 
-    setConcerts([]);
-    setConcertPage(0);
-    setHasMoreConcerts(true);
-    setConcertSort(nextSort);
+    setEvents([]);
+    setEventPage(0);
+    setHasMoreEvents(true);
+    setEventSort(nextSort);
   }
 
   useEffect(() => {
-    async function loadConcerts() {
+    setEvents([]);
+    setEventPage(0);
+    setHasMoreEvents(true);
+  }, [config.genre]);
+
+  useEffect(() => {
+    async function loadEvents() {
       setIsLoading(true);
 
       try {
-        const events = await request<TicketingEvent[]>(
-          `/client-api/api/v1/event/cards/concert?sort=${concertSort}&page=${concertPage}&size=${concertPageSize}`,
+        const nextEvents = await request<TicketingEvent[]>(
+          `/client-api/api/v1/event/cards/genre/${config.genre}?sort=${eventSort}&page=${eventPage}&size=${eventPageSize}`,
           {
             method: 'GET',
           },
         );
-        setConcerts((currentConcerts) => {
-          if (concertPage === 0) {
-            return events;
+        setEvents((currentEvents) => {
+          if (eventPage === 0) {
+            return nextEvents;
           }
 
-          const concertMap = new Map(currentConcerts.map((concert) => [concert.eventGroupCode, concert]));
-          events.forEach((event) => concertMap.set(event.eventGroupCode, event));
+          const eventMap = new Map(currentEvents.map((event) => [event.eventGroupCode, event]));
+          nextEvents.forEach((event) => eventMap.set(event.eventGroupCode, event));
 
-          return Array.from(concertMap.values());
+          return Array.from(eventMap.values());
         });
-        setHasMoreConcerts(events.length === concertPageSize);
+        setHasMoreEvents(nextEvents.length === eventPageSize);
       } catch {
-        if (concertPage === 0) {
-          setConcerts([]);
+        if (eventPage === 0) {
+          setEvents([]);
         }
-        setHasMoreConcerts(false);
+        setHasMoreEvents(false);
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadConcerts();
-  }, [concertPage, concertSort]);
+    loadEvents();
+  }, [config.genre, eventPage, eventSort]);
 
   useEffect(() => {
-    const loaderElement = concertLoaderRef.current;
+    const loaderElement = eventLoaderRef.current;
 
-    if (!loaderElement || !hasMoreConcerts) {
+    if (!loaderElement || !hasMoreEvents) {
       return;
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !isLoading) {
-          setConcertPage((currentPage) => currentPage + 1);
+          setEventPage((currentPage) => currentPage + 1);
         }
       },
       { rootMargin: '180px 0px' },
@@ -700,24 +755,24 @@ function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: st
     observer.observe(loaderElement);
 
     return () => observer.disconnect();
-  }, [hasMoreConcerts, isLoading]);
+  }, [hasMoreEvents, isLoading]);
 
   return (
     <section className="category-list-page">
       <div className="category-list-header">
-        <h1>콘서트</h1>
-        <div className="category-sort-tabs" aria-label="콘서트 정렬">
+        <h1>{config.label}</h1>
+        <div className="category-sort-tabs" aria-label={`${config.label} 정렬`}>
           <button
-            className={concertSort === 'soonest' ? 'active-sort' : ''}
+            className={eventSort === 'soonest' ? 'active-sort' : ''}
             type="button"
-            onClick={() => changeConcertSort('soonest')}
+            onClick={() => changeEventSort('soonest')}
           >
             공연 임박순
           </button>
           <button
-            className={concertSort === 'latest' ? 'active-sort' : ''}
+            className={eventSort === 'latest' ? 'active-sort' : ''}
             type="button"
-            onClick={() => changeConcertSort('latest')}
+            onClick={() => changeEventSort('latest')}
           >
             최신순
           </button>
@@ -725,29 +780,29 @@ function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: st
       </div>
 
       <div className="concert-list">
-        {isLoading && <p className="concert-list-empty">콘서트 목록을 불러오는 중입니다.</p>}
-        {!isLoading && concerts.length === 0 && (
-          <p className="concert-list-empty">현재 예매 가능한 콘서트가 없습니다.</p>
+        {isLoading && events.length === 0 && <p className="concert-list-empty">{config.label} 목록을 불러오는 중입니다.</p>}
+        {!isLoading && events.length === 0 && (
+          <p className="concert-list-empty">{config.emptyMessage}</p>
         )}
-        {concerts.map((concert) => (
+        {events.map((event) => (
           <button
             className="concert-list-card"
             type="button"
-            key={concert.eventGroupCode}
-            onClick={() => onSelectEvent(concert.eventGroupCode)}
+            key={event.eventGroupCode}
+            onClick={() => onSelectEvent(event.eventGroupCode)}
           >
             <span className="concert-list-poster">
-              <img src={concert.posterUrl} alt={`${concert.title} 포스터`} />
+              <img src={event.posterUrl} alt={`${event.title} 포스터`} />
             </span>
             <span className="concert-list-info">
-              <strong>{concert.title}</strong>
-              <span>{concert.artistName}</span>
-              <small>{formatTicketingEventRange(concert)}</small>
+              <strong>{event.title}</strong>
+              <span>{event.artistName}</span>
+              <small>{formatTicketingEventRange(event)}</small>
             </span>
           </button>
         ))}
-        <div className="concert-list-loader" ref={concertLoaderRef}>
-          {isLoading && concerts.length > 0 && '콘서트를 더 불러오는 중입니다.'}
+        <div className="concert-list-loader" ref={eventLoaderRef}>
+          {isLoading && events.length > 0 && `${config.label} 공연을 더 불러오는 중입니다.`}
         </div>
       </div>
     </section>
