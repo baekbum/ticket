@@ -6,8 +6,12 @@ import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventScheduleResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventSeatPriceResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
+import dev.bum.ticket_service.jpa.area.Area;
+import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +27,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -36,6 +42,7 @@ public class EventService {
     private static final DateTimeFormatter BOOKING_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
 
     private final EventRepository repository;
+    private final AreaJpaRepository areaJpaRepository;
 
     /**
      * 판매 중인 공연만 사용자 화면에 노출되도록 ID로 조회한다.
@@ -57,6 +64,11 @@ public class EventService {
                 .toList();
         Event representativeEvent = events.get(0);
         EventResponse representativeResponse = representativeEvent.toResponse();
+        List<Long> eventIds = events.stream()
+                .map(Event::getEventId)
+                .toList();
+        Map<Long, List<Area>> areasByEventId = areaJpaRepository.findByEvent_EventIdIn(eventIds).stream()
+                .collect(Collectors.groupingBy(area -> area.getEvent().getEventId()));
         LocalDateTime eventStartDateTime = events.get(0).getEventDateTime();
         LocalDateTime eventEndDateTime = events.get(events.size() - 1).getEventDateTime();
         LocalDateTime saleStartAt = events.stream()
@@ -112,9 +124,28 @@ public class EventService {
                                 .eventDateTime(event.toResponse().getEventDateTime())
                                 .availableSeats(event.getAvailableSeats())
                                 .status(event.getStatus())
+                                .seatPrices(toSeatPrices(areasByEventId.getOrDefault(event.getEventId(), List.of())))
                                 .build())
                         .toList())
                 .build();
+    }
+
+    private List<EventSeatPriceResponse> toSeatPrices(List<Area> areas) {
+        Map<SeatGrade, Integer> priceByGrade = areas.stream()
+                .filter(area -> area.getGrade() != null && area.getPrice() != null)
+                .collect(Collectors.toMap(
+                        Area::getGrade,
+                        Area::getPrice,
+                        Integer::min
+                ));
+
+        return priceByGrade.entrySet().stream()
+                .sorted(Map.Entry.<SeatGrade, Integer>comparingByValue().reversed())
+                .map(entry -> EventSeatPriceResponse.builder()
+                        .grade(entry.getKey())
+                        .price(entry.getValue())
+                        .build())
+                .toList();
     }
 
     /**

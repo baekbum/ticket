@@ -69,6 +69,13 @@ type EventSchedule = {
   eventDateTime: string;
   availableSeats: number;
   status: 'ON_SALE' | 'SALE_ENDED' | 'SOLD_OUT' | 'CLOSED' | 'CANCELLED';
+  seatPrices: EventSeatPrice[];
+};
+
+type EventSeatPrice = {
+  areaName: string;
+  grade: 'VIP' | 'R' | 'S' | 'A';
+  price: number;
 };
 
 const initialLoginForm: LoginForm = {
@@ -191,6 +198,46 @@ function getCalendarDays(monthDate: Date) {
       isCurrentMonth: date.getMonth() === month,
     };
   });
+}
+
+function getScheduleDateLabel(eventDateTime: string) {
+  const match = eventDateTime.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+
+  if (!match) {
+    return eventDateTime;
+  }
+
+  return `${match[1]}.${match[2].padStart(2, '0')}.${match[3].padStart(2, '0')}`;
+}
+
+function getScheduleTimeLabel(eventDateTime: string) {
+  const match = eventDateTime.match(/(\d{1,2})시\s*(\d{1,2})분/);
+
+  if (!match) {
+    return eventDateTime;
+  }
+
+  return `${match[1].padStart(2, '0')}:${match[2].padStart(2, '0')}`;
+}
+
+function getSeatGradeLabel(grade: EventSeatPrice['grade']) {
+  return `${grade}석`;
+}
+
+function getDistinctSeatPrices(seatPrices: EventSeatPrice[]) {
+  const seatPriceMap = seatPrices.reduce<Map<EventSeatPrice['grade'], EventSeatPrice>>((priceMap, seatPrice) => {
+    const currentSeatPrice = priceMap.get(seatPrice.grade);
+
+    if (!currentSeatPrice || seatPrice.price < currentSeatPrice.price) {
+      priceMap.set(seatPrice.grade, seatPrice);
+    }
+
+    return priceMap;
+  }, new Map());
+
+  return Array.from(seatPriceMap.values()).sort((firstPrice, secondPrice) =>
+    secondPrice.price - firstPrice.price,
+  );
 }
 
 function App() {
@@ -564,6 +611,9 @@ function EventDetailPage({
 }) {
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState('');
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [isScheduleAlertOpen, setIsScheduleAlertOpen] = useState(false);
 
   useEffect(() => {
     async function loadEventDetail() {
@@ -583,6 +633,8 @@ function EventDetailPage({
           },
         );
         setEventDetail(detail);
+        setSelectedScheduleDate('');
+        setSelectedScheduleId(null);
       } catch {
         setEventDetail(null);
       } finally {
@@ -609,6 +661,57 @@ function EventDetailPage({
   }
 
   const isBookable = eventDetail.bookingStatus === 'ON_SALE';
+  const scheduleGroups = eventDetail.schedules.reduce<
+    Array<{ dateLabel: string; schedules: EventSchedule[] }>
+  >((groups, schedule) => {
+    const dateLabel = getScheduleDateLabel(schedule.eventDateTime);
+    const existingGroup = groups.find((group) => group.dateLabel === dateLabel);
+
+    if (existingGroup) {
+      existingGroup.schedules.push(schedule);
+      return groups;
+    }
+
+    return [...groups, { dateLabel, schedules: [schedule] }];
+  }, []);
+  const activeScheduleDate = selectedScheduleDate || scheduleGroups[0]?.dateLabel || '';
+  const activeSchedules =
+    scheduleGroups.find((group) => group.dateLabel === activeScheduleDate)?.schedules || [];
+
+  function selectScheduleDate(dateLabel: string) {
+    if (!isBookable) {
+      return;
+    }
+
+    const firstSchedule = scheduleGroups
+      .find((group) => group.dateLabel === dateLabel)
+      ?.schedules.find((schedule) => schedule.status === 'ON_SALE');
+
+    setSelectedScheduleDate(dateLabel);
+    setSelectedScheduleId(firstSchedule?.eventId || null);
+  }
+
+  function toggleSchedule(schedule: EventSchedule) {
+    if (!isBookable || schedule.status !== 'ON_SALE') {
+      return;
+    }
+
+    setSelectedScheduleDate(getScheduleDateLabel(schedule.eventDateTime));
+    setSelectedScheduleId((currentScheduleId) =>
+      currentScheduleId === schedule.eventId ? null : schedule.eventId,
+    );
+  }
+
+  function clickBookingButton() {
+    if (!isBookable) {
+      return;
+    }
+
+    if (selectedScheduleId === null) {
+      setIsScheduleAlertOpen(true);
+      return;
+    }
+  }
 
   return (
     <section className="event-detail-page">
@@ -618,59 +721,119 @@ function EventDetailPage({
       </div>
 
       <article className="event-booking-panel">
-        <div className="event-detail-poster">
-          <img src={eventDetail.posterUrl} alt={`${eventDetail.title} 포스터`} />
-        </div>
-
-        <div className="event-detail-info">
-          <h2>{eventDetail.title}</h2>
-          <dl>
-            <div>
-              <dt>아티스트</dt>
-              <dd>{eventDetail.artistName}</dd>
-            </div>
-            <div>
-              <dt>공연기간</dt>
-              <dd>{eventDetail.eventDateRange}</dd>
-            </div>
-            <div>
-              <dt>공연장</dt>
-              <dd>{eventDetail.venue}</dd>
-            </div>
-            <div>
-              <dt>주소</dt>
-              <dd>{eventDetail.venueAddress}</dd>
-            </div>
-            <div>
-              <dt>공연시간</dt>
-              <dd>{eventDetail.runningMinutes}분</dd>
-            </div>
-            <div>
-              <dt>관람등급</dt>
-              <dd>{eventDetail.ageLimit === 0 ? '전체 관람가' : `${eventDetail.ageLimit}세 이상`}</dd>
-            </div>
-            <div>
-              <dt>예매가능좌석</dt>
-              <dd>{eventDetail.availableSeats.toLocaleString()}석</dd>
-            </div>
-          </dl>
-
-          <div className="event-schedule-box">
-            <strong>공연 회차</strong>
-            <ul>
-              {eventDetail.schedules.map((schedule) => (
-                <li key={schedule.eventId}>
-                  <span>{schedule.eventDateTime}</span>
-                  <small>{schedule.availableSeats.toLocaleString()}석</small>
-                </li>
-              ))}
-            </ul>
+        <div className="event-booking-top">
+          <div className="event-detail-poster">
+            <img src={eventDetail.posterUrl} alt={`${eventDetail.title} 포스터`} />
           </div>
 
+          <div className="event-detail-info">
+            <h2>{eventDetail.title}</h2>
+            <dl>
+              <div>
+                <dt>아티스트</dt>
+                <dd>{eventDetail.artistName}</dd>
+              </div>
+              <div>
+                <dt>공연기간</dt>
+                <dd>{eventDetail.eventDateRange}</dd>
+              </div>
+              <div>
+                <dt>공연장</dt>
+                <dd>{eventDetail.venue}</dd>
+              </div>
+              <div>
+                <dt>주소</dt>
+                <dd>{eventDetail.venueAddress}</dd>
+              </div>
+              <div>
+                <dt>공연시간</dt>
+                <dd>{eventDetail.runningMinutes}분</dd>
+              </div>
+              <div>
+                <dt>관람등급</dt>
+                <dd>{eventDetail.ageLimit === 0 ? '전체 관람가' : `${eventDetail.ageLimit}세 이상`}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <div className="event-schedule-box">
+          <div className="event-schedule-picker">
+            <div className="event-schedule-column">
+              <strong className="event-schedule-column-title">공연 날짜</strong>
+              <div className="event-schedule-date-list" aria-label="공연 날짜 선택">
+                {scheduleGroups.map((group) => (
+                  <button
+                    className={activeScheduleDate === group.dateLabel ? 'selected' : ''}
+                    disabled={!isBookable}
+                    type="button"
+                    key={group.dateLabel}
+                    onClick={() => selectScheduleDate(group.dateLabel)}
+                  >
+                    {group.dateLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="event-schedule-column">
+              <strong className="event-schedule-column-title">시간</strong>
+              <div className="event-schedule-time-list" aria-label="공연 시간 선택">
+                {activeSchedules.map((schedule) => (
+                  <button
+                    className={selectedScheduleId === schedule.eventId ? 'selected' : ''}
+                    disabled={!isBookable || schedule.status !== 'ON_SALE'}
+                    type="button"
+                    key={schedule.eventId}
+                    onClick={() => toggleSchedule(schedule)}
+                  >
+                    <span>{getScheduleTimeLabel(schedule.eventDateTime)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="event-schedule-column">
+              <strong className="event-schedule-column-title">좌석 가격 정보</strong>
+              <div className="event-seat-price-list">
+                {selectedScheduleId === null && (
+                  <p>시간을 선택하면 가격 정보가 표시됩니다.</p>
+                )}
+                {eventDetail.schedules.map((schedule) => {
+                  const seatPrices = getDistinctSeatPrices(schedule.seatPrices);
+                  const isSelected = schedule.eventId === selectedScheduleId;
+
+                  return (
+                    <div
+                      className={isSelected ? 'event-seat-price-panel active' : 'event-seat-price-panel'}
+                      key={schedule.eventId}
+                      hidden={!isSelected}
+                    >
+                      {seatPrices.length > 0 ? (
+                        seatPrices.map((seatPrice) => (
+                          <div
+                            className="event-seat-price-item"
+                            key={`${schedule.eventId}-${seatPrice.grade}`}
+                          >
+                            <span>{getSeatGradeLabel(seatPrice.grade)}</span>
+                            <strong>{seatPrice.price.toLocaleString()}원</strong>
+                          </div>
+                        ))
+                      ) : (
+                        <p>좌석 가격 정보가 없습니다.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="event-booking-action-row">
           <button
             className={isBookable ? 'booking-action-button' : 'booking-action-button disabled'}
             disabled={!isBookable}
             type="button"
+            onClick={clickBookingButton}
           >
             {eventDetail.bookingMessage}
           </button>
@@ -681,6 +844,18 @@ function EventDetailPage({
         <h2>공연 소개</h2>
         <p>{eventDetail.description}</p>
       </section>
+
+      {isScheduleAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert booking-alert">
+            <strong>회차를 선택해 주세요.</strong>
+            <p>예매를 진행하려면 먼저 공연 회차를 선택해야 합니다.</p>
+            <button type="button" onClick={() => setIsScheduleAlertOpen(false)}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
