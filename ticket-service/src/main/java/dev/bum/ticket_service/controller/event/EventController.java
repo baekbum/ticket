@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -58,5 +59,12 @@ public class EventController {
     @GetMapping("/cards/weekly")
     public ResponseEntity<List<EventCardResponse>> selectWeeklyRecommendedCards() {
         return ResponseEntity.ok(eventService.selectWeeklyRecommendedCards());
+    }
+
+    @GetMapping("/cards/concert")
+    public ResponseEntity<List<EventCardResponse>> selectConcertCards(
+            @RequestParam(name = "sort", defaultValue = "soonest") String sort
+    ) {
+        return ResponseEntity.ok(eventService.selectConcertCards(sort));
     }
 }

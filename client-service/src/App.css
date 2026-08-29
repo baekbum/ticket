@@ -129,9 +129,21 @@ button {
 }
 
 .category-nav button {
+  position: relative;
+  align-self: stretch;
   color: #222222;
   font-size: 18px;
   font-weight: 900;
+}
+
+.category-nav button.active-category::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 4px;
+  background: #00c73c;
+  content: "";
 }
 
 .category-nav .my-ticket {
@@ -416,6 +428,127 @@ button {
 .side-panel p {
   color: #777777;
   line-height: 1.6;
+}
+
+.category-list-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 44px 24px 70px;
+}
+
+.category-list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #222222;
+}
+
+.category-list-header h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 34px;
+  font-weight: 950;
+  letter-spacing: -0.05em;
+}
+
+.category-sort-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.category-sort-tabs button {
+  border: 0;
+  background: transparent;
+  color: #777777;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.category-sort-tabs button + button::before {
+  margin-right: 6px;
+  color: #dddddd;
+  content: "|";
+}
+
+.category-sort-tabs .active-sort {
+  color: #00a832;
+}
+
+.concert-list {
+  display: grid;
+}
+
+.concert-list-card {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  padding: 22px 0;
+  border: 0;
+  border-bottom: 1px solid #eeeeee;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+}
+
+.concert-list-card:hover .concert-list-info strong,
+.concert-list-card:focus-visible .concert-list-info strong {
+  color: #00a832;
+}
+
+.concert-list-poster {
+  display: grid;
+  width: 128px;
+  height: 172px;
+  place-items: center;
+  overflow: hidden;
+  background: #111111;
+}
+
+.concert-list-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.concert-list-info {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.concert-list-info strong {
+  overflow: hidden;
+  color: #222222;
+  font-size: 21px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.concert-list-info span {
+  color: #555555;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.concert-list-info small {
+  color: #888888;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.concert-list-empty {
+  margin: 0;
+  padding: 70px 0;
+  border-bottom: 1px solid #eeeeee;
+  color: #777777;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .event-detail-page {
@@ -1700,8 +1833,19 @@ button {
 
   .poster-rail,
   .mini-poster-grid,
-  .field-row {
+  .field-row,
+  .concert-list-card {
     grid-template-columns: 1fr;
+  }
+
+  .category-list-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .concert-list-poster {
+    width: 100%;
+    height: 320px;
   }
 
   .carousel-arrow {

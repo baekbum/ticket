@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventScheduleResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventSeatPriceResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
@@ -193,6 +194,14 @@ public class EventService {
         LocalDateTime now = LocalDateTime.now();
 
         return repository.selectWeeklyRecommendedCards(now, now.plusDays(14), HOME_TAB_EVENT_LIMIT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectConcertCards(String sort) {
+        LocalDateTime now = LocalDateTime.now();
+        String normalizedSort = "latest".equals(sort) ? "latest" : "soonest";
+
+        return repository.selectGenreOnSaleCards(EventGenre.CONCERT, now, normalizedSort);
     }
 
     /**

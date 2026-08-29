@@ -240,6 +240,44 @@ public class EventRepositoryImpl implements EventRepository {
         );
     }
 
+    @Override
+    public List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+        DateTimeExpression<LocalDateTime> latestCreatedAt = event.createdAt.max();
+
+        List<Tuple> groups;
+
+        if ("latest".equals(sort)) {
+            groups = queryFactory
+                    .select(event.eventGroupCode, startDateTime, endDateTime, latestCreatedAt)
+                    .from(event)
+                    .where(
+                            event.status.eq(EventStatus.ON_SALE),
+                            event.genre.eq(genre),
+                            event.eventDateTime.goe(now)
+                    )
+                    .groupBy(event.eventGroupCode)
+                    .orderBy(latestCreatedAt.desc(), event.eventGroupCode.asc())
+                    .fetch();
+        } else {
+            groups = queryFactory
+                    .select(event.eventGroupCode, startDateTime, endDateTime, latestCreatedAt)
+                    .from(event)
+                    .where(
+                            event.status.eq(EventStatus.ON_SALE),
+                            event.genre.eq(genre),
+                            event.eventDateTime.goe(now)
+                    )
+                    .groupBy(event.eventGroupCode)
+                    .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                    .fetch();
+        }
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
     private List<EventCardResponse> toEventCardResponses(
             List<Tuple> groups,
             DateTimeExpression<LocalDateTime> startDateTime,

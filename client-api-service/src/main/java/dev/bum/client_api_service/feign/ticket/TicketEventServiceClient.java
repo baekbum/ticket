@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -25,4 +26,7 @@ public interface TicketEventServiceClient {
 
     @GetMapping("/cards/weekly")
     List<EventCardResponse> selectWeeklyRecommendedCards();
+
+    @GetMapping("/cards/concert")
+    List<EventCardResponse> selectConcertCards(@RequestParam("sort") String sort);
 }
