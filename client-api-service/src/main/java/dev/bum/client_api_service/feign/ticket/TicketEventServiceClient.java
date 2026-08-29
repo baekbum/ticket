@@ -28,5 +28,9 @@ public interface TicketEventServiceClient {
     List<EventCardResponse> selectWeeklyRecommendedCards();
 
     @GetMapping("/cards/concert")
-    List<EventCardResponse> selectConcertCards(@RequestParam("sort") String sort);
+    List<EventCardResponse> selectConcertCards(
+            @RequestParam("sort") String sort,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size
+    );
 }

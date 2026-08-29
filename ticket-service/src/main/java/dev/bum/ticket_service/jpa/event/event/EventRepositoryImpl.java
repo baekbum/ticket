@@ -241,11 +241,12 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort) {
+    public List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort, int page, int size) {
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
         DateTimeExpression<LocalDateTime> latestCreatedAt = event.createdAt.max();
+        long offset = (long) page * size;
 
         List<Tuple> groups;
 
@@ -260,6 +261,8 @@ public class EventRepositoryImpl implements EventRepository {
                     )
                     .groupBy(event.eventGroupCode)
                     .orderBy(latestCreatedAt.desc(), event.eventGroupCode.asc())
+                    .offset(offset)
+                    .limit(size)
                     .fetch();
         } else {
             groups = queryFactory
@@ -272,6 +275,8 @@ public class EventRepositoryImpl implements EventRepository {
                     )
                     .groupBy(event.eventGroupCode)
                     .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                    .offset(offset)
+                    .limit(size)
                     .fetch();
         }
 

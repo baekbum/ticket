@@ -627,9 +627,24 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
 }
 
 function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) => void }) {
+  const concertPageSize = 5;
   const [concerts, setConcerts] = useState<TicketingEvent[]>([]);
   const [concertSort, setConcertSort] = useState<ConcertSort>('soonest');
+  const [concertPage, setConcertPage] = useState(0);
+  const [hasMoreConcerts, setHasMoreConcerts] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const concertLoaderRef = useRef<HTMLDivElement | null>(null);
+
+  function changeConcertSort(nextSort: ConcertSort) {
+    if (nextSort === concertSort) {
+      return;
+    }
+
+    setConcerts([]);
+    setConcertPage(0);
+    setHasMoreConcerts(true);
+    setConcertSort(nextSort);
+  }
 
   useEffect(() => {
     async function loadConcerts() {
@@ -637,21 +652,55 @@ function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: st
 
       try {
         const events = await request<TicketingEvent[]>(
-          `/client-api/api/v1/event/cards/concert?sort=${concertSort}`,
+          `/client-api/api/v1/event/cards/concert?sort=${concertSort}&page=${concertPage}&size=${concertPageSize}`,
           {
             method: 'GET',
           },
         );
-        setConcerts(events);
+        setConcerts((currentConcerts) => {
+          if (concertPage === 0) {
+            return events;
+          }
+
+          const concertMap = new Map(currentConcerts.map((concert) => [concert.eventGroupCode, concert]));
+          events.forEach((event) => concertMap.set(event.eventGroupCode, event));
+
+          return Array.from(concertMap.values());
+        });
+        setHasMoreConcerts(events.length === concertPageSize);
       } catch {
-        setConcerts([]);
+        if (concertPage === 0) {
+          setConcerts([]);
+        }
+        setHasMoreConcerts(false);
       } finally {
         setIsLoading(false);
       }
     }
 
     loadConcerts();
-  }, [concertSort]);
+  }, [concertPage, concertSort]);
+
+  useEffect(() => {
+    const loaderElement = concertLoaderRef.current;
+
+    if (!loaderElement || !hasMoreConcerts) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isLoading) {
+          setConcertPage((currentPage) => currentPage + 1);
+        }
+      },
+      { rootMargin: '180px 0px' },
+    );
+
+    observer.observe(loaderElement);
+
+    return () => observer.disconnect();
+  }, [hasMoreConcerts, isLoading]);
 
   return (
     <section className="category-list-page">
@@ -661,14 +710,14 @@ function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: st
           <button
             className={concertSort === 'soonest' ? 'active-sort' : ''}
             type="button"
-            onClick={() => setConcertSort('soonest')}
+            onClick={() => changeConcertSort('soonest')}
           >
             공연 임박순
           </button>
           <button
             className={concertSort === 'latest' ? 'active-sort' : ''}
             type="button"
-            onClick={() => setConcertSort('latest')}
+            onClick={() => changeConcertSort('latest')}
           >
             최신순
           </button>
@@ -680,24 +729,26 @@ function ConcertListPage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: st
         {!isLoading && concerts.length === 0 && (
           <p className="concert-list-empty">현재 예매 가능한 콘서트가 없습니다.</p>
         )}
-        {!isLoading &&
-          concerts.map((concert) => (
-            <button
-              className="concert-list-card"
-              type="button"
-              key={concert.eventGroupCode}
-              onClick={() => onSelectEvent(concert.eventGroupCode)}
-            >
-              <span className="concert-list-poster">
-                <img src={concert.posterUrl} alt={`${concert.title} 포스터`} />
-              </span>
-              <span className="concert-list-info">
-                <strong>{concert.title}</strong>
-                <span>{concert.artistName}</span>
-                <small>{formatTicketingEventRange(concert)}</small>
-              </span>
-            </button>
-          ))}
+        {concerts.map((concert) => (
+          <button
+            className="concert-list-card"
+            type="button"
+            key={concert.eventGroupCode}
+            onClick={() => onSelectEvent(concert.eventGroupCode)}
+          >
+            <span className="concert-list-poster">
+              <img src={concert.posterUrl} alt={`${concert.title} 포스터`} />
+            </span>
+            <span className="concert-list-info">
+              <strong>{concert.title}</strong>
+              <span>{concert.artistName}</span>
+              <small>{formatTicketingEventRange(concert)}</small>
+            </span>
+          </button>
+        ))}
+        <div className="concert-list-loader" ref={concertLoaderRef}>
+          {isLoading && concerts.length > 0 && '콘서트를 더 불러오는 중입니다.'}
+        </div>
       </div>
     </section>
   );

@@ -63,8 +63,10 @@ public class EventController {
 
     @GetMapping("/cards/concert")
     public ResponseEntity<List<EventCardResponse>> selectConcertCards(
-            @RequestParam(name = "sort", defaultValue = "soonest") String sort
+            @RequestParam(name = "sort", defaultValue = "soonest") String sort,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "5") int size
     ) {
-        return ResponseEntity.ok(eventService.selectConcertCards(sort));
+        return ResponseEntity.ok(eventService.selectConcertCards(sort, page, size));
     }
 }

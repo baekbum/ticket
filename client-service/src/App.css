@@ -431,7 +431,7 @@ button {
 }
 
 .category-list-page {
-  max-width: 1280px;
+  max-width: 993px;
   margin: 0 auto;
   padding: 44px 24px 70px;
 }
@@ -547,6 +547,15 @@ button {
   border-bottom: 1px solid #eeeeee;
   color: #777777;
   font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.concert-list-loader {
+  min-height: 56px;
+  padding: 18px 0 0;
+  color: #888888;
+  font-size: 14px;
   font-weight: 800;
   text-align: center;
 }

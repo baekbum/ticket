@@ -197,11 +197,13 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventCardResponse> selectConcertCards(String sort) {
+    public List<EventCardResponse> selectConcertCards(String sort, int page, int size) {
         LocalDateTime now = LocalDateTime.now();
         String normalizedSort = "latest".equals(sort) ? "latest" : "soonest";
+        int normalizedPage = Math.max(page, 0);
+        int normalizedSize = Math.max(size, 1);
 
-        return repository.selectGenreOnSaleCards(EventGenre.CONCERT, now, normalizedSort);
+        return repository.selectGenreOnSaleCards(EventGenre.CONCERT, now, normalizedSort, normalizedPage, normalizedSize);
     }
 
     /**

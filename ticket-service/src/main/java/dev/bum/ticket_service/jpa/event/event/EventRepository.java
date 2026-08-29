@@ -20,7 +20,7 @@ public interface EventRepository {
     List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit);
     List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit);
     List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit);
-    List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort);
+    List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort, int page, int size);
     Page<Event> selectByCond(EventCondRequest cond, Pageable pageable);
     Event update(Long id, UpdateEventRequest info);
     Event delete(Long id);
