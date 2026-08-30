@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(name = "client-user-service", url = "${services.user-service.url}", path = "/api/v1")
 public interface UserServiceClient {
@@ -37,4 +38,7 @@ public interface UserServiceClient {
 
     @PostMapping("/reset/password")
     void resetPassword(@Valid @RequestBody ResetPasswordRequest request);
+
+    @GetMapping("/select/me")
+    UserResponse selectMyInfo(@RequestHeader("Authorization") String authorizationHeader);
 }

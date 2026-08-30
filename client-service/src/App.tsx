@@ -35,6 +35,7 @@ type SignupForm = LoginForm & {
 type LoginResponse = {
   success: boolean;
   message: string;
+  name?: string;
   accessToken?: string;
   refreshToken?: string;
 };
@@ -335,6 +336,9 @@ function App() {
   const [selectedEventGroupCode, setSelectedEventGroupCode] = useState(
     () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
   );
+  const [loginUserName, setLoginUserName] = useState(
+    () => localStorage.getItem('ticksy.userName') || '',
+  );
   const isFullAuthPage =
     page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword';
 
@@ -383,9 +387,37 @@ function App() {
     );
   }
 
+  async function logout() {
+    const refreshToken = localStorage.getItem('ticksy.refreshToken');
+
+    try {
+      if (refreshToken) {
+        await request<void>('/client-api/api/v1/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization-Refresh': `Bearer ${refreshToken}`,
+          },
+        });
+      }
+    } finally {
+      localStorage.removeItem('ticksy.accessToken');
+      localStorage.removeItem('ticksy.refreshToken');
+      localStorage.removeItem('ticksy.userName');
+      setLoginUserName('');
+      navigateToPage('home');
+    }
+  }
+
   return (
     <main className="app-shell">
-      {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
+      {!isFullAuthPage && (
+        <Header
+          currentPage={page}
+          loginUserName={loginUserName}
+          onLogout={logout}
+          onNavigate={navigateToPage}
+        />
+      )}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
       {(page === 'concertList' ||
         page === 'musicalPlayList' ||
@@ -401,7 +433,7 @@ function App() {
       {page === 'eventDetail' && (
         <EventDetailPage eventGroupCode={selectedEventGroupCode} onNavigate={navigateToPage} />
       )}
-      {page === 'login' && <LoginPage onNavigate={navigateToPage} />}
+      {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
       {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
@@ -413,29 +445,45 @@ function App() {
 
 function Header({
   currentPage,
+  loginUserName,
+  onLogout,
   onNavigate,
 }: {
   currentPage: Page;
+  loginUserName: string;
+  onLogout: () => void;
   onNavigate: (page: Page) => void;
 }) {
   return (
     <header className="site-header">
       <div className="top-menu">
-        <button
-          className={currentPage === 'login' ? 'active-link' : ''}
-          type="button"
-          onClick={() => onNavigate('login')}
-        >
-          로그인
-        </button>
+        {loginUserName ? (
+          <span className="welcome-message">
+            <em>{loginUserName}</em>님 환영합니다
+          </span>
+        ) : (
+          <button
+            className={currentPage === 'login' ? 'active-link' : ''}
+            type="button"
+            onClick={() => onNavigate('login')}
+          >
+            로그인
+          </button>
+        )}
         <span aria-hidden="true">|</span>
-        <button
-          className={currentPage === 'signup' ? 'active-link' : ''}
-          type="button"
-          onClick={() => onNavigate('signup')}
-        >
-          회원가입
-        </button>
+        {loginUserName ? (
+          <button type="button" onClick={onLogout}>
+            로그아웃
+          </button>
+        ) : (
+          <button
+            className={currentPage === 'signup' ? 'active-link' : ''}
+            type="button"
+            onClick={() => onNavigate('signup')}
+          >
+            회원가입
+          </button>
+        )}
         <span aria-hidden="true">|</span>
         <button type="button">고객센터</button>
         <span aria-hidden="true">|</span>
@@ -1140,7 +1188,13 @@ function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+function LoginPage({
+  onLoginSuccess,
+  onNavigate,
+}: {
+  onLoginSuccess: (name: string) => void;
+  onNavigate: (page: Page) => void;
+}) {
   const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
   const [isLoginIdSaved, setIsLoginIdSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1174,6 +1228,7 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
       localStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
       localStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
+      localStorage.setItem('ticksy.userName', loginResponse.name || loginForm.userId);
 
       if (isLoginIdSaved) {
         setCookie(savedLoginIdCookieName, loginForm.userId, 60 * 60 * 24 * 365);
@@ -1181,6 +1236,7 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         deleteCookie(savedLoginIdCookieName);
       }
 
+      onLoginSuccess(loginResponse.name || loginForm.userId);
       onNavigate('home');
     } catch (error) {
       setLoginFailedMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');

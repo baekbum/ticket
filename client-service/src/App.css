@@ -58,6 +58,20 @@ button {
   color: #00c73c;
 }
 
+.welcome-message {
+  color: #333333;
+}
+
+.welcome-message em {
+  color: #222222;
+  font-style: normal;
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-color: #00c73c;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: 220px minmax(360px, 430px) 1fr;

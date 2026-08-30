@@ -13,6 +13,7 @@ public class LoginResponse {
 
     private boolean success;
     private String message;
+    private String name;
     private String accessToken;
     private String refreshToken;
 }
