@@ -32,9 +32,11 @@ type SignupForm = LoginForm & {
   birthDate: string;
 };
 
-type TokenResponse = {
-  accessToken: string;
-  refreshToken: string;
+type LoginResponse = {
+  success: boolean;
+  message: string;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 type FindUserIdResponse = {
@@ -121,6 +123,7 @@ const initialFindPasswordForm = {
   passwordConfirm: '',
 };
 
+const savedLoginIdCookieName = 'ticksy.savedLoginId';
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const categoryPageConfigs: Record<
@@ -302,6 +305,29 @@ function getDistinctSeatPrices(seatPrices: EventSeatPrice[]) {
   return Array.from(seatPriceMap.values()).sort((firstPrice, secondPrice) =>
     secondPrice.price - firstPrice.price,
   );
+}
+
+function getCookie(name: string) {
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(`${name}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=') || '';
+
+  try {
+    return decodeURIComponent(cookieValue);
+  } catch {
+    return '';
+  }
+}
+
+function setCookie(name: string, value: string, maxAgeSeconds: number) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 function App() {
@@ -1116,25 +1142,49 @@ function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
 
 function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
+  const [isLoginIdSaved, setIsLoginIdSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState('');
+  const [isLoginFailedAlertOpen, setIsLoginFailedAlertOpen] = useState(false);
+  const [loginFailedMessage, setLoginFailedMessage] = useState('');
+
+  useEffect(() => {
+    const savedLoginId = getCookie(savedLoginIdCookieName);
+
+    if (savedLoginId) {
+      setLoginForm((currentForm) => ({ ...currentForm, userId: savedLoginId }));
+      setIsLoginIdSaved(true);
+    }
+  }, []);
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setMessage('');
 
     try {
-      const tokenResponse = await request<TokenResponse>('/client-api/api/v1/auth/login', {
+      const loginResponse = await request<LoginResponse>('/client-api/api/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginForm),
       });
 
-      localStorage.setItem('ticksy.accessToken', tokenResponse.accessToken);
-      localStorage.setItem('ticksy.refreshToken', tokenResponse.refreshToken);
-      setMessage('로그인되었습니다.');
+      if (!loginResponse.success || !loginResponse.accessToken || !loginResponse.refreshToken) {
+        setLoginFailedMessage(loginResponse.message || '정보가 올바르지 않습니다.');
+        setIsLoginFailedAlertOpen(true);
+        return;
+      }
+
+      localStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
+      localStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
+
+      if (isLoginIdSaved) {
+        setCookie(savedLoginIdCookieName, loginForm.userId, 60 * 60 * 24 * 365);
+      } else {
+        deleteCookie(savedLoginIdCookieName);
+      }
+
+      onNavigate('home');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');
+      setLoginFailedMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');
+      setIsLoginFailedAlertOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -1165,15 +1215,18 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           />
 
           <label className="login-remember">
-            <input type="checkbox" />
-            <span>로그인 상태 유지</span>
+            <input
+              checked={isLoginIdSaved}
+              type="checkbox"
+              onChange={(event) => setIsLoginIdSaved(event.target.checked)}
+            />
+            <span>ID 저장</span>
           </label>
 
           <button className="login-submit-button" disabled={isSubmitting} type="submit">
           {isSubmitting ? '처리 중...' : '로그인'}
           </button>
 
-          {message && <p className="form-message">{message}</p>}
         </form>
 
         <div className="login-links">
@@ -1202,6 +1255,18 @@ function LoginPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         <p>문의전화 : 1588-4926 (평일 09:00-18:00, 유료)</p>
         <p>© Tickey Corp.</p>
       </footer>
+
+      {isLoginFailedAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert login-fail-alert">
+            <strong>로그인 실패</strong>
+            <p>{loginFailedMessage || '정보가 올바르지 않습니다.'}</p>
+            <button type="button" onClick={() => setIsLoginFailedAlertOpen(false)}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -2063,5 +2128,3 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
 }
 
 export default App;
-
-

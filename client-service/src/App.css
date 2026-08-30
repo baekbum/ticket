@@ -1661,6 +1661,10 @@ button {
   background: #222222;
 }
 
+.login-fail-alert button {
+  background: #00c73c;
+}
+
 .site-footer {
   margin-top: 36px;
   border-top: 1px solid #d8d8d8;

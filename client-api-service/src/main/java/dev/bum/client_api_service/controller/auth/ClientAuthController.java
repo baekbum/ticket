@@ -2,7 +2,9 @@ package dev.bum.client_api_service.controller.auth;
 
 import dev.bum.client_api_service.feign.auth.AuthServiceClient;
 import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.service.auth.dto.LoginResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
+import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,8 +22,22 @@ public class ClientAuthController {
     private final AuthServiceClient authServiceClient;
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authServiceClient.login(request));
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            TokenResponse tokenResponse = authServiceClient.login(request);
+
+            return ResponseEntity.ok(LoginResponse.builder()
+                    .success(true)
+                    .message("로그인되었습니다.")
+                    .accessToken(tokenResponse.getAccessToken())
+                    .refreshToken(tokenResponse.getRefreshToken())
+                    .build());
+        } catch (FeignException.BadRequest e) {
+            return ResponseEntity.ok(LoginResponse.builder()
+                    .success(false)
+                    .message("정보가 올바르지 않습니다.")
+                    .build());
+        }
     }
 
     @PostMapping("/reissue")
