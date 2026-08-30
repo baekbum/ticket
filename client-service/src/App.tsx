@@ -11,11 +11,12 @@ type Page =
   | 'eventDetail'
   | 'concertList'
   | 'musicalPlayList'
-  | 'fanclubFanmeetingList';
+  | 'fanclubFanmeetingList'
+  | 'classicList';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 type ConcertSort = 'soonest' | 'latest';
-type EventGenre = 'CONCERT' | 'MUSICAL_PLAY' | 'FANCLUB_FANMEETING';
+type EventGenre = 'CONCERT' | 'MUSICAL_PLAY' | 'FANCLUB_FANMEETING' | 'CLASSIC';
 
 type LoginForm = {
   userId: string;
@@ -121,7 +122,7 @@ const initialFindPasswordForm = {
 
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
-const categoryPageConfigs: Record<'concertList' | 'musicalPlayList' | 'fanclubFanmeetingList', {
+const categoryPageConfigs: Record<'concertList' | 'musicalPlayList' | 'fanclubFanmeetingList' | 'classicList', {
   label: string;
   genre: EventGenre;
   emptyMessage: string;
@@ -140,6 +141,11 @@ const categoryPageConfigs: Record<'concertList' | 'musicalPlayList' | 'fanclubFa
     label: '팬클럽/팬미팅',
     genre: 'FANCLUB_FANMEETING',
     emptyMessage: '현재 예매 가능한 팬클럽/팬미팅 공연이 없습니다.',
+  },
+  classicList: {
+    label: '클래식',
+    genre: 'CLASSIC',
+    emptyMessage: '현재 예매 가능한 클래식 공연이 없습니다.',
   },
 };
 const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string; emptyMessage: string }> = [
@@ -174,7 +180,8 @@ function getPageFromLocation(): Page {
     page === 'eventDetail' ||
     page === 'concertList' ||
     page === 'musicalPlayList' ||
-    page === 'fanclubFanmeetingList'
+    page === 'fanclubFanmeetingList' ||
+    page === 'classicList'
   ) {
     return page;
   }
@@ -344,7 +351,10 @@ function App() {
     <main className="app-shell">
       {!isFullAuthPage && <Header currentPage={page} onNavigate={navigateToPage} />}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
-      {(page === 'concertList' || page === 'musicalPlayList' || page === 'fanclubFanmeetingList') && (
+      {(page === 'concertList' ||
+        page === 'musicalPlayList' ||
+        page === 'fanclubFanmeetingList' ||
+        page === 'classicList') && (
         <CategoryEventListPage
           key={page}
           config={categoryPageConfigs[page]}
@@ -414,7 +424,8 @@ function Header({
             className={
               (currentPage === 'concertList' && category === '콘서트') ||
               (currentPage === 'musicalPlayList' && category === '뮤지컬/연극') ||
-              (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅')
+              (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅') ||
+              (currentPage === 'classicList' && category === '클래식')
                 ? 'active-category'
                 : ''
             }
@@ -427,6 +438,8 @@ function Header({
                 onNavigate('musicalPlayList');
               } else if (category === '팬클럽/팬미팅') {
                 onNavigate('fanclubFanmeetingList');
+              } else if (category === '클래식') {
+                onNavigate('classicList');
               }
             }}
           >
