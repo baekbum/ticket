@@ -574,6 +574,145 @@ button {
   text-align: center;
 }
 
+.my-ticket-page {
+  max-width: 993px;
+  margin: 0 auto;
+  padding: 44px 24px 78px;
+}
+
+.my-ticket-title {
+  padding-bottom: 18px;
+  border-bottom: 2px solid #222222;
+}
+
+.my-ticket-title h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 34px;
+  font-weight: 950;
+  letter-spacing: -0.05em;
+}
+
+.my-ticket-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 18px;
+  border: 1px solid #dddddd;
+  border-bottom: 0;
+}
+
+.my-ticket-tabs button {
+  min-height: 54px;
+  border: 0;
+  border-right: 1px solid #dddddd;
+  border-bottom: 1px solid #dddddd;
+  background: #f8f8f8;
+  color: #555555;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.my-ticket-tabs button:last-child {
+  border-right: 0;
+}
+
+.my-ticket-tabs .active-my-ticket-tab {
+  border-bottom-color: #ffffff;
+  background: #ffffff;
+  color: #00a832;
+}
+
+.my-ticket-section {
+  margin-top: 34px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+}
+
+.my-ticket-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 22px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.my-ticket-section-header h2 {
+  margin: 0;
+  color: #222222;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+.my-ticket-section-header button {
+  border: 0;
+  background: transparent;
+  color: #888888;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ticket-history-list,
+.inquiry-list {
+  display: grid;
+}
+
+.ticket-history-card,
+.inquiry-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.ticket-history-card:last-child,
+.inquiry-card:last-child {
+  border-bottom: 0;
+}
+
+.ticket-history-card strong,
+.inquiry-card strong {
+  display: block;
+  color: #222222;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.ticket-history-card p,
+.inquiry-card p {
+  margin: 8px 0 0;
+  color: #666666;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ticket-history-card span {
+  display: block;
+  margin-top: 6px;
+  color: #999999;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ticket-history-card em,
+.inquiry-card em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ticket-history-card .confirmed,
+.inquiry-card em {
+  color: #00a832;
+}
+
+.ticket-history-card .cancelled {
+  color: #777777;
+}
+
 .event-detail-page {
   max-width: 1280px;
   margin: 0 auto;
@@ -1873,6 +2012,16 @@ button {
   .concert-list-poster {
     width: 100%;
     height: 320px;
+  }
+
+  .my-ticket-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-history-card,
+  .inquiry-card {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .carousel-arrow {
