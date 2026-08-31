@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 
 type Page =
@@ -14,7 +14,8 @@ type Page =
   | 'fanclubFanmeetingList'
   | 'classicList'
   | 'exhibitionEventList'
-  | 'myTicket';
+  | 'myTicket'
+  | 'bookingWindow';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 type ConcertSort = 'soonest' | 'latest';
@@ -41,6 +42,26 @@ type LoginResponse = {
   accessToken?: string;
   refreshToken?: string;
 };
+
+type TokenResponse = {
+  accessToken: string;
+  refreshToken: string;
+};
+
+class ApiRequestError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+class SessionExpiredError extends Error {
+  constructor() {
+    super('세션이 만료되었습니다. 다시 시도해주세요.');
+  }
+}
 
 type FindUserIdResponse = {
   maskedUserId: string;
@@ -94,6 +115,51 @@ type EventSeatPrice = {
   areaName: string;
   grade: 'VIP' | 'R' | 'S' | 'A';
   price: number;
+};
+
+type AreaResponse = {
+  areaId: number;
+  eventId: number;
+  eventTitle?: string;
+  areaName: string;
+  layoutKey: string;
+  grade: EventSeatPrice['grade'];
+  price: number;
+  status: string;
+};
+
+type EventLayoutResponse = {
+  layoutId: number;
+  eventId: number;
+  originalFileName: string;
+  svgText: string;
+};
+
+type SeatResponse = {
+  seatId: number;
+  zone: string;
+  seatRow: number;
+  seatCol: number;
+  seatName: string;
+  grade: EventSeatPrice['grade'];
+  price: number;
+  status: 'AVAILABLE' | 'RESERVED' | 'LOCKED' | string;
+  positionX?: number;
+  positionY?: number;
+  seatWidth?: number;
+  seatHeight?: number;
+  rotation?: number;
+  eventId: number;
+  areaId: number;
+  areaName?: string;
+};
+
+type PageResponse<T> = {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  number: number;
+  size: number;
 };
 
 const initialLoginForm: LoginForm = {
@@ -235,7 +301,8 @@ function getPageFromLocation(): Page {
     page === 'fanclubFanmeetingList' ||
     page === 'classicList' ||
     page === 'exhibitionEventList' ||
-    page === 'myTicket'
+    page === 'myTicket' ||
+    page === 'bookingWindow'
   ) {
     return page;
   }
@@ -249,11 +316,16 @@ function getUrlForPage(page: Page) {
   if (page === 'home') {
     url.searchParams.delete('page');
     url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
+  } else if (page === 'bookingWindow') {
+    url.searchParams.set('page', page);
   } else if (page !== 'eventDetail') {
     url.searchParams.set('page', page);
     url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
   } else {
     url.searchParams.set('page', page);
+    url.searchParams.delete('eventId');
   }
 
   return `${url.pathname}${url.search}${url.hash}`;
@@ -348,6 +420,58 @@ function getDistinctSeatPrices(seatPrices: EventSeatPrice[]) {
   );
 }
 
+function normalizeLayoutKey(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/^area-2f-/, '')
+    .replace(/^area-1f-/, '')
+    .replace(/^area-vip-/, '')
+    .replace(/^area-floor-/, '')
+    .replace(/^area-/, '');
+}
+
+function getAreaKeyFromElement(element: Element) {
+  return element.getAttribute('data-layout-key') || normalizeLayoutKey(element.id);
+}
+
+function getAreaDisplayName(area?: AreaResponse | null) {
+  if (!area) {
+    return '-';
+  }
+
+  return `${area.areaName || area.layoutKey || area.areaId} · ${getSeatGradeLabel(area.grade)}`;
+}
+
+function getDistinctAreaPrices(areas: AreaResponse[]) {
+  const areaPriceMap = areas.reduce<Map<EventSeatPrice['grade'], AreaResponse>>((priceMap, area) => {
+    const currentArea = priceMap.get(area.grade);
+
+    if (!currentArea || area.price > currentArea.price) {
+      priceMap.set(area.grade, area);
+    }
+
+    return priceMap;
+  }, new Map());
+
+  return Array.from(areaPriceMap.values()).sort((firstArea, secondArea) => secondArea.price - firstArea.price);
+}
+
+function getBookingEventIdFromLocation() {
+  return Number(new URLSearchParams(window.location.search).get('eventId')) || 0;
+}
+
+function getBookingEventGroupCodeFromLocation() {
+  return new URLSearchParams(window.location.search).get('eventGroupCode') || '';
+}
+
+function isSeatAvailable(seat: SeatResponse) {
+  return String(seat.status).toUpperCase() === 'AVAILABLE';
+}
+
+function getSeatKey(seat: SeatResponse) {
+  return `${seat.zone}-${seat.seatRow}-${seat.seatCol}`;
+}
+
 function getCookie(name: string) {
   const cookieValue = document.cookie
     .split('; ')
@@ -380,7 +504,11 @@ function App() {
     () => localStorage.getItem('ticksy.userName') || '',
   );
   const isFullAuthPage =
-    page === 'login' || page === 'signup' || page === 'findId' || page === 'findPassword';
+    page === 'login' ||
+    page === 'signup' ||
+    page === 'findId' ||
+    page === 'findPassword' ||
+    page === 'bookingWindow';
 
   useEffect(() => {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
@@ -471,9 +599,14 @@ function App() {
         />
       )}
       {page === 'eventDetail' && (
-        <EventDetailPage eventGroupCode={selectedEventGroupCode} onNavigate={navigateToPage} />
+        <EventDetailPage
+          eventGroupCode={selectedEventGroupCode}
+          isLoggedIn={Boolean(loginUserName)}
+          onNavigate={navigateToPage}
+        />
       )}
       {page === 'myTicket' && <MyTicketPage />}
+      {page === 'bookingWindow' && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
@@ -1036,9 +1169,11 @@ function MyTicketPage() {
 
 function EventDetailPage({
   eventGroupCode,
+  isLoggedIn,
   onNavigate,
 }: {
   eventGroupCode: string;
+  isLoggedIn: boolean;
   onNavigate: (page: Page) => void;
 }) {
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
@@ -1046,6 +1181,7 @@ function EventDetailPage({
   const [selectedScheduleDate, setSelectedScheduleDate] = useState('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [isScheduleAlertOpen, setIsScheduleAlertOpen] = useState(false);
+  const [isLoginRequiredAlertOpen, setIsLoginRequiredAlertOpen] = useState(false);
 
   useEffect(() => {
     async function loadEventDetail() {
@@ -1143,6 +1279,22 @@ function EventDetailPage({
       setIsScheduleAlertOpen(true);
       return;
     }
+
+    if (!isLoggedIn) {
+      setIsLoginRequiredAlertOpen(true);
+      return;
+    }
+
+    const bookingUrl = new URL(window.location.href);
+    bookingUrl.searchParams.set('page', 'bookingWindow');
+    bookingUrl.searchParams.set('eventId', String(selectedScheduleId));
+    bookingUrl.searchParams.set('eventGroupCode', eventGroupCode);
+
+    window.open(
+      `${bookingUrl.pathname}${bookingUrl.search}${bookingUrl.hash}`,
+      'ticksy-booking',
+      'width=1180,height=820,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes',
+    );
   }
 
   return (
@@ -1288,8 +1440,605 @@ function EventDetailPage({
           </div>
         </div>
       )}
+
+      {isLoginRequiredAlertOpen && (
+        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
+          <div className="signup-alert booking-alert booking-login-alert">
+            <strong>로그인이 필요한 작업입니다.</strong>
+            <p>로그인 하시겠습니까?</p>
+            <div className="booking-alert-actions">
+              <button type="button" onClick={() => setIsLoginRequiredAlertOpen(false)}>
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoginRequiredAlertOpen(false);
+                  onNavigate('login');
+                }}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
+}
+
+function BookingWindowPage() {
+  const sideLayoutDragRef = useRef({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    suppressClick: false,
+  });
+  const [eventGroupCode] = useState(() => getBookingEventGroupCodeFromLocation());
+  const [selectedScheduleId, setSelectedScheduleId] = useState(() => getBookingEventIdFromLocation());
+  const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
+  const [areas, setAreas] = useState<AreaResponse[]>([]);
+  const [layoutSvgText, setLayoutSvgText] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
+  const [seats, setSeats] = useState<SeatResponse[]>([]);
+  const [selectedSeatIds, setSelectedSeatIds] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSeatLoading, setIsSeatLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [seatErrorMessage, setSeatErrorMessage] = useState('');
+  const [sideLayoutScale, setSideLayoutScale] = useState(1);
+  const [sideLayoutPan, setSideLayoutPan] = useState({ x: 0, y: 0 });
+
+  const selectedArea = areas.find((area) => area.areaId === selectedAreaId) || null;
+  const layoutMarkup = buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId);
+  const areaPrices = getDistinctAreaPrices(areas);
+  const sideLayoutStyle = {
+    '--layout-scale': sideLayoutScale,
+    '--layout-x': `${sideLayoutPan.x}px`,
+    '--layout-y': `${sideLayoutPan.y}px`,
+  } as CSSProperties;
+
+  useEffect(() => {
+    async function loadEventSchedules() {
+      if (!eventGroupCode) {
+        return;
+      }
+
+      try {
+        const detail = await request<EventDetail>(
+          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          { method: 'GET' },
+        );
+
+        setEventDetail(detail);
+
+        if (!selectedScheduleId) {
+          const firstOnSaleSchedule = detail.schedules.find((schedule) => schedule.status === 'ON_SALE');
+          setSelectedScheduleId(firstOnSaleSchedule?.eventId || detail.schedules[0]?.eventId || 0);
+        }
+      } catch {
+        setEventDetail(null);
+      }
+    }
+
+    loadEventSchedules();
+  }, [eventGroupCode, selectedScheduleId]);
+
+  useEffect(() => {
+    async function loadBookingData() {
+      if (!selectedScheduleId) {
+        setErrorMessage('예매할 공연 회차 정보가 없습니다.');
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setSelectedAreaId(null);
+      setSeats([]);
+      setSelectedSeatIds([]);
+      setSeatErrorMessage('');
+
+      try {
+        const [areaResponse, layoutResponse] = await Promise.all([
+          request<PageResponse<AreaResponse>>(
+            `/client-api/api/v1/area/select?eventId=${selectedScheduleId}`,
+            { method: 'GET' },
+          ),
+          request<EventLayoutResponse | undefined>(
+            `/client-api/api/v1/area/layout/event/${selectedScheduleId}`,
+            { method: 'GET' },
+          ),
+        ]);
+
+        setAreas(areaResponse.content || []);
+        setLayoutSvgText(layoutResponse?.svgText || '');
+        setErrorMessage('');
+      } catch (error) {
+        if (error instanceof SessionExpiredError) {
+          alert(error.message);
+          window.close();
+          return;
+        }
+
+        setErrorMessage(error instanceof Error ? error.message : '좌석 정보를 불러오지 못했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadBookingData();
+  }, [selectedScheduleId]);
+
+  function changeSchedule(schedule: EventSchedule) {
+    if (schedule.eventId === selectedScheduleId || schedule.status !== 'ON_SALE') {
+      return;
+    }
+
+    const bookingUrl = new URL(window.location.href);
+    bookingUrl.searchParams.set('eventId', String(schedule.eventId));
+    window.history.replaceState({ page: 'bookingWindow', eventId: schedule.eventId }, '', `${bookingUrl.pathname}${bookingUrl.search}${bookingUrl.hash}`);
+    setSelectedScheduleId(schedule.eventId);
+  }
+
+  function showFullLayout() {
+    setSelectedAreaId(null);
+    setSeats([]);
+    setSelectedSeatIds([]);
+    setSeatErrorMessage('');
+  }
+
+  function selectAreaByElement(target: EventTarget | null) {
+    const areaElement = target instanceof Element
+      ? target.closest<HTMLElement>('[data-area-id]')
+      : null;
+    const areaId = Number(areaElement?.dataset.areaId);
+    const area = areas.find((currentArea) => currentArea.areaId === areaId);
+
+    if (area) {
+      selectArea(area);
+    }
+  }
+
+  function clickLayout(event: ReactMouseEvent<HTMLDivElement>) {
+    if (sideLayoutDragRef.current.suppressClick) {
+      sideLayoutDragRef.current.suppressClick = false;
+      return;
+    }
+
+    selectAreaByElement(event.target);
+  }
+
+  function pressLayoutKey(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    selectAreaByElement(event.target);
+  }
+
+  function zoomSideLayout(nextScale: number) {
+    setSideLayoutScale(Math.min(2.4, Math.max(0.7, nextScale)));
+  }
+
+  function startSideLayoutDrag(event: ReactMouseEvent<HTMLDivElement>) {
+    sideLayoutDragRef.current = {
+      isDragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      suppressClick: false,
+    };
+  }
+
+  function dragSideLayout(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!sideLayoutDragRef.current.isDragging) {
+      return;
+    }
+
+    const nextX = event.clientX - sideLayoutDragRef.current.lastX;
+    const nextY = event.clientY - sideLayoutDragRef.current.lastY;
+
+    const totalX = event.clientX - sideLayoutDragRef.current.startX;
+    const totalY = event.clientY - sideLayoutDragRef.current.startY;
+
+    if (Math.abs(totalX) > 8 || Math.abs(totalY) > 8) {
+      sideLayoutDragRef.current.suppressClick = true;
+    }
+
+    sideLayoutDragRef.current.lastX = event.clientX;
+    sideLayoutDragRef.current.lastY = event.clientY;
+    setSideLayoutPan((currentPan) => ({
+      x: currentPan.x + nextX,
+      y: currentPan.y + nextY,
+    }));
+  }
+
+  function stopSideLayoutDrag() {
+    sideLayoutDragRef.current.isDragging = false;
+  }
+
+  function cancelSideLayoutDrag() {
+    sideLayoutDragRef.current.isDragging = false;
+    sideLayoutDragRef.current.suppressClick = false;
+  }
+
+  async function selectArea(area: AreaResponse) {
+    setSelectedAreaId(area.areaId);
+    setSelectedSeatIds([]);
+    setIsSeatLoading(true);
+    setSeatErrorMessage('');
+
+    try {
+      const seatResponse = await request<PageResponse<SeatResponse>>(
+        `/client-api/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}`,
+        { method: 'GET' },
+      );
+
+      setSeats(seatResponse.content || []);
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        alert(error.message);
+        window.close();
+        return;
+      }
+
+      setSeats([]);
+      setSeatErrorMessage(error instanceof Error ? error.message : '좌석 정보를 불러오지 못했습니다.');
+    } finally {
+      setIsSeatLoading(false);
+    }
+  }
+
+  function toggleSeat(seat: SeatResponse) {
+    if (!isSeatAvailable(seat)) {
+      return;
+    }
+
+    setSelectedSeatIds((currentSeatIds) =>
+      currentSeatIds.includes(seat.seatId)
+        ? currentSeatIds.filter((seatId) => seatId !== seat.seatId)
+        : [...currentSeatIds, seat.seatId],
+    );
+  }
+
+  return (
+    <section className="booking-window-page">
+      <header className="booking-window-header">
+        <strong>Tickey 티켓 예매</strong>
+        <span>{eventDetail?.title || '좌석 선택'}</span>
+      </header>
+
+      <main className="booking-window-body">
+        <section className="booking-layout-panel">
+          {eventDetail && eventDetail.schedules.length > 1 && (
+            <div className="booking-schedule-strip">
+              <strong>다른 회차 선택</strong>
+              <div>
+                {eventDetail.schedules.map((schedule) => (
+                  <button
+                    className={selectedScheduleId === schedule.eventId ? 'selected' : ''}
+                    disabled={schedule.status !== 'ON_SALE'}
+                    key={schedule.eventId}
+                    type="button"
+                    onClick={() => changeSchedule(schedule)}
+                  >
+                    <span>{getScheduleDateLabel(schedule.eventDateTime)}</span>
+                    <em>{getScheduleTimeLabel(schedule.eventDateTime)}</em>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="booking-panel-title">
+            <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
+            <p>
+              {selectedArea
+                ? '오른쪽 작은 배치도에서 다른 구역을 다시 선택할 수 있습니다.'
+                : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
+            </p>
+          </div>
+
+          {isLoading && <div className="booking-state-box">구역 정보를 불러오는 중입니다.</div>}
+          {!isLoading && errorMessage && <div className="booking-state-box error">{errorMessage}</div>}
+
+          {!isLoading && !errorMessage && (
+            <>
+              {!selectedArea && (
+                layoutMarkup ? (
+                  <div
+                    className="booking-layout-map large"
+                    onClick={clickLayout}
+                    onKeyDown={pressLayoutKey}
+                    dangerouslySetInnerHTML={{ __html: layoutMarkup }}
+                  />
+                ) : (
+                  <BookingAreaButtonGrid
+                    areas={areas}
+                    selectedAreaId={selectedAreaId}
+                    onSelectArea={selectArea}
+                  />
+                )
+              )}
+
+              {selectedArea && (
+                <div className="booking-seat-selection-grid">
+                  <BookingSeatMap
+                    isSeatLoading={isSeatLoading}
+                    seatErrorMessage={seatErrorMessage}
+                    seats={seats}
+                    selectedArea={selectedArea}
+                    selectedSeatIds={selectedSeatIds}
+                    onToggleSeat={toggleSeat}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        <aside className="booking-side-panel">
+          <section className="booking-side-section booking-side-layout-section">
+            <div className="booking-side-title">
+              <strong>구역 배치도</strong>
+              <button type="button" onClick={showFullLayout}>
+                좌석도 전체보기
+              </button>
+            </div>
+
+            {layoutMarkup ? (
+              <div className="booking-layout-map side zoomable">
+                <div className="booking-layout-zoom-controls" onMouseDown={(event) => event.stopPropagation()}>
+                  <button type="button" onClick={() => zoomSideLayout(sideLayoutScale + 0.2)}>
+                    +
+                  </button>
+                  <button type="button" onClick={() => zoomSideLayout(sideLayoutScale - 0.2)}>
+                    −
+                  </button>
+                </div>
+                <div
+                  className="booking-layout-pan-layer"
+                  style={sideLayoutStyle}
+                  onClick={clickLayout}
+                  onKeyDown={pressLayoutKey}
+                  onMouseDown={startSideLayoutDrag}
+                  onMouseLeave={cancelSideLayoutDrag}
+                  onMouseMove={dragSideLayout}
+                  onMouseUp={stopSideLayoutDrag}
+                  dangerouslySetInnerHTML={{ __html: layoutMarkup }}
+                />
+              </div>
+            ) : (
+              <BookingAreaButtonGrid
+                areas={areas}
+                selectedAreaId={selectedAreaId}
+                onSelectArea={selectArea}
+              />
+            )}
+          </section>
+
+          <section className="booking-side-section booking-side-price-section">
+            <div className="booking-side-title">
+              <strong>좌석 등급/가격</strong>
+            </div>
+
+            <div className="booking-price-list">
+              {areaPrices.length > 0 ? (
+                areaPrices.map((area) => (
+                  <div className="booking-price-item" key={area.grade}>
+                    <span>{getSeatGradeLabel(area.grade)}</span>
+                    <strong>{area.price.toLocaleString()}원</strong>
+                  </div>
+                ))
+              ) : (
+                <p>가격 정보가 없습니다.</p>
+              )}
+            </div>
+
+            <div className="booking-legend">
+              <span><i className="available" />선택 가능</span>
+              <span><i className="selected" />선택 좌석</span>
+              <span><i className="disabled" />선택 불가</span>
+            </div>
+
+            <button className="booking-next-button" type="button" disabled={selectedSeatIds.length === 0}>
+              다음 단계
+            </button>
+          </section>
+        </aside>
+      </main>
+    </section>
+  );
+}
+
+function BookingAreaButtonGrid({
+  areas,
+  selectedAreaId,
+  onSelectArea,
+}: {
+  areas: AreaResponse[];
+  selectedAreaId: number | null;
+  onSelectArea: (area: AreaResponse) => void;
+}) {
+  return (
+    <div className="booking-area-button-grid">
+      {areas.map((area) => (
+        <button
+          className={selectedAreaId === area.areaId ? 'selected' : ''}
+          key={area.areaId}
+          type="button"
+          onClick={() => onSelectArea(area)}
+        >
+          <strong>{area.areaName}</strong>
+          <span>{getSeatGradeLabel(area.grade)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function BookingSeatMap({
+  isSeatLoading,
+  seatErrorMessage,
+  seats,
+  selectedArea,
+  selectedSeatIds,
+  onToggleSeat,
+}: {
+  isSeatLoading: boolean;
+  seatErrorMessage: string;
+  seats: SeatResponse[];
+  selectedArea: AreaResponse;
+  selectedSeatIds: number[];
+  onToggleSeat: (seat: SeatResponse) => void;
+}) {
+  return (
+    <div className="booking-seat-panel expanded">
+      <div className="booking-seat-panel-title">
+        <strong>{selectedArea.areaName} 구역 좌석 배치도</strong>
+        <span>좌석을 선택해 주세요.</span>
+      </div>
+
+      {isSeatLoading && <div className="booking-state-box compact">좌석을 불러오는 중입니다.</div>}
+      {!isSeatLoading && seatErrorMessage && (
+        <div className="booking-state-box compact error">{seatErrorMessage}</div>
+      )}
+      {!isSeatLoading && !seatErrorMessage && seats.length === 0 && (
+        <div className="booking-state-box compact">표시할 좌석 정보가 없습니다.</div>
+      )}
+      {!isSeatLoading && !seatErrorMessage && seats.length > 0 && (
+        <BookingSeatSvg
+          seats={seats}
+          selectedSeatIds={selectedSeatIds}
+          onToggleSeat={onToggleSeat}
+        />
+      )}
+    </div>
+  );
+}
+
+function BookingSeatSvg({
+  seats,
+  selectedSeatIds,
+  onToggleSeat,
+}: {
+  seats: SeatResponse[];
+  selectedSeatIds: number[];
+  onToggleSeat: (seat: SeatResponse) => void;
+}) {
+  const renderedSeats = seats.map((seat) => {
+    const seatWidth = seat.seatWidth ?? 14;
+    const seatHeight = seat.seatHeight ?? 14;
+    const seatX = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
+    const seatY = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
+
+    return {
+      seat,
+      seatWidth,
+      seatHeight,
+      seatX,
+      seatY,
+    };
+  });
+  const minSeatX = Math.min(...renderedSeats.map(({ seatX }) => seatX));
+  const maxSeatX = Math.max(...renderedSeats.map(({ seatX, seatWidth }) => seatX + seatWidth));
+  const minSeatY = Math.min(...renderedSeats.map(({ seatY }) => seatY));
+  const maxSeatY = Math.max(...renderedSeats.map(({ seatY, seatHeight }) => seatY + seatHeight));
+  const stageWidth = Math.min(300, Math.max(180, maxSeatX - minSeatX));
+  const stageHeight = 34;
+  const stageGap = 56;
+  const stageX = minSeatX + (maxSeatX - minSeatX - stageWidth) / 2;
+  const stageY = Math.max(8, minSeatY - stageHeight - stageGap);
+  const viewBoxX = Math.min(0, minSeatX - 60);
+  const viewBoxY = Math.min(0, stageY - 24);
+  const viewBoxWidth = Math.max(760, maxSeatX - viewBoxX + 60);
+  const viewBoxHeight = Math.max(520, maxSeatY - viewBoxY + 60);
+
+  return (
+    <svg
+      className="booking-seat-map"
+      viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
+      role="img"
+      aria-label="좌석 배치도"
+    >
+      <rect className="booking-stage" x={stageX} y={stageY} width={stageWidth} height={stageHeight} rx="17" />
+      <text className="booking-stage-text" x={stageX + stageWidth / 2} y={stageY + 22} textAnchor="middle">
+        STAGE
+      </text>
+      {renderedSeats.map(({ seat, seatWidth, seatHeight, seatX, seatY }) => {
+        const isSelected = selectedSeatIds.includes(seat.seatId);
+        const seatStatusClass = isSeatAvailable(seat) ? 'available' : 'disabled';
+
+        return (
+          <rect
+            className={`booking-seat ${seatStatusClass}${isSelected ? ' selected' : ''}`}
+            key={getSeatKey(seat)}
+            x={seatX}
+            y={seatY}
+            width={seatWidth}
+            height={seatHeight}
+            rx="3"
+            transform={`rotate(${seat.rotation || 0} ${seatX + seatWidth / 2} ${seatY + seatHeight / 2})`}
+            onClick={() => onToggleSeat(seat)}
+          >
+            <title>{seat.seatName}</title>
+          </rect>
+        );
+      })}
+    </svg>
+  );
+}
+
+function buildBookingLayoutSvg(svgText: string, areas: AreaResponse[], selectedAreaId: number | null) {
+  if (!svgText) {
+    return '';
+  }
+
+  const parser = new DOMParser();
+  const documentElement = parser.parseFromString(svgText, 'image/svg+xml');
+  const svgElement = documentElement.querySelector('svg');
+
+  if (!svgElement) {
+    return '';
+  }
+
+  const areaByKey = new Map<string, AreaResponse>();
+
+  areas.forEach((area) => {
+    areaByKey.set(normalizeLayoutKey(area.layoutKey), area);
+    areaByKey.set(normalizeLayoutKey(area.areaName), area);
+  });
+
+  svgElement.classList.add('booking-area-svg');
+  svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svgElement.querySelectorAll('path, rect, polygon').forEach((element) => {
+    const areaKey = normalizeLayoutKey(getAreaKeyFromElement(element));
+    const area = areaByKey.get(areaKey);
+
+    if (!area) {
+      return;
+    }
+
+    element.classList.add('booking-area-shape');
+    element.setAttribute('data-area-id', String(area.areaId));
+    element.setAttribute('tabindex', '0');
+    element.setAttribute('role', 'button');
+    element.setAttribute('aria-label', `${area.areaName} 구역 선택`);
+
+    if (area.areaId === selectedAreaId) {
+      element.classList.add('is-selected');
+    }
+
+    const titleElement = documentElement.createElementNS('http://www.w3.org/2000/svg', 'title');
+    titleElement.textContent = `${area.areaName} · ${getSeatGradeLabel(area.grade)} · ${area.price.toLocaleString()}원`;
+    element.appendChild(titleElement);
+  });
+
+  return svgElement.outerHTML;
 }
 
 function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
@@ -2262,13 +3011,40 @@ function TopButton() {
 }
 
 async function request<T = unknown>(url: string, options: RequestInit): Promise<T> {
+  return requestWithAuthRetry<T>(url, options, true);
+}
+
+async function requestWithAuthRetry<T = unknown>(
+  url: string,
+  options: RequestInit,
+  canRetryWithRefresh: boolean,
+): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set('Content-Type', headers.get('Content-Type') || 'application/json');
+
+  const accessToken = localStorage.getItem('ticksy.accessToken');
+
+  if (accessToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
     ...options,
+    headers: {
+      ...Object.fromEntries(headers.entries()),
+    },
   });
+
+  if (response.status === 401 && canRetryWithRefresh && !url.includes('/auth/reissue')) {
+    const isReissued = await reissueToken();
+
+    if (isReissued) {
+      return requestWithAuthRetry<T>(url, options, false);
+    }
+
+    clearLoginStorage();
+    throw new SessionExpiredError();
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -2281,7 +3057,7 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
       errorMessage = errorText;
     }
 
-    throw new Error(errorMessage || `요청 실패: ${response.status}`);
+    throw new ApiRequestError(response.status, errorMessage || `요청 실패: ${response.status}`);
   }
 
   if (response.status === 204) {
@@ -2295,6 +3071,40 @@ async function request<T = unknown>(url: string, options: RequestInit): Promise<
   }
 
   return JSON.parse(responseText) as T;
+}
+
+async function reissueToken() {
+  const refreshToken = localStorage.getItem('ticksy.refreshToken');
+
+  if (!refreshToken) {
+    return false;
+  }
+
+  try {
+    const tokenResponse = await requestWithAuthRetry<TokenResponse>(
+      '/client-api/api/v1/auth/reissue',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization-Refresh': `Bearer ${refreshToken}`,
+        },
+      },
+      false,
+    );
+
+    localStorage.setItem('ticksy.accessToken', tokenResponse.accessToken);
+    localStorage.setItem('ticksy.refreshToken', tokenResponse.refreshToken);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearLoginStorage() {
+  localStorage.removeItem('ticksy.accessToken');
+  localStorage.removeItem('ticksy.refreshToken');
+  localStorage.removeItem('ticksy.userName');
 }
 
 export default App;
