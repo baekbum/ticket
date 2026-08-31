@@ -38,7 +38,7 @@ public class SeatService {
     @Transactional(readOnly = true)
     public SeatResponse selectById(Long id) {
         log.info("[SELECT] SeatId : {}", id);
-        return repository.selectById(id).toDto();
+        return seatCacheService.applyCachedStatus(repository.selectById(id).toDto());
     }
 
     /**
@@ -52,9 +52,10 @@ public class SeatService {
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
         Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable).map(Seat::toDto);
+        List<SeatResponse> seats = seatCacheService.applyCachedStatuses(seatPage.getContent());
 
         return CustomPageResponse.of(
-                seatPage.getContent(),
+                seats,
                 seatPage.getSize(),
                 seatPage.getNumber(),
                 seatPage.getTotalElements(),
