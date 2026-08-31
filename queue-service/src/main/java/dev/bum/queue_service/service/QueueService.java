@@ -241,6 +241,8 @@ public class QueueService {
      * 입장 성공 시 READY, 실패 시 WAITING 응답을 반환한다.
      */
     private QueueStatusResponse waitOrAdmit(Long eventId, String userId, String clientToken) {
+        cleanupEventQueue(eventId);
+
         String waitingToken = ensureWaiting(eventId, userId, clientToken);
         String activeToken = admit(eventId, userId, waitingToken);
         if (activeToken != null) {
@@ -514,6 +516,38 @@ public class QueueService {
             redisTemplate.opsForZSet().remove(waitingKey(eventId), waitingToken);
             redisTemplate.opsForZSet().remove(waitingExpiryKey(eventId), waitingToken);
             redisTemplate.delete(waitingTokenKey(waitingToken));
+        }
+    }
+
+    private void cleanupEventQueue(Long eventId) {
+        pruneExpiredActiveTokens(eventId);
+        pruneExpiredWaitingTokens(eventId);
+        pruneDanglingWaitingTokens(eventId);
+    }
+
+    private void pruneDanglingWaitingTokens(Long eventId) {
+        Set<String> waitingTokens = redisTemplate.opsForZSet().range(waitingKey(eventId), 0, -1);
+        if (waitingTokens == null || waitingTokens.isEmpty()) {
+            return;
+        }
+
+        List<String> waitingTokenList = new ArrayList<>(waitingTokens);
+        List<String> waitingTokenKeys = waitingTokenList.stream()
+                .map(this::waitingTokenKey)
+                .toList();
+        List<String> tokenValues = redisTemplate.opsForValue().multiGet(waitingTokenKeys);
+
+        if (tokenValues == null) {
+            return;
+        }
+
+        for (int i = 0; i < waitingTokenList.size(); i++) {
+            String tokenValue = i < tokenValues.size() ? tokenValues.get(i) : null;
+            if (!StringUtils.hasText(tokenValue)) {
+                String waitingToken = waitingTokenList.get(i);
+                redisTemplate.opsForZSet().remove(waitingKey(eventId), waitingToken);
+                redisTemplate.opsForZSet().remove(waitingExpiryKey(eventId), waitingToken);
+            }
         }
     }
 
