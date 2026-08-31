@@ -1930,11 +1930,12 @@ function BookingSeatSvg({
   selectedSeatIds: number[];
   onToggleSeat: (seat: SeatResponse) => void;
 }) {
-  const renderedSeats = seats.map((seat) => {
+  const seatYOffset = 10;
+  const baseRenderedSeats = seats.map((seat) => {
     const seatWidth = seat.seatWidth ?? 14;
     const seatHeight = seat.seatHeight ?? 14;
     const seatX = seat.positionX ?? ((seat.seatCol || 1) - 1) * 18 + 80;
-    const seatY = seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80;
+    const seatY = (seat.positionY ?? ((seat.seatRow || 1) - 1) * 18 + 80) + seatYOffset;
 
     return {
       seat,
@@ -1944,18 +1945,26 @@ function BookingSeatSvg({
       seatY,
     };
   });
+  const baseMinSeatX = Math.min(...baseRenderedSeats.map(({ seatX }) => seatX));
+  const baseMaxSeatX = Math.max(...baseRenderedSeats.map(({ seatX, seatWidth }) => seatX + seatWidth));
+  const viewBoxX = 0;
+  const viewBoxWidth = Math.max(760, baseMaxSeatX - baseMinSeatX + 120);
+  const viewBoxCenterX = viewBoxX + viewBoxWidth / 2;
+  const seatXOffset = viewBoxCenterX - (baseMinSeatX + baseMaxSeatX) / 2;
+  const renderedSeats = baseRenderedSeats.map((renderedSeat) => ({
+    ...renderedSeat,
+    seatX: renderedSeat.seatX + seatXOffset,
+  }));
   const minSeatX = Math.min(...renderedSeats.map(({ seatX }) => seatX));
   const maxSeatX = Math.max(...renderedSeats.map(({ seatX, seatWidth }) => seatX + seatWidth));
   const minSeatY = Math.min(...renderedSeats.map(({ seatY }) => seatY));
   const maxSeatY = Math.max(...renderedSeats.map(({ seatY, seatHeight }) => seatY + seatHeight));
   const stageWidth = Math.min(300, Math.max(180, maxSeatX - minSeatX));
   const stageHeight = 34;
-  const stageGap = 56;
-  const stageX = minSeatX + (maxSeatX - minSeatX - stageWidth) / 2;
+  const stageGap = 88;
+  const stageX = viewBoxCenterX - stageWidth / 2;
   const stageY = Math.max(8, minSeatY - stageHeight - stageGap);
-  const viewBoxX = Math.min(0, minSeatX - 60);
   const viewBoxY = Math.min(0, stageY - 24);
-  const viewBoxWidth = Math.max(760, maxSeatX - viewBoxX + 60);
   const viewBoxHeight = Math.max(520, maxSeatY - viewBoxY + 60);
 
   return (
