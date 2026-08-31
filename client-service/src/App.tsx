@@ -677,9 +677,7 @@ function App() {
         });
       }
     } finally {
-      localStorage.removeItem('ticksy.accessToken');
-      localStorage.removeItem('ticksy.refreshToken');
-      localStorage.removeItem('ticksy.userName');
+      clearLoginStorage();
       setLoginUserName('');
       navigateToPage('home');
     }
@@ -3218,7 +3216,7 @@ async function requestWithAuthRetry<T = unknown>(
 
   const accessToken = localStorage.getItem('ticksy.accessToken');
 
-  if (accessToken && !headers.has('Authorization')) {
+  if (accessToken && !headers.has('Authorization') && shouldAttachAccessToken(url)) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
@@ -3295,10 +3293,23 @@ async function reissueToken() {
   }
 }
 
+function shouldAttachAccessToken(url: string) {
+  return !url.includes('/auth/login')
+    && !url.includes('/auth/reissue')
+    && !url.includes('/auth/logout');
+}
+
 function clearLoginStorage() {
   localStorage.removeItem('ticksy.accessToken');
   localStorage.removeItem('ticksy.refreshToken');
   localStorage.removeItem('ticksy.userName');
+  clearQueueTokenStorage();
+}
+
+function clearQueueTokenStorage() {
+  Object.keys(sessionStorage)
+    .filter((key) => key.startsWith('ticksy.queueToken.'))
+    .forEach((key) => sessionStorage.removeItem(key));
 }
 
 export default App;

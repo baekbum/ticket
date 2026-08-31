@@ -52,7 +52,11 @@ public class ClientAuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
-        authServiceClient.logout(refreshHeader);
+        try {
+            authServiceClient.logout(refreshHeader);
+        } catch (FeignException.Unauthorized ignored) {
+            return ResponseEntity.noContent().build();
+        }
         return ResponseEntity.noContent().build();
     }
 }
