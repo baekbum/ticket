@@ -970,6 +970,17 @@ button {
   cursor: not-allowed;
 }
 
+.booking-queue-message {
+  margin: 12px 0 0;
+  color: #4b5563;
+  font-size: 13px;
+  text-align: right;
+}
+
+.booking-queue-message.error {
+  color: #dc2626;
+}
+
 .booking-alert button {
   background: #00c73c;
 }

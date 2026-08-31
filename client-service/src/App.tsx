@@ -48,6 +48,17 @@ type TokenResponse = {
   refreshToken: string;
 };
 
+type QueueEntryResponse = {
+  eventId: number;
+  status: 'READY' | 'WAITING' | string;
+  rank: number | null;
+  waitingCount: number | null;
+  token: string;
+  expiresInSeconds: number | null;
+  estimatedEntryAt: string | null;
+  activeTokenExpiresAt: string | null;
+};
+
 class ApiRequestError extends Error {
   status: number;
 
@@ -462,6 +473,104 @@ function getBookingEventIdFromLocation() {
 
 function getBookingEventGroupCodeFromLocation() {
   return new URLSearchParams(window.location.search).get('eventGroupCode') || '';
+}
+
+function getBookingActiveTokenFromLocation() {
+  return new URLSearchParams(window.location.search).get('activeToken') || '';
+}
+
+function getQueueTokenStorageKey(eventId: number) {
+  return `ticksy.queueToken.${eventId}`;
+}
+
+function saveQueueToken(eventId: number, token: string) {
+  if (token) {
+    sessionStorage.setItem(getQueueTokenStorageKey(eventId), token);
+  }
+}
+
+function getSavedQueueToken(eventId: number) {
+  return sessionStorage.getItem(getQueueTokenStorageKey(eventId)) || '';
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+function buildBookingWindowUrl(eventId: number, eventGroupCode: string, activeToken: string) {
+  const bookingUrl = new URL(window.location.href);
+  bookingUrl.searchParams.set('page', 'bookingWindow');
+  bookingUrl.searchParams.set('eventId', String(eventId));
+  bookingUrl.searchParams.set('eventGroupCode', eventGroupCode);
+  bookingUrl.searchParams.set('activeToken', activeToken);
+
+  return `${bookingUrl.pathname}${bookingUrl.search}${bookingUrl.hash}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function writeQueueWindowMessage(
+  bookingWindow: Window,
+  title: string,
+  message: string,
+  detail = '',
+) {
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const safeDetail = escapeHtml(detail);
+
+  bookingWindow.document.open();
+  bookingWindow.document.write(`
+    <!doctype html>
+    <html lang="ko">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Tickey 예매 대기</title>
+        <style>
+          body {
+            align-items: center;
+            background: #f5f6f8;
+            color: #1f2937;
+            display: flex;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            justify-content: center;
+            margin: 0;
+          }
+          main {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+            max-width: 420px;
+            padding: 32px;
+            text-align: center;
+            width: calc(100% - 48px);
+          }
+          h1 { font-size: 22px; margin: 0 0 12px; }
+          p { line-height: 1.6; margin: 0; }
+          small { color: #6b7280; display: block; margin-top: 12px; }
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>${safeTitle}</h1>
+          <p>${safeMessage}</p>
+          ${safeDetail ? `<small>${safeDetail}</small>` : ''}
+        </main>
+      </body>
+    </html>
+  `);
+  bookingWindow.document.close();
 }
 
 function isSeatAvailable(seat: SeatResponse) {
@@ -1182,6 +1291,9 @@ function EventDetailPage({
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [isScheduleAlertOpen, setIsScheduleAlertOpen] = useState(false);
   const [isLoginRequiredAlertOpen, setIsLoginRequiredAlertOpen] = useState(false);
+  const [isQueueEntering, setIsQueueEntering] = useState(false);
+  const [queueEntry, setQueueEntry] = useState<QueueEntryResponse | null>(null);
+  const [queueErrorMessage, setQueueErrorMessage] = useState('');
 
   useEffect(() => {
     async function loadEventDetail() {
@@ -1270,7 +1382,7 @@ function EventDetailPage({
     );
   }
 
-  function clickBookingButton() {
+  async function clickBookingButton() {
     if (!isBookable) {
       return;
     }
@@ -1285,15 +1397,75 @@ function EventDetailPage({
       return;
     }
 
-    const bookingUrl = new URL(window.location.href);
-    bookingUrl.searchParams.set('page', 'bookingWindow');
-    bookingUrl.searchParams.set('eventId', String(selectedScheduleId));
-    bookingUrl.searchParams.set('eventGroupCode', eventGroupCode);
-
-    window.open(
-      `${bookingUrl.pathname}${bookingUrl.search}${bookingUrl.hash}`,
+    const bookingWindow = window.open(
+      '',
       'ticksy-booking',
       'width=1180,height=820,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes',
+    );
+
+    if (!bookingWindow) {
+      setQueueErrorMessage('팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해주세요.');
+      return;
+    }
+
+    writeQueueWindowMessage(bookingWindow, '대기열 등록 중', '예매 대기열에 등록하고 있습니다.');
+    setIsQueueEntering(true);
+    setQueueEntry(null);
+    setQueueErrorMessage('');
+
+    try {
+      let queueResponse = await enterBookingQueue(selectedScheduleId);
+      setQueueEntry(queueResponse);
+      saveQueueToken(selectedScheduleId, queueResponse.token);
+
+      while (queueResponse.status !== 'READY') {
+        writeQueueWindowMessage(
+          bookingWindow,
+          '예매 대기 중',
+          `현재 ${queueResponse.rank ?? '-'}번째로 대기 중입니다.`,
+          `전체 대기 인원: ${queueResponse.waitingCount ?? '-'}명`,
+        );
+        await wait(3000);
+        queueResponse = await fetchBookingQueueStatus(selectedScheduleId, queueResponse.token);
+        setQueueEntry(queueResponse);
+        saveQueueToken(selectedScheduleId, queueResponse.token);
+      }
+
+      writeQueueWindowMessage(bookingWindow, '입장 준비 완료', '좌석 선택 화면으로 이동합니다.');
+      bookingWindow.location.replace(buildBookingWindowUrl(selectedScheduleId, eventGroupCode, queueResponse.token));
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        bookingWindow.close();
+        alert(error.message);
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : '대기열 등록 중 오류가 발생했습니다.';
+      setQueueErrorMessage(message);
+      writeQueueWindowMessage(bookingWindow, '대기열 등록 실패', message);
+    } finally {
+      setIsQueueEntering(false);
+    }
+  }
+
+  async function enterBookingQueue(eventId: number) {
+    const savedToken = getSavedQueueToken(eventId);
+    return request<QueueEntryResponse>(
+      `/client-api/api/v1/queue/events/${eventId}/enter`,
+      {
+        method: 'POST',
+        headers: savedToken ? { 'X-Active-Token': savedToken } : undefined,
+      },
+    );
+  }
+
+  async function fetchBookingQueueStatus(eventId: number, token: string) {
+    return request<QueueEntryResponse>(
+      `/client-api/api/v1/queue/events/${eventId}/status`,
+      {
+        method: 'GET',
+        headers: { 'X-Active-Token': token },
+      },
     );
   }
 
@@ -1414,14 +1586,20 @@ function EventDetailPage({
 
         <div className="event-booking-action-row">
           <button
-            className={isBookable ? 'booking-action-button' : 'booking-action-button disabled'}
-            disabled={!isBookable}
+            className={isBookable && !isQueueEntering ? 'booking-action-button' : 'booking-action-button disabled'}
+            disabled={!isBookable || isQueueEntering}
             type="button"
             onClick={clickBookingButton}
           >
-            {eventDetail.bookingMessage}
+            {isQueueEntering ? '대기열 확인 중...' : eventDetail.bookingMessage}
           </button>
         </div>
+        {queueEntry?.status === 'WAITING' && (
+          <p className="booking-queue-message">
+            현재 {queueEntry.rank ?? '-'}번째 대기 중입니다. 전체 대기 인원 {queueEntry.waitingCount ?? '-'}명
+          </p>
+        )}
+        {queueErrorMessage && <p className="booking-queue-message error">{queueErrorMessage}</p>}
       </article>
 
       <section className="event-description-panel">
@@ -1478,6 +1656,7 @@ function BookingWindowPage() {
   });
   const [eventGroupCode] = useState(() => getBookingEventGroupCodeFromLocation());
   const [selectedScheduleId, setSelectedScheduleId] = useState(() => getBookingEventIdFromLocation());
+  const [activeToken] = useState(() => getBookingActiveTokenFromLocation());
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [layoutSvgText, setLayoutSvgText] = useState('');
@@ -1499,6 +1678,12 @@ function BookingWindowPage() {
     '--layout-x': `${sideLayoutPan.x}px`,
     '--layout-y': `${sideLayoutPan.y}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    if (selectedScheduleId && activeToken) {
+      saveQueueToken(selectedScheduleId, activeToken);
+    }
+  }, [activeToken, selectedScheduleId]);
 
   useEffect(() => {
     async function loadEventSchedules() {
