@@ -22,25 +22,28 @@ public class ClientQueueController {
     @PostMapping("/events/{eventId}/enter")
     public ResponseEntity<QueueEnterResponse> enter(
             @PathVariable("eventId") Long eventId,
+            @RequestHeader("Authorization") String authorizationHeader,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        return ResponseEntity.ok(queueServiceClient.enter(eventId, activeToken));
+        return ResponseEntity.ok(queueServiceClient.enter(eventId, authorizationHeader, activeToken));
     }
 
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @PathVariable("eventId") Long eventId,
+            @RequestHeader("Authorization") String authorizationHeader,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        return ResponseEntity.ok(queueServiceClient.status(eventId, activeToken));
+        return ResponseEntity.ok(queueServiceClient.status(eventId, authorizationHeader, activeToken));
     }
 
     @PostMapping("/events/{eventId}/leave")
     public ResponseEntity<Void> leave(
             @PathVariable("eventId") Long eventId,
+            @RequestHeader("Authorization") String authorizationHeader,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        queueServiceClient.leave(eventId, activeToken);
+        queueServiceClient.leave(eventId, authorizationHeader, activeToken);
         return ResponseEntity.noContent().build();
     }
 }
