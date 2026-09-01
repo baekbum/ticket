@@ -523,10 +523,14 @@ function writeQueueWindowMessage(
   title: string,
   message: string,
   detail = '',
+  animatedTitle = false,
 ) {
   const safeTitle = escapeHtml(title);
   const safeMessage = escapeHtml(message);
   const safeDetail = escapeHtml(detail);
+  const titleDots = animatedTitle
+    ? '<span class="waiting-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>'
+    : '';
 
   bookingWindow.document.open();
   bookingWindow.document.write(`
@@ -559,11 +563,38 @@ function writeQueueWindowMessage(
           h1 { font-size: 22px; margin: 0 0 12px; }
           p { line-height: 1.6; margin: 0; }
           small { color: #6b7280; display: block; margin-top: 12px; }
+          .waiting-dots {
+            display: inline-flex;
+            gap: 1px;
+            margin-left: 2px;
+            width: 24px;
+          }
+          .waiting-dots i {
+            animation: waveDot 1.8s ease-in-out infinite;
+            display: inline-block;
+            font-style: normal;
+          }
+          .waiting-dots i:nth-child(2) {
+            animation-delay: 0.18s;
+          }
+          .waiting-dots i:nth-child(3) {
+            animation-delay: 0.36s;
+          }
+          @keyframes waveDot {
+            0%, 70%, 100% {
+              opacity: 0.35;
+              transform: translateY(0);
+            }
+            35% {
+              opacity: 1;
+              transform: translateY(-5px);
+            }
+          }
         </style>
       </head>
       <body>
         <main>
-          <h1>${safeTitle}</h1>
+          <h1>${safeTitle}${titleDots}</h1>
           <p>${safeMessage}</p>
           ${safeDetail ? `<small>${safeDetail}</small>` : ''}
         </main>
@@ -1422,6 +1453,7 @@ function EventDetailPage({
           '예매 대기 중',
           `현재 ${queueResponse.rank ?? '-'}번째로 대기 중입니다.`,
           `전체 대기 인원: ${queueResponse.waitingCount ?? '-'}명`,
+          true,
         );
         await wait(3000);
         queueResponse = await fetchBookingQueueStatus(selectedScheduleId, queueResponse.token);
