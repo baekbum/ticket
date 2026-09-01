@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -62,7 +63,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public void validateIsUserIdDuplicated(String userId) {
-        repository.validateIsUserIdDuplicated(userId);
+        repository.validateIsUserIdDuplicated(normalizeUserId(userId));
     }
 
     /**
@@ -72,6 +73,7 @@ public class UserService {
      */
     @AuditLog(action = "USER_CREATE", targetType = "USER")
     public UserResponse insert(InsertUserRequest info) {
+        info.setUserId(normalizeUserId(info.getUserId()));
         log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
 
@@ -314,6 +316,10 @@ public class UserService {
         }
 
         return sort;
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
     private void putUserUpdateAuditData(

@@ -6,6 +6,9 @@ import dev.bum.common.kafka.user.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
+
+import java.util.Locale;
 
 @Slf4j
 @Repository
@@ -15,13 +18,14 @@ public class AuthRepositoryImpl implements AuthRepository {
     private final AuthJpaRepository jpaRepository;
 
     private void throwIfUserExists(String userId) {
-        if (jpaRepository.findByUserId(userId).isPresent()) {
+        if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
             throw new UserAlreadyExistException("이미 해당 유저가 존재합니다.");
         }
     }
 
     @Override
     public void insert(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
         throwIfUserExists(event.getUserId());
 
         jpaRepository.save(new Auth(event));
@@ -29,20 +33,25 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     @Override
     public Auth findByUserId(String userId) {
-        return jpaRepository.findByUserId(userId)
+        return jpaRepository.findByUserId(normalizeUserId(userId))
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
     }
 
     @Override
     public void update(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
         Auth auth = findByUserId(event.getUserId());
         auth.updateInfo(event);
     }
 
     @Override
     public void delete(String userId) {
-        Auth foundUser = findByUserId(userId);
+        Auth foundUser = findByUserId(normalizeUserId(userId));
 
         jpaRepository.delete(foundUser);
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 }

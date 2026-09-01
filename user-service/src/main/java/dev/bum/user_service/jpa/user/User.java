@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Entity
 @Table(name = "users", indexes = {
@@ -74,7 +75,7 @@ public class User {
      * InsertInfo -> Entity
      */
     public User(InsertUserRequest info) {
-        this.userId = info.getUserId();
+        this.userId = normalizeUserId(info.getUserId());
         this.password = info.getPassword();
         this.role = UserRole.ROLE_USER;
         this.grade = UserGrade.GENERAL;
@@ -145,5 +146,9 @@ public class User {
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
                 .build();
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 }

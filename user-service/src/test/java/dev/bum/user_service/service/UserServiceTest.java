@@ -70,7 +70,7 @@ class UserServiceTest {
                 .build();
 
         User user = User.builder()
-                .userId("IU")
+                .userId("iu")
                 .password("IU05160918")
                 .role(UserRole.ROLE_USER)
                 .name("아이유")
@@ -91,7 +91,7 @@ class UserServiceTest {
 
         UserResponse response = userService.insert(userInfo);
 
-        assertThat(response.getUserId()).isEqualTo("IU");
+        assertThat(response.getUserId()).isEqualTo("iu");
         assertThat(response.getRole()).isEqualTo(UserRole.ROLE_USER);
         assertThat(response.getGrade()).isEqualTo(UserGrade.GENERAL);
         assertThat(response.getName()).isEqualTo("아이유");
@@ -102,7 +102,7 @@ class UserServiceTest {
         assertThat(response.getIsBlacklisted()).isFalse();
 
         then(userRepository).should().insert(userInfo);
-        then(kafkaTemplate).should(times(1)).send(any(), eq("IU"), any(UserDtoForEvent.class));
+        then(kafkaTemplate).should(times(1)).send(any(), eq("iu"), any(UserDtoForEvent.class));
     }
 
     @Test
@@ -340,7 +340,7 @@ class UserServiceTest {
 
         userService.validateIsUserIdDuplicated(userId);
 
-        then(userRepository).should().validateIsUserIdDuplicated(userId);
+        then(userRepository).should().validateIsUserIdDuplicated("iu");
     }
 
     @Test

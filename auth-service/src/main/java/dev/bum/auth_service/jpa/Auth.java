@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.util.StringUtils;
 
+import java.util.Locale;
+
 @Getter
 @Entity
 @Table(name = "auth")
@@ -30,7 +32,7 @@ public class Auth {
     @Builder
     public Auth(Long id, String userId, String password, UserRole role) {
         this.id = id;
-        this.userId = userId;
+        this.userId = normalizeUserId(userId);
         this.password = password;
         this.role = (role != null) ? role : UserRole.ROLE_USER;
     }
@@ -38,7 +40,7 @@ public class Auth {
     @Builder
     public Auth(UserDtoForEvent event) {
         this.id = event.getId();
-        this.userId = event.getUserId();
+        this.userId = normalizeUserId(event.getUserId());
         this.password = event.getPassword();
         this.role = UserRole.valueOf(event.getRole());
     }
@@ -51,5 +53,9 @@ public class Auth {
         if (StringUtils.hasText(event.getRole())) {
             this.role = UserRole.valueOf(event.getRole());
         }
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 }
