@@ -169,9 +169,7 @@ public class QueueService {
                 return false;
             }
 
-            redisTemplate.opsForZSet().remove(activeKey(eventId), activeToken);
-            redisTemplate.delete(List.of(activeTokenKey(activeToken), activeUserKey(eventId, userId)));
-            return true;
+            return removeActiveToken(eventId, userId, activeToken);
         });
     }
 
@@ -189,19 +187,23 @@ public class QueueService {
     }
 
     /**
-     * 대기열 페이지 이탈 시 waiting token을 회수한다.
-     * active token은 좌석/결제 흐름에서 사용될 수 있으므로 여기서 회수하지 않는다.
+     * 대기열 또는 예매창 이탈 시 waiting/active token을 회수한다.
      */
-    @Observed(name = "queue.leave-waiting", contextualName = "queue leave waiting")
-    public boolean leaveWaiting(Long eventId, String userId, String token) {
-        return executeWithRedisLogging("leaveWaiting", eventId, userId, token, () -> {
+    @Observed(name = "queue.leave", contextualName = "queue leave")
+    public boolean leave(Long eventId, String userId, String token) {
+        return executeWithRedisLogging("leave", eventId, userId, token, () -> {
             validateUserId(userId);
-            if (!isWaitingTokenValid(eventId, userId, token)) {
-                return false;
+
+            if (isWaitingTokenValid(eventId, userId, token)) {
+                removeWaitingToken(eventId, userId, token);
+                return true;
             }
 
-            removeWaitingToken(eventId, userId, token);
-            return true;
+            if (isActiveTokenValid(eventId, userId, token)) {
+                return removeActiveToken(eventId, userId, token);
+            }
+
+            return false;
         });
     }
 
@@ -501,6 +503,12 @@ public class QueueService {
         redisTemplate.opsForZSet().remove(waitingKey(eventId), waitingToken);
         redisTemplate.opsForZSet().remove(waitingExpiryKey(eventId), waitingToken);
         redisTemplate.delete(List.of(waitingTokenKey(waitingToken), waitingUserKey(eventId, userId)));
+    }
+
+    private boolean removeActiveToken(Long eventId, String userId, String activeToken) {
+        redisTemplate.opsForZSet().remove(activeKey(eventId), activeToken);
+        redisTemplate.delete(List.of(activeTokenKey(activeToken), activeUserKey(eventId, userId)));
+        return true;
     }
 
     /**

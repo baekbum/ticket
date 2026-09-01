@@ -499,6 +499,23 @@ function wait(milliseconds: number) {
   });
 }
 
+function releaseQueueToken(eventId: number, token: string) {
+  const accessToken = localStorage.getItem('ticksy.accessToken');
+
+  if (!eventId || !token || !accessToken) {
+    return;
+  }
+
+  fetch(`/client-api/api/v1/queue/events/${eventId}/leave`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'X-Active-Token': token,
+    },
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 function buildBookingWindowUrl(eventId: number, eventGroupCode: string, activeToken: string) {
   const bookingUrl = new URL(window.location.href);
   bookingUrl.searchParams.set('page', 'bookingWindow');
@@ -1448,6 +1465,11 @@ function EventDetailPage({
       saveQueueToken(selectedScheduleId, queueResponse.token);
 
       while (queueResponse.status !== 'READY') {
+        if (bookingWindow.closed) {
+          releaseQueueToken(selectedScheduleId, queueResponse.token);
+          return;
+        }
+
         writeQueueWindowMessage(
           bookingWindow,
           '예매 대기 중',
@@ -1456,6 +1478,12 @@ function EventDetailPage({
           true,
         );
         await wait(3000);
+
+        if (bookingWindow.closed) {
+          releaseQueueToken(selectedScheduleId, queueResponse.token);
+          return;
+        }
+
         queueResponse = await fetchBookingQueueStatus(selectedScheduleId, queueResponse.token);
         setQueueEntry(queueResponse);
         saveQueueToken(selectedScheduleId, queueResponse.token);
@@ -1713,6 +1741,24 @@ function BookingWindowPage() {
     if (selectedScheduleId && activeToken) {
       saveQueueToken(selectedScheduleId, activeToken);
     }
+  }, [activeToken, selectedScheduleId]);
+
+  useEffect(() => {
+    if (!selectedScheduleId || !activeToken) {
+      return undefined;
+    }
+
+    function leaveQueue() {
+      releaseQueueToken(selectedScheduleId, activeToken);
+    }
+
+    window.addEventListener('pagehide', leaveQueue);
+    window.addEventListener('beforeunload', leaveQueue);
+
+    return () => {
+      window.removeEventListener('pagehide', leaveQueue);
+      window.removeEventListener('beforeunload', leaveQueue);
+    };
   }, [activeToken, selectedScheduleId]);
 
   useEffect(() => {

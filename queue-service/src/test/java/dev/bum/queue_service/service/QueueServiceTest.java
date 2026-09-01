@@ -131,7 +131,7 @@ class QueueServiceTest {
         given(valueOperations.get("queue:waiting-token:waiting-token-1")).willReturn("1:user01");
         given(zSetOperations.score("queue:event:1:waiting", "waiting-token-1")).willReturn((double) System.currentTimeMillis());
 
-        boolean left = queueService.leaveWaiting(1L, "user01", "waiting-token-1");
+        boolean left = queueService.leave(1L, "user01", "waiting-token-1");
 
         assertThat(left).isTrue();
         then(zSetOperations).should().remove("queue:event:1:waiting", "waiting-token-1");

@@ -49,7 +49,7 @@ public class QueueController {
             @PathVariable Long eventId,
             @RequestHeader(value = "X-Active-Token", required = false) String clientToken
     ) {
-        queueService.leaveWaiting(eventId, currentUserId, clientToken);
+        queueService.leave(eventId, currentUserId, clientToken);
         return ResponseEntity.noContent().build();
     }
 
