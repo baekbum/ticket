@@ -1,7 +1,10 @@
 package dev.bum.queue_service.service;
 
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
+import dev.bum.common.service.queue.dto.QueueEnterResponse;
+import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.queue_service.config.QueueProperties;
+import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +21,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
@@ -44,29 +49,99 @@ class QueueServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    private QueueProperties properties;
+    private QueueRedisKeys keys;
     private QueueService queueService;
 
     @BeforeEach
     void setUp() {
-        QueueProperties properties = new QueueProperties();
+        properties = new QueueProperties();
         properties.setAdmissionSize(1);
         properties.setActiveTokenTtl(Duration.ofMinutes(10));
-        queueService = new QueueService(redisTemplate, properties);
+        keys = new QueueRedisKeys();
+        UserQueueSessionService userQueueSessionService = new UserQueueSessionService(redisTemplate, keys);
+        ActiveQueueService activeQueueService = new ActiveQueueService(
+                redisTemplate,
+                properties,
+                keys,
+                userQueueSessionService
+        );
+        WaitingQueueService waitingQueueService = new WaitingQueueService(
+                redisTemplate,
+                properties,
+                keys,
+                activeQueueService,
+                userQueueSessionService
+        );
+        queueService = new QueueService(
+                redisTemplate,
+                properties,
+                waitingQueueService,
+                activeQueueService,
+                userQueueSessionService
+        );
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(valueOperations.get(anyString())).thenReturn(null);
+        lenient().when(zSetOperations.score(anyString(), anyString())).thenReturn(null);
+        lenient().when(zSetOperations.range(anyString(), eq(0L), eq(-1L))).thenReturn(Set.of());
+        lenient().when(zSetOperations.zCard(anyString())).thenReturn(0L);
         lenient().when(zSetOperations.rangeByScore(eq("queue:event:1:active"), eq(0.0), any(Double.class))).thenReturn(Set.of());
         lenient().when(zSetOperations.rangeByScore(eq("queue:event:1:waiting-expiry"), eq(0.0), any(Double.class))).thenReturn(Set.of());
     }
 
     @Test
+    @DisplayName("세션 수가 제한에 도달하면 강제 진입 확인이 필요하다고 응답한다")
+    void enter_returns_confirm_required_when_session_limit_reached() {
+        properties.setMaxSessionsPerUser(1);
+        given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
+        given(zSetOperations.zCard("queue:user-sessions:user01")).willReturn(1L);
+
+        QueueEnterResponse response = queueService.enter(1L, "user01", false);
+
+        assertThat(response.status()).isEqualTo("SESSION_LIMIT_CONFIRM_REQUIRED");
+        then(zSetOperations).should(never()).add(eq("queue:event:1:waiting"), anyString(), any(Double.class));
+    }
+
+    @Test
+    @DisplayName("강제 진입이면 가장 빨리 만료되는 waiting 세션을 제거하고 새 세션을 만든다")
+    void enter_force_removes_first_expiring_waiting_session() {
+        properties.setMaxSessionsPerUser(1);
+        given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
+        given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
+        given(zSetOperations.zCard("queue:user-sessions:user01")).willReturn(1L);
+        given(zSetOperations.range("queue:user-sessions:user01", 0, -1)).willReturn(Set.of("waiting:old-waiting-token"));
+        given(zSetOperations.range("queue:user-sessions:user01", 0, 0)).willReturn(Set.of("waiting:old-waiting-token"));
+        given(redisTemplate.getExpire("queue:waiting-token:old-waiting-token")).willReturn(30L);
+
+        QueueEnterResponse response = queueService.enter(1L, "user01", true);
+
+        assertThat(response.status()).isEqualTo("WAITING");
+        then(zSetOperations).should().remove("queue:event:1:waiting", "old-waiting-token");
+        then(zSetOperations).should().remove("queue:event:1:waiting-expiry", "old-waiting-token");
+        then(zSetOperations).should(atLeastOnce()).remove("queue:user-sessions:user01", "waiting:old-waiting-token");
+        then(redisTemplate).should().delete("queue:waiting-token:old-waiting-token");
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 waiting token으로 상태를 조회하면 예외를 던진다")
+    void status_throws_exception_for_invalid_waiting_token() {
+        assertThatThrownBy(() -> queueService.status(1L, "user01", "old-token"))
+                .isInstanceOf(QueueTokenInvalidException.class)
+                .hasMessage("올바르지 않은 시도입니다. 다시 시도해주세요.");
+    }
+
+    @Test
     @DisplayName("대기열 통과 시 Redis 스크립트로 active 슬롯 확인과 토큰 발급을 원자 처리한다")
     void status_admits_with_redis_script() {
+        given(valueOperations.get("queue:waiting-token:waiting-token-1")).willReturn("1:user01");
+        given(zSetOperations.score("queue:event:1:waiting", "waiting-token-1")).willReturn((double) System.currentTimeMillis());
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(0L);
         given(zSetOperations.score(eq("queue:event:1:active"), any(String.class))).willReturn((double) System.currentTimeMillis() + 600_000);
         doReturn(1L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
-        QueueStatusResponse response = queueService.status(1L, "user01", null);
+        QueueStatusResponse response = queueService.status(1L, "user01", "waiting-token-1");
 
         assertThat(response.status()).isEqualTo("READY");
         assertThat(response.rank()).isZero();
@@ -76,11 +151,13 @@ class QueueServiceTest {
     @Test
     @DisplayName("슬롯이 차 있으면 Redis 스크립트가 토큰 발급을 거절하고 WAITING을 유지한다")
     void status_waits_when_script_rejects_admission() {
+        given(valueOperations.get("queue:waiting-token:waiting-token-1")).willReturn("1:user01");
+        given(zSetOperations.score("queue:event:1:waiting", "waiting-token-1")).willReturn((double) System.currentTimeMillis());
         given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
         doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
-        QueueStatusResponse response = queueService.status(1L, "user01", null);
+        QueueStatusResponse response = queueService.status(1L, "user01", "waiting-token-1");
 
         assertThat(response.status()).isEqualTo("WAITING");
         assertThat(response.rank()).isEqualTo(1L);
@@ -96,12 +173,14 @@ class QueueServiceTest {
     void status_waiting_returns_eta_fields() {
         Instant activeExpiresAt = Instant.now().plusSeconds(120);
         TypedTuple<String> activeToken = typedTuple(activeExpiresAt.toEpochMilli());
+        given(valueOperations.get("queue:waiting-token:waiting-token-1")).willReturn("1:user01");
+        given(zSetOperations.score("queue:event:1:waiting", "waiting-token-1")).willReturn((double) System.currentTimeMillis());
         given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
         given(zSetOperations.rangeWithScores("queue:event:1:active", 0, -1)).willReturn(Set.of(activeToken));
         doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
-        QueueStatusResponse response = queueService.status(1L, "user01", null);
+        QueueStatusResponse response = queueService.status(1L, "user01", "waiting-token-1");
 
         assertThat(response.rank()).isEqualTo(1L);
         assertThat(response.estimatedEntryAt()).isBetween(activeExpiresAt.minusSeconds(1), activeExpiresAt.plusSeconds(1));
@@ -109,20 +188,17 @@ class QueueServiceTest {
     }
 
     @Test
-    @DisplayName("waiting token 없이 재접속하면 기존 대기 항목을 제거하고 새로 등록한다")
-    void status_without_waiting_token_restarts_waiting_entry() {
-        given(valueOperations.get("queue:waiting-user:1:user01")).willReturn("old-waiting-token");
+    @DisplayName("enter는 사용자 세션 제한 내에서 새 대기 항목을 추가한다")
+    void enter_adds_waiting_entry_when_session_limit_not_reached() {
         given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
-        doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+        given(zSetOperations.zCard("queue:user-sessions:user01")).willReturn(2L);
 
-        QueueStatusResponse response = queueService.status(1L, "user01", null);
+        QueueEnterResponse response = queueService.enter(1L, "user01", false);
 
         assertThat(response.status()).isEqualTo("WAITING");
-        assertThat(response.token()).isNotEqualTo("old-waiting-token");
-        then(zSetOperations).should().remove("queue:event:1:waiting", "old-waiting-token");
-        then(zSetOperations).should().remove("queue:event:1:waiting-expiry", "old-waiting-token");
-        then(redisTemplate).should().delete(List.of("queue:waiting-token:old-waiting-token", "queue:waiting-user:1:user01"));
+        assertThat(response.token()).isNotBlank();
+        then(zSetOperations).should().add(eq("queue:user-sessions:user01"), anyString(), any(Double.class));
     }
 
     @Test
@@ -131,28 +207,25 @@ class QueueServiceTest {
         given(valueOperations.get("queue:waiting-token:waiting-token-1")).willReturn("1:user01");
         given(zSetOperations.score("queue:event:1:waiting", "waiting-token-1")).willReturn((double) System.currentTimeMillis());
 
-        boolean left = queueService.leave(1L, "user01", "waiting-token-1");
+        boolean left = queueService.leave(1L, "user01", "waiting-token-1", null);
 
         assertThat(left).isTrue();
         then(zSetOperations).should().remove("queue:event:1:waiting", "waiting-token-1");
         then(zSetOperations).should().remove("queue:event:1:waiting-expiry", "waiting-token-1");
-        then(redisTemplate).should().delete(List.of("queue:waiting-token:waiting-token-1", "queue:waiting-user:1:user01"));
+        then(zSetOperations).should().remove("queue:user-sessions:user01", "waiting:waiting-token-1");
+        then(redisTemplate).should().delete("queue:waiting-token:waiting-token-1");
     }
 
     @Test
-    @DisplayName("유효한 active token을 제시하면 READY 상태를 복구한다")
-    void status_restores_ready_only_with_valid_token() {
+    @DisplayName("validate는 유효한 active token을 검증한다")
+    void validate_accepts_valid_active_token() {
         given(valueOperations.get("queue:active-token:token-1")).willReturn("1:user01");
         given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
-        given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(0L);
 
-        QueueStatusResponse response = queueService.status(1L, "user01", "token-1");
+        var response = queueService.validate(new QueueValidateRequest(1L, "user01", "token-1"));
 
-        assertThat(response.status()).isEqualTo("READY");
-        assertThat(response.token()).isEqualTo("token-1");
-        assertThat(response.expiresInSeconds()).isPositive();
-        assertThat(response.estimatedEntryAt()).isNotNull();
-        assertThat(response.activeTokenExpiresAt()).isNotNull();
+        assertThat(response.allowed()).isTrue();
+        assertThat(response.reason()).isEqualTo("OK");
     }
 
     @Test
@@ -165,7 +238,8 @@ class QueueServiceTest {
 
         assertThat(completed).isTrue();
         then(zSetOperations).should().remove("queue:event:1:active", "token-1");
-        then(redisTemplate).should().delete(List.of("queue:active-token:token-1", "queue:active-user:1:user01"));
+        then(zSetOperations).should().remove("queue:user-sessions:user01", "active:token-1");
+        then(redisTemplate).should().delete("queue:active-token:token-1");
     }
 
     @Test
@@ -186,23 +260,29 @@ class QueueServiceTest {
         given(zSetOperations.add(eq("queue:event:1:waiting"), anyString(), any(Double.class)))
                 .willThrow(new DataAccessException("redis error") {});
 
-        assertThatThrownBy(() -> queueService.status(1L, "user01", null))
+        assertThatThrownBy(() -> queueService.enter(1L, "user01", false))
                 .isInstanceOf(DataAccessException.class)
                 .hasMessage("redis error");
     }
 
     @Test
-    @DisplayName("bulk 상태 조회는 기존 active-user 매핑이 유효하면 READY를 유지하고 재입장시키지 않는다")
+    @DisplayName("bulk 상태 조회는 기존 active 세션 매핑이 유효하면 READY를 유지하고 재입장시키지 않는다")
     void statuses_reuses_valid_active_user_mapping() {
-        given(valueOperations.get("queue:active-user:1:user01")).willReturn("token-1");
+        given(zSetOperations.range("queue:user-sessions:user01", 0, -1)).willReturn(Set.of("active:token-1"));
+        given(zSetOperations.range("queue:user-sessions:user02", 0, -1)).willReturn(Set.of());
         given(valueOperations.get("queue:active-token:token-1")).willReturn("1:user01");
-        given(valueOperations.get("queue:active-user:1:user02")).willReturn(null);
+        given(valueOperations.get("queue:waiting-token:waiting-token-2")).willReturn("1:user02");
         given(zSetOperations.score("queue:event:1:active", "token-1")).willReturn((double) System.currentTimeMillis() + 600_000);
+        given(zSetOperations.score("queue:event:1:waiting", "waiting-token-2")).willReturn((double) System.currentTimeMillis());
         given(zSetOperations.rank(eq("queue:event:1:waiting"), anyString())).willReturn(0L);
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
         doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
-        List<QueueStatusResponse> responses = queueService.statuses(1L, List.of("user01", "user02"));
+        List<QueueStatusResponse> responses = queueService.statuses(
+                1L,
+                List.of("user01", "user02"),
+                Map.of("user02", "waiting-token-2")
+        );
 
         assertThat(responses).extracting(QueueStatusResponse::status)
                 .containsExactly("READY", "WAITING");

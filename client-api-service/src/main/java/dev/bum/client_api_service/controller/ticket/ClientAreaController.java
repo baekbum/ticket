@@ -24,23 +24,26 @@ public class ClientAreaController {
     @GetMapping("/layout/event/{eventId}")
     public ResponseEntity<EventLayoutResponse> selectLayout(
             @PathVariable("eventId") Long eventId,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        EventLayoutResponse response = ticketAreaServiceClient.selectLayout(eventId, authorizationHeader);
+        EventLayoutResponse response = ticketAreaServiceClient.selectLayout(eventId, authorizationHeader, activeToken);
         return response != null ? ResponseEntity.ok(response) : ResponseEntity.noContent().build();
     }
 
     @GetMapping("/select")
     public ResponseEntity<CustomPageResponse<AreaResponse>> selectByCond(
             @RequestParam("eventId") Long eventId,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
         return ResponseEntity.ok(ticketAreaServiceClient.selectByCond(
                 eventId,
                 0,
                 500,
                 List.of("areaId-asc"),
-                authorizationHeader
+                authorizationHeader,
+                activeToken
         ));
     }
 }

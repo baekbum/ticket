@@ -23,7 +23,8 @@ public class ClientSeatController {
     public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(
             @RequestParam("eventId") Long eventId,
             @RequestParam("areaId") Long areaId,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
         return ResponseEntity.ok(ticketSeatServiceClient.selectByCond(
                 eventId,
@@ -31,7 +32,8 @@ public class ClientSeatController {
                 0,
                 10000,
                 List.of("seatRow-asc", "seatCol-asc"),
-                authorizationHeader
+                authorizationHeader,
+                activeToken
         ));
     }
 }

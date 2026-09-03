@@ -36,9 +36,9 @@ public class QueueTestManagementController {
     public ResponseEntity<QueueEnterResponse> enter(
             @PathVariable Long eventId,
             @RequestParam String userId,
-            @RequestParam(required = false) String token
+            @RequestParam(defaultValue = "false") boolean force
     ) {
-        return ResponseEntity.ok(queueService.enter(eventId, userId, token));
+        return ResponseEntity.ok(queueService.enter(eventId, userId, force));
     }
 
     @GetMapping("/events/{eventId}/status")

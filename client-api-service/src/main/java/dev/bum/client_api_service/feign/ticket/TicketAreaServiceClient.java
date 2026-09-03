@@ -16,7 +16,8 @@ public interface TicketAreaServiceClient {
     @GetMapping("/layout/event/{eventId}")
     EventLayoutResponse selectLayout(
             @PathVariable("eventId") Long eventId,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     );
 
     @GetMapping("/select")
@@ -25,6 +26,7 @@ public interface TicketAreaServiceClient {
             @RequestParam("page") int page,
             @RequestParam("size") int size,
             @RequestParam("sort") List<String> sort,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     );
 }

@@ -3,7 +3,10 @@ package dev.bum.client_api_service.controller.queue;
 import dev.bum.client_api_service.feign.queue.QueueServiceClient;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,27 +26,35 @@ public class ClientQueueController {
     public ResponseEntity<QueueEnterResponse> enter(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
+            @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force
     ) {
-        return ResponseEntity.ok(queueServiceClient.enter(eventId, authorizationHeader, activeToken));
+        return ResponseEntity.ok(queueServiceClient.enter(eventId, authorizationHeader, force));
     }
 
     @GetMapping("/events/{eventId}/status")
-    public ResponseEntity<QueueStatusResponse> status(
+    public ResponseEntity<?> status(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken
     ) {
-        return ResponseEntity.ok(queueServiceClient.status(eventId, authorizationHeader, activeToken));
+        try {
+            return ResponseEntity.ok(queueServiceClient.status(eventId, authorizationHeader, waitingToken));
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
     }
 
     @PostMapping("/events/{eventId}/leave")
     public ResponseEntity<Void> leave(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        queueServiceClient.leave(eventId, authorizationHeader, activeToken);
+        queueServiceClient.leave(eventId, authorizationHeader, waitingToken, activeToken);
         return ResponseEntity.noContent().build();
     }
 }

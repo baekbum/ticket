@@ -16,20 +16,21 @@ public interface QueueServiceClient {
     QueueEnterResponse enter(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
+            @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force
     );
 
     @GetMapping("/events/{eventId}/status")
     QueueStatusResponse status(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken
     );
 
     @PostMapping("/events/{eventId}/leave")
     ResponseEntity<Void> leave(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     );
 }

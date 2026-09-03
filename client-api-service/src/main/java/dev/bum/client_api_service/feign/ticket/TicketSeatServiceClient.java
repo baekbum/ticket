@@ -18,6 +18,7 @@ public interface TicketSeatServiceClient {
             @RequestParam("page") int page,
             @RequestParam("size") int size,
             @RequestParam("sort") List<String> sort,
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     );
 }

@@ -50,7 +50,7 @@ type TokenResponse = {
 
 type QueueEntryResponse = {
   eventId: number;
-  status: 'READY' | 'WAITING' | string;
+  status: 'READY' | 'WAITING' | 'SESSION_LIMIT_CONFIRM_REQUIRED' | string;
   rank: number | null;
   waitingCount: number | null;
   token: string;
@@ -479,18 +479,36 @@ function getBookingActiveTokenFromLocation() {
   return new URLSearchParams(window.location.search).get('activeToken') || '';
 }
 
-function getQueueTokenStorageKey(eventId: number) {
-  return `ticksy.queueToken.${eventId}`;
+function getWaitingTokenStorageKey(eventId: number) {
+  return `ticksy.waitingToken.${eventId}`;
 }
 
-function saveQueueToken(eventId: number, token: string) {
+function getActiveTokenStorageKey(eventId: number) {
+  return `ticksy.activeToken.${eventId}`;
+}
+
+function saveWaitingToken(eventId: number, token: string) {
   if (token) {
-    sessionStorage.setItem(getQueueTokenStorageKey(eventId), token);
+    sessionStorage.setItem(getWaitingTokenStorageKey(eventId), token);
   }
 }
 
-function getSavedQueueToken(eventId: number) {
-  return sessionStorage.getItem(getQueueTokenStorageKey(eventId)) || '';
+function getSavedWaitingToken(eventId: number) {
+  return sessionStorage.getItem(getWaitingTokenStorageKey(eventId)) || '';
+}
+
+function removeSavedWaitingToken(eventId: number) {
+  sessionStorage.removeItem(getWaitingTokenStorageKey(eventId));
+}
+
+function saveActiveToken(eventId: number, token: string) {
+  if (token) {
+    sessionStorage.setItem(getActiveTokenStorageKey(eventId), token);
+  }
+}
+
+function removeSavedActiveToken(eventId: number) {
+  sessionStorage.removeItem(getActiveTokenStorageKey(eventId));
 }
 
 function wait(milliseconds: number) {
@@ -499,7 +517,15 @@ function wait(milliseconds: number) {
   });
 }
 
-function releaseQueueToken(eventId: number, token: string) {
+function releaseWaitingToken(eventId: number, token: string) {
+  releaseQueueToken(eventId, token, 'waiting');
+}
+
+function releaseActiveToken(eventId: number, token: string) {
+  releaseQueueToken(eventId, token, 'active');
+}
+
+function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' | 'active') {
   const accessToken = localStorage.getItem('ticksy.accessToken');
 
   if (!eventId || !token || !accessToken) {
@@ -510,7 +536,7 @@ function releaseQueueToken(eventId: number, token: string) {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'X-Active-Token': token,
+      [tokenType === 'waiting' ? 'X-Waiting-Token' : 'X-Active-Token']: token,
     },
     keepalive: true,
   }).catch(() => undefined);
@@ -1461,12 +1487,25 @@ function EventDetailPage({
 
     try {
       let queueResponse = await enterBookingQueue(selectedScheduleId);
+      if (queueResponse.status === 'SESSION_LIMIT_CONFIRM_REQUIRED') {
+        const shouldContinue = window.confirm(
+          '이미 이 공연에 접속 중인 예매 세션이 4개입니다. 계속하면 기존 접속 중 하나가 끊길 수 있습니다. 계속하시겠습니까?',
+        );
+
+        if (!shouldContinue) {
+          bookingWindow.close();
+          return;
+        }
+
+        queueResponse = await enterBookingQueue(selectedScheduleId, true);
+      }
+
       setQueueEntry(queueResponse);
-      saveQueueToken(selectedScheduleId, queueResponse.token);
+      saveWaitingToken(selectedScheduleId, queueResponse.token);
 
       while (queueResponse.status !== 'READY') {
         if (bookingWindow.closed) {
-          releaseQueueToken(selectedScheduleId, queueResponse.token);
+          releaseWaitingToken(selectedScheduleId, queueResponse.token);
           return;
         }
 
@@ -1480,15 +1519,19 @@ function EventDetailPage({
         await wait(3000);
 
         if (bookingWindow.closed) {
-          releaseQueueToken(selectedScheduleId, queueResponse.token);
+          releaseWaitingToken(selectedScheduleId, queueResponse.token);
           return;
         }
 
         queueResponse = await fetchBookingQueueStatus(selectedScheduleId, queueResponse.token);
         setQueueEntry(queueResponse);
-        saveQueueToken(selectedScheduleId, queueResponse.token);
+        if (queueResponse.status !== 'READY') {
+          saveWaitingToken(selectedScheduleId, queueResponse.token);
+        }
       }
 
+      removeSavedWaitingToken(selectedScheduleId);
+      saveActiveToken(selectedScheduleId, queueResponse.token);
       writeQueueWindowMessage(bookingWindow, '입장 준비 완료', '좌석 선택 화면으로 이동합니다.');
       bookingWindow.location.replace(buildBookingWindowUrl(selectedScheduleId, eventGroupCode, queueResponse.token));
     } catch (error) {
@@ -1501,18 +1544,24 @@ function EventDetailPage({
       const message = error instanceof Error ? error.message : '대기열 등록 중 오류가 발생했습니다.';
       setQueueErrorMessage(message);
       writeQueueWindowMessage(bookingWindow, '대기열 등록 실패', message);
+      removeSavedWaitingToken(selectedScheduleId);
+      window.setTimeout(() => bookingWindow.close(), 1500);
     } finally {
       setIsQueueEntering(false);
     }
   }
 
-  async function enterBookingQueue(eventId: number) {
-    const savedToken = getSavedQueueToken(eventId);
+  async function enterBookingQueue(eventId: number, force = false) {
+    const headers: Record<string, string> = {};
+    if (force) {
+      headers['X-Queue-Force-Enter'] = 'true';
+    }
+
     return request<QueueEntryResponse>(
       `/client-api/api/v1/queue/events/${eventId}/enter`,
       {
         method: 'POST',
-        headers: savedToken ? { 'X-Active-Token': savedToken } : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       },
     );
   }
@@ -1522,7 +1571,7 @@ function EventDetailPage({
       `/client-api/api/v1/queue/events/${eventId}/status`,
       {
         method: 'GET',
-        headers: { 'X-Active-Token': token },
+        headers: { 'X-Waiting-Token': token },
       },
     );
   }
@@ -1649,7 +1698,7 @@ function EventDetailPage({
             type="button"
             onClick={clickBookingButton}
           >
-            {isQueueEntering ? '대기열 확인 중...' : eventDetail.bookingMessage}
+            {eventDetail.bookingMessage}
           </button>
         </div>
         {queueEntry?.status === 'WAITING' && (
@@ -1739,7 +1788,7 @@ function BookingWindowPage() {
 
   useEffect(() => {
     if (selectedScheduleId && activeToken) {
-      saveQueueToken(selectedScheduleId, activeToken);
+      saveActiveToken(selectedScheduleId, activeToken);
     }
   }, [activeToken, selectedScheduleId]);
 
@@ -1749,7 +1798,7 @@ function BookingWindowPage() {
     }
 
     function leaveQueue() {
-      releaseQueueToken(selectedScheduleId, activeToken);
+      releaseActiveToken(selectedScheduleId, activeToken);
     }
 
     window.addEventListener('pagehide', leaveQueue);
@@ -1805,11 +1854,17 @@ function BookingWindowPage() {
         const [areaResponse, layoutResponse] = await Promise.all([
           request<PageResponse<AreaResponse>>(
             `/client-api/api/v1/area/select?eventId=${selectedScheduleId}`,
-            { method: 'GET' },
+            {
+              method: 'GET',
+              headers: { 'X-Active-Token': activeToken },
+            },
           ),
           request<EventLayoutResponse | undefined>(
             `/client-api/api/v1/area/layout/event/${selectedScheduleId}`,
-            { method: 'GET' },
+            {
+              method: 'GET',
+              headers: { 'X-Active-Token': activeToken },
+            },
           ),
         ]);
 
@@ -1936,7 +1991,10 @@ function BookingWindowPage() {
     try {
       const seatResponse = await request<PageResponse<SeatResponse>>(
         `/client-api/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}`,
-        { method: 'GET' },
+        {
+          method: 'GET',
+          headers: { 'X-Active-Token': activeToken },
+        },
       );
 
       setSeats(seatResponse.content || []);
@@ -3386,7 +3444,7 @@ function clearLoginStorage() {
 
 function clearQueueTokenStorage() {
   Object.keys(sessionStorage)
-    .filter((key) => key.startsWith('ticksy.queueToken.'))
+    .filter((key) => key.startsWith('ticksy.waitingToken.') || key.startsWith('ticksy.activeToken.'))
     .forEach((key) => sessionStorage.removeItem(key));
 }
 
