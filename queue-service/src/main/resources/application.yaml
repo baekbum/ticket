@@ -19,6 +19,7 @@ token:
 app:
   queue:
     admission-size: 100
+    max-sessions-per-user: 4
     active-token-ttl: 20m
     waiting-token-ttl: 1m
     cleanup-fixed-delay-ms: 20000
