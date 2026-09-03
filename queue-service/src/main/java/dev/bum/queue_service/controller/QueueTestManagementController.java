@@ -7,6 +7,7 @@ import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
+import dev.bum.queue_service.service.QueueAdminService;
 import dev.bum.queue_service.service.QueueService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -30,6 +31,7 @@ import java.util.Set;
 public class QueueTestManagementController {
 
     private final QueueService queueService;
+    private final QueueAdminService queueAdminService;
     private final StringRedisTemplate redisTemplate;
 
     @PostMapping("/events/{eventId}/enter")
@@ -55,7 +57,7 @@ public class QueueTestManagementController {
             @PathVariable Long eventId,
             @RequestBody QueueBulkStatusRequest request
     ) {
-        return ResponseEntity.ok(queueService.statuses(eventId, request.userIds(), request.tokenByUserId()));
+        return ResponseEntity.ok(queueAdminService.statuses(eventId, request.userIds(), request.tokenByUserId()));
     }
 
     @PostMapping("/validate")

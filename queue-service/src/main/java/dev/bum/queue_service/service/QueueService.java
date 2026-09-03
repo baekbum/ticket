@@ -18,10 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -61,34 +58,6 @@ public class QueueService {
             validateUserId(userId);
 
             return admitWaitingToken(eventId, userId, waitingToken);
-        });
-    }
-
-    /**
-     * 여러 사용자의 대기열 상태를 한 번에 조회한다.
-     * active-user 역방향 키를 먼저 확인하고, READY가 아니면 사용자별로 입장을 시도한다.
-     */
-    @Observed(name = "queue.statuses", contextualName = "queue bulk statuses")
-    public List<QueueStatusResponse> statuses(Long eventId, List<String> userIds, Map<String, String> tokenByUserId) {
-        return executeWithRedisLogging("statuses", eventId, String.join(",", userIds), null, () -> {
-            userIds.forEach(userQueueSessionService::prune);
-            Map<String, String> activeTokenByUserId = activeQueueService.activeTokenByUserId(eventId, userIds);
-            List<QueueStatusResponse> responses = new ArrayList<>();
-
-            for (String userId : userIds) {
-                validateUserId(userId);
-                String waitingToken = tokenByUserId == null ? null : tokenByUserId.get(userId);
-
-                String activeToken = activeTokenByUserId.get(userId);
-                if (activeToken != null) {
-                    responses.add(activeQueueService.readyStatusResponse(eventId, activeToken));
-                    continue;
-                }
-
-                responses.add(admitWaitingToken(eventId, userId, waitingToken));
-            }
-
-            return responses;
         });
     }
 

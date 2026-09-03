@@ -52,6 +52,7 @@ class QueueServiceTest {
     private QueueProperties properties;
     private QueueRedisKeys keys;
     private QueueService queueService;
+    private QueueAdminService queueAdminService;
 
     @BeforeEach
     void setUp() {
@@ -76,6 +77,11 @@ class QueueServiceTest {
         queueService = new QueueService(
                 redisTemplate,
                 properties,
+                waitingQueueService,
+                activeQueueService,
+                userQueueSessionService
+        );
+        queueAdminService = new QueueAdminService(
                 waitingQueueService,
                 activeQueueService,
                 userQueueSessionService
@@ -278,7 +284,7 @@ class QueueServiceTest {
         given(zSetOperations.zCard("queue:event:1:waiting")).willReturn(1L);
         doReturn(0L).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
-        List<QueueStatusResponse> responses = queueService.statuses(
+        List<QueueStatusResponse> responses = queueAdminService.statuses(
                 1L,
                 List.of("user01", "user02"),
                 Map.of("user02", "waiting-token-2")
