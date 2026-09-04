@@ -232,17 +232,17 @@
 
 .queue-table.active-mode th:nth-child(1),
 .queue-table.active-mode td:nth-child(1) {
-  width: 42%;
+  width: 35%;
 }
 
 .queue-table.active-mode th:nth-child(2),
 .queue-table.active-mode td:nth-child(2) {
-  width: 20%;
+  width: 18%;
 }
 
 .queue-table.active-mode th:nth-child(3),
 .queue-table.active-mode td:nth-child(3) {
-  width: 10%;
+  width: 9%;
 }
 
 .queue-table.active-mode th:nth-child(4),
@@ -253,6 +253,11 @@
 .queue-table.active-mode th:nth-child(5),
 .queue-table.active-mode td:nth-child(5) {
   width: 16%;
+}
+
+.queue-table.active-mode th:nth-child(6),
+.queue-table.active-mode td:nth-child(6) {
+  width: 10%;
 }
 
 .queue-sort-btn {
@@ -279,6 +284,71 @@
 .queue-key,
 .queue-value {
   font-family: Consolas, Monaco, monospace;
+}
+
+.queue-remove-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #ffb4b4;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #d63333;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-remove-btn:hover {
+  background: #ffe3e3;
+}
+
+.queue-token-confirm-modal {
+  z-index: 1300;
+  align-items: center;
+}
+
+.queue-token-confirm-content {
+  max-width: 460px;
+  text-align: center;
+}
+
+.queue-token-confirm-icon {
+  width: 54px;
+  height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-bottom: 12px;
+  background: #fff5f5;
+  color: #d63333;
+  font-size: 30px;
+}
+
+.queue-token-confirm-summary {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafafa;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.queue-token-confirm-summary strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  word-break: break-all;
+}
+
+body.dark-mode .queue-token-confirm-summary {
+  background: #202231;
+  border-color: var(--border);
 }
 
 .queue-row-changed {
@@ -381,6 +451,21 @@
       </thead>
       <tbody id="queue-table-body"></tbody>
     </table>
+  </div>
+</div>
+
+<div class="f-modal queue-token-confirm-modal" id="queue-token-remove-modal">
+  <div class="f-modal-content queue-token-confirm-content">
+    <div class="queue-token-confirm-icon">
+      <i class="ti ti-trash-x"></i>
+    </div>
+    <p class="modal-title" style="text-align:center;">Queue 토큰을 제거할까요?</p>
+    <p class="modal-subtitle" style="text-align:center;">선택한 토큰과 관련 Redis 세션 정보를 함께 삭제합니다.</p>
+    <div class="queue-token-confirm-summary" id="queue-token-remove-summary"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" onclick="cancelQueueRedisTokenRemove()">취소</button>
+      <button class="btn btn-danger-solid" type="button" onclick="submitQueueRedisTokenRemove()">제거</button>
+    </div>
   </div>
 </div>
 
