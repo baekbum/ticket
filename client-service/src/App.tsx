@@ -526,7 +526,7 @@ function releaseActiveToken(eventId: number, token: string) {
 }
 
 function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' | 'active') {
-  const accessToken = localStorage.getItem('ticksy.accessToken');
+  const accessToken = sessionStorage.getItem('ticksy.accessToken');
 
   if (!eventId || !token || !accessToken) {
     return;
@@ -684,7 +684,7 @@ function App() {
     () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
   );
   const [loginUserName, setLoginUserName] = useState(
-    () => localStorage.getItem('ticksy.userName') || '',
+    () => sessionStorage.getItem('ticksy.userName') || '',
   );
   const isFullAuthPage =
     page === 'login' ||
@@ -739,7 +739,7 @@ function App() {
   }
 
   async function logout() {
-    const refreshToken = localStorage.getItem('ticksy.refreshToken');
+    const refreshToken = sessionStorage.getItem('ticksy.refreshToken');
 
     try {
       if (refreshToken) {
@@ -1693,19 +1693,14 @@ function EventDetailPage({
 
         <div className="event-booking-action-row">
           <button
-            className={isBookable && !isQueueEntering ? 'booking-action-button' : 'booking-action-button disabled'}
-            disabled={!isBookable || isQueueEntering}
+            className={isBookable ? 'booking-action-button' : 'booking-action-button disabled'}
+            disabled={!isBookable}
             type="button"
             onClick={clickBookingButton}
           >
             {eventDetail.bookingMessage}
           </button>
         </div>
-        {queueEntry?.status === 'WAITING' && (
-          <p className="booking-queue-message">
-            현재 {queueEntry.rank ?? '-'}번째 대기 중입니다. 전체 대기 인원 {queueEntry.waitingCount ?? '-'}명
-          </p>
-        )}
         {queueErrorMessage && <p className="booking-queue-message error">{queueErrorMessage}</p>}
       </article>
 
@@ -2417,9 +2412,9 @@ function LoginPage({
         return;
       }
 
-      localStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
-      localStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
-      localStorage.setItem('ticksy.userName', loginResponse.name || loginForm.userId);
+      sessionStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
+      sessionStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
+      sessionStorage.setItem('ticksy.userName', loginResponse.name || loginForm.userId);
 
       if (isLoginIdSaved) {
         setCookie(savedLoginIdCookieName, loginForm.userId, 60 * 60 * 24 * 365);
@@ -3350,7 +3345,7 @@ async function requestWithAuthRetry<T = unknown>(
   const headers = new Headers(options.headers);
   headers.set('Content-Type', headers.get('Content-Type') || 'application/json');
 
-  const accessToken = localStorage.getItem('ticksy.accessToken');
+  const accessToken = sessionStorage.getItem('ticksy.accessToken');
 
   if (accessToken && !headers.has('Authorization') && shouldAttachAccessToken(url)) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -3402,7 +3397,7 @@ async function requestWithAuthRetry<T = unknown>(
 }
 
 async function reissueToken() {
-  const refreshToken = localStorage.getItem('ticksy.refreshToken');
+  const refreshToken = sessionStorage.getItem('ticksy.refreshToken');
 
   if (!refreshToken) {
     return false;
@@ -3420,8 +3415,8 @@ async function reissueToken() {
       false,
     );
 
-    localStorage.setItem('ticksy.accessToken', tokenResponse.accessToken);
-    localStorage.setItem('ticksy.refreshToken', tokenResponse.refreshToken);
+    sessionStorage.setItem('ticksy.accessToken', tokenResponse.accessToken);
+    sessionStorage.setItem('ticksy.refreshToken', tokenResponse.refreshToken);
 
     return true;
   } catch {
@@ -3436,9 +3431,9 @@ function shouldAttachAccessToken(url: string) {
 }
 
 function clearLoginStorage() {
-  localStorage.removeItem('ticksy.accessToken');
-  localStorage.removeItem('ticksy.refreshToken');
-  localStorage.removeItem('ticksy.userName');
+  sessionStorage.removeItem('ticksy.accessToken');
+  sessionStorage.removeItem('ticksy.refreshToken');
+  sessionStorage.removeItem('ticksy.userName');
   clearQueueTokenStorage();
 }
 
@@ -3449,3 +3444,4 @@ function clearQueueTokenStorage() {
 }
 
 export default App;
+
