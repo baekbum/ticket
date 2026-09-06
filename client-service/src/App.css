@@ -1037,6 +1037,10 @@ button {
   padding: 18px;
 }
 
+.booking-window-body.checkout-mode {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
 .booking-layout-panel,
 .booking-side-panel {
   border: 1px solid #d8d8d8;
@@ -1380,6 +1384,10 @@ button {
   min-height: calc(100vh - 94px);
 }
 
+.booking-window-body.checkout-mode .booking-side-panel {
+  grid-template-rows: 1fr;
+}
+
 .booking-side-section {
   min-height: 0;
   padding: 14px;
@@ -1499,6 +1507,285 @@ button {
 .booking-next-button:disabled {
   background: #b9bfc4;
   cursor: not-allowed;
+}
+
+.booking-checkout-error {
+  margin: 12px 0 0;
+  color: #d93025;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.booking-checkout-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.booking-checkout-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.booking-checkout-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 58px;
+  background: #f6f7f8;
+  color: #8a8f94;
+}
+
+.booking-checkout-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -10px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  border-top: 1px solid #d9d9d9;
+  border-right: 1px solid #d9d9d9;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.booking-checkout-step span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #d5d9dd;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.booking-checkout-step strong {
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+}
+
+.booking-checkout-step.completed {
+  background: #effaf2;
+  color: #00a832;
+}
+
+.booking-checkout-step.completed span {
+  background: #00c73c;
+}
+
+.booking-checkout-step.active {
+  background: #222222;
+  color: #ffffff;
+}
+
+.booking-checkout-step.active span {
+  background: #00c73c;
+}
+
+.booking-checkout-header {
+  padding-bottom: 13px;
+  border-bottom: 2px solid #222222;
+}
+
+.booking-checkout-header h1 {
+  margin: 0;
+  color: #222222;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.booking-checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.booking-checkout-card,
+.booking-payment-summary {
+  border: 1px solid #e1e1e1;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.booking-checkout-card {
+  padding: 18px;
+}
+
+.booking-checkout-card h2 {
+  margin: 0 0 14px;
+  color: #222222;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.booking-selected-seat-list {
+  display: grid;
+  gap: 10px;
+}
+
+.booking-selected-seat-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 96px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  background: #fbfbfb;
+}
+
+.booking-selected-seat-item span {
+  color: #222222;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.booking-selected-seat-item em {
+  color: #00a832;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.booking-selected-seat-item strong {
+  color: #222222;
+  font-size: 14px;
+  font-weight: 950;
+  text-align: right;
+}
+
+.booking-coupon-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 13px;
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  background: #fbfbfb;
+  cursor: pointer;
+}
+
+.booking-coupon-option + .booking-coupon-option {
+  margin-top: 10px;
+}
+
+.booking-coupon-option input {
+  margin-top: 3px;
+  accent-color: #00c73c;
+}
+
+.booking-coupon-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.booking-coupon-option strong {
+  color: #222222;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.booking-coupon-option em {
+  color: #777777;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.booking-coupon-empty,
+.booking-coupon-message {
+  margin: 12px 0 0;
+  color: #777777;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.booking-coupon-message {
+  color: #00a832;
+}
+
+.booking-payment-summary {
+  display: grid;
+  gap: 0;
+  padding: 2px 18px;
+}
+
+.booking-payment-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 48px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.booking-payment-summary div:last-child {
+  border-bottom: 0;
+}
+
+.booking-payment-summary span {
+  color: #666666;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.booking-payment-summary strong {
+  color: #222222;
+  font-size: 14px;
+  font-weight: 950;
+  word-break: break-all;
+}
+
+.booking-payment-summary .total strong {
+  color: #00a832;
+  font-size: 20px;
+}
+
+.booking-checkout-side-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.booking-checkout-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.booking-checkout-actions .booking-next-button,
+.booking-prev-button {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 0;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.booking-prev-button {
+  border: 1px solid #cfd4da;
+  background: #ffffff;
+  color: #333333;
+}
+
+.booking-prev-button:hover {
+  background: #f4f5f7;
 }
 
 .booking-state-box {

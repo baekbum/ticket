@@ -165,6 +165,53 @@ type SeatResponse = {
   areaName?: string;
 };
 
+type SeatInfo = {
+  id: number;
+  zone: string;
+  row: number;
+  col: number;
+};
+
+type SeatOccupyResponse = {
+  orderId: string;
+  eventId: number;
+  userId: string;
+  seats: SeatInfo[];
+  expiresAt: string;
+};
+
+type CheckoutPrepareResponse = {
+  eventId: number;
+  orderId: string;
+  seats: SeatInfo[];
+  idempotencyKey: string;
+  prepared: boolean;
+  preparedAt: string;
+};
+
+type CouponDiscountType = 'FIXED_AMOUNT' | 'PERCENT' | string;
+
+type UserCouponResponse = {
+  userCouponId: number;
+  coupon: {
+    couponId: number;
+    name: string;
+    code: string;
+    discountType: CouponDiscountType;
+    discountValue: number;
+    maxDiscountAmount: number | null;
+    minOrderAmount: number | null;
+  };
+  status: 'ISSUED' | 'USED' | 'EXPIRED' | string;
+  expiresAt: string | null;
+};
+
+type CouponAvailabilityResponse = {
+  available: boolean;
+  discountAmount: number;
+  reason: string | null;
+};
+
 type PageResponse<T> = {
   content: T[];
   totalPages: number;
@@ -401,6 +448,18 @@ function getScheduleTimeLabel(eventDateTime: string) {
 
 function getSeatGradeLabel(grade: EventSeatPrice['grade']) {
   return `${grade}석`;
+}
+
+function formatCouponBenefit(coupon: UserCouponResponse['coupon']) {
+  const benefit = coupon.discountType === 'PERCENT'
+    ? `${coupon.discountValue}% 할인`
+    : `${coupon.discountValue.toLocaleString()}원 할인`;
+  const conditions = [
+    coupon.maxDiscountAmount ? `최대 ${coupon.maxDiscountAmount.toLocaleString()}원` : '',
+    coupon.minOrderAmount ? `${coupon.minOrderAmount.toLocaleString()}원 이상` : '',
+  ].filter(Boolean);
+
+  return conditions.length ? `${benefit} · ${conditions.join(' · ')}` : benefit;
 }
 
 function formatTicketingEventRange(event: TicketingEvent) {
@@ -1765,6 +1824,14 @@ function BookingWindowPage() {
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
   const [seats, setSeats] = useState<SeatResponse[]>([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState<number[]>([]);
+  const [checkoutStep, setCheckoutStep] = useState<'SEAT' | 'CHECKOUT'>('SEAT');
+  const [checkoutPrepare, setCheckoutPrepare] = useState<CheckoutPrepareResponse | null>(null);
+  const [userCoupons, setUserCoupons] = useState<UserCouponResponse[]>([]);
+  const [selectedUserCouponId, setSelectedUserCouponId] = useState<number | null>(null);
+  const [couponDiscountAmount, setCouponDiscountAmount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState('');
+  const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
+  const [checkoutErrorMessage, setCheckoutErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSeatLoading, setIsSeatLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -1773,6 +1840,9 @@ function BookingWindowPage() {
   const [sideLayoutPan, setSideLayoutPan] = useState({ x: 0, y: 0 });
 
   const selectedArea = areas.find((area) => area.areaId === selectedAreaId) || null;
+  const selectedSeats = seats.filter((seat) => selectedSeatIds.includes(seat.seatId));
+  const selectedSeatAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const finalPaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
   const layoutMarkup = buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId);
   const areaPrices = getDistinctAreaPrices(areas);
   const sideLayoutStyle = {
@@ -1843,6 +1913,7 @@ function BookingWindowPage() {
       setSelectedAreaId(null);
       setSeats([]);
       setSelectedSeatIds([]);
+      resetCheckoutState();
       setSeatErrorMessage('');
 
       try {
@@ -1897,6 +1968,7 @@ function BookingWindowPage() {
     setSelectedAreaId(null);
     setSeats([]);
     setSelectedSeatIds([]);
+    resetCheckoutState();
     setSeatErrorMessage('');
   }
 
@@ -1980,6 +2052,7 @@ function BookingWindowPage() {
   async function selectArea(area: AreaResponse) {
     setSelectedAreaId(area.areaId);
     setSelectedSeatIds([]);
+    resetCheckoutState();
     setIsSeatLoading(true);
     setSeatErrorMessage('');
 
@@ -2012,11 +2085,125 @@ function BookingWindowPage() {
       return;
     }
 
+    resetCheckoutState();
     setSelectedSeatIds((currentSeatIds) =>
       currentSeatIds.includes(seat.seatId)
         ? currentSeatIds.filter((seatId) => seatId !== seat.seatId)
         : [...currentSeatIds, seat.seatId],
     );
+  }
+
+  function resetCheckoutState() {
+    setCheckoutStep('SEAT');
+    setCheckoutPrepare(null);
+    setUserCoupons([]);
+    setSelectedUserCouponId(null);
+    setCouponDiscountAmount(0);
+    setCouponMessage('');
+    setCheckoutErrorMessage('');
+  }
+
+  function selectedSeatInfoList() {
+    return selectedSeats.map((seat) => ({
+      id: seat.seatId,
+      zone: seat.zone,
+      row: seat.seatRow,
+      col: seat.seatCol,
+    }));
+  }
+
+  async function prepareCheckout() {
+    if (!selectedScheduleId || selectedSeatIds.length === 0) {
+      return;
+    }
+
+    setIsCheckoutPreparing(true);
+    setCheckoutErrorMessage('');
+
+    try {
+      const seatInfoList = selectedSeatInfoList();
+      const occupyResult = await request<SeatOccupyResponse>('/client-api/api/v1/seat/occupy', {
+        method: 'POST',
+        headers: { 'X-Active-Token': activeToken },
+        body: JSON.stringify({
+          eventId: selectedScheduleId,
+          seats: seatInfoList,
+          maxTicketsPerPerson: eventDetail?.maxTicketsPerPerson,
+          eventGroupCode,
+          ticketLimitScope: eventDetail?.ticketLimitScope,
+        }),
+      });
+
+      const prepareResult = await request<CheckoutPrepareResponse>('/client-api/api/v1/checkout/prepare', {
+        method: 'POST',
+        headers: { 'X-Active-Token': activeToken },
+        body: JSON.stringify({
+          eventId: selectedScheduleId,
+          orderId: occupyResult.orderId,
+          seats: occupyResult.seats,
+        }),
+      });
+
+      let coupons: UserCouponResponse[] = [];
+      try {
+        coupons = await request<UserCouponResponse[]>('/client-api/api/v1/coupon/me', { method: 'GET' });
+      } catch {
+        coupons = [];
+      }
+
+      setCheckoutPrepare(prepareResult);
+      setUserCoupons(coupons.filter((coupon) => coupon.status === 'ISSUED'));
+      setSelectedUserCouponId(null);
+      setCouponDiscountAmount(0);
+      setCouponMessage('');
+      setCheckoutStep('CHECKOUT');
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        alert(error.message);
+        window.close();
+        return;
+      }
+
+      setCheckoutErrorMessage(error instanceof Error ? error.message : '예매 준비에 실패했습니다.');
+    } finally {
+      setIsCheckoutPreparing(false);
+    }
+  }
+
+  async function selectCoupon(userCouponId: number | null) {
+    setSelectedUserCouponId(userCouponId);
+    setCouponDiscountAmount(0);
+    setCouponMessage('');
+
+    if (!userCouponId || selectedSeatAmount <= 0) {
+      return;
+    }
+
+    try {
+      const availability = await request<CouponAvailabilityResponse>('/client-api/api/v1/coupon/available', {
+        method: 'POST',
+        body: JSON.stringify({
+          userCouponId,
+          orderAmount: selectedSeatAmount,
+        }),
+      });
+
+      if (!availability.available) {
+        setSelectedUserCouponId(null);
+        setCouponMessage(availability.reason || '사용할 수 없는 쿠폰입니다.');
+        return;
+      }
+
+      setCouponDiscountAmount(availability.discountAmount || 0);
+      setCouponMessage(`${(availability.discountAmount || 0).toLocaleString()}원 할인이 적용됩니다.`);
+    } catch (error) {
+      setSelectedUserCouponId(null);
+      setCouponMessage(error instanceof Error ? error.message : '쿠폰 확인에 실패했습니다.');
+    }
+  }
+
+  function goNextCheckoutStep() {
+    alert('결제 정보 입력 단계는 아직 연결되지 않았습니다.');
   }
 
   return (
@@ -2026,9 +2213,9 @@ function BookingWindowPage() {
         <span>{eventDetail?.title || '좌석 선택'}</span>
       </header>
 
-      <main className="booking-window-body">
+      <main className={`booking-window-body${checkoutStep === 'CHECKOUT' ? ' checkout-mode' : ''}`}>
         <section className="booking-layout-panel">
-          {eventDetail && eventDetail.schedules.length > 1 && (
+          {checkoutStep === 'SEAT' && eventDetail && eventDetail.schedules.length > 1 && (
             <div className="booking-schedule-strip">
               <strong>다른 회차 선택</strong>
               <div>
@@ -2048,14 +2235,16 @@ function BookingWindowPage() {
             </div>
           )}
 
-          <div className="booking-panel-title">
-            <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
-            <p>
-              {selectedArea
-                ? '오른쪽 작은 배치도에서 다른 구역을 다시 선택할 수 있습니다.'
-                : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
-            </p>
-          </div>
+          {checkoutStep === 'SEAT' && (
+            <div className="booking-panel-title">
+              <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
+              <p>
+                {selectedArea
+                  ? '오른쪽 작은 배치도에서 다른 구역을 다시 선택할 수 있습니다.'
+                  : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
+              </p>
+            </div>
+          )}
 
           {isLoading && <div className="booking-state-box">구역 정보를 불러오는 중입니다.</div>}
           {!isLoading && errorMessage && <div className="booking-state-box error">{errorMessage}</div>}
@@ -2079,7 +2268,7 @@ function BookingWindowPage() {
                 )
               )}
 
-              {selectedArea && (
+              {selectedArea && checkoutStep === 'SEAT' && (
                 <div className="booking-seat-selection-grid">
                   <BookingSeatMap
                     isSeatLoading={isSeatLoading}
@@ -2091,81 +2280,257 @@ function BookingWindowPage() {
                   />
                 </div>
               )}
+
+              {checkoutStep === 'CHECKOUT' && (
+                <BookingCheckoutPanel
+                  coupons={userCoupons}
+                  couponMessage={couponMessage}
+                  onSelectCoupon={selectCoupon}
+                  selectedCouponId={selectedUserCouponId}
+                  selectedSeats={selectedSeats}
+                />
+              )}
             </>
           )}
         </section>
 
         <aside className="booking-side-panel">
-          <section className="booking-side-section booking-side-layout-section">
-            <div className="booking-side-title">
-              <strong>구역 배치도</strong>
-              <button type="button" onClick={showFullLayout}>
-                좌석도 전체보기
-              </button>
-            </div>
-
-            {layoutMarkup ? (
-              <div className="booking-layout-map side zoomable">
-                <div className="booking-layout-zoom-controls" onMouseDown={(event) => event.stopPropagation()}>
-                  <button type="button" onClick={() => zoomSideLayout(sideLayoutScale + 0.2)}>
-                    +
-                  </button>
-                  <button type="button" onClick={() => zoomSideLayout(sideLayoutScale - 0.2)}>
-                    −
+          {checkoutStep === 'SEAT' ? (
+            <>
+              <section className="booking-side-section booking-side-layout-section">
+                <div className="booking-side-title">
+                  <strong>구역 배치도</strong>
+                  <button type="button" onClick={showFullLayout}>
+                    좌석도 전체보기
                   </button>
                 </div>
-                <div
-                  className="booking-layout-pan-layer"
-                  style={sideLayoutStyle}
-                  onClick={clickLayout}
-                  onKeyDown={pressLayoutKey}
-                  onMouseDown={startSideLayoutDrag}
-                  onMouseLeave={cancelSideLayoutDrag}
-                  onMouseMove={dragSideLayout}
-                  onMouseUp={stopSideLayoutDrag}
-                  dangerouslySetInnerHTML={{ __html: layoutMarkup }}
-                />
-              </div>
-            ) : (
-              <BookingAreaButtonGrid
-                areas={areas}
-                selectedAreaId={selectedAreaId}
-                onSelectArea={selectArea}
-              />
-            )}
-          </section>
 
-          <section className="booking-side-section booking-side-price-section">
-            <div className="booking-side-title">
-              <strong>좌석 등급/가격</strong>
-            </div>
-
-            <div className="booking-price-list">
-              {areaPrices.length > 0 ? (
-                areaPrices.map((area) => (
-                  <div className="booking-price-item" key={area.grade}>
-                    <span>{getSeatGradeLabel(area.grade)}</span>
-                    <strong>{area.price.toLocaleString()}원</strong>
+                {layoutMarkup ? (
+                  <div className="booking-layout-map side zoomable">
+                    <div className="booking-layout-zoom-controls" onMouseDown={(event) => event.stopPropagation()}>
+                      <button type="button" onClick={() => zoomSideLayout(sideLayoutScale + 0.2)}>
+                        +
+                      </button>
+                      <button type="button" onClick={() => zoomSideLayout(sideLayoutScale - 0.2)}>
+                        −
+                      </button>
+                    </div>
+                    <div
+                      className="booking-layout-pan-layer"
+                      style={sideLayoutStyle}
+                      onClick={clickLayout}
+                      onKeyDown={pressLayoutKey}
+                      onMouseDown={startSideLayoutDrag}
+                      onMouseLeave={cancelSideLayoutDrag}
+                      onMouseMove={dragSideLayout}
+                      onMouseUp={stopSideLayoutDrag}
+                      dangerouslySetInnerHTML={{ __html: layoutMarkup }}
+                    />
                   </div>
-                ))
-              ) : (
-                <p>가격 정보가 없습니다.</p>
-              )}
-            </div>
+                ) : (
+                  <BookingAreaButtonGrid
+                    areas={areas}
+                    selectedAreaId={selectedAreaId}
+                    onSelectArea={selectArea}
+                  />
+                )}
+              </section>
 
-            <div className="booking-legend">
-              <span><i className="available" />선택 가능</span>
-              <span><i className="selected" />선택 좌석</span>
-              <span><i className="disabled" />선택 불가</span>
-            </div>
+              <section className="booking-side-section booking-side-price-section">
+                <div className="booking-side-title">
+                  <strong>좌석 등급/가격</strong>
+                </div>
 
-            <button className="booking-next-button" type="button" disabled={selectedSeatIds.length === 0}>
-              다음 단계
-            </button>
-          </section>
+                <div className="booking-price-list">
+                  {areaPrices.length > 0 ? (
+                    areaPrices.map((area) => (
+                      <div className="booking-price-item" key={area.grade}>
+                        <span>{getSeatGradeLabel(area.grade)}</span>
+                        <strong>{area.price.toLocaleString()}원</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p>가격 정보가 없습니다.</p>
+                  )}
+                </div>
+
+                <div className="booking-legend">
+                  <span><i className="available" />선택 가능</span>
+                  <span><i className="selected" />선택 좌석</span>
+                  <span><i className="disabled" />선택 불가</span>
+                </div>
+
+                {checkoutErrorMessage && <p className="booking-checkout-error">{checkoutErrorMessage}</p>}
+
+                <button
+                  className="booking-next-button"
+                  type="button"
+                  disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
+                  onClick={prepareCheckout}
+                >
+                  {isCheckoutPreparing ? '예매 준비 중' : '다음 단계'}
+                </button>
+              </section>
+            </>
+          ) : (
+            <section className="booking-side-section booking-checkout-side-section">
+              <BookingCheckoutSummary
+                checkoutPrepare={checkoutPrepare}
+                couponDiscountAmount={couponDiscountAmount}
+                finalPaymentAmount={finalPaymentAmount}
+                selectedSeatAmount={selectedSeatAmount}
+              />
+              <div className="booking-checkout-actions">
+                <button className="booking-prev-button" type="button" onClick={resetCheckoutState}>
+                  이전
+                </button>
+                <button className="booking-next-button" type="button" onClick={goNextCheckoutStep}>
+                  다음
+                </button>
+              </div>
+            </section>
+          )}
         </aside>
       </main>
     </section>
+  );
+}
+
+function BookingCheckoutPanel({
+  coupons,
+  couponMessage,
+  onSelectCoupon,
+  selectedCouponId,
+  selectedSeats,
+}: {
+  coupons: UserCouponResponse[];
+  couponMessage: string;
+  onSelectCoupon: (userCouponId: number | null) => void;
+  selectedCouponId: number | null;
+  selectedSeats: SeatResponse[];
+}) {
+  return (
+    <div className="booking-checkout-panel">
+      <BookingCheckoutStepper currentStep="PRICE" />
+
+      <div className="booking-checkout-header">
+        <h1>가격 / 쿠폰 선택</h1>
+      </div>
+
+      <div className="booking-checkout-grid">
+        <section className="booking-checkout-card">
+          <h2>선택 좌석</h2>
+          <div className="booking-selected-seat-list">
+            {selectedSeats.map((seat) => (
+              <div className="booking-selected-seat-item" key={seat.seatId}>
+                <span>{seat.seatName || `${seat.zone} ${seat.seatRow}열 ${seat.seatCol}번`}</span>
+                <em>{getSeatGradeLabel(seat.grade)}</em>
+                <strong>{seat.price.toLocaleString()}원</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="booking-checkout-card">
+          <h2>쿠폰 선택</h2>
+          <label className="booking-coupon-option">
+            <input
+              checked={selectedCouponId === null}
+              name="booking-coupon"
+              type="radio"
+              onChange={() => onSelectCoupon(null)}
+            />
+            <span>
+              <strong>쿠폰 사용 안함</strong>
+              <em>할인 없이 결제합니다.</em>
+            </span>
+          </label>
+
+          {coupons.length > 0 ? (
+            coupons.map((userCoupon) => (
+              <label className="booking-coupon-option" key={userCoupon.userCouponId}>
+                <input
+                  checked={selectedCouponId === userCoupon.userCouponId}
+                  name="booking-coupon"
+                  type="radio"
+                  onChange={() => onSelectCoupon(userCoupon.userCouponId)}
+                />
+                <span>
+                  <strong>{userCoupon.coupon.name}</strong>
+                  <em>{formatCouponBenefit(userCoupon.coupon)}</em>
+                </span>
+              </label>
+            ))
+          ) : (
+            <p className="booking-coupon-empty">사용 가능한 쿠폰이 없습니다.</p>
+          )}
+
+          {couponMessage && <p className="booking-coupon-message">{couponMessage}</p>}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function BookingCheckoutStepper({ currentStep }: { currentStep: 'SEAT' | 'PRICE' | 'PAYMENT' | 'COMPLETE' }) {
+  const steps = [
+    { key: 'SEAT', label: '좌석선택' },
+    { key: 'PRICE', label: '가격/쿠폰선택' },
+    { key: 'PAYMENT', label: '결제하기' },
+    { key: 'COMPLETE', label: '예매완료' },
+  ];
+  const currentStepIndex = steps.findIndex((step) => step.key === currentStep);
+
+  return (
+    <nav className="booking-checkout-stepper" aria-label="예매 진행 단계">
+      {steps.map((step, index) => {
+        const isActive = step.key === currentStep;
+        const isCompleted = index < currentStepIndex;
+
+        return (
+          <div
+            className={`booking-checkout-step${isActive ? ' active' : ''}${isCompleted ? ' completed' : ''}`}
+            key={step.key}
+          >
+            <span>{index + 1}</span>
+            <strong>{step.label}</strong>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+function BookingCheckoutSummary({
+  checkoutPrepare,
+  couponDiscountAmount,
+  finalPaymentAmount,
+  selectedSeatAmount,
+}: {
+  checkoutPrepare: CheckoutPrepareResponse | null;
+  couponDiscountAmount: number;
+  finalPaymentAmount: number;
+  selectedSeatAmount: number;
+}) {
+  return (
+    <aside className="booking-payment-summary">
+      <div>
+        <span>주문번호</span>
+        <strong>{checkoutPrepare?.orderId || '-'}</strong>
+      </div>
+      <div>
+        <span>티켓 금액</span>
+        <strong>{selectedSeatAmount.toLocaleString()}원</strong>
+      </div>
+      <div>
+        <span>쿠폰 할인</span>
+        <strong>-{couponDiscountAmount.toLocaleString()}원</strong>
+      </div>
+      <div className="total">
+        <span>결제 예정 금액</span>
+        <strong>{finalPaymentAmount.toLocaleString()}원</strong>
+      </div>
+    </aside>
   );
 }
 

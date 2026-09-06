@@ -24,8 +24,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -58,7 +56,7 @@ public class CheckoutService {
 
     /**
      * 좌석 선택 완료 후 배송/결제 정보 입력 화면으로 이동할 수 있는지 검증한다.
-     * active token과 Redis 좌석 선점 상태가 유효하면 active token을 회수해 다음 대기자가 입장할 수 있게 한다.
+     * active token과 Redis 좌석 선점 상태가 유효한지 검증한다.
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
@@ -72,8 +70,6 @@ public class CheckoutService {
                 request.getOrderId(),
                 request.getSeats()
         );
-
-        releaseActiveTokenAfterCommit(request.getEventId(), currentUserId, activeToken);
 
         return CheckoutPrepareResponse.builder()
                 .eventId(request.getEventId())
@@ -130,13 +126,6 @@ public class CheckoutService {
         return savedPayment.toResponse();
     }
 
-    /**
-     * checkout 준비 트랜잭션이 성공한 뒤 active token을 회수해 다음 대기자가 입장할 수 있게 한다.
-     */
-    private void releaseActiveTokenAfterCommit(Long eventId, String userId, String activeToken) {
-        runAfterCommit(() -> queueAccessService.complete(eventId, userId, activeToken));
-    }
-
     private Payment findExistingPayment(String currentUserId, String idempotencyKey) {
         if (!StringUtils.hasText(idempotencyKey)) {
             return null;
@@ -183,24 +172,6 @@ public class CheckoutService {
         String timestamp = LocalDateTime.now().format(PAYMENT_NO_FORMATTER);
         String randomValue = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         return "PAY-" + timestamp + "-" + randomValue;
-    }
-
-    /**
-     * DB 트랜잭션 커밋이 성공한 뒤에만 외부 부수 효과를 실행한다.
-     * 트랜잭션이 없을 때는 호출 위치에서 즉시 실행한다.
-     */
-    private void runAfterCommit(Runnable runnable) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            runnable.run();
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                runnable.run();
-            }
-        });
     }
 
     /**

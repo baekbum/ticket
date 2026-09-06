@@ -2,11 +2,15 @@ package dev.bum.client_api_service.controller.ticket;
 
 import dev.bum.client_api_service.feign.ticket.TicketSeatServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
+import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,5 +39,14 @@ public class ClientSeatController {
                 authorizationHeader,
                 activeToken
         ));
+    }
+
+    @PostMapping("/occupy")
+    public ResponseEntity<SeatOccupyResponse> occupySeat(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
+            @RequestBody SeatOccupyRequest request
+    ) {
+        return ResponseEntity.ok(ticketSeatServiceClient.occupySeat(authorizationHeader, activeToken, request));
     }
 }
