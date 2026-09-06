@@ -2206,6 +2206,16 @@ function BookingWindowPage() {
     alert('결제 정보 입력 단계는 아직 연결되지 않았습니다.');
   }
 
+  function backToSeatSelection() {
+    if (selectedArea) {
+      void selectArea(selectedArea);
+      return;
+    }
+
+    resetCheckoutState();
+    setSelectedSeatIds([]);
+  }
+
   return (
     <section className="booking-window-page">
       <header className="booking-window-header">
@@ -2381,7 +2391,7 @@ function BookingWindowPage() {
                 selectedSeatAmount={selectedSeatAmount}
               />
               <div className="booking-checkout-actions">
-                <button className="booking-prev-button" type="button" onClick={resetCheckoutState}>
+                <button className="booking-prev-button" type="button" onClick={backToSeatSelection}>
                   이전
                 </button>
                 <button className="booking-next-button" type="button" onClick={goNextCheckoutStep}>
