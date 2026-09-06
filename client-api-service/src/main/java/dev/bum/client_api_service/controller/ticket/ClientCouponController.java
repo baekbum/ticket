@@ -1,9 +1,10 @@
 package dev.bum.client_api_service.controller.ticket;
 
+import dev.bum.client_api_service.controller.ClientFeignErrorResponse;
 import dev.bum.client_api_service.feign.ticket.TicketCouponServiceClient;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,17 +24,25 @@ public class ClientCouponController {
     private final TicketCouponServiceClient ticketCouponServiceClient;
 
     @GetMapping("/me")
-    public ResponseEntity<List<UserCouponResponse>> selectMyCoupons(
+    public ResponseEntity<?> selectMyCoupons(
             @RequestHeader("Authorization") String authorizationHeader
     ) {
-        return ResponseEntity.ok(ticketCouponServiceClient.selectMyCoupons(authorizationHeader));
+        try {
+            return ResponseEntity.ok(ticketCouponServiceClient.selectMyCoupons(authorizationHeader));
+        } catch (FeignException e) {
+            return ClientFeignErrorResponse.from(e);
+        }
     }
 
     @PostMapping("/available")
-    public ResponseEntity<CouponAvailabilityResponse> checkAvailable(
+    public ResponseEntity<?> checkAvailable(
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestBody CouponAvailabilityRequest request
     ) {
-        return ResponseEntity.ok(ticketCouponServiceClient.checkAvailable(authorizationHeader, request));
+        try {
+            return ResponseEntity.ok(ticketCouponServiceClient.checkAvailable(authorizationHeader, request));
+        } catch (FeignException e) {
+            return ClientFeignErrorResponse.from(e);
+        }
     }
 }

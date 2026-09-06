@@ -1424,7 +1424,6 @@ function EventDetailPage({
   const [isLoginRequiredAlertOpen, setIsLoginRequiredAlertOpen] = useState(false);
   const [isQueueEntering, setIsQueueEntering] = useState(false);
   const [queueEntry, setQueueEntry] = useState<QueueEntryResponse | null>(null);
-  const [queueErrorMessage, setQueueErrorMessage] = useState('');
 
   useEffect(() => {
     async function loadEventDetail() {
@@ -1535,14 +1534,13 @@ function EventDetailPage({
     );
 
     if (!bookingWindow) {
-      setQueueErrorMessage('팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해주세요.');
+      alert('팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해주세요.');
       return;
     }
 
     writeQueueWindowMessage(bookingWindow, '대기열 등록 중', '예매 대기열에 등록하고 있습니다.');
     setIsQueueEntering(true);
     setQueueEntry(null);
-    setQueueErrorMessage('');
 
     try {
       let queueResponse = await enterBookingQueue(selectedScheduleId);
@@ -1601,7 +1599,7 @@ function EventDetailPage({
       }
 
       const message = error instanceof Error ? error.message : '대기열 등록 중 오류가 발생했습니다.';
-      setQueueErrorMessage(message);
+      alert(message);
       writeQueueWindowMessage(bookingWindow, '대기열 등록 실패', message);
       removeSavedWaitingToken(selectedScheduleId);
       window.setTimeout(() => bookingWindow.close(), 1500);
@@ -1760,7 +1758,6 @@ function EventDetailPage({
             {eventDetail.bookingMessage}
           </button>
         </div>
-        {queueErrorMessage && <p className="booking-queue-message error">{queueErrorMessage}</p>}
       </article>
 
       <section className="event-description-panel">
@@ -1831,11 +1828,8 @@ function BookingWindowPage() {
   const [couponDiscountAmount, setCouponDiscountAmount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
   const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
-  const [checkoutErrorMessage, setCheckoutErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSeatLoading, setIsSeatLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [seatErrorMessage, setSeatErrorMessage] = useState('');
   const [sideLayoutScale, setSideLayoutScale] = useState(1);
   const [sideLayoutPan, setSideLayoutPan] = useState({ x: 0, y: 0 });
 
@@ -1904,7 +1898,7 @@ function BookingWindowPage() {
   useEffect(() => {
     async function loadBookingData() {
       if (!selectedScheduleId) {
-        setErrorMessage('예매할 공연 회차 정보가 없습니다.');
+        alert('예매할 공연 회차 정보가 없습니다.');
         setIsLoading(false);
         return;
       }
@@ -1914,7 +1908,6 @@ function BookingWindowPage() {
       setSeats([]);
       setSelectedSeatIds([]);
       resetCheckoutState();
-      setSeatErrorMessage('');
 
       try {
         const [areaResponse, layoutResponse] = await Promise.all([
@@ -1936,15 +1929,9 @@ function BookingWindowPage() {
 
         setAreas(areaResponse.content || []);
         setLayoutSvgText(layoutResponse?.svgText || '');
-        setErrorMessage('');
       } catch (error) {
-        if (error instanceof SessionExpiredError) {
-          alert(error.message);
-          window.close();
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : '좌석 정보를 불러오지 못했습니다.');
+        alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
+        window.close();
       } finally {
         setIsLoading(false);
       }
@@ -1969,7 +1956,6 @@ function BookingWindowPage() {
     setSeats([]);
     setSelectedSeatIds([]);
     resetCheckoutState();
-    setSeatErrorMessage('');
   }
 
   function selectAreaByElement(target: EventTarget | null) {
@@ -2049,12 +2035,13 @@ function BookingWindowPage() {
     sideLayoutDragRef.current.suppressClick = false;
   }
 
-  async function selectArea(area: AreaResponse) {
+  async function selectArea(area: AreaResponse, resetCheckout = true) {
     setSelectedAreaId(area.areaId);
     setSelectedSeatIds([]);
-    resetCheckoutState();
+    if (resetCheckout) {
+      resetCheckoutState();
+    }
     setIsSeatLoading(true);
-    setSeatErrorMessage('');
 
     try {
       const seatResponse = await request<PageResponse<SeatResponse>>(
@@ -2067,14 +2054,11 @@ function BookingWindowPage() {
 
       setSeats(seatResponse.content || []);
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
-        alert(error.message);
-        window.close();
-        return;
-      }
-
       setSeats([]);
-      setSeatErrorMessage(error instanceof Error ? error.message : '좌석 정보를 불러오지 못했습니다.');
+      alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
+      if (error instanceof SessionExpiredError) {
+        window.close();
+      }
     } finally {
       setIsSeatLoading(false);
     }
@@ -2100,7 +2084,14 @@ function BookingWindowPage() {
     setSelectedUserCouponId(null);
     setCouponDiscountAmount(0);
     setCouponMessage('');
-    setCheckoutErrorMessage('');
+  }
+
+  function bookingErrorMessage(error: unknown, fallbackMessage: string) {
+    if (error instanceof ApiRequestError || error instanceof SessionExpiredError) {
+      return error.message || fallbackMessage;
+    }
+
+    return error instanceof Error ? error.message : fallbackMessage;
   }
 
   function selectedSeatInfoList() {
@@ -2118,7 +2109,6 @@ function BookingWindowPage() {
     }
 
     setIsCheckoutPreparing(true);
-    setCheckoutErrorMessage('');
 
     try {
       const seatInfoList = selectedSeatInfoList();
@@ -2158,13 +2148,10 @@ function BookingWindowPage() {
       setCouponMessage('');
       setCheckoutStep('CHECKOUT');
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
-        alert(error.message);
-        window.close();
-        return;
+      alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));
+      if (selectedArea) {
+        void selectArea(selectedArea, false);
       }
-
-      setCheckoutErrorMessage(error instanceof Error ? error.message : '예매 준비에 실패했습니다.');
     } finally {
       setIsCheckoutPreparing(false);
     }
@@ -2190,7 +2177,7 @@ function BookingWindowPage() {
 
       if (!availability.available) {
         setSelectedUserCouponId(null);
-        setCouponMessage(availability.reason || '사용할 수 없는 쿠폰입니다.');
+        alert(availability.reason || '사용할 수 없는 쿠폰입니다.');
         return;
       }
 
@@ -2198,7 +2185,7 @@ function BookingWindowPage() {
       setCouponMessage(`${(availability.discountAmount || 0).toLocaleString()}원 할인이 적용됩니다.`);
     } catch (error) {
       setSelectedUserCouponId(null);
-      setCouponMessage(error instanceof Error ? error.message : '쿠폰 확인에 실패했습니다.');
+      alert(bookingErrorMessage(error, '쿠폰 확인에 실패했습니다.'));
     }
   }
 
@@ -2257,9 +2244,8 @@ function BookingWindowPage() {
           )}
 
           {isLoading && <div className="booking-state-box">구역 정보를 불러오는 중입니다.</div>}
-          {!isLoading && errorMessage && <div className="booking-state-box error">{errorMessage}</div>}
 
-          {!isLoading && !errorMessage && (
+          {!isLoading && (
             <>
               {!selectedArea && (
                 layoutMarkup ? (
@@ -2282,7 +2268,6 @@ function BookingWindowPage() {
                 <div className="booking-seat-selection-grid">
                   <BookingSeatMap
                     isSeatLoading={isSeatLoading}
-                    seatErrorMessage={seatErrorMessage}
                     seats={seats}
                     selectedArea={selectedArea}
                     selectedSeatIds={selectedSeatIds}
@@ -2369,9 +2354,6 @@ function BookingWindowPage() {
                   <span><i className="selected" />선택 좌석</span>
                   <span><i className="disabled" />선택 불가</span>
                 </div>
-
-                {checkoutErrorMessage && <p className="booking-checkout-error">{checkoutErrorMessage}</p>}
-
                 <button
                   className="booking-next-button"
                   type="button"
@@ -2572,14 +2554,12 @@ function BookingAreaButtonGrid({
 
 function BookingSeatMap({
   isSeatLoading,
-  seatErrorMessage,
   seats,
   selectedArea,
   selectedSeatIds,
   onToggleSeat,
 }: {
   isSeatLoading: boolean;
-  seatErrorMessage: string;
   seats: SeatResponse[];
   selectedArea: AreaResponse;
   selectedSeatIds: number[];
@@ -2593,13 +2573,10 @@ function BookingSeatMap({
       </div>
 
       {isSeatLoading && <div className="booking-state-box compact">좌석을 불러오는 중입니다.</div>}
-      {!isSeatLoading && seatErrorMessage && (
-        <div className="booking-state-box compact error">{seatErrorMessage}</div>
-      )}
-      {!isSeatLoading && !seatErrorMessage && seats.length === 0 && (
+      {!isSeatLoading && seats.length === 0 && (
         <div className="booking-state-box compact">표시할 좌석 정보가 없습니다.</div>
       )}
-      {!isSeatLoading && !seatErrorMessage && seats.length > 0 && (
+      {!isSeatLoading && seats.length > 0 && (
         <BookingSeatSvg
           seats={seats}
           selectedSeatIds={selectedSeatIds}
@@ -2759,8 +2736,6 @@ function LoginPage({
   const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
   const [isLoginIdSaved, setIsLoginIdSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoginFailedAlertOpen, setIsLoginFailedAlertOpen] = useState(false);
-  const [loginFailedMessage, setLoginFailedMessage] = useState('');
 
   useEffect(() => {
     const savedLoginId = getCookie(savedLoginIdCookieName);
@@ -2782,8 +2757,7 @@ function LoginPage({
       });
 
       if (!loginResponse.success || !loginResponse.accessToken || !loginResponse.refreshToken) {
-        setLoginFailedMessage(loginResponse.message || '정보가 올바르지 않습니다.');
-        setIsLoginFailedAlertOpen(true);
+        alert(loginResponse.message || '정보가 올바르지 않습니다.');
         return;
       }
 
@@ -2800,8 +2774,7 @@ function LoginPage({
       onLoginSuccess(loginResponse.name || loginForm.userId);
       onNavigate('home');
     } catch (error) {
-      setLoginFailedMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');
-      setIsLoginFailedAlertOpen(true);
+      alert(error instanceof Error ? error.message : '로그인에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2872,18 +2845,6 @@ function LoginPage({
         <p>문의전화 : 1588-4926 (평일 09:00-18:00, 유료)</p>
         <p>© Tickey Corp.</p>
       </footer>
-
-      {isLoginFailedAlertOpen && (
-        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
-          <div className="signup-alert login-fail-alert">
-            <strong>로그인 실패</strong>
-            <p>{loginFailedMessage || '정보가 올바르지 않습니다.'}</p>
-            <button type="button" onClick={() => setIsLoginFailedAlertOpen(false)}>
-              확인
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -2893,7 +2854,6 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [findIdForm, setFindIdForm] = useState(initialFindIdForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [foundUserId, setFoundUserId] = useState('');
-  const [isFindIdFailedAlertOpen, setIsFindIdFailedAlertOpen] = useState(false);
 
   async function submitFindId(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2913,8 +2873,8 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       );
 
       setFoundUserId(response.maskedUserId);
-    } catch {
-      setIsFindIdFailedAlertOpen(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '입력한 정보가 가입 정보와 일치하지 않습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2924,7 +2884,6 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     setFindIdMethod(method);
     setFindIdForm(initialFindIdForm);
     setFoundUserId('');
-    setIsFindIdFailedAlertOpen(false);
   }
 
   return (
@@ -3028,18 +2987,6 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </div>
         </div>
       )}
-
-      {isFindIdFailedAlertOpen && (
-        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
-          <div className="signup-alert find-id-fail-alert">
-            <strong>정보가 일치하지 않습니다.</strong>
-            <p>입력한 이름과 인증 정보가 가입 정보와 일치하지 않습니다.</p>
-            <button type="button" onClick={() => setIsFindIdFailedAlertOpen(false)}>
-              다시 입력하기
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -3051,7 +2998,6 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isFailAlertOpen, setIsFailAlertOpen] = useState(false);
   const [isSuccessAlertOpen, setIsSuccessAlertOpen] = useState(false);
 
   async function submitFindPassword(event: FormEvent<HTMLFormElement>) {
@@ -3074,8 +3020,8 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
       );
 
       setResetToken(response.resetToken);
-    } catch {
-      setIsFailAlertOpen(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '입력한 정보가 가입 정보와 일치하지 않습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -3085,7 +3031,7 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
     event.preventDefault();
 
     if (findPasswordForm.password !== findPasswordForm.passwordConfirm) {
-      setIsFailAlertOpen(true);
+      alert('비밀번호가 일치하지 않습니다.');
       return;
     }
 
@@ -3101,8 +3047,8 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
       });
 
       setIsSuccessAlertOpen(true);
-    } catch {
-      setIsFailAlertOpen(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '비밀번호 변경에 실패했습니다.');
     } finally {
       setIsResetting(false);
     }
@@ -3112,7 +3058,6 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
     setFindPasswordMethod(method);
     setFindPasswordForm(initialFindPasswordForm);
     setResetToken('');
-    setIsFailAlertOpen(false);
   }
 
   return (
@@ -3289,19 +3234,6 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
           </button>
         </div>
       </div>
-
-      {isFailAlertOpen && (
-        <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
-          <div className="signup-alert find-id-fail-alert">
-            <strong>정보가 일치하지 않습니다.</strong>
-            <p>입력한 정보가 가입 정보와 일치하지 않거나 요청이 만료되었습니다.</p>
-            <button type="button" onClick={() => setIsFailAlertOpen(false)}>
-              다시 입력하기
-            </button>
-          </div>
-        </div>
-      )}
-
       {isSuccessAlertOpen && (
         <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
           <div className="signup-alert">
@@ -3325,7 +3257,6 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [userIdCheckMessage, setUserIdCheckMessage] = useState('');
   const [isSignupPasswordVisible, setIsSignupPasswordVisible] = useState(false);
   const [isSignupSuccessAlertOpen, setIsSignupSuccessAlertOpen] = useState(false);
-  const [message, setMessage] = useState('');
   const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
   const [birthDateCalendarMonth, setBirthDateCalendarMonth] = useState(() =>
     getCalendarMonthFromValue(initialSignupForm.birthDate),
@@ -3362,7 +3293,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
   async function checkUserIdDuplication() {
     if (!signupForm.userId.trim()) {
-      setUserIdCheckMessage('아이디를 먼저 입력해 주세요.');
+      alert('아이디를 먼저 입력해 주세요.');
       return;
     }
 
@@ -3378,7 +3309,8 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       setUserIdCheckMessage('사용 가능한 아이디입니다.');
     } catch (error) {
       setIsUserIdChecked(false);
-      setUserIdCheckMessage(error instanceof Error ? error.message : '이미 사용 중인 아이디입니다.');
+      setUserIdCheckMessage('');
+      alert(error instanceof Error ? error.message : '이미 사용 중인 아이디입니다.');
     } finally {
       setIsCheckingUserId(false);
     }
@@ -3402,15 +3334,14 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
   async function submitSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage('');
 
     if (!isUserIdChecked) {
-      setMessage('아이디 중복체크를 진행해 주세요.');
+      alert('아이디 중복체크를 진행해 주세요.');
       return;
     }
 
     if (signupForm.password !== signupForm.passwordConfirm) {
-      setMessage('비밀번호가 일치하지 않습니다.');
+      alert('비밀번호가 일치하지 않습니다.');
       return;
     }
 
@@ -3433,7 +3364,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       setIsSignupPasswordVisible(false);
       setIsSignupSuccessAlertOpen(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
+      alert(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -3625,7 +3556,6 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           <button className="signup-submit-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? '처리 중...' : '가입하기'}
           </button>
-          {message && <p className="form-message">{message}</p>}
         </form>
 
         <div className="signup-links">
@@ -3749,8 +3679,8 @@ async function requestWithAuthRetry<T = unknown>(
     let errorMessage = errorText;
 
     try {
-      const errorBody = JSON.parse(errorText) as { message?: string };
-      errorMessage = errorBody.message || errorText;
+      const errorBody = JSON.parse(errorText) as { message?: string; error?: string; code?: string };
+      errorMessage = errorBody.message || errorBody.error || errorBody.code || errorText;
     } catch {
       errorMessage = errorText;
     }

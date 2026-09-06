@@ -1,9 +1,11 @@
 package dev.bum.client_api_service.controller.ticket;
 
+import dev.bum.client_api_service.controller.ClientFeignErrorResponse;
 import dev.bum.client_api_service.feign.ticket.TicketAreaServiceClient;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
+import feign.FeignException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,28 +24,36 @@ public class ClientAreaController {
     private final TicketAreaServiceClient ticketAreaServiceClient;
 
     @GetMapping("/layout/event/{eventId}")
-    public ResponseEntity<EventLayoutResponse> selectLayout(
+    public ResponseEntity<?> selectLayout(
             @PathVariable("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        EventLayoutResponse response = ticketAreaServiceClient.selectLayout(eventId, authorizationHeader, activeToken);
-        return response != null ? ResponseEntity.ok(response) : ResponseEntity.noContent().build();
+        try {
+            EventLayoutResponse response = ticketAreaServiceClient.selectLayout(eventId, authorizationHeader, activeToken);
+            return response != null ? ResponseEntity.ok(response) : ResponseEntity.noContent().build();
+        } catch (FeignException e) {
+            return ClientFeignErrorResponse.from(e);
+        }
     }
 
     @GetMapping("/select")
-    public ResponseEntity<CustomPageResponse<AreaResponse>> selectByCond(
+    public ResponseEntity<?> selectByCond(
             @RequestParam("eventId") Long eventId,
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        return ResponseEntity.ok(ticketAreaServiceClient.selectByCond(
-                eventId,
-                0,
-                500,
-                List.of("areaId-asc"),
-                authorizationHeader,
-                activeToken
-        ));
+        try {
+            return ResponseEntity.ok(ticketAreaServiceClient.selectByCond(
+                    eventId,
+                    0,
+                    500,
+                    List.of("areaId-asc"),
+                    authorizationHeader,
+                    activeToken
+            ));
+        } catch (FeignException e) {
+            return ClientFeignErrorResponse.from(e);
+        }
     }
 }
