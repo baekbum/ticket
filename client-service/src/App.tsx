@@ -2433,7 +2433,6 @@ function BookingWindowPage() {
           ) : (
             <section className="booking-side-section booking-checkout-side-section">
               <BookingCheckoutSummary
-                checkoutPrepare={checkoutPrepare}
                 couponDiscountAmount={couponDiscountAmount}
                 finalPaymentAmount={finalPaymentAmount}
                 selectedSeatAmount={selectedSeatAmount}
@@ -2547,22 +2546,16 @@ function BookingCheckoutStepper({ currentStep }: { currentStep: 'SEAT' | 'PRICE'
 }
 
 function BookingCheckoutSummary({
-  checkoutPrepare,
   couponDiscountAmount,
   finalPaymentAmount,
   selectedSeatAmount,
 }: {
-  checkoutPrepare: CheckoutPrepareResponse | null;
   couponDiscountAmount: number;
   finalPaymentAmount: number;
   selectedSeatAmount: number;
 }) {
   return (
     <aside className="booking-payment-summary">
-      <div>
-        <span>주문번호</span>
-        <strong>{checkoutPrepare?.orderId || '-'}</strong>
-      </div>
       <div>
         <span>티켓 금액</span>
         <strong>{selectedSeatAmount.toLocaleString()}원</strong>
