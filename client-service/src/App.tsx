@@ -2491,35 +2491,22 @@ function BookingCheckoutPanel({
 
         <section className="booking-checkout-card">
           <h2>쿠폰 선택</h2>
-          <label className="booking-coupon-option">
-            <input
-              checked={selectedCouponId === null}
-              name="booking-coupon"
-              type="radio"
-              onChange={() => onSelectCoupon(null)}
-            />
-            <span>
-              <strong>쿠폰 사용 안함</strong>
-              <em>할인 없이 결제합니다.</em>
-            </span>
-          </label>
+          <div className="booking-coupon-select-wrap">
+            <select
+              className="booking-coupon-select"
+              value={selectedCouponId ?? ''}
+              onChange={(event) => onSelectCoupon(event.target.value ? Number(event.target.value) : null)}
+            >
+              <option value="">쿠폰 사용 안함 - 할인 없이 결제합니다.</option>
+              {coupons.map((userCoupon) => (
+                <option value={userCoupon.userCouponId} key={userCoupon.userCouponId}>
+                  {userCoupon.coupon.name} · {formatCouponBenefit(userCoupon.coupon)}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {coupons.length > 0 ? (
-            coupons.map((userCoupon) => (
-              <label className="booking-coupon-option" key={userCoupon.userCouponId}>
-                <input
-                  checked={selectedCouponId === userCoupon.userCouponId}
-                  name="booking-coupon"
-                  type="radio"
-                  onChange={() => onSelectCoupon(userCoupon.userCouponId)}
-                />
-                <span>
-                  <strong>{userCoupon.coupon.name}</strong>
-                  <em>{formatCouponBenefit(userCoupon.coupon)}</em>
-                </span>
-              </label>
-            ))
-          ) : (
+          {coupons.length === 0 && (
             <p className="booking-coupon-empty">사용 가능한 쿠폰이 없습니다.</p>
           )}
 
