@@ -1,8 +1,6 @@
 package dev.bum.ticket_service.controller.coupon;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
@@ -77,10 +75,5 @@ public class CouponManagementController {
     @PostMapping("/user-coupon/select")
     public ResponseEntity<CustomPageResponse<UserCouponResponse>> selectUserCouponsByCond(@RequestBody UserCouponCondRequest cond) {
         return ResponseEntity.ok(userCouponService.selectByCond(cond));
-    }
-
-    @PostMapping("/available")
-    public ResponseEntity<CouponAvailabilityResponse> checkAvailable(@Valid @RequestBody CouponAvailabilityRequest request) {
-        return ResponseEntity.ok(userCouponService.checkAvailable(request));
     }
 }

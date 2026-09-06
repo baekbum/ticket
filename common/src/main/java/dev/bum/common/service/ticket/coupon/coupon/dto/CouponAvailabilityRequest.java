@@ -1,6 +1,5 @@
 package dev.bum.common.service.ticket.coupon.coupon.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,7 +12,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CouponAvailabilityRequest {
 
-    @NotBlank
     private String userId;
 
     @NotNull
