@@ -74,6 +74,10 @@ class SessionExpiredError extends Error {
   }
 }
 
+type CustomAlertState = {
+  message: string;
+};
+
 type FindUserIdResponse = {
   maskedUserId: string;
 };
@@ -745,6 +749,7 @@ function App() {
   const [loginUserName, setLoginUserName] = useState(
     () => sessionStorage.getItem('ticksy.userName') || '',
   );
+  const [customAlert, setCustomAlert] = useState<CustomAlertState | null>(null);
   const isFullAuthPage =
     page === 'login' ||
     page === 'signup' ||
@@ -764,6 +769,32 @@ function App() {
 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    const nativeAlert = window.alert;
+    window.alert = (message?: unknown) => {
+      setCustomAlert({ message: String(message ?? '') });
+    };
+
+    return () => {
+      window.alert = nativeAlert;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!customAlert) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setCustomAlert(null);
+      }
+    }
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [customAlert]);
 
   function navigateToPage(nextPage: Page) {
     setPage(nextPage);
@@ -853,7 +884,42 @@ function App() {
       {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
       {!isFullAuthPage && <SiteFooter />}
       {!isFullAuthPage && <TopButton />}
+      <CustomAlertModal alert={customAlert} onClose={() => setCustomAlert(null)} />
     </main>
+  );
+}
+
+function CustomAlertModal({
+  alert,
+  onClose,
+}: {
+  alert: CustomAlertState | null;
+  onClose: () => void;
+}) {
+  if (!alert) {
+    return null;
+  }
+
+  return (
+    <div className="custom-alert-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="custom-alert-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="custom-alert-title"
+        aria-describedby="custom-alert-message"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="custom-alert-icon" aria-hidden="true">
+          !
+        </div>
+        <h2 id="custom-alert-title">안내</h2>
+        <p id="custom-alert-message">{alert.message}</p>
+        <button className="custom-alert-button" type="button" autoFocus onClick={onClose}>
+          확인
+        </button>
+      </section>
+    </div>
   );
 }
 

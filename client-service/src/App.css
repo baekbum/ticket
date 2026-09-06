@@ -29,6 +29,94 @@ button {
   background: #ffffff;
 }
 
+.custom-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.44);
+  backdrop-filter: blur(3px);
+}
+
+.custom-alert-modal {
+  width: min(420px, 100%);
+  padding: 30px 28px 24px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26);
+  text-align: center;
+  animation: customAlertIn 0.18s ease-out;
+}
+
+.custom-alert-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: #eafff0;
+  color: #00a832;
+  font-size: 26px;
+  font-weight: 950;
+}
+
+.custom-alert-modal h2 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.custom-alert-modal p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  white-space: pre-line;
+  word-break: keep-all;
+}
+
+.custom-alert-button {
+  min-width: 112px;
+  height: 44px;
+  margin-top: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #00c73c;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(0, 199, 60, 0.26);
+}
+
+.custom-alert-button:hover {
+  background: #00b336;
+}
+
+.custom-alert-button:focus-visible {
+  outline: 3px solid rgba(0, 199, 60, 0.28);
+  outline-offset: 3px;
+}
+
+@keyframes customAlertIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .site-header {
   border-bottom: 1px solid #dddddd;
   background: #ffffff;
