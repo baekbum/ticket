@@ -1700,7 +1700,8 @@ button {
 }
 
 .booking-checkout-card,
-.booking-payment-summary {
+.booking-payment-summary,
+.booking-selection-summary {
   border: 1px solid #e1e1e1;
   border-radius: 10px;
   background: #ffffff;
@@ -1806,6 +1807,67 @@ button {
 
 .booking-coupon-message {
   color: #00a832;
+}
+
+.booking-selection-summary {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.booking-selection-date,
+.booking-selection-count {
+  display: grid;
+  gap: 5px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.booking-selection-date span,
+.booking-selection-count span {
+  color: #777777;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.booking-selection-date strong,
+.booking-selection-count strong {
+  color: #222222;
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+}
+
+.booking-selection-seat-list {
+  display: grid;
+  gap: 8px;
+}
+
+.booking-selection-seat {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #eef1ee;
+  border-radius: 8px;
+  background: #fbfbfb;
+}
+
+.booking-selection-seat span {
+  color: #00a832;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.booking-selection-seat strong {
+  overflow: hidden;
+  color: #222222;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .booking-payment-summary {

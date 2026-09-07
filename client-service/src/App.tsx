@@ -450,6 +450,10 @@ function getScheduleTimeLabel(eventDateTime: string) {
   return `${match[1].padStart(2, '0')}:${match[2].padStart(2, '0')}`;
 }
 
+function getScheduleDateTimeLabel(eventDateTime: string) {
+  return `${getScheduleDateLabel(eventDateTime)} ${getScheduleTimeLabel(eventDateTime)}`;
+}
+
 function getSeatGradeLabel(grade: EventSeatPrice['grade']) {
   return `${grade}석`;
 }
@@ -1900,6 +1904,7 @@ function BookingWindowPage() {
   const [sideLayoutPan, setSideLayoutPan] = useState({ x: 0, y: 0 });
 
   const selectedArea = areas.find((area) => area.areaId === selectedAreaId) || null;
+  const selectedSchedule = eventDetail?.schedules.find((schedule) => schedule.eventId === selectedScheduleId) || null;
   const selectedSeats = seats.filter((seat) => selectedSeatIds.includes(seat.seatId));
   const selectedSeatAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const finalPaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
@@ -2426,12 +2431,16 @@ function BookingWindowPage() {
                   disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
                   onClick={prepareCheckout}
                 >
-                  {isCheckoutPreparing ? '예매 준비 중' : '다음 단계'}
+                  {isCheckoutPreparing ? '예매 준비 중' : '좌석 선택 완료'}
                 </button>
               </section>
             </>
           ) : (
             <section className="booking-side-section booking-checkout-side-section">
+              <BookingCheckoutSelectionInfo
+                selectedSchedule={selectedSchedule}
+                selectedSeats={selectedSeats}
+              />
               <BookingCheckoutSummary
                 couponDiscountAmount={couponDiscountAmount}
                 finalPaymentAmount={finalPaymentAmount}
@@ -2542,6 +2551,37 @@ function BookingCheckoutStepper({ currentStep }: { currentStep: 'SEAT' | 'PRICE'
         );
       })}
     </nav>
+  );
+}
+
+function BookingCheckoutSelectionInfo({
+  selectedSchedule,
+  selectedSeats,
+}: {
+  selectedSchedule: EventSchedule | null;
+  selectedSeats: SeatResponse[];
+}) {
+  return (
+    <section className="booking-selection-summary">
+      <div className="booking-selection-date">
+        <span>공연일</span>
+        <strong>{selectedSchedule ? getScheduleDateTimeLabel(selectedSchedule.eventDateTime) : '-'}</strong>
+      </div>
+
+      <div className="booking-selection-count">
+        <span>선택 좌석</span>
+        <strong>총 {selectedSeats.length}석 선택</strong>
+      </div>
+
+      <div className="booking-selection-seat-list">
+        {selectedSeats.map((seat) => (
+          <div className="booking-selection-seat" key={seat.seatId}>
+            <span>{getSeatGradeLabel(seat.grade)}</span>
+            <strong>{seat.seatName || `${seat.zone} ${seat.seatRow}열 ${seat.seatCol}번`}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
