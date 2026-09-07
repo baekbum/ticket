@@ -1946,6 +1946,27 @@ button {
   font-weight: 950;
 }
 
+.booking-form-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-form-section-title label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #555555;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.booking-form-section-title input {
+  accent-color: #00c73c;
+}
+
 .booking-payment-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1982,6 +2003,11 @@ button {
   border-color: #00c73c;
   background: #ffffff;
   box-shadow: 0 0 0 4px rgba(0, 199, 60, 0.1);
+}
+
+.booking-payment-form-grid input:read-only {
+  background: #f3f5f4;
+  color: #555555;
 }
 
 .booking-agreement-list {

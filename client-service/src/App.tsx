@@ -2006,6 +2006,7 @@ function BookingWindowPage() {
     detailAddress: '',
     deliveryMessage: '',
   });
+  const [isDeliverySameAsOrderer, setIsDeliverySameAsOrderer] = useState(true);
   const [isTermsAgreed, setIsTermsAgreed] = useState(false);
   const [isPaymentInfoLoading, setIsPaymentInfoLoading] = useState(false);
   const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
@@ -2074,6 +2075,18 @@ function BookingWindowPage() {
       window.removeEventListener('beforeunload', leaveQueue);
     };
   }, [activeToken, selectedScheduleId]);
+
+  useEffect(() => {
+    if (!isDeliverySameAsOrderer) {
+      return;
+    }
+
+    setDeliveryInfo((currentInfo) => ({
+      ...currentInfo,
+      recipientName: ordererInfo.name,
+      recipientPhone: ordererInfo.phoneNumber,
+    }));
+  }, [isDeliverySameAsOrderer, ordererInfo.name, ordererInfo.phoneNumber]);
 
   useEffect(() => {
     async function loadEventSchedules() {
@@ -2299,6 +2312,7 @@ function BookingWindowPage() {
     setCouponMessage('');
     setDeliveryMethod('PICKUP');
     setPaymentMethod('BANK_TRANSFER');
+    setIsDeliverySameAsOrderer(true);
     setIsTermsAgreed(false);
   }
 
@@ -2494,13 +2508,14 @@ function BookingWindowPage() {
         || null;
 
       setDeliveryInfo({
-        recipientName: defaultAddress?.recipientName || userResponse.name || '',
-        recipientPhone: defaultAddress?.recipientPhone || userResponse.phoneNumber || '',
+        recipientName: userResponse.name || '',
+        recipientPhone: userResponse.phoneNumber || '',
         zipCode: defaultAddress?.zipCode || '',
         address: defaultAddress?.address || userResponse.address || '',
         detailAddress: defaultAddress?.detailAddress || '',
         deliveryMessage: '',
       });
+      setIsDeliverySameAsOrderer(true);
       return true;
     } catch (error) {
       if (error instanceof SessionExpiredError) {
@@ -2607,12 +2622,14 @@ function BookingWindowPage() {
                 <BookingPaymentPanel
                   deliveryInfo={deliveryInfo}
                   deliveryMethod={deliveryMethod}
+                  isDeliverySameAsOrderer={isDeliverySameAsOrderer}
                   isPaymentInfoLoading={isPaymentInfoLoading}
                   isTermsAgreed={isTermsAgreed}
                   ordererInfo={ordererInfo}
                   paymentMethod={paymentMethod}
                   onChangeDeliveryInfo={setDeliveryInfo}
                   onChangeDeliveryMethod={setDeliveryMethod}
+                  onChangeDeliverySameAsOrderer={setIsDeliverySameAsOrderer}
                   onChangeOrdererInfo={setOrdererInfo}
                   onChangePaymentMethod={setPaymentMethod}
                   onChangeTermsAgreed={setIsTermsAgreed}
@@ -2798,24 +2815,28 @@ function BookingCheckoutPanel({
 function BookingPaymentPanel({
   deliveryInfo,
   deliveryMethod,
+  isDeliverySameAsOrderer,
   isPaymentInfoLoading,
   isTermsAgreed,
   ordererInfo,
   paymentMethod,
   onChangeDeliveryInfo,
   onChangeDeliveryMethod,
+  onChangeDeliverySameAsOrderer,
   onChangeOrdererInfo,
   onChangePaymentMethod,
   onChangeTermsAgreed,
 }: {
   deliveryInfo: BookingDeliveryInfo;
   deliveryMethod: BookingDeliveryMethod;
+  isDeliverySameAsOrderer: boolean;
   isPaymentInfoLoading: boolean;
   isTermsAgreed: boolean;
   ordererInfo: BookingOrdererInfo;
   paymentMethod: BookingPaymentMethod;
   onChangeDeliveryInfo: (info: BookingDeliveryInfo) => void;
   onChangeDeliveryMethod: (method: BookingDeliveryMethod) => void;
+  onChangeDeliverySameAsOrderer: (sameAsOrderer: boolean) => void;
   onChangeOrdererInfo: (info: BookingOrdererInfo) => void;
   onChangePaymentMethod: (method: BookingPaymentMethod) => void;
   onChangeTermsAgreed: (agreed: boolean) => void;
@@ -2889,35 +2910,55 @@ function BookingPaymentPanel({
           </div>
         </div>
 
-        <div className="booking-form-section">
-          <h3>배송지 정보</h3>
-          <div className="booking-payment-form-grid">
-            <label>
-              <span>받는 사람</span>
-              <input value={deliveryInfo.recipientName} onChange={(event) => updateDelivery('recipientName', event.target.value)} />
-            </label>
-            <label>
-              <span>연락처</span>
-              <input value={deliveryInfo.recipientPhone} onChange={(event) => updateDelivery('recipientPhone', event.target.value)} />
-            </label>
-            <label>
-              <span>우편번호</span>
-              <input value={deliveryInfo.zipCode} onChange={(event) => updateDelivery('zipCode', event.target.value)} />
-            </label>
-            <label className="wide">
-              <span>주소</span>
-              <input value={deliveryInfo.address} onChange={(event) => updateDelivery('address', event.target.value)} />
-            </label>
-            <label className="wide">
-              <span>상세주소</span>
-              <input value={deliveryInfo.detailAddress} onChange={(event) => updateDelivery('detailAddress', event.target.value)} />
-            </label>
-            <label className="wide">
-              <span>배송 메시지</span>
-              <input value={deliveryInfo.deliveryMessage} onChange={(event) => updateDelivery('deliveryMessage', event.target.value)} />
-            </label>
+        {deliveryMethod === 'DELIVERY' && (
+          <div className="booking-form-section">
+            <div className="booking-form-section-title">
+              <h3>배송지 정보</h3>
+              <label>
+                <input
+                  checked={isDeliverySameAsOrderer}
+                  type="checkbox"
+                  onChange={(event) => onChangeDeliverySameAsOrderer(event.target.checked)}
+                />
+                <span>주문자 정보와 동일</span>
+              </label>
+            </div>
+            <div className="booking-payment-form-grid">
+              <label>
+                <span>받는 사람</span>
+                <input
+                  value={deliveryInfo.recipientName}
+                  readOnly={isDeliverySameAsOrderer}
+                  onChange={(event) => updateDelivery('recipientName', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>연락처</span>
+                <input
+                  value={deliveryInfo.recipientPhone}
+                  readOnly={isDeliverySameAsOrderer}
+                  onChange={(event) => updateDelivery('recipientPhone', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>우편번호</span>
+                <input value={deliveryInfo.zipCode} onChange={(event) => updateDelivery('zipCode', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>주소</span>
+                <input value={deliveryInfo.address} onChange={(event) => updateDelivery('address', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>상세주소</span>
+                <input value={deliveryInfo.detailAddress} onChange={(event) => updateDelivery('detailAddress', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>배송 메시지</span>
+                <input value={deliveryInfo.deliveryMessage} onChange={(event) => updateDelivery('deliveryMessage', event.target.value)} />
+              </label>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="booking-payment-card">
