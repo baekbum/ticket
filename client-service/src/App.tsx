@@ -2536,7 +2536,12 @@ function BookingWindowPage() {
         <strong>Tickey 티켓 예매</strong>
         <div className="booking-window-header-meta">
           <span>{eventDetail?.title || '좌석 선택'}</span>
-          <em className={activeTokenRemainingSeconds === 0 ? 'expired' : ''}>
+          <em
+            className={[
+              activeTokenRemainingSeconds !== null && activeTokenRemainingSeconds <= 300 ? 'warning' : '',
+              activeTokenRemainingSeconds === 0 ? 'expired' : '',
+            ].filter(Boolean).join(' ')}
+          >
             남은 시간 {formatRemainingTime(activeTokenRemainingSeconds)}
           </em>
         </div>

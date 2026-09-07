@@ -1095,6 +1095,9 @@ button {
 }
 
 .booking-window-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1102,6 +1105,7 @@ button {
   padding: 0 28px;
   background: #222222;
   color: #ffffff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
 .booking-window-header strong {
@@ -1147,8 +1151,37 @@ button {
 }
 
 .booking-window-header-meta em.expired {
-  background: rgba(255, 111, 97, 0.18);
-  color: #ffb0a8;
+  background: rgba(255, 111, 97, 0.32);
+  color: #ffffff;
+  border-color: rgba(255, 111, 97, 0.5);
+  animation: none;
+}
+
+.booking-window-header-meta em.warning {
+  background: rgba(255, 111, 97, 0.22);
+  color: #ffd0cb;
+  border-color: rgba(255, 111, 97, 0.42);
+  animation: bookingTimerWarningPulse 1.45s ease-in-out infinite;
+}
+
+.booking-window-header-meta em.warning.expired {
+  background: rgba(255, 111, 97, 0.32);
+  color: #ffffff;
+  border-color: rgba(255, 111, 97, 0.5);
+  animation: none;
+}
+
+@keyframes bookingTimerWarningPulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 rgba(255, 111, 97, 0);
+  }
+
+  50% {
+    opacity: 0.62;
+    box-shadow: 0 0 0 6px rgba(255, 111, 97, 0.1);
+  }
 }
 
 .booking-window-body {
