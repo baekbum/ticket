@@ -76,6 +76,7 @@ class SessionExpiredError extends Error {
 
 type CustomAlertState = {
   message: string;
+  closeWindowOnConfirm?: boolean;
 };
 
 type FindUserIdResponse = {
@@ -214,6 +215,47 @@ type CouponAvailabilityResponse = {
   available: boolean;
   discountAmount: number;
   reason: string | null;
+};
+
+type CheckoutFeeResponse = {
+  reservationFeePerTicket: number;
+  deliveryFee: number;
+};
+
+type BookingDeliveryMethod = 'PICKUP' | 'DELIVERY';
+type BookingPaymentMethod = 'BANK_TRANSFER' | 'CREDIT_CARD';
+
+type BookingOrdererInfo = {
+  name: string;
+  phoneNumber: string;
+  email: string;
+};
+
+type BookingDeliveryInfo = {
+  recipientName: string;
+  recipientPhone: string;
+  zipCode: string;
+  address: string;
+  detailAddress: string;
+  deliveryMessage: string;
+};
+
+type UserInfoResponse = {
+  userId: string;
+  name: string;
+  phoneNumber: string;
+  email: string;
+  address: string | null;
+};
+
+type UserAddressResponse = {
+  addressId: number;
+  recipientName: string;
+  recipientPhone: string;
+  zipCode: string;
+  address: string;
+  detailAddress: string | null;
+  defaultAddress: boolean;
 };
 
 type PageResponse<T> = {
@@ -777,6 +819,14 @@ function App() {
   useEffect(() => {
     const nativeAlert = window.alert;
     window.alert = (message?: unknown) => {
+      if (message && typeof message === 'object' && 'message' in message) {
+        setCustomAlert({
+          message: String((message as CustomAlertState).message ?? ''),
+          closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
+        });
+        return;
+      }
+
       setCustomAlert({ message: String(message ?? '') });
     };
 
@@ -888,7 +938,17 @@ function App() {
       {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
       {!isFullAuthPage && <SiteFooter />}
       {!isFullAuthPage && <TopButton />}
-      <CustomAlertModal alert={customAlert} onClose={() => setCustomAlert(null)} />
+      <CustomAlertModal
+        alert={customAlert}
+        onClose={() => {
+          const shouldCloseWindow = customAlert?.closeWindowOnConfirm;
+          setCustomAlert(null);
+
+          if (shouldCloseWindow) {
+            window.close();
+          }
+        }}
+      />
     </main>
   );
 }
@@ -1891,12 +1951,33 @@ function BookingWindowPage() {
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
   const [seats, setSeats] = useState<SeatResponse[]>([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState<number[]>([]);
-  const [checkoutStep, setCheckoutStep] = useState<'SEAT' | 'CHECKOUT'>('SEAT');
+  const [checkoutStep, setCheckoutStep] = useState<'SEAT' | 'PRICE' | 'PAYMENT'>('SEAT');
   const [checkoutPrepare, setCheckoutPrepare] = useState<CheckoutPrepareResponse | null>(null);
   const [userCoupons, setUserCoupons] = useState<UserCouponResponse[]>([]);
   const [selectedUserCouponId, setSelectedUserCouponId] = useState<number | null>(null);
   const [couponDiscountAmount, setCouponDiscountAmount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
+  const [checkoutFees, setCheckoutFees] = useState<CheckoutFeeResponse>({
+    reservationFeePerTicket: 4000,
+    deliveryFee: 3200,
+  });
+  const [deliveryMethod, setDeliveryMethod] = useState<BookingDeliveryMethod>('PICKUP');
+  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>('BANK_TRANSFER');
+  const [ordererInfo, setOrdererInfo] = useState<BookingOrdererInfo>({
+    name: '',
+    phoneNumber: '',
+    email: '',
+  });
+  const [deliveryInfo, setDeliveryInfo] = useState<BookingDeliveryInfo>({
+    recipientName: '',
+    recipientPhone: '',
+    zipCode: '',
+    address: '',
+    detailAddress: '',
+    deliveryMessage: '',
+  });
+  const [isTermsAgreed, setIsTermsAgreed] = useState(false);
+  const [isPaymentInfoLoading, setIsPaymentInfoLoading] = useState(false);
   const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSeatLoading, setIsSeatLoading] = useState(false);
@@ -1907,7 +1988,10 @@ function BookingWindowPage() {
   const selectedSchedule = eventDetail?.schedules.find((schedule) => schedule.eventId === selectedScheduleId) || null;
   const selectedSeats = seats.filter((seat) => selectedSeatIds.includes(seat.seatId));
   const selectedSeatAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
-  const finalPaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
+  const reservationFeeAmount = checkoutFees.reservationFeePerTicket * selectedSeats.length;
+  const deliveryFeeAmount = deliveryMethod === 'DELIVERY' ? checkoutFees.deliveryFee : 0;
+  const basePaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
+  const finalPaymentAmount = basePaymentAmount + reservationFeeAmount + deliveryFeeAmount;
   const layoutMarkup = buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId);
   const areaPrices = getDistinctAreaPrices(areas);
   const sideLayoutStyle = {
@@ -2001,6 +2085,11 @@ function BookingWindowPage() {
         setAreas(areaResponse.content || []);
         setLayoutSvgText(layoutResponse?.svgText || '');
       } catch (error) {
+        if (error instanceof SessionExpiredError) {
+          alertSessionExpiredAndClose(error);
+          return;
+        }
+
         alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
         window.close();
       } finally {
@@ -2126,10 +2215,12 @@ function BookingWindowPage() {
       setSeats(seatResponse.content || []);
     } catch (error) {
       setSeats([]);
-      alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
       if (error instanceof SessionExpiredError) {
-        window.close();
+        alertSessionExpiredAndClose(error);
+        return;
       }
+
+      alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
     } finally {
       setIsSeatLoading(false);
     }
@@ -2155,6 +2246,9 @@ function BookingWindowPage() {
     setSelectedUserCouponId(null);
     setCouponDiscountAmount(0);
     setCouponMessage('');
+    setDeliveryMethod('PICKUP');
+    setPaymentMethod('BANK_TRANSFER');
+    setIsTermsAgreed(false);
   }
 
   function bookingErrorMessage(error: unknown, fallbackMessage: string) {
@@ -2163,6 +2257,13 @@ function BookingWindowPage() {
     }
 
     return error instanceof Error ? error.message : fallbackMessage;
+  }
+
+  function alertSessionExpiredAndClose(error: unknown) {
+    window.alert({
+      message: bookingErrorMessage(error, '세션이 만료되었습니다. 다시 시도해주세요.'),
+      closeWindowOnConfirm: true,
+    });
   }
 
   function selectedSeatInfoList() {
@@ -2217,8 +2318,13 @@ function BookingWindowPage() {
       setSelectedUserCouponId(null);
       setCouponDiscountAmount(0);
       setCouponMessage('');
-      setCheckoutStep('CHECKOUT');
+      setCheckoutStep('PRICE');
     } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        alertSessionExpiredAndClose(error);
+        return;
+      }
+
       alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));
       if (selectedArea) {
         void selectArea(selectedArea, false);
@@ -2256,15 +2362,38 @@ function BookingWindowPage() {
       setCouponMessage(`${(availability.discountAmount || 0).toLocaleString()}원 할인이 적용됩니다.`);
     } catch (error) {
       setSelectedUserCouponId(null);
+      if (error instanceof SessionExpiredError) {
+        alertSessionExpiredAndClose(error);
+        return;
+      }
+
       alert(bookingErrorMessage(error, '쿠폰 확인에 실패했습니다.'));
     }
   }
 
-  function goNextCheckoutStep() {
-    alert('결제 정보 입력 단계는 아직 연결되지 않았습니다.');
+  async function goNextCheckoutStep() {
+    if (checkoutStep === 'PRICE') {
+      const loaded = await loadPaymentStepInfo();
+      if (loaded) {
+        setCheckoutStep('PAYMENT');
+      }
+      return;
+    }
+
+    if (!isTermsAgreed) {
+      alert('예매자 동의 항목을 확인해주세요.');
+      return;
+    }
+
+    alert('결제 완료 로직은 아직 연결되지 않았습니다.');
   }
 
   function backToSeatSelection() {
+    if (checkoutStep === 'PAYMENT') {
+      setCheckoutStep('PRICE');
+      return;
+    }
+
     if (selectedArea) {
       void selectArea(selectedArea);
       return;
@@ -2274,6 +2403,59 @@ function BookingWindowPage() {
     setSelectedSeatIds([]);
   }
 
+  async function loadPaymentStepInfo() {
+    setIsPaymentInfoLoading(true);
+
+    try {
+      const [feeResponse, userResponse, addressResponse] = await Promise.all([
+        request<CheckoutFeeResponse>('/client-api/api/v1/checkout/fees', { method: 'GET' }),
+        request<UserInfoResponse>('/client-api/api/v1/user/me', { method: 'GET' }),
+        request<PageResponse<UserAddressResponse>>('/client-api/api/v1/address/select/me', {
+          method: 'POST',
+          body: JSON.stringify({
+            page: 0,
+            size: 20,
+          }),
+        }),
+      ]);
+
+      setCheckoutFees({
+        reservationFeePerTicket: feeResponse.reservationFeePerTicket ?? 4000,
+        deliveryFee: feeResponse.deliveryFee ?? 3200,
+      });
+
+      setOrdererInfo({
+        name: userResponse.name || '',
+        phoneNumber: userResponse.phoneNumber || '',
+        email: userResponse.email || '',
+      });
+
+      const defaultAddress = (addressResponse.content || []).find((address) => address.defaultAddress)
+        || addressResponse.content?.[0]
+        || null;
+
+      setDeliveryInfo({
+        recipientName: defaultAddress?.recipientName || userResponse.name || '',
+        recipientPhone: defaultAddress?.recipientPhone || userResponse.phoneNumber || '',
+        zipCode: defaultAddress?.zipCode || '',
+        address: defaultAddress?.address || userResponse.address || '',
+        detailAddress: defaultAddress?.detailAddress || '',
+        deliveryMessage: '',
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        alertSessionExpiredAndClose(error);
+        return false;
+      }
+
+      alert(bookingErrorMessage(error, '결제 정보를 불러오지 못했습니다.'));
+      return false;
+    } finally {
+      setIsPaymentInfoLoading(false);
+    }
+  }
+
   return (
     <section className="booking-window-page">
       <header className="booking-window-header">
@@ -2281,7 +2463,7 @@ function BookingWindowPage() {
         <span>{eventDetail?.title || '좌석 선택'}</span>
       </header>
 
-      <main className={`booking-window-body${checkoutStep === 'CHECKOUT' ? ' checkout-mode' : ''}`}>
+      <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : ''}`}>
         <section className="booking-layout-panel">
           {checkoutStep === 'SEAT' && eventDetail && eventDetail.schedules.length > 1 && (
             <div className="booking-schedule-strip">
@@ -2347,13 +2529,29 @@ function BookingWindowPage() {
                 </div>
               )}
 
-              {checkoutStep === 'CHECKOUT' && (
+              {checkoutStep === 'PRICE' && (
                 <BookingCheckoutPanel
                   coupons={userCoupons}
                   couponMessage={couponMessage}
                   onSelectCoupon={selectCoupon}
                   selectedCouponId={selectedUserCouponId}
                   selectedSeats={selectedSeats}
+                />
+              )}
+
+              {checkoutStep === 'PAYMENT' && (
+                <BookingPaymentPanel
+                  deliveryInfo={deliveryInfo}
+                  deliveryMethod={deliveryMethod}
+                  isPaymentInfoLoading={isPaymentInfoLoading}
+                  isTermsAgreed={isTermsAgreed}
+                  ordererInfo={ordererInfo}
+                  paymentMethod={paymentMethod}
+                  onChangeDeliveryInfo={setDeliveryInfo}
+                  onChangeDeliveryMethod={setDeliveryMethod}
+                  onChangeOrdererInfo={setOrdererInfo}
+                  onChangePaymentMethod={setPaymentMethod}
+                  onChangeTermsAgreed={setIsTermsAgreed}
                 />
               )}
             </>
@@ -2443,15 +2641,23 @@ function BookingWindowPage() {
               />
               <BookingCheckoutSummary
                 couponDiscountAmount={couponDiscountAmount}
-                finalPaymentAmount={finalPaymentAmount}
+                deliveryFeeAmount={checkoutStep === 'PAYMENT' ? deliveryFeeAmount : 0}
+                finalPaymentAmount={checkoutStep === 'PAYMENT' ? finalPaymentAmount : basePaymentAmount}
+                reservationFeeAmount={checkoutStep === 'PAYMENT' ? reservationFeeAmount : 0}
                 selectedSeatAmount={selectedSeatAmount}
+                showFees={checkoutStep === 'PAYMENT'}
               />
               <div className="booking-checkout-actions">
                 <button className="booking-prev-button" type="button" onClick={backToSeatSelection}>
                   이전
                 </button>
-                <button className="booking-next-button" type="button" onClick={goNextCheckoutStep}>
-                  다음
+                <button
+                  className="booking-next-button"
+                  type="button"
+                  disabled={isPaymentInfoLoading}
+                  onClick={goNextCheckoutStep}
+                >
+                  {checkoutStep === 'PRICE' ? '다음' : '결제하기'}
                 </button>
               </div>
             </section>
@@ -2525,6 +2731,183 @@ function BookingCheckoutPanel({
   );
 }
 
+function BookingPaymentPanel({
+  deliveryInfo,
+  deliveryMethod,
+  isPaymentInfoLoading,
+  isTermsAgreed,
+  ordererInfo,
+  paymentMethod,
+  onChangeDeliveryInfo,
+  onChangeDeliveryMethod,
+  onChangeOrdererInfo,
+  onChangePaymentMethod,
+  onChangeTermsAgreed,
+}: {
+  deliveryInfo: BookingDeliveryInfo;
+  deliveryMethod: BookingDeliveryMethod;
+  isPaymentInfoLoading: boolean;
+  isTermsAgreed: boolean;
+  ordererInfo: BookingOrdererInfo;
+  paymentMethod: BookingPaymentMethod;
+  onChangeDeliveryInfo: (info: BookingDeliveryInfo) => void;
+  onChangeDeliveryMethod: (method: BookingDeliveryMethod) => void;
+  onChangeOrdererInfo: (info: BookingOrdererInfo) => void;
+  onChangePaymentMethod: (method: BookingPaymentMethod) => void;
+  onChangeTermsAgreed: (agreed: boolean) => void;
+}) {
+  function updateOrderer(field: keyof BookingOrdererInfo, value: string) {
+    onChangeOrdererInfo({ ...ordererInfo, [field]: value });
+  }
+
+  function updateDelivery(field: keyof BookingDeliveryInfo, value: string) {
+    onChangeDeliveryInfo({ ...deliveryInfo, [field]: value });
+  }
+
+  return (
+    <div className="booking-payment-panel">
+      <BookingCheckoutStepper currentStep="PAYMENT" />
+
+      <div className="booking-checkout-header">
+        <h1>수령 / 결제 정보 입력</h1>
+      </div>
+
+      {isPaymentInfoLoading && <div className="booking-state-box">결제 정보를 불러오는 중입니다.</div>}
+
+      <section className="booking-payment-card">
+        <div className="booking-payment-card-title">
+          <h2>수령 방법</h2>
+          <p>티켓 수령 방식과 주문자 정보를 확인해주세요.</p>
+        </div>
+
+        <div className="booking-delivery-methods">
+          <label className={deliveryMethod === 'PICKUP' ? 'selected' : ''}>
+            <input
+              checked={deliveryMethod === 'PICKUP'}
+              name="delivery-method"
+              type="radio"
+              onChange={() => onChangeDeliveryMethod('PICKUP')}
+            />
+            <span>
+              <strong>현장 수령</strong>
+              <em>공연 당일 현장에서 본인 확인 후 수령합니다.</em>
+            </span>
+          </label>
+          <label className={deliveryMethod === 'DELIVERY' ? 'selected' : ''}>
+            <input
+              checked={deliveryMethod === 'DELIVERY'}
+              name="delivery-method"
+              type="radio"
+              onChange={() => onChangeDeliveryMethod('DELIVERY')}
+            />
+            <span>
+              <strong>배송</strong>
+              <em>등록된 배송지로 티켓을 발송합니다.</em>
+            </span>
+          </label>
+        </div>
+
+        <div className="booking-form-section">
+          <h3>주문자 정보</h3>
+          <div className="booking-payment-form-grid">
+            <label>
+              <span>이름</span>
+              <input value={ordererInfo.name} onChange={(event) => updateOrderer('name', event.target.value)} />
+            </label>
+            <label>
+              <span>연락처</span>
+              <input value={ordererInfo.phoneNumber} onChange={(event) => updateOrderer('phoneNumber', event.target.value)} />
+            </label>
+            <label className="wide">
+              <span>이메일</span>
+              <input value={ordererInfo.email} onChange={(event) => updateOrderer('email', event.target.value)} />
+            </label>
+          </div>
+        </div>
+
+        <div className="booking-form-section">
+          <h3>배송지 정보</h3>
+          <div className="booking-payment-form-grid">
+            <label>
+              <span>받는 사람</span>
+              <input value={deliveryInfo.recipientName} onChange={(event) => updateDelivery('recipientName', event.target.value)} />
+            </label>
+            <label>
+              <span>연락처</span>
+              <input value={deliveryInfo.recipientPhone} onChange={(event) => updateDelivery('recipientPhone', event.target.value)} />
+            </label>
+            <label>
+              <span>우편번호</span>
+              <input value={deliveryInfo.zipCode} onChange={(event) => updateDelivery('zipCode', event.target.value)} />
+            </label>
+            <label className="wide">
+              <span>주소</span>
+              <input value={deliveryInfo.address} onChange={(event) => updateDelivery('address', event.target.value)} />
+            </label>
+            <label className="wide">
+              <span>상세주소</span>
+              <input value={deliveryInfo.detailAddress} onChange={(event) => updateDelivery('detailAddress', event.target.value)} />
+            </label>
+            <label className="wide">
+              <span>배송 메시지</span>
+              <input value={deliveryInfo.deliveryMessage} onChange={(event) => updateDelivery('deliveryMessage', event.target.value)} />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section className="booking-payment-card">
+        <div className="booking-payment-card-title">
+          <h2>결제 수단</h2>
+          <p>결제 방식을 선택해주세요.</p>
+        </div>
+        <div className="booking-payment-methods">
+          <label className={paymentMethod === 'BANK_TRANSFER' ? 'selected' : ''}>
+            <input
+              checked={paymentMethod === 'BANK_TRANSFER'}
+              name="payment-method"
+              type="radio"
+              onChange={() => onChangePaymentMethod('BANK_TRANSFER')}
+            />
+            <span>무통장 입금</span>
+          </label>
+          <label className={paymentMethod === 'CREDIT_CARD' ? 'selected' : ''}>
+            <input
+              checked={paymentMethod === 'CREDIT_CARD'}
+              name="payment-method"
+              type="radio"
+              onChange={() => onChangePaymentMethod('CREDIT_CARD')}
+            />
+            <span>신용카드</span>
+          </label>
+        </div>
+      </section>
+
+      <section className="booking-payment-card">
+        <div className="booking-payment-card-title">
+          <h2>예매자 동의</h2>
+          <p>예매 전 안내사항을 확인하고 동의해주세요.</p>
+        </div>
+        <ul className="booking-agreement-list">
+          <li>취소 마감 시간 이후에는 예매 취소 및 환불이 불가합니다.</li>
+          <li>관람일 및 회차 변경은 불가하며, 변경을 원할 경우 취소 후 다시 예매해야 합니다.</li>
+          <li>배송 선택 시 티켓 배송이 시작된 이후에는 배송지 변경이 제한될 수 있습니다.</li>
+          <li>부정 예매 또는 비정상적인 접근이 확인되면 예매가 취소될 수 있습니다.</li>
+          <li>개인정보는 예매 확인, 티켓 수령, 고객 응대 목적으로 이용됩니다.</li>
+        </ul>
+        <label className="booking-agreement-check">
+          <input
+            checked={isTermsAgreed}
+            type="checkbox"
+            onChange={(event) => onChangeTermsAgreed(event.target.checked)}
+          />
+          <span>위 내용을 모두 확인했으며 예매 진행에 동의합니다.</span>
+        </label>
+      </section>
+    </div>
+  );
+}
+
 function BookingCheckoutStepper({ currentStep }: { currentStep: 'SEAT' | 'PRICE' | 'PAYMENT' | 'COMPLETE' }) {
   const steps = [
     { key: 'SEAT', label: '좌석선택' },
@@ -2587,12 +2970,18 @@ function BookingCheckoutSelectionInfo({
 
 function BookingCheckoutSummary({
   couponDiscountAmount,
+  deliveryFeeAmount,
   finalPaymentAmount,
+  reservationFeeAmount,
   selectedSeatAmount,
+  showFees,
 }: {
   couponDiscountAmount: number;
+  deliveryFeeAmount: number;
   finalPaymentAmount: number;
+  reservationFeeAmount: number;
   selectedSeatAmount: number;
+  showFees: boolean;
 }) {
   return (
     <aside className="booking-payment-summary">
@@ -2604,6 +2993,18 @@ function BookingCheckoutSummary({
         <span>쿠폰 할인</span>
         <strong>-{couponDiscountAmount.toLocaleString()}원</strong>
       </div>
+      {showFees && (
+        <>
+          <div>
+            <span>예매 수수료</span>
+            <strong>{reservationFeeAmount.toLocaleString()}원</strong>
+          </div>
+          <div>
+            <span>배송 수수료</span>
+            <strong>{deliveryFeeAmount.toLocaleString()}원</strong>
+          </div>
+        </>
+      )}
       <div className="total">
         <span>결제 예정 금액</span>
         <strong>{finalPaymentAmount.toLocaleString()}원</strong>

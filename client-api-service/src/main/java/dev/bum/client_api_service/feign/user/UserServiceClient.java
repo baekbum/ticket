@@ -1,5 +1,8 @@
 package dev.bum.client_api_service.feign.user;
 
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.user.address.dto.UserAddressCondRequest;
+import dev.bum.common.service.user.address.dto.UserAddressResponse;
 import dev.bum.common.service.user.user.dto.FindPasswordRequest;
 import dev.bum.common.service.user.user.dto.FindPasswordResponse;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -41,4 +44,10 @@ public interface UserServiceClient {
 
     @GetMapping("/select/me")
     UserResponse selectMyInfo(@RequestHeader("Authorization") String authorizationHeader);
+
+    @PostMapping("/address/select/me")
+    CustomPageResponse<UserAddressResponse> selectMyAddress(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody UserAddressCondRequest request
+    );
 }

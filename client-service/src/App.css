@@ -1610,6 +1610,11 @@ button {
   gap: 16px;
 }
 
+.booking-payment-panel {
+  display: grid;
+  gap: 16px;
+}
+
 .booking-checkout-stepper {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1807,6 +1812,165 @@ button {
 
 .booking-coupon-message {
   color: #00a832;
+}
+
+.booking-payment-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #e1e1e1;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.booking-payment-card-title {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #222222;
+}
+
+.booking-payment-card-title h2 {
+  margin: 0;
+  color: #222222;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.booking-payment-card-title p {
+  margin: 0;
+  color: #777777;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.booking-delivery-methods,
+.booking-payment-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.booking-delivery-methods label,
+.booking-payment-methods label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 58px;
+  padding: 14px;
+  border: 1px solid #eeeeee;
+  border-radius: 10px;
+  background: #fbfbfb;
+  cursor: pointer;
+}
+
+.booking-delivery-methods label.selected,
+.booking-payment-methods label.selected {
+  border-color: #00c73c;
+  background: #f0fff5;
+  box-shadow: 0 0 0 3px rgba(0, 199, 60, 0.1);
+}
+
+.booking-delivery-methods input,
+.booking-payment-methods input,
+.booking-agreement-check input {
+  margin-top: 3px;
+  accent-color: #00c73c;
+}
+
+.booking-delivery-methods span {
+  display: grid;
+  gap: 4px;
+}
+
+.booking-delivery-methods strong,
+.booking-payment-methods span {
+  color: #222222;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.booking-delivery-methods em {
+  color: #777777;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.booking-form-section {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-form-section h3 {
+  margin: 0;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.booking-payment-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.booking-payment-form-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.booking-payment-form-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.booking-payment-form-grid span {
+  color: #666666;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.booking-payment-form-grid input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #e3e8e5;
+  border-radius: 8px;
+  background: #fbfbfb;
+  color: #222222;
+  outline: none;
+}
+
+.booking-payment-form-grid input:focus {
+  border-color: #00c73c;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(0, 199, 60, 0.1);
+}
+
+.booking-agreement-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 16px 18px 16px 34px;
+  border: 1px solid #eeeeee;
+  border-radius: 10px;
+  background: #fbfbfb;
+  color: #555555;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.booking-agreement-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #222222;
+  font-size: 14px;
+  font-weight: 950;
+  cursor: pointer;
 }
 
 .booking-selection-summary {

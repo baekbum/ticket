@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,6 +28,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClientUserController {
 
     private final UserServiceClient userServiceClient;
+
+    @GetMapping("/me")
+    public ResponseEntity<?> selectMyInfo(@RequestHeader("Authorization") String authorizationHeader) {
+        try {
+            return ResponseEntity.ok(userServiceClient.selectMyInfo(authorizationHeader));
+        } catch (FeignException e) {
+            return ResponseEntity
+                    .status(HttpStatusCode.valueOf(e.status()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.contentUTF8());
+        }
+    }
 
     @GetMapping("/check/duplication/{userId}")
     public ResponseEntity<?> isDuplicated(@PathVariable("userId") String userId) {
