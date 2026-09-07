@@ -1116,6 +1116,41 @@ button {
   font-weight: 800;
 }
 
+.booking-window-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.booking-window-header-meta span {
+  overflow: hidden;
+  max-width: 520px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-window-header-meta em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(0, 199, 60, 0.18);
+  color: #7dff9f;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.booking-window-header-meta em.expired {
+  background: rgba(255, 111, 97, 0.18);
+  color: #ffb0a8;
+}
+
 .booking-window-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;

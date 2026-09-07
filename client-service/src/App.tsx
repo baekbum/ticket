@@ -496,6 +496,16 @@ function getScheduleDateTimeLabel(eventDateTime: string) {
   return `${getScheduleDateLabel(eventDateTime)} ${getScheduleTimeLabel(eventDateTime)}`;
 }
 
+function formatRemainingTime(totalSeconds: number | null) {
+  if (totalSeconds === null) {
+    return '--:--';
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function getSeatGradeLabel(grade: EventSeatPrice['grade']) {
   return `${grade}석`;
 }
@@ -588,12 +598,20 @@ function getBookingActiveTokenFromLocation() {
   return new URLSearchParams(window.location.search).get('activeToken') || '';
 }
 
+function getBookingActiveTokenExpiresAtFromLocation() {
+  return new URLSearchParams(window.location.search).get('activeTokenExpiresAt') || '';
+}
+
 function getWaitingTokenStorageKey(eventId: number) {
   return `ticksy.waitingToken.${eventId}`;
 }
 
 function getActiveTokenStorageKey(eventId: number) {
   return `ticksy.activeToken.${eventId}`;
+}
+
+function getActiveTokenExpiresAtStorageKey(eventId: number) {
+  return `ticksy.activeTokenExpiresAt.${eventId}`;
 }
 
 function saveWaitingToken(eventId: number, token: string) {
@@ -610,14 +628,19 @@ function removeSavedWaitingToken(eventId: number) {
   sessionStorage.removeItem(getWaitingTokenStorageKey(eventId));
 }
 
-function saveActiveToken(eventId: number, token: string) {
+function saveActiveToken(eventId: number, token: string, expiresAt?: string | null) {
   if (token) {
     sessionStorage.setItem(getActiveTokenStorageKey(eventId), token);
+  }
+
+  if (expiresAt) {
+    sessionStorage.setItem(getActiveTokenExpiresAtStorageKey(eventId), expiresAt);
   }
 }
 
 function removeSavedActiveToken(eventId: number) {
   sessionStorage.removeItem(getActiveTokenStorageKey(eventId));
+  sessionStorage.removeItem(getActiveTokenExpiresAtStorageKey(eventId));
 }
 
 function wait(milliseconds: number) {
@@ -651,12 +674,15 @@ function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' 
   }).catch(() => undefined);
 }
 
-function buildBookingWindowUrl(eventId: number, eventGroupCode: string, activeToken: string) {
+function buildBookingWindowUrl(eventId: number, eventGroupCode: string, activeToken: string, activeTokenExpiresAt?: string | null) {
   const bookingUrl = new URL(window.location.href);
   bookingUrl.searchParams.set('page', 'bookingWindow');
   bookingUrl.searchParams.set('eventId', String(eventId));
   bookingUrl.searchParams.set('eventGroupCode', eventGroupCode);
   bookingUrl.searchParams.set('activeToken', activeToken);
+  if (activeTokenExpiresAt) {
+    bookingUrl.searchParams.set('activeTokenExpiresAt', activeTokenExpiresAt);
+  }
 
   return `${bookingUrl.pathname}${bookingUrl.search}${bookingUrl.hash}`;
 }
@@ -1718,9 +1744,11 @@ function EventDetailPage({
       }
 
       removeSavedWaitingToken(selectedScheduleId);
-      saveActiveToken(selectedScheduleId, queueResponse.token);
+      saveActiveToken(selectedScheduleId, queueResponse.token, queueResponse.activeTokenExpiresAt);
       writeQueueWindowMessage(bookingWindow, '입장 준비 완료', '좌석 선택 화면으로 이동합니다.');
-      bookingWindow.location.replace(buildBookingWindowUrl(selectedScheduleId, eventGroupCode, queueResponse.token));
+      bookingWindow.location.replace(
+        buildBookingWindowUrl(selectedScheduleId, eventGroupCode, queueResponse.token, queueResponse.activeTokenExpiresAt),
+      );
     } catch (error) {
       if (error instanceof SessionExpiredError) {
         bookingWindow.close();
@@ -1945,6 +1973,8 @@ function BookingWindowPage() {
   const [eventGroupCode] = useState(() => getBookingEventGroupCodeFromLocation());
   const [selectedScheduleId, setSelectedScheduleId] = useState(() => getBookingEventIdFromLocation());
   const [activeToken] = useState(() => getBookingActiveTokenFromLocation());
+  const [activeTokenExpiresAt] = useState(() => getBookingActiveTokenExpiresAtFromLocation());
+  const [activeTokenRemainingSeconds, setActiveTokenRemainingSeconds] = useState<number | null>(null);
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [layoutSvgText, setLayoutSvgText] = useState('');
@@ -2002,9 +2032,30 @@ function BookingWindowPage() {
 
   useEffect(() => {
     if (selectedScheduleId && activeToken) {
-      saveActiveToken(selectedScheduleId, activeToken);
+      saveActiveToken(selectedScheduleId, activeToken, activeTokenExpiresAt);
     }
-  }, [activeToken, selectedScheduleId]);
+  }, [activeToken, activeTokenExpiresAt, selectedScheduleId]);
+
+  useEffect(() => {
+    if (!activeTokenExpiresAt) {
+      setActiveTokenRemainingSeconds(null);
+      return undefined;
+    }
+
+    const expiresAtMillis = Date.parse(activeTokenExpiresAt);
+    if (Number.isNaN(expiresAtMillis)) {
+      setActiveTokenRemainingSeconds(null);
+      return undefined;
+    }
+
+    function syncRemainingSeconds() {
+      setActiveTokenRemainingSeconds(Math.max(0, Math.ceil((expiresAtMillis - Date.now()) / 1000)));
+    }
+
+    syncRemainingSeconds();
+    const timer = window.setInterval(syncRemainingSeconds, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeTokenExpiresAt]);
 
   useEffect(() => {
     if (!selectedScheduleId || !activeToken) {
@@ -2266,6 +2317,14 @@ function BookingWindowPage() {
     });
   }
 
+  useEffect(() => {
+    if (activeTokenRemainingSeconds !== 0) {
+      return;
+    }
+
+    alertSessionExpiredAndClose(new SessionExpiredError());
+  }, [activeTokenRemainingSeconds]);
+
   function selectedSeatInfoList() {
     return selectedSeats.map((seat) => ({
       id: seat.seatId,
@@ -2460,7 +2519,12 @@ function BookingWindowPage() {
     <section className="booking-window-page">
       <header className="booking-window-header">
         <strong>Tickey 티켓 예매</strong>
-        <span>{eventDetail?.title || '좌석 선택'}</span>
+        <div className="booking-window-header-meta">
+          <span>{eventDetail?.title || '좌석 선택'}</span>
+          <em className={activeTokenRemainingSeconds === 0 ? 'expired' : ''}>
+            남은 시간 {formatRemainingTime(activeTokenRemainingSeconds)}
+          </em>
+        </div>
       </header>
 
       <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : ''}`}>
@@ -4231,7 +4295,10 @@ function clearLoginStorage() {
 
 function clearQueueTokenStorage() {
   Object.keys(sessionStorage)
-    .filter((key) => key.startsWith('ticksy.waitingToken.') || key.startsWith('ticksy.activeToken.'))
+    .filter((key) =>
+      key.startsWith('ticksy.waitingToken.')
+      || key.startsWith('ticksy.activeToken.')
+      || key.startsWith('ticksy.activeTokenExpiresAt.'))
     .forEach((key) => sessionStorage.removeItem(key));
 }
 
