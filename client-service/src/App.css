@@ -2002,9 +2002,14 @@ button {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  padding: 12px 0 0;
+  background: #ffffff;
   color: #222222;
   font-size: 14px;
   font-weight: 950;
+}
+
+.booking-agreement-check input {
   cursor: pointer;
 }
 

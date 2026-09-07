@@ -2959,14 +2959,14 @@ function BookingPaymentPanel({
           <li>부정 예매 또는 비정상적인 접근이 확인되면 예매가 취소될 수 있습니다.</li>
           <li>개인정보는 예매 확인, 티켓 수령, 고객 응대 목적으로 이용됩니다.</li>
         </ul>
-        <label className="booking-agreement-check">
+        <div className="booking-agreement-check">
           <input
             checked={isTermsAgreed}
             type="checkbox"
             onChange={(event) => onChangeTermsAgreed(event.target.checked)}
           />
           <span>위 내용을 모두 확인했으며 예매 진행에 동의합니다.</span>
-        </label>
+        </div>
       </section>
     </div>
   );
