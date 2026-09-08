@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
+import './theme.css';
 
 type Page =
   | 'home'
@@ -1071,6 +1072,7 @@ function Header({
             ⌕
           </button>
         </div>
+        <span className="brand-note">일상을 넘어, 라이브 속으로 <span aria-hidden="true">↗</span></span>
       </div>
 
       <nav className="category-nav" aria-label="공연 카테고리">
@@ -1262,11 +1264,34 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
 
   return (
     <>
+      <section className="live-hero" aria-labelledby="live-hero-title">
+        <div className="live-hero-copy">
+          <span className="live-eyebrow"><i aria-hidden="true" /> YOUR NEXT LIVE MOMENT</span>
+          <h1 id="live-hero-title">기다렸던 순간,<br /><em>가장 가까이.</em></h1>
+          <p>무대가 시작되는 설렘부터 마지막 앙코르까지.<br />잊지 못할 다음 순간을 Ticksy에서 만나보세요.</p>
+          <a className="live-hero-link" href="#live-events">지금 공연 둘러보기 <span aria-hidden="true">↗</span></a>
+          <div className="live-hero-caption"><span>CONCERT</span><span>MUSICAL</span><span>FESTIVAL</span><span>AND MORE</span></div>
+        </div>
+        <div className="live-art" aria-hidden="true">
+          <div className="live-orbit live-orbit-one" /><div className="live-orbit live-orbit-two" />
+          <span className="live-spark live-spark-one">✳</span><span className="live-spark live-spark-two">+</span>
+          <div className="live-ticket live-ticket-back"><span>MAKE SOME</span><strong>NOISE.</strong></div>
+          <div className="live-ticket live-ticket-front">
+            <div className="live-ticket-top"><b>Ticksy</b><span>ADMIT ONE ↗</span></div>
+            <span className="live-ticket-label">THIS IS YOUR</span><strong>NEXT<br />MOMENT.</strong>
+            <div className="live-ticket-bottom"><span>LIVE IT.<br />FEEL IT.</span><div className="live-barcode" /></div>
+          </div>
+          <span className="live-art-caption">LESS SCROLL. MORE ENCORE.</span>
+        </div>
+      </section>
+      <div className="live-ticker" aria-hidden="true"><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b></div>
+      <div className="live-section-heading" id="live-events"><div><span className="section-eyebrow">TAKE YOUR PICK</span><h2>지금, 주목할 공연<span>.</span></h2></div><p>당신의 플레이리스트를 무대 위에서</p></div>
       <section className="poster-carousel" aria-label="주요 공연">
         <button
           className="carousel-arrow carousel-arrow-left"
           type="button"
           aria-label="이전 공연 보기"
+          disabled={soonestOnSaleEvents.length <= 1}
           onClick={() => movePosters('prev')}
         >
           <ArrowIcon direction="left" />
@@ -1301,6 +1326,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
           className="carousel-arrow carousel-arrow-right"
           type="button"
           aria-label="다음 공연 보기"
+          disabled={soonestOnSaleEvents.length <= 1}
           onClick={() => movePosters('next')}
         >
           <ArrowIcon direction="right" />
@@ -4040,6 +4066,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
               <em>*</em>Password 확인
             </span>
             <input
+              className="signup-password-confirm-input"
               autoComplete="new-password"
               minLength={8}
               placeholder="비밀번호 재입력"
