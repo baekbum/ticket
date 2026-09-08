@@ -298,7 +298,7 @@ const initialFindPasswordForm = {
 };
 
 const savedLoginIdCookieName = 'ticksy.savedLoginId';
-const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사', '테마/지역', '랭킹'];
+const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const recentTicketHistories = [
   {

@@ -36,7 +36,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .search-bar input, .search-bar button { background: transparent; }
 .search-bar input { min-width: 0; font-size: 13px; }
 .search-bar input::placeholder { color: #7a8375; }
-.search-bar button { flex-shrink: 0; color: var(--live-ink); transform: translateY(-2px); }
+.search-bar button { flex-shrink: 0; color: var(--live-ink); transform: translateY(-4px); }
 .signup-password-confirm-input::-ms-reveal,
 .signup-password-confirm-input::-ms-clear { display: none; }
 .category-nav { gap: 34px; min-height: 58px; border-top-color: #f0f2eb; }
