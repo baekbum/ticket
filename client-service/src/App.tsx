@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
-import { getApiErrorMessage } from './apiErrorMessage';
+import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
 
 type Page =
   | 'home'
@@ -45,11 +45,6 @@ type LoginResponse = {
   refreshToken?: string;
 };
 
-type TokenResponse = {
-  accessToken: string;
-  refreshToken: string;
-};
-
 type QueueEntryResponse = {
   eventId: number;
   status: 'READY' | 'WAITING' | 'SESSION_LIMIT_CONFIRM_REQUIRED' | string;
@@ -60,21 +55,6 @@ type QueueEntryResponse = {
   estimatedEntryAt: string | null;
   activeTokenExpiresAt: string | null;
 };
-
-class ApiRequestError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-class SessionExpiredError extends Error {
-  constructor() {
-    super('세션이 만료되었습니다. 다시 시도해주세요.');
-  }
-}
 
 type CustomAlertState = {
   message: string;
@@ -873,14 +853,14 @@ function App() {
     const nativeAlert = window.alert;
     window.alert = (message?: unknown) => {
       if (message && typeof message === 'object' && 'message' in message) {
-        setCustomAlert({
+        setCustomAlert((current) => current?.closeWindowOnConfirm ? current : ({
           message: String((message as CustomAlertState).message ?? ''),
           closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
-        });
+        }));
         return;
       }
 
-      setCustomAlert({ message: String(message ?? '') });
+      setCustomAlert((current) => current?.closeWindowOnConfirm ? current : { message: String(message ?? '') });
     };
 
     return () => {
@@ -2066,6 +2046,10 @@ function BookingWindowPage() {
   const [isTermsAgreed, setIsTermsAgreed] = useState(false);
   const [isPaymentInfoLoading, setIsPaymentInfoLoading] = useState(false);
   const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
+  const occupiedSeatsRef = useRef<SeatOccupyResponse | null>(null);
+  const checkoutPreparingRef = useRef(false);
+  const [bookingLoadError, setBookingLoadError] = useState('');
+  const [bookingReloadCount, setBookingReloadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSeatLoading, setIsSeatLoading] = useState(false);
   const [sideLayoutScale, setSideLayoutScale] = useState(1);
@@ -2114,23 +2098,8 @@ function BookingWindowPage() {
     return () => window.clearInterval(timer);
   }, [activeTokenExpiresAt, completedPayment]);
 
-  useEffect(() => {
-    if (!selectedScheduleId || !activeToken) {
-      return undefined;
-    }
-
-    function leaveQueue() {
-      releaseActiveToken(selectedScheduleId, activeToken);
-    }
-
-    window.addEventListener('pagehide', leaveQueue);
-    window.addEventListener('beforeunload', leaveQueue);
-
-    return () => {
-      window.removeEventListener('pagehide', leaveQueue);
-      window.removeEventListener('beforeunload', leaveQueue);
-    };
-  }, [activeToken, selectedScheduleId]);
+  // 새로고침도 unload를 발생시키므로 여기서 active-token을 반환하지 않는다.
+  // 예매 완료 시 반환하며, 그 외에는 서버 TTL로 정리한다.
 
   useEffect(() => {
     if (!isDeliverySameAsOrderer) {
@@ -2168,7 +2137,7 @@ function BookingWindowPage() {
     }
 
     loadEventSchedules();
-  }, [eventGroupCode, selectedScheduleId]);
+  }, [eventGroupCode, selectedScheduleId, bookingReloadCount]);
 
   useEffect(() => {
     async function loadBookingData() {
@@ -2179,6 +2148,7 @@ function BookingWindowPage() {
       }
 
       setIsLoading(true);
+      setBookingLoadError('');
       setSelectedAreaId(null);
       setSeats([]);
       setSelectedSeatIds([]);
@@ -2205,20 +2175,22 @@ function BookingWindowPage() {
         setAreas(areaResponse.content || []);
         setLayoutSvgText(layoutResponse?.svgText || '');
       } catch (error) {
-        if (error instanceof SessionExpiredError) {
+        if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
+          setBookingLoadError(error.message);
           alertSessionExpiredAndClose(error);
           return;
         }
 
-        alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
-        window.close();
+        const message = bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.');
+        setBookingLoadError(message);
+        alert(message);
       } finally {
         setIsLoading(false);
       }
     }
 
     loadBookingData();
-  }, [selectedScheduleId]);
+  }, [selectedScheduleId, bookingReloadCount]);
 
   function changeSchedule(schedule: EventSchedule) {
     if (schedule.eventId === selectedScheduleId || schedule.status !== 'ON_SALE') {
@@ -2335,7 +2307,7 @@ function BookingWindowPage() {
       setSeats(seatResponse.content || []);
     } catch (error) {
       setSeats([]);
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
         return;
       }
@@ -2384,7 +2356,7 @@ function BookingWindowPage() {
   function alertSessionExpiredAndClose(error: unknown) {
     window.alert({
       message: bookingErrorMessage(error, '세션이 만료되었습니다. 다시 시도해주세요.'),
-      closeWindowOnConfirm: true,
+      closeWindowOnConfirm: error instanceof ActiveTokenExpiredError,
     });
   }
 
@@ -2393,7 +2365,7 @@ function BookingWindowPage() {
       return;
     }
 
-    alertSessionExpiredAndClose(new SessionExpiredError());
+    alertSessionExpiredAndClose(new ActiveTokenExpiredError());
   }, [activeTokenRemainingSeconds, completedPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
@@ -2406,15 +2378,22 @@ function BookingWindowPage() {
   }
 
   async function prepareCheckout() {
-    if (!selectedScheduleId || selectedSeatIds.length === 0) {
+    if (!selectedScheduleId || selectedSeatIds.length === 0 || checkoutPreparingRef.current) {
       return;
     }
 
+    checkoutPreparingRef.current = true;
     setIsCheckoutPreparing(true);
 
     try {
       const seatInfoList = selectedSeatInfoList();
-      const occupyResult = await request<SeatOccupyResponse>('/client-api/api/v1/seat/occupy', {
+      const previousOccupation = occupiedSeatsRef.current;
+      const canReuseOccupation = previousOccupation?.eventId === selectedScheduleId
+        && Date.parse(previousOccupation.expiresAt.replace(' ', 'T')) > Date.now()
+        && previousOccupation.seats.length === seatInfoList.length
+        && previousOccupation.seats.every((seat) => seatInfoList.some((selected) => selected.id === seat.id));
+      // prepare 통신 실패 후에는 확보한 좌석을 중복 선점하지 않고 같은 주문으로 재시도한다.
+      const occupyResult = canReuseOccupation ? previousOccupation : await request<SeatOccupyResponse>('/client-api/api/v1/seat/occupy', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2425,6 +2404,8 @@ function BookingWindowPage() {
           ticketLimitScope: eventDetail?.ticketLimitScope,
         }),
       });
+
+      occupiedSeatsRef.current = occupyResult;
 
       const prepareResult = await request<CheckoutPrepareResponse>('/client-api/api/v1/checkout/prepare', {
         method: 'POST',
@@ -2450,16 +2431,14 @@ function BookingWindowPage() {
       setCouponMessage('');
       setCheckoutStep('PRICE');
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
         return;
       }
 
       alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));
-      if (selectedArea) {
-        void selectArea(selectedArea, false);
-      }
     } finally {
+      checkoutPreparingRef.current = false;
       setIsCheckoutPreparing(false);
     }
   }
@@ -2492,7 +2471,7 @@ function BookingWindowPage() {
       setCouponMessage(`${(availability.discountAmount || 0).toLocaleString()}원 할인이 적용됩니다.`);
     } catch (error) {
       setSelectedUserCouponId(null);
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
         return;
       }
@@ -2547,6 +2526,7 @@ function BookingWindowPage() {
       // confirm이 예약/결제를 생성하고 PG의 /payments/virtual-account/issue를 호출한다.
       const payment = await request<BookingPaymentResponse>('/client-api/api/v1/checkout/confirm', {
         method: 'POST',
+        headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
           orderId: checkoutPrepare.orderId,
           eventId: checkoutPrepare.eventId,
@@ -2564,7 +2544,7 @@ function BookingWindowPage() {
       setCompletedPayment(payment);
       releaseActiveToken(selectedScheduleId, activeToken);
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
       } else {
         alert(bookingErrorMessage(error, '가상계좌 발급에 실패했습니다. 다시 시도해주세요.'));
@@ -2632,7 +2612,7 @@ function BookingWindowPage() {
       setIsDeliverySameAsOrderer(true);
       return true;
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
         return false;
       }
@@ -2728,6 +2708,12 @@ function BookingWindowPage() {
           )}
 
           {isLoading && <div className="booking-state-box">구역 정보를 불러오는 중입니다.</div>}
+          {!isLoading && bookingLoadError && (
+            <div className="booking-state-box" role="status">
+              <p>{bookingLoadError}</p>
+              <button type="button" onClick={() => setBookingReloadCount((count) => count + 1)}>다시 불러오기</button>
+            </div>
+          )}
 
           {!isLoading && (
             <>
@@ -4409,93 +4395,7 @@ function TopButton() {
   );
 }
 
-async function request<T = unknown>(url: string, options: RequestInit): Promise<T> {
-  return requestWithAuthRetry<T>(url, options, true);
-}
-
-async function requestWithAuthRetry<T = unknown>(
-  url: string,
-  options: RequestInit,
-  canRetryWithRefresh: boolean,
-): Promise<T> {
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', headers.get('Content-Type') || 'application/json');
-
-  const accessToken = sessionStorage.getItem('ticksy.accessToken');
-
-  if (accessToken && !headers.has('Authorization') && shouldAttachAccessToken(url)) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...Object.fromEntries(headers.entries()),
-    },
-  });
-
-  if (response.status === 401 && canRetryWithRefresh && !url.includes('/auth/reissue')) {
-    const isReissued = await reissueToken();
-
-    if (isReissued) {
-      return requestWithAuthRetry<T>(url, options, false);
-    }
-
-    clearLoginStorage();
-    throw new SessionExpiredError();
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new ApiRequestError(response.status, getApiErrorMessage(response.status, errorText));
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const responseText = await response.text();
-
-  if (!responseText) {
-    return undefined as T;
-  }
-
-  return JSON.parse(responseText) as T;
-}
-
-async function reissueToken() {
-  const refreshToken = sessionStorage.getItem('ticksy.refreshToken');
-
-  if (!refreshToken) {
-    return false;
-  }
-
-  try {
-    const tokenResponse = await requestWithAuthRetry<TokenResponse>(
-      '/client-api/api/v1/auth/reissue',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization-Refresh': `Bearer ${refreshToken}`,
-        },
-      },
-      false,
-    );
-
-    sessionStorage.setItem('ticksy.accessToken', tokenResponse.accessToken);
-    sessionStorage.setItem('ticksy.refreshToken', tokenResponse.refreshToken);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function shouldAttachAccessToken(url: string) {
-  return !url.includes('/auth/login')
-    && !url.includes('/auth/reissue')
-    && !url.includes('/auth/logout');
-}
+const request = createAuthenticatedRequest({ storage: sessionStorage, fetch: window.fetch.bind(window) });
 
 function clearLoginStorage() {
   sessionStorage.removeItem('ticksy.accessToken');

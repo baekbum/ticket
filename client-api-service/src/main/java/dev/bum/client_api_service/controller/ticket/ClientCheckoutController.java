@@ -24,10 +24,11 @@ public class ClientCheckoutController {
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @RequestBody CheckoutConfirmRequest request
     ) {
         try {
-            return ResponseEntity.ok(ticketCheckoutServiceClient.confirm(authorizationHeader, request));
+            return ResponseEntity.ok(ticketCheckoutServiceClient.confirm(authorizationHeader, activeToken, request));
         } catch (FeignException e) {
             return ClientFeignErrorResponse.from(e);
         }

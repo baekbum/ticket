@@ -51,8 +51,9 @@ public class CheckoutController {
     @PostMapping("/confirm")
     public ResponseEntity<PaymentResponse> confirm(
             @AuthenticationPrincipal String currentUserId,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody CheckoutConfirmRequest request
     ) {
-        return ResponseEntity.ok(checkoutService.confirm(currentUserId, request));
+        return ResponseEntity.ok(checkoutService.confirm(currentUserId, activeToken, request));
     }
 }

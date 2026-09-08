@@ -17,6 +17,7 @@ public interface TicketCheckoutServiceClient {
     @PostMapping("/confirm")
     PaymentResponse confirm(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @RequestBody CheckoutConfirmRequest request
     );
 

@@ -92,12 +92,14 @@ public class CheckoutService {
      * 무통장 결제는 이 단계에서 가상계좌까지 발급하고, 카드 결제는 PG 승인 전 READY 상태로 반환한다.
      */
     @AuditLog(action = "CHECKOUT_CONFIRM", targetType = "CHECKOUT")
-    public PaymentResponse confirm(String currentUserId, CheckoutConfirmRequest request) {
+    public PaymentResponse confirm(String currentUserId, String activeToken, CheckoutConfirmRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
         Payment existingPayment = findExistingPayment(currentUserId, idempotencyKey);
         if (existingPayment != null) {
             return existingPayment.toResponse();
         }
+
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
         seatCacheService.validateOccupiedSeat(
                 request.getEventId(),

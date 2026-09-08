@@ -4,6 +4,8 @@ import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
+import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
 import feign.FeignException;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,7 +58,7 @@ class QueueAccessServiceTest {
                 .willReturn(new QueueValidateResponse(false, "INVALID_QUEUE_TOKEN"));
 
         assertThatThrownBy(() -> queueAccessService.validate(1L, "user01", "queue-token"))
-                .isInstanceOf(QueueAccessDeniedException.class);
+                .isInstanceOf(ActiveTokenExpiredException.class);
     }
 
     @Test
@@ -68,6 +70,26 @@ class QueueAccessServiceTest {
                 .doesNotThrowAnyException();
 
         then(queueServiceClient).should(never()).validate(any());
+    }
+
+    @Test
+    void communication_failure_does_not_expire_token_and_can_be_retried() {
+        given(queueServiceClient.validate(any()))
+                .willThrow(org.mockito.Mockito.mock(FeignException.class))
+                .willReturn(new QueueValidateResponse(true, "OK"));
+
+        assertThatThrownBy(() -> queueAccessService.validate(1L, "user01", "queue-token"))
+                .isInstanceOf(QueueUnavailableException.class);
+        assertThatCode(() -> queueAccessService.validate(1L, "user01", "queue-token"))
+                .doesNotThrowAnyException();
+        then(queueServiceClient).should(never()).complete(any());
+    }
+
+    @Test
+    void empty_queue_response_is_service_failure_not_expired_token() {
+        given(queueServiceClient.validate(any())).willReturn(null);
+        assertThatThrownBy(() -> queueAccessService.validate(1L, "user01", "queue-token"))
+                .isInstanceOf(QueueUnavailableException.class);
     }
 
     @Test

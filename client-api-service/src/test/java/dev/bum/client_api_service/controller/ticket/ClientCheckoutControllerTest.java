@@ -22,7 +22,7 @@ class ClientCheckoutControllerTest {
     void confirm_forwards_bank_and_idempotency_key_and_returns_account() throws Exception {
         TicketCheckoutServiceClient client = mock(TicketCheckoutServiceClient.class);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new ClientCheckoutController(client)).build();
-        when(client.confirm(eq("Bearer token"), any())).thenReturn(PaymentResponse.builder()
+        when(client.confirm(eq("Bearer token"), eq("active-token"), any())).thenReturn(PaymentResponse.builder()
                 .status(PaymentStatus.WAITING_DEPOSIT)
                 .bankName("토스뱅크")
                 .accountNumber("8888-1234")
@@ -32,6 +32,7 @@ class ClientCheckoutControllerTest {
 
         mvc.perform(post("/api/v1/checkout/confirm")
                         .header("Authorization", "Bearer token")
+                        .header("X-Active-Token", "active-token")
                         .contentType("application/json")
                         .content("""
                                 {"orderId":"order-1","eventId":1,"seats":[{"id":1}],
@@ -44,7 +45,7 @@ class ClientCheckoutControllerTest {
                 .andExpect(jsonPath("accountNumber").value("8888-1234"))
                 .andExpect(jsonPath("amount").value(184000))
                 .andExpect(jsonPath("expiresAt").value("2026-09-09 23:59:59"));
-        verify(client).confirm(eq("Bearer token"), argThat(request ->
+        verify(client).confirm(eq("Bearer token"), eq("active-token"), argThat(request ->
                 "TOSS".equals(request.getBankCode())
                         && "CHK-1".equals(request.getIdempotencyKey())
                         && request.getDelivery() == null));
