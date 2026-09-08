@@ -2021,7 +2021,8 @@ button {
   font-weight: 850;
 }
 
-.booking-payment-form-grid input {
+.booking-payment-form-grid input,
+.booking-payment-form-grid select {
   width: 100%;
   height: 44px;
   padding: 0 12px;
@@ -2032,7 +2033,8 @@ button {
   outline: none;
 }
 
-.booking-payment-form-grid input:focus {
+.booking-payment-form-grid input:focus,
+.booking-payment-form-grid select:focus {
   border-color: #00c73c;
   background: #ffffff;
   box-shadow: 0 0 0 4px rgba(0, 199, 60, 0.1);
@@ -2042,6 +2044,77 @@ button {
   background: #f3f5f4;
   color: #555555;
 }
+
+.booking-payment-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.booking-bank-guide {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.booking-bank-transfer-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.booking-bank-transfer-row.full-width {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.booking-payment-methods.booking-payment-method-single,
+.booking-payment-form-grid.booking-bank-selector {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.booking-payment-methods.booking-payment-method-single label {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  align-items: center;
+}
+
+.booking-payment-methods.booking-payment-method-single input {
+  margin-top: 0;
+}
+
+.booking-complete-panel {
+  display: grid;
+  gap: 24px;
+  width: min(100%, 820px);
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.booking-complete-panel p {
+  color: #555;
+  line-height: 1.7;
+}
+
+.booking-deposit-details {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.booking-deposit-details > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+.booking-deposit-details dt { color: #666; }
+.booking-deposit-details dd { margin: 0; overflow-wrap: anywhere; }
+.booking-deposit-details strong { color: #008a32; font-size: 22px; }
 
 .booking-agreement-list {
   display: grid;

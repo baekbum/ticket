@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
+import { getApiErrorMessage } from './apiErrorMessage';
 
 type Page =
   | 'home'
@@ -225,6 +226,31 @@ type CheckoutFeeResponse = {
 
 type BookingDeliveryMethod = 'PICKUP' | 'DELIVERY';
 type BookingPaymentMethod = 'BANK_TRANSFER' | 'CREDIT_CARD';
+
+// common.service.ticket.payment.enums.BankCompany와 동일한 코드/표시명.
+const BANK_COMPANIES = [
+  { code: 'KB', name: 'KB국민은행' },
+  { code: 'SHINHAN', name: '신한은행' },
+  { code: 'WOORI', name: '우리은행' },
+  { code: 'HANA', name: '하나은행' },
+  { code: 'NH', name: 'NH농협은행' },
+  { code: 'IBK', name: 'IBK기업은행' },
+  { code: 'KAKAO', name: '카카오뱅크' },
+  { code: 'TOSS', name: '토스뱅크' },
+  { code: 'BUSAN', name: '부산은행' },
+] as const;
+type BankCompany = typeof BANK_COMPANIES[number]['code'];
+type BookingPaymentResponse = {
+  reservationId: number;
+  orderId: string;
+  paymentNo: string;
+  method: BookingPaymentMethod;
+  status: string;
+  amount: number;
+  bankName: string | null;
+  accountNumber: string | null;
+  expiresAt: string | null;
+};
 
 type BookingOrdererInfo = {
   name: string;
@@ -2019,6 +2045,10 @@ function BookingWindowPage() {
   });
   const [deliveryMethod, setDeliveryMethod] = useState<BookingDeliveryMethod>('PICKUP');
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>('BANK_TRANSFER');
+  const [bankCompany, setBankCompany] = useState<BankCompany | ''>('');
+  const [completedPayment, setCompletedPayment] = useState<BookingPaymentResponse | null>(null);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const paymentSubmittingRef = useRef(false);
   const [ordererInfo, setOrdererInfo] = useState<BookingOrdererInfo>({
     name: '',
     phoneNumber: '',
@@ -2064,7 +2094,7 @@ function BookingWindowPage() {
   }, [activeToken, activeTokenExpiresAt, selectedScheduleId]);
 
   useEffect(() => {
-    if (!activeTokenExpiresAt) {
+    if (!activeTokenExpiresAt || completedPayment) {
       setActiveTokenRemainingSeconds(null);
       return undefined;
     }
@@ -2082,7 +2112,7 @@ function BookingWindowPage() {
     syncRemainingSeconds();
     const timer = window.setInterval(syncRemainingSeconds, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTokenExpiresAt]);
+  }, [activeTokenExpiresAt, completedPayment]);
 
   useEffect(() => {
     if (!selectedScheduleId || !activeToken) {
@@ -2338,6 +2368,7 @@ function BookingWindowPage() {
     setCouponMessage('');
     setDeliveryMethod('PICKUP');
     setPaymentMethod('BANK_TRANSFER');
+    setBankCompany('');
     setIsDeliverySameAsOrderer(true);
     setIsTermsAgreed(false);
   }
@@ -2358,12 +2389,12 @@ function BookingWindowPage() {
   }
 
   useEffect(() => {
-    if (activeTokenRemainingSeconds !== 0) {
+    if (activeTokenRemainingSeconds !== 0 || completedPayment || isPaymentSubmitting) {
       return;
     }
 
     alertSessionExpiredAndClose(new SessionExpiredError());
-  }, [activeTokenRemainingSeconds]);
+  }, [activeTokenRemainingSeconds, completedPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
     return selectedSeats.map((seat) => ({
@@ -2471,6 +2502,7 @@ function BookingWindowPage() {
   }
 
   async function goNextCheckoutStep() {
+    if (paymentSubmittingRef.current) return;
     if (checkoutStep === 'PRICE') {
       const loaded = await loadPaymentStepInfo();
       if (loaded) {
@@ -2479,12 +2511,68 @@ function BookingWindowPage() {
       return;
     }
 
+    if (paymentMethod === 'BANK_TRANSFER' && !bankCompany) {
+      alert('입금 은행을 선택해주세요.');
+      return;
+    }
+
     if (!isTermsAgreed) {
       alert('예매자 동의 항목을 확인해주세요.');
       return;
     }
 
-    alert('결제 완료 로직은 아직 연결되지 않았습니다.');
+    if (paymentMethod !== 'BANK_TRANSFER') {
+      alert('신용카드 결제는 준비 중입니다. 무통장 입금을 선택해주세요.');
+      return;
+    }
+    if (!checkoutPrepare?.prepared) {
+      alert('좌석 선택부터 다시 진행해주세요.');
+      return;
+    }
+    const delivery = deliveryMethod === 'DELIVERY' ? {
+      ...deliveryInfo,
+      recipientName: (isDeliverySameAsOrderer ? ordererInfo.name : deliveryInfo.recipientName).trim(),
+      recipientPhone: (isDeliverySameAsOrderer ? ordererInfo.phoneNumber : deliveryInfo.recipientPhone).trim(),
+      zipCode: deliveryInfo.zipCode.trim(),
+      address: deliveryInfo.address.trim(),
+    } : null;
+    if (delivery && (!delivery.recipientName || !delivery.recipientPhone || !delivery.zipCode || !delivery.address)) {
+      alert('받는 사람, 연락처, 우편번호, 주소를 모두 입력해주세요.');
+      return;
+    }
+
+    paymentSubmittingRef.current = true;
+    setIsPaymentSubmitting(true);
+    try {
+      // confirm이 예약/결제를 생성하고 PG의 /payments/virtual-account/issue를 호출한다.
+      const payment = await request<BookingPaymentResponse>('/client-api/api/v1/checkout/confirm', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId: checkoutPrepare.orderId,
+          eventId: checkoutPrepare.eventId,
+          seats: checkoutPrepare.seats,
+          idempotencyKey: checkoutPrepare.idempotencyKey,
+          userCouponId: selectedUserCouponId,
+          delivery,
+          paymentMethod,
+          bankCode: bankCompany,
+        }),
+      });
+      if (payment.status !== 'WAITING_DEPOSIT' || !payment.bankName || !payment.accountNumber || !payment.expiresAt) {
+        throw new Error('가상계좌 발급 정보를 확인하지 못했습니다. 다시 시도해주세요.');
+      }
+      setCompletedPayment(payment);
+      releaseActiveToken(selectedScheduleId, activeToken);
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        alertSessionExpiredAndClose(error);
+      } else {
+        alert(bookingErrorMessage(error, '가상계좌 발급에 실패했습니다. 다시 시도해주세요.'));
+      }
+    } finally {
+      paymentSubmittingRef.current = false;
+      setIsPaymentSubmitting(false);
+    }
   }
 
   function backToSeatSelection() {
@@ -2554,6 +2642,39 @@ function BookingWindowPage() {
     } finally {
       setIsPaymentInfoLoading(false);
     }
+  }
+
+  if (completedPayment) {
+    return (
+      <section className="booking-window-page">
+        <header className="booking-window-header"><strong>Tickey 티켓 예매</strong></header>
+        <main className="booking-complete-panel">
+          <BookingCheckoutStepper currentStep="COMPLETE" />
+          <div className="booking-checkout-header">
+            <h1>예매 신청이 완료되었습니다</h1>
+            <p>현재 입금 대기 중입니다. 아래 계좌로 입금 기한 내에 정확한 금액을 입금해주세요.</p>
+          </div>
+          <section className="booking-payment-card">
+            <h2>무통장 입금 정보</h2>
+            <dl className="booking-deposit-details">
+              <div><dt>예매 번호</dt><dd>{completedPayment.reservationId}</dd></div>
+              <div><dt>결제 번호</dt><dd>{completedPayment.paymentNo}</dd></div>
+              <div><dt>입금 은행</dt><dd>{completedPayment.bankName}</dd></div>
+              <div><dt>계좌번호</dt><dd>{completedPayment.accountNumber}</dd></div>
+              <div><dt>입금 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
+              <div><dt>입금 기한 (한국시간)</dt><dd>{completedPayment.expiresAt?.replace('T', ' ')}</dd></div>
+            </dl>
+            <p>기한 내 입금하지 않으면 예매가 자동 취소됩니다.</p>
+          </section>
+          <section className="booking-payment-card">
+            <h2>{eventDetail?.title}</h2>
+            <BookingCheckoutSelectionInfo selectedSchedule={selectedSchedule} selectedSeats={selectedSeats} />
+            <p>수령 방법: {deliveryMethod === 'DELIVERY' ? '배송' : '현장 수령'}</p>
+          </section>
+          <button className="booking-next-button" type="button" onClick={() => window.close()}>창 닫기</button>
+        </main>
+      </section>
+    );
   }
 
   return (
@@ -2650,21 +2771,25 @@ function BookingWindowPage() {
               )}
 
               {checkoutStep === 'PAYMENT' && (
-                <BookingPaymentPanel
-                  deliveryInfo={deliveryInfo}
-                  deliveryMethod={deliveryMethod}
-                  isDeliverySameAsOrderer={isDeliverySameAsOrderer}
-                  isPaymentInfoLoading={isPaymentInfoLoading}
-                  isTermsAgreed={isTermsAgreed}
-                  ordererInfo={ordererInfo}
-                  paymentMethod={paymentMethod}
-                  onChangeDeliveryInfo={setDeliveryInfo}
-                  onChangeDeliveryMethod={setDeliveryMethod}
-                  onChangeDeliverySameAsOrderer={setIsDeliverySameAsOrderer}
-                  onChangeOrdererInfo={setOrdererInfo}
-                  onChangePaymentMethod={setPaymentMethod}
-                  onChangeTermsAgreed={setIsTermsAgreed}
-                />
+                <fieldset className="booking-payment-fieldset" disabled={isPaymentSubmitting}>
+                  <BookingPaymentPanel
+                    bankCompany={bankCompany}
+                    onChangeBankCompany={setBankCompany}
+                    deliveryInfo={deliveryInfo}
+                    deliveryMethod={deliveryMethod}
+                    isDeliverySameAsOrderer={isDeliverySameAsOrderer}
+                    isPaymentInfoLoading={isPaymentInfoLoading}
+                    isTermsAgreed={isTermsAgreed}
+                    ordererInfo={ordererInfo}
+                    paymentMethod={paymentMethod}
+                    onChangeDeliveryInfo={setDeliveryInfo}
+                    onChangeDeliveryMethod={setDeliveryMethod}
+                    onChangeDeliverySameAsOrderer={setIsDeliverySameAsOrderer}
+                    onChangeOrdererInfo={setOrdererInfo}
+                    onChangePaymentMethod={setPaymentMethod}
+                    onChangeTermsAgreed={setIsTermsAgreed}
+                  />
+                </fieldset>
               )}
             </>
           )}
@@ -2760,16 +2885,16 @@ function BookingWindowPage() {
                 showFees={checkoutStep === 'PAYMENT'}
               />
               <div className="booking-checkout-actions">
-                <button className="booking-prev-button" type="button" onClick={backToSeatSelection}>
+                <button className="booking-prev-button" type="button" disabled={isPaymentSubmitting} onClick={backToSeatSelection}>
                   이전
                 </button>
                 <button
                   className="booking-next-button"
                   type="button"
-                  disabled={isPaymentInfoLoading}
+                  disabled={isPaymentInfoLoading || isPaymentSubmitting}
                   onClick={goNextCheckoutStep}
                 >
-                  {checkoutStep === 'PRICE' ? '다음' : '결제하기'}
+                  {checkoutStep === 'PRICE' ? '다음' : isPaymentSubmitting ? '가상계좌 발급 중' : '결제하기'}
                 </button>
               </div>
             </section>
@@ -2844,6 +2969,8 @@ function BookingCheckoutPanel({
 }
 
 function BookingPaymentPanel({
+  bankCompany,
+  onChangeBankCompany,
   deliveryInfo,
   deliveryMethod,
   isDeliverySameAsOrderer,
@@ -2858,6 +2985,8 @@ function BookingPaymentPanel({
   onChangePaymentMethod,
   onChangeTermsAgreed,
 }: {
+  bankCompany: BankCompany | '';
+  onChangeBankCompany: (bank: BankCompany | '') => void;
   deliveryInfo: BookingDeliveryInfo;
   deliveryMethod: BookingDeliveryMethod;
   isDeliverySameAsOrderer: boolean;
@@ -2997,16 +3126,34 @@ function BookingPaymentPanel({
           <h2>결제 수단</h2>
           <p>결제 방식을 선택해주세요.</p>
         </div>
-        <div className="booking-payment-methods">
-          <label className={paymentMethod === 'BANK_TRANSFER' ? 'selected' : ''}>
-            <input
-              checked={paymentMethod === 'BANK_TRANSFER'}
-              name="payment-method"
-              type="radio"
-              onChange={() => onChangePaymentMethod('BANK_TRANSFER')}
-            />
-            <span>무통장 입금</span>
-          </label>
+        <div className={`booking-bank-transfer-row${paymentMethod === 'BANK_TRANSFER' ? '' : ' full-width'}`}>
+          <div className="booking-payment-methods booking-payment-method-single">
+            <label className={paymentMethod === 'BANK_TRANSFER' ? 'selected' : ''}>
+              <input
+                checked={paymentMethod === 'BANK_TRANSFER'}
+                name="payment-method"
+                type="radio"
+                onChange={() => onChangePaymentMethod('BANK_TRANSFER')}
+              />
+              <span>무통장 입금</span>
+            </label>
+          </div>
+          {paymentMethod === 'BANK_TRANSFER' && (
+            <div className="booking-payment-form-grid booking-bank-selector">
+              <label>
+                <span>입금 은행</span>
+                <select value={bankCompany} onChange={(event) => onChangeBankCompany(event.target.value as BankCompany | '')}>
+                  <option value="">은행을 선택해주세요</option>
+                  {BANK_COMPANIES.map((bank) => <option key={bank.code} value={bank.code}>{bank.name}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
+        {paymentMethod === 'BANK_TRANSFER' && (
+          <p className="booking-bank-guide">발급된 계좌와 입금 기한은 예매 완료 화면에서 확인할 수 있습니다.</p>
+        )}
+        <div className="booking-payment-methods booking-payment-method-single">
           <label className={paymentMethod === 'CREDIT_CARD' ? 'selected' : ''}>
             <input
               checked={paymentMethod === 'CREDIT_CARD'}
@@ -4300,16 +4447,7 @@ async function requestWithAuthRetry<T = unknown>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    let errorMessage = errorText;
-
-    try {
-      const errorBody = JSON.parse(errorText) as { message?: string; error?: string; code?: string };
-      errorMessage = errorBody.message || errorBody.error || errorBody.code || errorText;
-    } catch {
-      errorMessage = errorText;
-    }
-
-    throw new ApiRequestError(response.status, errorMessage || `요청 실패: ${response.status}`);
+    throw new ApiRequestError(response.status, getApiErrorMessage(response.status, errorText));
   }
 
   if (response.status === 204) {

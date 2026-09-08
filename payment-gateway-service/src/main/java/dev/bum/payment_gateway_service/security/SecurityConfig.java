@@ -23,6 +23,7 @@ public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
+    private final InternalServiceTokenValidator internalServiceTokenValidator;
 
     @Value("${spring.profiles.default:local}")
     private String activeProfile;
@@ -43,8 +44,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN", "INTERNAL_SERVICE")
+                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole("USER", "ADMIN", "INTERNAL_SERVICE")
                         .anyRequest().hasRole("ADMIN")
                 );
 
@@ -53,6 +54,11 @@ public class SecurityConfig {
         } else {
             http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         }
+
+        http.addFilterBefore(
+                new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
+                UsernamePasswordAuthenticationFilter.class
+        );
 
         return http.build();
     }

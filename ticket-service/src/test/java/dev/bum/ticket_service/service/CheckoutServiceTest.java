@@ -143,7 +143,7 @@ class CheckoutServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
-        assertThat(response.getAmount()).isEqualTo(180000);
+        assertThat(response.getAmount()).isEqualTo(187200);
         assertThat(response.getPaymentNo()).startsWith("PAY-");
         assertThat(response.getAccountNumber()).isNull();
 
@@ -172,6 +172,7 @@ class CheckoutServiceTest {
         Seat seat = seat(event);
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+        request.setDelivery(null);
 
         given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
                 org.mockito.ArgumentMatchers.eq("idem-1"),
@@ -194,6 +195,8 @@ class CheckoutServiceTest {
         PaymentResponse response = checkoutService.confirm("user01", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getAmount()).isEqualTo(184000);
+        then(reservationDeliveryJpaRepository).shouldHaveNoInteractions();
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");

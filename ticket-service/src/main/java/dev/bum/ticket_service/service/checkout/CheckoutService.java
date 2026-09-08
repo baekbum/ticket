@@ -54,6 +54,12 @@ public class CheckoutService {
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
 
+    @Value("${app.checkout.reservation-fee-per-ticket:4000}")
+    private int reservationFeePerTicket = 4000;
+
+    @Value("${app.checkout.delivery-fee:3200}")
+    private int deliveryFee = 3200;
+
     /**
      * 좌석 선택 완료 후 배송/결제 정보 입력 화면으로 이동할 수 있는지 검증한다.
      * active token과 Redis 좌석 선점 상태가 유효한지 검증한다.
@@ -101,11 +107,15 @@ public class CheckoutService {
         );
 
         Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
-        reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+        if (request.getDelivery() != null) {
+            reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+        }
 
         int totalTicketAmount = calculateTotalTicketAmount(reservation);
         int discountAmount = calculateDiscountAmount(reservation);
-        int paymentAmount = totalTicketAmount - discountAmount;
+        int paymentAmount = Math.max(0, totalTicketAmount - discountAmount)
+                + reservationFeePerTicket * reservation.getTickets().size()
+                + (request.getDelivery() != null ? deliveryFee : 0);
         LocalDateTime requestedAt = LocalDateTime.now();
 
         Payment payment = Payment.builder()
