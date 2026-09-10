@@ -160,6 +160,8 @@ public class DummyCardPaymentHistory {
     public void failTicketPayment(String failureReason) {
         this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_FAILED;
         this.failureReason = failureReason;
+        // 반복해서 실패하는 건은 재처리 순서를 뒤로 옮겨 다른 승인 대기 건이 먼저 처리되도록 한다.
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void cancel(String failureReason) {

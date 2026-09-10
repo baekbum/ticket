@@ -40,6 +40,7 @@ public class PaymentExpirationScheduler {
         for (Long paymentId : expiredPaymentIds) {
             try {
                 paymentExpirationService.expireIfExpired(paymentId);
+                log.info("[PAYMENT][EXPIRE] 만료 시간이 지난 {} 건을 만료 상태로 변경했습니다. ", expiredPaymentIds.size());
             } catch (RuntimeException ex) {
                 log.error("[PAYMENT][EXPIRE][FAIL] paymentId={}", paymentId, ex);
             }

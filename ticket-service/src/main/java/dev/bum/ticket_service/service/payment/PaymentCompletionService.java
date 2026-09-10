@@ -61,9 +61,11 @@ public class PaymentCompletionService {
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }
+
         if (payment.getStatus() != PaymentStatus.READY && payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
             throw new IllegalArgumentException("결제 완료 처리할 수 없는 상태입니다.");
         }
+
         PaymentStatus beforePaymentStatus = payment.getStatus();
 
         Reservation reservation = payment.getReservation();
