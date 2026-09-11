@@ -689,7 +689,20 @@ function releaseWaitingToken(eventId: number, token: string) {
 }
 
 function releaseActiveToken(eventId: number, token: string) {
+  removeSavedActiveToken(eventId);
   releaseQueueToken(eventId, token, 'active');
+}
+
+function releaseActiveTokenWhenWindowCloses(
+  bookingWindow: Window,
+  eventId: number,
+  activeToken: string,
+) {
+  const timer = window.setInterval(() => {
+    if (!bookingWindow.closed) return;
+    window.clearInterval(timer);
+    releaseActiveToken(eventId, activeToken);
+  }, 500);
 }
 
 function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' | 'active') {
@@ -1805,6 +1818,7 @@ function EventDetailPage({
 
       removeSavedWaitingToken(selectedScheduleId);
       saveActiveToken(selectedScheduleId, queueResponse.token, queueResponse.activeTokenExpiresAt);
+      releaseActiveTokenWhenWindowCloses(bookingWindow, selectedScheduleId, queueResponse.token);
       writeQueueWindowMessage(bookingWindow, '입장 준비 완료', '좌석 선택 화면으로 이동합니다.');
       bookingWindow.location.replace(
         buildBookingWindowUrl(selectedScheduleId, eventGroupCode, queueResponse.token, queueResponse.activeTokenExpiresAt),
