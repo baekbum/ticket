@@ -33,8 +33,9 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
   useEffect(() => { completeRef.current = onComplete; }, [onComplete]);
 
   useEffect(() => {
-    dialog.current?.showModal();
-    return () => dialog.current?.close();
+    const currentDialog = dialog.current;
+    currentDialog?.showModal();
+    return () => currentDialog?.close();
   }, []);
 
   // 응답을 잃어도 같은 결제번호의 결과만 조회한다. 카드 정보는 저장하지 않는다.

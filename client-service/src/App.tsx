@@ -155,6 +155,18 @@ type SeatResponse = {
   areaName?: string;
 };
 
+type ReservationTicketResponse = {
+  ticketId: number;
+  seatId: number;
+  zone: string;
+  seatRow: number;
+  seatCol: number;
+  seatName: string;
+  grade: string;
+  price: number;
+  status: string;
+};
+
 type SeatInfo = {
   id: number;
   zone: string;
@@ -226,6 +238,7 @@ type BankCompany = typeof BANK_COMPANIES[number]['code'];
 type BookingPaymentResponse = {
   cardCompany?: CardCompany;
   maskedCardNumber?: string;
+  selectedSeats?: SeatResponse[];
   reservationId: number;
   orderId: string;
   paymentNo: string;
@@ -241,7 +254,9 @@ function savedCardCheckout(activeToken: string): BookingPaymentResponse | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(`ticksy.card-checkout:${activeToken}`) || 'null');
     return value?.method === 'CREDIT_CARD' && typeof value.paymentNo === 'string' && typeof value.amount === 'number'
-      && ['READY', 'PAID'].includes(value.status) ? value : null;
+      && ['READY', 'PAID'].includes(value.status)
+      ? { ...value, selectedSeats: Array.isArray(value.selectedSeats) ? value.selectedSeats : undefined }
+      : null;
   } catch { return null; }
 }
 
@@ -2040,6 +2055,7 @@ function BookingWindowPage() {
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>('BANK_TRANSFER');
   const [bankCompany, setBankCompany] = useState<BankCompany | ''>('');
   const [completedPayment, setCompletedPayment] = useState<BookingPaymentResponse | null>(null);
+  const [completedReservationSeats, setCompletedReservationSeats] = useState<SeatResponse[] | null>(null);
   const [cardPayment, setCardPayment] = useState<BookingPaymentResponse | null>(() => {
     const saved = savedCardCheckout(activeToken);
     return saved;
@@ -2158,7 +2174,6 @@ function BookingWindowPage() {
 
   useEffect(() => {
     async function loadBookingData() {
-      if (cardPayment || completedPayment) return;
       if (!selectedScheduleId) {
         alert('예매할 공연 회차 정보가 없습니다.');
         setIsLoading(false);
@@ -2208,7 +2223,7 @@ function BookingWindowPage() {
     }
 
     loadBookingData();
-  }, [selectedScheduleId, bookingReloadCount, cardPayment, completedPayment]);
+  }, [selectedScheduleId, bookingReloadCount]);
 
   function changeSchedule(schedule: EventSchedule) {
     if (schedule.eventId === selectedScheduleId || schedule.status !== 'ON_SALE') {
@@ -2552,14 +2567,18 @@ function BookingWindowPage() {
           bankCode: paymentMethod === 'BANK_TRANSFER' ? bankCompany : null,
         }),
       });
+      const paymentWithSelectedSeats: BookingPaymentResponse = {
+        ...payment,
+        selectedSeats: selectedSeats.map((seat) => ({ ...seat })),
+      };
       if (payment.method === 'CREDIT_CARD') {
         if (payment.status === 'PAID') {
-          setCompletedPayment(payment);
-          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(payment));
+          setCompletedPayment(paymentWithSelectedSeats);
+          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(paymentWithSelectedSeats));
           releaseActiveToken(selectedScheduleId, activeToken);
         } else if (payment.status === 'READY') {
-          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(payment));
-          setCardPayment(payment);
+          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(paymentWithSelectedSeats));
+          setCardPayment(paymentWithSelectedSeats);
         } else {
           throw new Error('카드 결제를 진행할 수 없는 상태입니다. 예매 내역을 확인해주세요.');
         }
@@ -2568,7 +2587,7 @@ function BookingWindowPage() {
       if (payment.status !== 'WAITING_DEPOSIT' || !payment.bankName || !payment.accountNumber || !payment.expiresAt) {
         throw new Error('가상계좌 발급 정보를 확인하지 못했습니다. 다시 시도해주세요.');
       }
-      setCompletedPayment(payment);
+      setCompletedPayment(paymentWithSelectedSeats);
       releaseActiveToken(selectedScheduleId, activeToken);
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
@@ -2671,6 +2690,37 @@ function BookingWindowPage() {
     setCardPayment(null);
   }
 
+  useEffect(() => {
+    if (!completedPayment) {
+      setCompletedReservationSeats(null);
+      return undefined;
+    }
+
+    let disposed = false;
+    request<ReservationTicketResponse[]>(
+      `/ticket/api/v1/ticket/reservation/${completedPayment.reservationId}`,
+      { method: 'GET' },
+    ).then((tickets) => {
+      if (disposed) return;
+      setCompletedReservationSeats(tickets.map((ticket) => ({
+        seatId: ticket.seatId,
+        zone: ticket.zone,
+        seatRow: ticket.seatRow,
+        seatCol: ticket.seatCol,
+        seatName: ticket.seatName,
+        grade: ticket.grade as SeatResponse['grade'],
+        price: ticket.price,
+        status: ticket.status,
+        eventId: selectedScheduleId,
+        areaId: 0,
+      })));
+    }).catch(() => {
+      // 조회가 일시적으로 실패하면 결제 직전에 저장한 좌석 정보로 표시한다.
+    });
+
+    return () => { disposed = true; };
+  }, [completedPayment, selectedScheduleId]);
+
   if (completedPayment) {
     return (
       <section className="booking-window-page">
@@ -2701,7 +2751,10 @@ function BookingWindowPage() {
           </section>
           <section className="booking-payment-card">
             <h2>{eventDetail?.title}</h2>
-            <BookingCheckoutSelectionInfo selectedSchedule={selectedSchedule} selectedSeats={selectedSeats} />
+            <BookingCheckoutSelectionInfo
+              selectedSchedule={selectedSchedule}
+              selectedSeats={completedReservationSeats ?? completedPayment.selectedSeats ?? selectedSeats}
+            />
             <p>수령 방법: {deliveryMethod === 'DELIVERY' ? '배송' : '현장 수령'}</p>
           </section>
           <button className="booking-next-button" type="button" onClick={() => window.close()}>창 닫기</button>
