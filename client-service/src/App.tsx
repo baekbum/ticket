@@ -3,6 +3,9 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as 
 import './App.css';
 import './theme.css';
 import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import CardPaymentDialog from './CardPaymentDialog';
+import { CARD_COMPANIES } from './cardPayment';
+import type { CardApprovalResponse, CardCompany } from './cardPayment';
 
 type Page =
   | 'home'
@@ -221,6 +224,8 @@ const BANK_COMPANIES = [
 ] as const;
 type BankCompany = typeof BANK_COMPANIES[number]['code'];
 type BookingPaymentResponse = {
+  cardCompany?: CardCompany;
+  maskedCardNumber?: string;
   reservationId: number;
   orderId: string;
   paymentNo: string;
@@ -231,6 +236,14 @@ type BookingPaymentResponse = {
   accountNumber: string | null;
   expiresAt: string | null;
 };
+
+function savedCardCheckout(activeToken: string): BookingPaymentResponse | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(`ticksy.card-checkout:${activeToken}`) || 'null');
+    return value?.method === 'CREDIT_CARD' && typeof value.paymentNo === 'string' && typeof value.amount === 'number'
+      && ['READY', 'PAID'].includes(value.status) ? value : null;
+  } catch { return null; }
+}
 
 type BookingOrdererInfo = {
   name: string;
@@ -2027,6 +2040,10 @@ function BookingWindowPage() {
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>('BANK_TRANSFER');
   const [bankCompany, setBankCompany] = useState<BankCompany | ''>('');
   const [completedPayment, setCompletedPayment] = useState<BookingPaymentResponse | null>(null);
+  const [cardPayment, setCardPayment] = useState<BookingPaymentResponse | null>(() => {
+    const saved = savedCardCheckout(activeToken);
+    return saved;
+  });
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const paymentSubmittingRef = useRef(false);
   const [ordererInfo, setOrdererInfo] = useState<BookingOrdererInfo>({
@@ -2078,7 +2095,7 @@ function BookingWindowPage() {
   }, [activeToken, activeTokenExpiresAt, selectedScheduleId]);
 
   useEffect(() => {
-    if (!activeTokenExpiresAt || completedPayment) {
+    if (!activeTokenExpiresAt || completedPayment || cardPayment) {
       setActiveTokenRemainingSeconds(null);
       return undefined;
     }
@@ -2096,7 +2113,7 @@ function BookingWindowPage() {
     syncRemainingSeconds();
     const timer = window.setInterval(syncRemainingSeconds, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTokenExpiresAt, completedPayment]);
+  }, [activeTokenExpiresAt, completedPayment, cardPayment]);
 
   // 새로고침도 unload를 발생시키므로 여기서 active-token을 반환하지 않는다.
   // 예매 완료 시 반환하며, 그 외에는 서버 TTL로 정리한다.
@@ -2141,6 +2158,7 @@ function BookingWindowPage() {
 
   useEffect(() => {
     async function loadBookingData() {
+      if (cardPayment || completedPayment) return;
       if (!selectedScheduleId) {
         alert('예매할 공연 회차 정보가 없습니다.');
         setIsLoading(false);
@@ -2190,7 +2208,7 @@ function BookingWindowPage() {
     }
 
     loadBookingData();
-  }, [selectedScheduleId, bookingReloadCount]);
+  }, [selectedScheduleId, bookingReloadCount, cardPayment, completedPayment]);
 
   function changeSchedule(schedule: EventSchedule) {
     if (schedule.eventId === selectedScheduleId || schedule.status !== 'ON_SALE') {
@@ -2361,12 +2379,12 @@ function BookingWindowPage() {
   }
 
   useEffect(() => {
-    if (activeTokenRemainingSeconds !== 0 || completedPayment || isPaymentSubmitting) {
+    if (activeTokenRemainingSeconds !== 0 || completedPayment || cardPayment || isPaymentSubmitting) {
       return;
     }
 
     alertSessionExpiredAndClose(new ActiveTokenExpiredError());
-  }, [activeTokenRemainingSeconds, completedPayment, isPaymentSubmitting]);
+  }, [activeTokenRemainingSeconds, completedPayment, cardPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
     return selectedSeats.map((seat) => ({
@@ -2500,10 +2518,6 @@ function BookingWindowPage() {
       return;
     }
 
-    if (paymentMethod !== 'BANK_TRANSFER') {
-      alert('신용카드 결제는 준비 중입니다. 무통장 입금을 선택해주세요.');
-      return;
-    }
     if (!checkoutPrepare?.prepared) {
       alert('좌석 선택부터 다시 진행해주세요.');
       return;
@@ -2523,7 +2537,7 @@ function BookingWindowPage() {
     paymentSubmittingRef.current = true;
     setIsPaymentSubmitting(true);
     try {
-      // confirm이 예약/결제를 생성하고 PG의 /payments/virtual-account/issue를 호출한다.
+      // 카드 결제는 READY 응답 후 카드 입력창에서 승인하고, 무통장은 계좌 발급까지 진행한다.
       const payment = await request<BookingPaymentResponse>('/client-api/api/v1/checkout/confirm', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
@@ -2535,9 +2549,22 @@ function BookingWindowPage() {
           userCouponId: selectedUserCouponId,
           delivery,
           paymentMethod,
-          bankCode: bankCompany,
+          bankCode: paymentMethod === 'BANK_TRANSFER' ? bankCompany : null,
         }),
       });
+      if (payment.method === 'CREDIT_CARD') {
+        if (payment.status === 'PAID') {
+          setCompletedPayment(payment);
+          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(payment));
+          releaseActiveToken(selectedScheduleId, activeToken);
+        } else if (payment.status === 'READY') {
+          sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(payment));
+          setCardPayment(payment);
+        } else {
+          throw new Error('카드 결제를 진행할 수 없는 상태입니다. 예매 내역을 확인해주세요.');
+        }
+        return;
+      }
       if (payment.status !== 'WAITING_DEPOSIT' || !payment.bankName || !payment.accountNumber || !payment.expiresAt) {
         throw new Error('가상계좌 발급 정보를 확인하지 못했습니다. 다시 시도해주세요.');
       }
@@ -2547,7 +2574,7 @@ function BookingWindowPage() {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
       } else {
-        alert(bookingErrorMessage(error, '가상계좌 발급에 실패했습니다. 다시 시도해주세요.'));
+        alert(bookingErrorMessage(error, '결제 준비에 실패했습니다. 다시 시도해주세요.'));
       }
     } finally {
       paymentSubmittingRef.current = false;
@@ -2624,6 +2651,26 @@ function BookingWindowPage() {
     }
   }
 
+  function completeCardPayment(result: CardApprovalResponse) {
+    if (!cardPayment) return;
+    const completed: BookingPaymentResponse = {
+      ...cardPayment,
+      status: 'PAID',
+      cardCompany: result.cardCompany,
+      maskedCardNumber: result.maskedCardNumber,
+    };
+    sessionStorage.setItem(`ticksy.card-checkout:${activeToken}`, JSON.stringify(completed));
+    setCompletedPayment(completed);
+    setCardPayment(null);
+    releaseActiveToken(selectedScheduleId, activeToken);
+  }
+
+  function closeCardPayment() {
+    if (cardPayment) sessionStorage.removeItem(`ticksy.card-attempt:${cardPayment.paymentNo}`);
+    sessionStorage.removeItem(`ticksy.card-checkout:${activeToken}`);
+    setCardPayment(null);
+  }
+
   if (completedPayment) {
     return (
       <section className="booking-window-page">
@@ -2631,20 +2678,26 @@ function BookingWindowPage() {
         <main className="booking-complete-panel">
           <BookingCheckoutStepper currentStep="COMPLETE" />
           <div className="booking-checkout-header">
-            <h1>예매 신청이 완료되었습니다</h1>
-            <p>현재 입금 대기 중입니다. 아래 계좌로 입금 기한 내에 정확한 금액을 입금해주세요.</p>
+            <h1>{completedPayment.method === 'CREDIT_CARD' ? '결제와 예매가 완료되었습니다' : '예매 신청이 완료되었습니다'}</h1>
+            <p>{completedPayment.method === 'CREDIT_CARD' ? '카드 결제가 정상적으로 처리되었습니다. 예매 내역을 확인해주세요.' : '현재 입금 대기 중입니다. 아래 계좌로 입금 기한 내에 정확한 금액을 입금해주세요.'}</p>
           </div>
           <section className="booking-payment-card">
-            <h2>무통장 입금 정보</h2>
+            <h2>{completedPayment.method === 'CREDIT_CARD' ? '카드 결제 정보' : '무통장 입금 정보'}</h2>
             <dl className="booking-deposit-details">
               <div><dt>예매 번호</dt><dd>{completedPayment.reservationId}</dd></div>
               <div><dt>결제 번호</dt><dd>{completedPayment.paymentNo}</dd></div>
+              {completedPayment.method === 'CREDIT_CARD' ? <>
+                <div><dt>결제 수단</dt><dd>{CARD_COMPANIES.find((card) => card.code === completedPayment.cardCompany)?.name || '신용카드'}</dd></div>
+                {completedPayment.maskedCardNumber && <div><dt>카드 번호</dt><dd>{completedPayment.maskedCardNumber}</dd></div>}
+                <div><dt>결제 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
+              </> : <>
               <div><dt>입금 은행</dt><dd>{completedPayment.bankName}</dd></div>
               <div><dt>계좌번호</dt><dd>{completedPayment.accountNumber}</dd></div>
               <div><dt>입금 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
               <div><dt>입금 기한 (한국시간)</dt><dd>{completedPayment.expiresAt?.replace('T', ' ')}</dd></div>
+              </>}
             </dl>
-            <p>기한 내 입금하지 않으면 예매가 자동 취소됩니다.</p>
+            {completedPayment.method === 'BANK_TRANSFER' && <p>기한 내 입금하지 않으면 예매가 자동 취소됩니다.</p>}
           </section>
           <section className="booking-payment-card">
             <h2>{eventDetail?.title}</h2>
@@ -2673,6 +2726,15 @@ function BookingWindowPage() {
           </em>
         </div>
       </header>
+
+      {cardPayment && (
+        <CardPaymentDialog
+          payment={cardPayment}
+          request={request}
+          onComplete={completeCardPayment}
+          onClose={closeCardPayment}
+        />
+      )}
 
       <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : ''}`}>
         <section className="booking-layout-panel">
@@ -2880,7 +2942,7 @@ function BookingWindowPage() {
                   disabled={isPaymentInfoLoading || isPaymentSubmitting}
                   onClick={goNextCheckoutStep}
                 >
-                  {checkoutStep === 'PRICE' ? '다음' : isPaymentSubmitting ? '가상계좌 발급 중' : '결제하기'}
+                  {checkoutStep === 'PRICE' ? '다음' : isPaymentSubmitting ? (paymentMethod === 'CREDIT_CARD' ? '카드 결제 준비 중' : '가상계좌 발급 중') : '결제하기'}
                 </button>
               </div>
             </section>

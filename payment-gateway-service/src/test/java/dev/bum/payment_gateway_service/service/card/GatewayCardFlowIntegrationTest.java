@@ -221,6 +221,70 @@ class GatewayCardFlowIntegrationTest {
                 payment(PaymentStatus.PAID, request.getTransactionId()));
     }
 
+    @Test
+    void anotherPersonsCardKeepsBookingOwnershipAndRefundsTheOriginalCard() {
+        when(ticket.validateCardPayment(any())).thenAnswer(invocation -> {
+            CardPaymentValidationRequest validation = invocation.getArgument(0);
+            assertThat(validation.userId()).isEqualTo("child");
+            return payment(PaymentStatus.READY, null);
+        });
+        when(ticket.settleCardPayment(any())).thenAnswer(invocation -> {
+            CardPaymentCompleteRequest completion = invocation.getArgument(0);
+            assertThat(completion.getUserId()).isEqualTo("child");
+            return completed(completion);
+        });
+        var response = payments.approve("child", request());
+        assertThat(response.getUserId()).isEqualTo("child");
+        assertThat(response.getCurrentMonthUsedAmount()).isNull();
+        assertThat(response.getLimitAmount()).isNull();
+        DummyCardPaymentHistory history = histories.findByPaymentNo("PAY-1").orElseThrow();
+        assertThat(history.getUserId()).isEqualTo("child");
+        assertThat(history.getDummyCard().getUserId()).isEqualTo("user");
+        assertThat(history.getDummyCard().getCustomerName()).isEqualTo("user");
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
+        assertThat(payments.approve("child", request()).getTransactionId()).isEqualTo(response.getTransactionId());
+        assertThat(payments.status("child", "PAY-1").status()).isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
+        assertThatThrownBy(() -> payments.status("user", "PAY-1"))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(() -> payments.approve("user", request())).isInstanceOf(IllegalArgumentException.class);
+        payments.refund(dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest.builder()
+                .paymentNo("PAY-1").transactionId(response.getTransactionId()).refundAmount(BigDecimal.valueOf(10000)).build());
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
+        verify(ticket, times(1)).settleCardPayment(any());
+    }
+
+    @Test
+    void anotherPersonsCardStillRequiresCorrectCvc() {
+        when(encoder.matches("123", "cvc")).thenReturn(false);
+        assertThatThrownBy(() -> payments.approve("child", request()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("카드 CVC가 일치하지 않습니다.");
+        assertThat(histories.count()).isZero();
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
+        verify(ticket, never()).validateCardPayment(any());
+        verify(ticket, never()).settleCardPayment(any());
+    }
+
+    @Test
+    void anotherPersonsCardStillRequiresCorrectPassword() {
+        when(encoder.matches("1234", "pw")).thenReturn(false);
+        assertThatThrownBy(() -> payments.approve("child", request()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("카드 비밀번호가 일치하지 않습니다.");
+        assertThat(histories.count()).isZero();
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
+        verify(ticket, never()).validateCardPayment(any());
+        verify(ticket, never()).settleCardPayment(any());
+    }
+
+    @Test
+    void validCardCannotPayForAnotherUsersBooking() {
+        when(ticket.validateCardPayment(any())).thenThrow(new org.springframework.security.access.AccessDeniedException("다른 사용자의 결제 요청입니다."));
+        assertThatThrownBy(() -> payments.approve("child", request()))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThat(histories.count()).isZero();
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
+        verify(ticket, never()).settleCardPayment(any());
+    }
+
     private PaymentResponse payment(PaymentStatus status, String transactionId) {
         return PaymentResponse.builder().paymentNo("PAY-1").amount(10000).method(PaymentMethod.CREDIT_CARD)
                 .status(status).cardTransactionId(transactionId).build();
@@ -228,7 +292,7 @@ class GatewayCardFlowIntegrationTest {
 
     private GatewayCardPaymentApproveRequest request() {
         return GatewayCardPaymentApproveRequest.builder().paymentNo("PAY-1").cardCompany(CardCompany.SHINHAN)
-                .cardNumber("4111111111111111").cvc("123").cardPassword("1234").customerName("user")
+                .cardNumber("4111111111111111").cvc("123").cardPassword("1234")
                 .amount(BigDecimal.valueOf(10000)).build();
     }
 }

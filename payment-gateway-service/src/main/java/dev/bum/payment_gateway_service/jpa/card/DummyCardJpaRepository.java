@@ -16,8 +16,7 @@ public interface DummyCardJpaRepository extends JpaRepository<DummyCard, Long> {
     Optional<DummyCard> findByIdForUpdate(@Param("id") Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<DummyCard> findByUserIdAndCardCompanyAndCardNumberHash(
-            String userId,
+    Optional<DummyCard> findByCardCompanyAndCardNumberHash(
             CardCompany cardCompany,
             String cardNumberHash
     );

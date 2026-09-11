@@ -81,7 +81,6 @@ Content-Type: application/json
   "cardNumber": "4111-1111-1111-1111",
   "cvc": "516",
   "cardPassword": "1234",
-  "customerName": "아이유",
   "amount": 180000
 }
 ```
@@ -102,6 +101,8 @@ Content-Type: application/json
   "message": "카드 결제와 티켓 결제 완료 반영이 완료되었습니다."
 }
 ```
+
+카드 승인 요청에는 명의자 이름을 받지 않는다. 카드사와 카드번호로 카드를 조회한 뒤 CVC·비밀번호·만료·한도를 검증한다. 카드 소유자와 로그인한 예매자는 달라도 되며, ticket 검증/완료 요청과 결제 이력의 userId는 로그인한 예매자 기준이다. 다른 사람 카드로 결제한 경우 응답의 currentMonthUsedAmount와 limitAmount는 null이다.
 
 처리 규칙:
 

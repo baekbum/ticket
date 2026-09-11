@@ -25,6 +25,7 @@ public class GatewayCardSettlementService {
             return history.getStatus();
         }
 
+        // ticket 서비스를 호출하여 해당 결제 건의 상태를 완료로 변경하는 작업
         CardPaymentSettlementResponse result = ticketClient.settleCardPayment(CardPaymentCompleteRequest.builder()
                 .paymentNo(history.getPaymentNo())
                 .userId(history.getUserId())
@@ -47,6 +48,7 @@ public class GatewayCardSettlementService {
                     || result.payment().getStatus() == PaymentStatus.REFUNDED
                     || result.payment().getStatus() == PaymentStatus.PARTIALLY_REFUNDED)) {
 
+            // 문제가 없다면 결제 이력의 상태를 결제 완료( 티켓 서비스도 동기화된 상태 )로 변경한다.
             history.completeTicketPayment(null);
 
         } else if (result.outcome() == CardPaymentSettlementResponse.Outcome.REJECTED

@@ -52,9 +52,10 @@ public class GatewayCardApprovalService {
         String cardNumber = normalizeCardNumber(request.getCardNumber());
         validateCardNumber(cardNumber);
 
-        DummyCard dummyCard = findDummyCard(currentUserId, request, cardNumber);
+        DummyCard dummyCard = findDummyCard(request, cardNumber);
         validateCard(dummyCard, request, cardNumber);
 
+        // ticket 서비스에도 해당 결제 번호로 결제 데이터가 존재하는지 확인 및 결제 가능한 상태인 지 검증하는 작업.
         PaymentResponse validated = ticketPaymentClient.validateCardPayment(new CardPaymentValidationRequest(request.getPaymentNo(), currentUserId));
 
         if (validated == null || !request.getPaymentNo().equals(validated.getPaymentNo())
@@ -73,6 +74,7 @@ public class GatewayCardApprovalService {
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository.save(
                 DummyCardPaymentHistory.approved(
                         dummyCard,
+                        currentUserId,
                         request.getPaymentNo(),
                         transactionId,
                         maskedCardNumber,
@@ -83,9 +85,8 @@ public class GatewayCardApprovalService {
         return toApproveResponse(paymentHistory, "카드 승인이 저장되었습니다.");
     }
 
-    private DummyCard findDummyCard(String currentUserId, GatewayCardPaymentApproveRequest request, String cardNumber) {
-        Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                currentUserId,
+    private DummyCard findDummyCard(GatewayCardPaymentApproveRequest request, String cardNumber) {
+        Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                         request.getCardCompany(),
                         sha256(cardNumber)
                 );
@@ -176,15 +177,16 @@ public class GatewayCardApprovalService {
 
     private GatewayCardPaymentApproveResponse toApproveResponse(DummyCardPaymentHistory paymentHistory, String message) {
         DummyCard dummyCard = paymentHistory.getDummyCard();
+        boolean ownCard = paymentHistory.getUserId().equals(dummyCard.getUserId());
         return GatewayCardPaymentApproveResponse.builder()
                 .paymentNo(paymentHistory.getPaymentNo())
                 .transactionId(paymentHistory.getTransactionId())
-                .userId(dummyCard.getUserId())
+                .userId(paymentHistory.getUserId())
                 .cardCompany(dummyCard.getCardCompany())
                 .maskedCardNumber(paymentHistory.getMaskedCardNumber())
                 .approvedAmount(paymentHistory.getAmount())
-                .currentMonthUsedAmount(dummyCard.getCurrentMonthUsedAmount())
-                .limitAmount(dummyCard.getLimitAmount())
+                .currentMonthUsedAmount(ownCard ? dummyCard.getCurrentMonthUsedAmount() : null)
+                .limitAmount(ownCard ? dummyCard.getLimitAmount() : null)
                 .approved(true)
                 .message(message)
                 .build();
@@ -193,9 +195,6 @@ public class GatewayCardApprovalService {
     private void validateCard(DummyCard dummyCard, GatewayCardPaymentApproveRequest request, String cardNumber) {
         if (!dummyCard.getCardNumberLast4().equals(cardNumber.substring(cardNumber.length() - 4))) {
             throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
-        }
-        if (!dummyCard.getCustomerName().equals(request.getCustomerName())) {
-            throw new IllegalArgumentException("카드 소유자명이 일치하지 않습니다.");
         }
         if (!passwordEncoder.matches(request.getCvc(), dummyCard.getCvcHash())) {
             throw new IllegalArgumentException("카드 CVC가 일치하지 않습니다.");

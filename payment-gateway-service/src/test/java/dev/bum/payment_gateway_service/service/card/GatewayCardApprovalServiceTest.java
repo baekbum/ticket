@@ -59,7 +59,7 @@ class GatewayCardApprovalServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
         GatewayCardPaymentRefundRequest request = refundRequest(BigDecimal.valueOf(10000));
 
@@ -82,7 +82,7 @@ class GatewayCardApprovalServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNoAndTransactionId("PAY-1", "CARD-1"))
@@ -106,7 +106,7 @@ class GatewayCardApprovalServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
         paymentHistory.refund(BigDecimal.valueOf(4000));
         dummyCard.cancelApproval(BigDecimal.valueOf(4000));
@@ -129,8 +129,7 @@ class GatewayCardApprovalServiceTest {
         DummyCard dummyCard = dummyCard();
         PaymentResponse ticketPayment = ticketPayment(PaymentStatus.PAID);
 
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.of(dummyCard));
@@ -165,7 +164,7 @@ class GatewayCardApprovalServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.cancel("ticket-service down");
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -186,7 +185,7 @@ class GatewayCardApprovalServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -209,7 +208,7 @@ class GatewayCardApprovalServiceTest {
     void reject_existing_history_without_current_user() {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard(), request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard(), "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -231,8 +230,7 @@ class GatewayCardApprovalServiceTest {
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
                 .willReturn(Optional.empty());
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.of(dummyCard));
@@ -253,8 +251,7 @@ given(passwordEncoder.matches("516", "cvc-hash")).willReturn(false);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
                 .willReturn(Optional.empty());
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.empty());
@@ -273,7 +270,7 @@ assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
                 .cardNumber("4111-1111-1111-1111")
                 .cvc("516")
                 .cardPassword("1234")
-                .customerName("아이유")
+
                 .amount(BigDecimal.valueOf(10000))
                 .build();
     }

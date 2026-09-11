@@ -52,7 +52,7 @@ public class DummyCardPaymentHistory {
     @JoinColumn(name = "dummy_card_id")
     private DummyCard dummyCard;
 
-    // 결제 요청 사용자 ID.
+    // 로그인한 예매자 ID. 카드 소유자는 연결된 dummyCard에 별도로 보관한다.
     @Column(name = "user_id", nullable = false, length = 50)
     private String userId;
 
@@ -111,6 +111,7 @@ public class DummyCardPaymentHistory {
 
     public static DummyCardPaymentHistory approved(
             DummyCard dummyCard,
+            String requestingUserId,
             String paymentNo,
             String transactionId,
             String maskedCardNumber,
@@ -118,7 +119,7 @@ public class DummyCardPaymentHistory {
     ) {
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
-                .userId(dummyCard.getUserId())
+                .userId(requestingUserId)
                 .paymentNo(paymentNo)
                 .transactionId(transactionId)
                 .cardCompany(dummyCard.getCardCompany())
