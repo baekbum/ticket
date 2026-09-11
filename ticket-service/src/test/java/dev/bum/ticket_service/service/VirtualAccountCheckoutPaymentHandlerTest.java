@@ -85,6 +85,19 @@ class VirtualAccountCheckoutPaymentHandlerTest {
                 .build();
     }
 
+    @Test
+    void reject_unsuccessful_issue_without_marking_payment_waiting() {
+        Payment payment = payment(reservation(event()));
+        GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
+        response.setIssued(false);
+        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any())).willReturn(response);
+
+        assertThatThrownBy(() -> handler.process(request("KB"), payment))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payment.getAccountNumber()).isNull();
+    }
+
     private GatewayVirtualAccountIssueResponse virtualAccountIssueResponse() {
         return GatewayVirtualAccountIssueResponse.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")

@@ -8,6 +8,8 @@ import dev.bum.ticket_service.exception.area.AreaNotExistException;
 import dev.bum.ticket_service.exception.event.EventDuplicateException;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
+import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.exception.reservation.ReservationDuplicateException;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.seat.*;
@@ -159,8 +161,20 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(QueueAccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleQueueAccessDeniedException(QueueAccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_ACCESS_DENIED, ex.getMessage()));
+    }
+
+    @ExceptionHandler(ActiveTokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleActiveTokenExpired(ActiveTokenExpiredException ex) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(ErrorResponse.of(ErrorCode.ACTIVE_TOKEN_EXPIRED, ex.getMessage()));
+    }
+
+    @ExceptionHandler(QueueUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleQueueUnavailable(QueueUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE, ex.getMessage()));
     }
 
     private ErrorCode resolveNotFoundErrorCode(RuntimeException ex) {

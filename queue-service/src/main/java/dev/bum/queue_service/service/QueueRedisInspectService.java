@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,6 +19,8 @@ import java.util.Set;
 public class QueueRedisInspectService {
 
     private final StringRedisTemplate redisTemplate;
+    private final QueueRedisKeys keys;
+    private final UserQueueSessionService userQueueSessionService;
 
     public QueueRedisInspectResponse inspectEventQueue(Long eventId, QueueRedisInspectMode mode, int limit) {
         QueueRedisInspectMode inspectMode = mode == null ? QueueRedisInspectMode.WAITING : mode;
@@ -52,6 +55,18 @@ public class QueueRedisInspectService {
                 .build();
     }
 
+    public boolean removeToken(Long eventId, String token, QueueRedisInspectMode mode) {
+        if (!StringUtils.hasText(token) || mode == null || mode == QueueRedisInspectMode.TOKEN) {
+            return false;
+        }
+
+        if (mode == QueueRedisInspectMode.ACTIVE) {
+            return removeActiveToken(eventId, token);
+        }
+
+        return removeWaitingToken(eventId, token);
+    }
+
     private QueueRedisInspectResponse inspectWaiting(Long eventId, int limit) {
         String key = waitingKey(eventId);
         Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet()
@@ -65,9 +80,12 @@ public class QueueRedisInspectService {
                 entries.add(QueueRedisEntryResponse.builder()
                         .key(key)
                         .member(tuple.getValue())
+                        .token(tuple.getValue())
                         .rank(rank++)
                         .score(score)
                         .timestampMillis(score == null ? null : score.longValue())
+                        .value(redisTemplate.opsForValue().get(keys.waitingTokenKey(tuple.getValue())))
+                        .ttlSeconds(redisTemplate.getExpire(keys.waitingTokenKey(tuple.getValue())))
                         .build());
             }
         }
@@ -130,5 +148,49 @@ public class QueueRedisInspectService {
 
     private String activeTokenKey(String token) {
         return "queue:active-token:" + token;
+    }
+
+    private boolean removeWaitingToken(Long eventId, String token) {
+        String tokenValue = redisTemplate.opsForValue().get(keys.waitingTokenKey(token));
+        Long removedFromWaiting = redisTemplate.opsForZSet().remove(keys.waitingKey(eventId), token);
+        Long removedFromExpiry = redisTemplate.opsForZSet().remove(keys.waitingExpiryKey(eventId), token);
+        Boolean removedTokenKey = redisTemplate.delete(keys.waitingTokenKey(token));
+        removeWaitingUserSession(tokenValue, token);
+        return positive(removedFromWaiting) || positive(removedFromExpiry) || Boolean.TRUE.equals(removedTokenKey);
+    }
+
+    private boolean removeActiveToken(Long eventId, String token) {
+        String tokenValue = redisTemplate.opsForValue().get(keys.activeTokenKey(token));
+        Long removedFromActive = redisTemplate.opsForZSet().remove(keys.activeKey(eventId), token);
+        Boolean removedTokenKey = redisTemplate.delete(keys.activeTokenKey(token));
+        removeActiveUserSession(tokenValue, token);
+        return positive(removedFromActive) || Boolean.TRUE.equals(removedTokenKey);
+    }
+
+    private void removeWaitingUserSession(String tokenValue, String token) {
+        String userId = userIdFromTokenValue(tokenValue);
+        if (userId != null) {
+            userQueueSessionService.removeWaiting(userId, token);
+        }
+    }
+
+    private void removeActiveUserSession(String tokenValue, String token) {
+        String userId = userIdFromTokenValue(tokenValue);
+        if (userId != null) {
+            userQueueSessionService.removeActive(userId, token);
+        }
+    }
+
+    private String userIdFromTokenValue(String tokenValue) {
+        if (!StringUtils.hasText(tokenValue)) {
+            return null;
+        }
+
+        String[] parts = tokenValue.split(":", 2);
+        return parts.length == 2 && StringUtils.hasText(parts[1]) ? parts[1] : null;
+    }
+
+    private boolean positive(Long value) {
+        return value != null && value > 0;
     }
 }

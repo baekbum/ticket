@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.controller.advice;
 
 import dev.bum.payment_gateway_service.exception.TicketPaymentCompleteException;
+import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
 import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,12 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(CardPaymentPendingException.class)
+    public ResponseEntity<Map<String, String>> handlePending(CardPaymentPendingException e) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
+                "paymentNo", e.getPaymentNo(), "status", "PENDING", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {

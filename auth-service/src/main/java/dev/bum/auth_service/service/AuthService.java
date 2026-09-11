@@ -19,8 +19,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Locale;
 
 @Slf4j
 @Service
@@ -41,6 +43,7 @@ public class AuthService {
     @Transactional(readOnly = true)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
+        info.setUserId(normalizeUserId(info.getUserId()));
         log.info("login info : {}", info.toString());
         Auth auth = findByUserId(info.getUserId());
         AuditContext.setActor(auth);
@@ -66,7 +69,7 @@ public class AuthService {
     }
 
     private Auth findByUserId(String userId) {
-        return repository.findByUserId(userId);
+        return repository.findByUserId(normalizeUserId(userId));
     }
 
 
@@ -95,6 +98,7 @@ public class AuthService {
      * @param event
      */
     public void insertUserTopic(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 추가] : {}", event.toString());
         repository.insert(event);
     }
@@ -104,6 +108,7 @@ public class AuthService {
      * @param event
      */
     public void updateUserTopic(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 수정] : {}", event.toString());
         repository.update(event);
     }
@@ -113,6 +118,7 @@ public class AuthService {
      * @param event
      */
     public void deleteUserTopic(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 삭제] : {}", event.toString());
         repository.delete(event.getUserId());
     }
@@ -209,6 +215,10 @@ public class AuthService {
 
     private String buildRefreshTokenKey(String userId) {
         return "RT:" + userId;
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
 }

@@ -7,8 +7,16 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     proxy: {
+      '/payment-gateway': {
+        target: 'http://localhost:8099',
+        changeOrigin: true,
+      },
       '/client-api': {
         target: 'http://localhost:8090',
+        changeOrigin: true,
+      },
+      '/ticket': {
+        target: 'http://localhost:8082',
         changeOrigin: true,
       },
     },

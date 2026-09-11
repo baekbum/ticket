@@ -70,7 +70,7 @@ public class DummyCard {
     @Column(name = "card_password_hash", nullable = false, length = 128)
     private String cardPasswordHash;
 
-    // 카드 소유자명. 더미 결제에서는 입력 고객명 검증에 사용한다.
+    // 카드 소유자명
     @Column(name = "customer_name", nullable = false, length = 50)
     private String customerName;
 

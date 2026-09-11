@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentStatusResponse;
 
 @RestController
 @RequestMapping("/api/v1/payments/card")
@@ -20,6 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class GatewayCardPaymentController {
 
     private final GatewayCardPaymentService gatewayCardPaymentService;
+
+    @GetMapping("/{paymentNo}")
+    public ResponseEntity<GatewayCardPaymentStatusResponse> status(
+            @AuthenticationPrincipal String currentUserId, @PathVariable String paymentNo) {
+        return ResponseEntity.ok(gatewayCardPaymentService.status(currentUserId, paymentNo));
+    }
 
     @PostMapping("/approve")
     public ResponseEntity<GatewayCardPaymentApproveResponse> approve(

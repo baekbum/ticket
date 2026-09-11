@@ -1,0 +1,60 @@
+.card-payment-dialog { box-sizing: border-box; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #dfe4da; border-radius: 20px; color: #141817; background: #fff; box-shadow: 0 24px 80px #101d2340; }
+.card-payment-dialog::backdrop { background: #14221fc0; backdrop-filter: blur(3px); }
+.card-payment-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.card-payment-eyebrow { font-size: 12px; font-weight: 700; color: #237344; }
+.card-payment-heading h2 { margin: 8px 0 24px; font-size: 24px; }
+.card-payment-close { border: 0; background: #f1f4ef; border-radius: 50%; width: 34px; height: 34px; font-size: 24px; cursor: pointer; }
+.card-payment-total { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; background: #f2f8e9; border-radius: 12px; margin-bottom: 24px; }
+.card-payment-total span { font-size: 14px; }
+.card-payment-total strong { font-size: 26px; color: #237344; }
+.card-payment-total small { font-size: 16px; margin-left: 4px; }
+.card-payment-fields { display: grid; gap: 16px; }
+.card-payment-fields label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; min-width: 0; }
+.card-payment-fields input, .card-payment-fields select { box-sizing: border-box; width: 100%; min-width: 0; height: 46px; border: 1px solid #d6ded4; border-radius: 8px; padding: 0 12px; font: inherit; font-size: 15px; background: white; color: #141817; }
+.card-payment-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card-payment-note { color: #68716b; font-size: 12px; line-height: 1.6; margin: 16px 0 0; }
+.card-payment-submit { width: 100%; min-height: 48px; border: 0; border-radius: 10px; margin-top: 24px; background: #237344; color: white; font-size: 16px; font-weight: 700; cursor: pointer; }
+.card-payment-submit:hover { background: #185a33; }
+.card-payment-error { background: #fff0ed; color: #a42e20; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.card-payment-progress { text-align: center; padding: 24px 0; line-height: 1.6; }
+.card-payment-progress p { color: #68716b; }
+.card-payment-spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #dfe4da; border-top-color: #237344; border-radius: 50%; animation: card-payment-spin 1s linear infinite; }
+.card-payment-dialog button:disabled { opacity: .45; cursor: not-allowed; }
+.card-payment-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; list-style: none; padding: 0; margin: 0 0 24px; border: 1px solid #d9d9d9; border-radius: 10px; background: #ffffff; }
+.card-payment-steps li { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 52px; padding: 0 8px 0 16px; background: #f6f7f8; color: #8a8f94; font-size: 12px; font-weight: 800; letter-spacing: -.03em; white-space: nowrap; }
+.card-payment-steps li:not(:last-child)::after { content: ''; position: absolute; right: -9px; z-index: 1; width: 18px; height: 18px; border-top: 1px solid #d9d9d9; border-right: 1px solid #d9d9d9; background: inherit; transform: rotate(45deg); }
+.card-payment-steps li > span { position: relative; z-index: 2; display: grid; place-items: center; flex: 0 0 24px; height: 24px; background: #d5d9dd; color: #ffffff; border-radius: 50%; font-weight: 900; }
+.card-payment-steps li.completed { background: #effaf2; color: #00a832; }
+.card-payment-steps li.completed > span { background: #00c73c; }
+.card-payment-steps li.active { background: #222222; color: #ffffff; }
+.card-payment-steps li.active > span { background: #00c73c; }
+.card-payment-step-title { font-size: 16px; line-height: 1.5; margin: 0 0 18px; }
+.card-company-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.card-company-option { position: relative; min-width: 0; min-height: 72px; padding: 22px 6px 14px; background: white; border: 1px solid #d6ded4; border-radius: 10px; color: #141817; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; word-break: keep-all; }
+.card-company-option:hover { background: #f6f9f2; border-color: #237344; }
+.card-company-option.selected { border-color: #237344; background: #edf6e4; box-shadow: inset 0 0 0 1px #237344; color: #185a33; }
+.card-company-check { position: absolute; right: 8px; top: 4px; font-size: 12px; }
+.card-number-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.card-number-fieldset legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.card-number-segments { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.card-number-segments input { padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.card-online-password-field { display: grid; gap: 8px; }
+.card-online-password-input { position: relative; }
+.card-online-password-input input { padding-right: 66px; }
+.card-password-toggle { position: absolute; right: 4px; top: 3px; min-width: 54px; height: 40px; padding: 0 8px; border: 0; border-radius: 6px; color: #237344; background: transparent; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.card-password-toggle:hover { background: #edf6e4; }
+.card-payment-navigation { display: flex; gap: 10px; margin-top: 24px; }
+.card-payment-navigation .card-payment-submit { flex: 1; width: auto; margin-top: 0; }
+.card-payment-back { min-width: 80px; min-height: 48px; border: 1px solid #d6ded4; border-radius: 10px; padding: 0 16px; background: white; color: #141817; font-size: 15px; font-weight: 700; cursor: pointer; }
+.card-payment-back:hover { background: #f1f4ef; }
+@media (max-width: 380px) {
+  .card-company-grid { gap: 6px; }
+  .card-company-option { font-size: 12px; min-height: 64px; }
+  .card-payment-steps li { gap: 4px; min-height: 48px; padding: 0 4px 0 10px; font-size: 10px; }
+  .card-payment-steps li > span { flex-basis: 21px; width: 21px; height: 21px; font-size: 11px; }
+  .card-number-segments { gap: 4px; }
+  .card-number-segments input { font-size: 14px; letter-spacing: 0; }
+}
+@keyframes card-payment-spin { to { transform: rotate(360deg); } }
+@media (max-width: 380px) { .card-payment-dialog { padding: 20px; } .card-payment-row { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .card-payment-spinner { animation: none; } }

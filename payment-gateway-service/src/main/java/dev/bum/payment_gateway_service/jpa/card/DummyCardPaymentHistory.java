@@ -52,7 +52,7 @@ public class DummyCardPaymentHistory {
     @JoinColumn(name = "dummy_card_id")
     private DummyCard dummyCard;
 
-    // 결제 요청 사용자 ID.
+    // 로그인한 예매자 ID. 카드 소유자는 연결된 dummyCard에 별도로 보관한다.
     @Column(name = "user_id", nullable = false, length = 50)
     private String userId;
 
@@ -111,6 +111,7 @@ public class DummyCardPaymentHistory {
 
     public static DummyCardPaymentHistory approved(
             DummyCard dummyCard,
+            String requestingUserId,
             String paymentNo,
             String transactionId,
             String maskedCardNumber,
@@ -118,7 +119,7 @@ public class DummyCardPaymentHistory {
     ) {
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
-                .userId(dummyCard.getUserId())
+                .userId(requestingUserId)
                 .paymentNo(paymentNo)
                 .transactionId(transactionId)
                 .cardCompany(dummyCard.getCardCompany())
@@ -160,6 +161,8 @@ public class DummyCardPaymentHistory {
     public void failTicketPayment(String failureReason) {
         this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_FAILED;
         this.failureReason = failureReason;
+        // 반복해서 실패하는 건은 재처리 순서를 뒤로 옮겨 다른 승인 대기 건이 먼저 처리되도록 한다.
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void cancel(String failureReason) {

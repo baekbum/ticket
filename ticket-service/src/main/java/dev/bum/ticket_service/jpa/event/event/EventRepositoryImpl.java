@@ -2,10 +2,13 @@ package dev.bum.ticket_service.jpa.event.event;
 
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.DateTimeExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
@@ -29,7 +32,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Repository
@@ -95,6 +102,236 @@ public class EventRepositoryImpl implements EventRepository {
         }
 
         return events;
+    }
+
+    @Override
+    public List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now)
+                )
+                .groupBy(event.eventGroupCode)
+                .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                .limit(limit)
+                .fetch();
+
+        List<String> eventGroupCodes = groups.stream()
+                .map(group -> group.get(event.eventGroupCode))
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (eventGroupCodes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Event> representativeEvents = new LinkedHashMap<>();
+        queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now),
+                        event.eventGroupCode.in(eventGroupCodes)
+                )
+                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .fetch()
+                .forEach(onSaleEvent -> representativeEvents.putIfAbsent(onSaleEvent.getEventGroupCode(), onSaleEvent));
+
+        return groups.stream()
+                .map(group -> {
+                    String eventGroupCode = group.get(event.eventGroupCode);
+                    Event representativeEvent = representativeEvents.get(eventGroupCode);
+                    LocalDateTime start = group.get(startDateTime);
+                    LocalDateTime end = group.get(endDateTime);
+
+                    if (representativeEvent == null || start == null || end == null) {
+                        return null;
+                    }
+
+                    return EventCardResponse.builder()
+                            .eventGroupCode(eventGroupCode)
+                            .artistName(representativeEvent.getArtistName())
+                            .title(representativeEvent.getTitle())
+                            .posterUrl(representativeEvent.getPosterUrl())
+                            .eventStartDate(start.toLocalDate())
+                            .eventEndDate(end.toLocalDate())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.theme.eq(EventTheme.FESTIVAL),
+                        event.eventDateTime.goe(now)
+                )
+                .groupBy(event.eventGroupCode)
+                .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                .limit(limit)
+                .fetch();
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
+    @Override
+    public List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+        DateTimeExpression<LocalDateTime> firstSaleStartAt = event.saleStartAt.min();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime, firstSaleStartAt)
+                .from(event)
+                .where(
+                        event.saleStartAt.goe(now),
+                        event.saleStartAt.loe(deadline),
+                        event.eventDateTime.goe(now)
+                )
+                .groupBy(event.eventGroupCode)
+                .orderBy(firstSaleStartAt.asc(), event.eventGroupCode.asc())
+                .limit(limit)
+                .fetch();
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
+    @Override
+    public List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+
+        List<Tuple> groups = queryFactory
+                .select(event.eventGroupCode, startDateTime, endDateTime)
+                .from(event)
+                .where(
+                        event.status.eq(EventStatus.ON_SALE),
+                        event.eventDateTime.goe(now),
+                        event.eventDateTime.loe(deadline)
+                )
+                .groupBy(event.eventGroupCode)
+                .fetch();
+
+        Collections.shuffle(groups);
+
+        return toEventCardResponses(
+                groups.stream().limit(limit).toList(),
+                startDateTime,
+                endDateTime,
+                event.eventDateTime.goe(now)
+        );
+    }
+
+    @Override
+    public List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort, int page, int size) {
+        event = QEvent.event;
+        DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
+        DateTimeExpression<LocalDateTime> latestCreatedAt = event.createdAt.max();
+        long offset = (long) page * size;
+
+        List<Tuple> groups;
+
+        if ("latest".equals(sort)) {
+            groups = queryFactory
+                    .select(event.eventGroupCode, startDateTime, endDateTime, latestCreatedAt)
+                    .from(event)
+                    .where(
+                            event.status.eq(EventStatus.ON_SALE),
+                            event.genre.eq(genre),
+                            event.eventDateTime.goe(now)
+                    )
+                    .groupBy(event.eventGroupCode)
+                    .orderBy(latestCreatedAt.desc(), event.eventGroupCode.asc())
+                    .offset(offset)
+                    .limit(size)
+                    .fetch();
+        } else {
+            groups = queryFactory
+                    .select(event.eventGroupCode, startDateTime, endDateTime, latestCreatedAt)
+                    .from(event)
+                    .where(
+                            event.status.eq(EventStatus.ON_SALE),
+                            event.genre.eq(genre),
+                            event.eventDateTime.goe(now)
+                    )
+                    .groupBy(event.eventGroupCode)
+                    .orderBy(startDateTime.asc(), event.eventGroupCode.asc())
+                    .offset(offset)
+                    .limit(size)
+                    .fetch();
+        }
+
+        return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
+    }
+
+    private List<EventCardResponse> toEventCardResponses(
+            List<Tuple> groups,
+            DateTimeExpression<LocalDateTime> startDateTime,
+            DateTimeExpression<LocalDateTime> endDateTime,
+            BooleanExpression eventDateTimeCondition
+    ) {
+        List<String> eventGroupCodes = groups.stream()
+                .map(group -> group.get(event.eventGroupCode))
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (eventGroupCodes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Event> representativeEvents = new LinkedHashMap<>();
+        queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        eventDateTimeCondition,
+                        event.eventGroupCode.in(eventGroupCodes)
+                )
+                .orderBy(event.eventDateTime.asc(), event.eventId.asc())
+                .fetch()
+                .forEach(selectedEvent -> representativeEvents.putIfAbsent(selectedEvent.getEventGroupCode(), selectedEvent));
+
+        return groups.stream()
+                .map(group -> {
+                    String eventGroupCode = group.get(event.eventGroupCode);
+                    Event representativeEvent = representativeEvents.get(eventGroupCode);
+                    LocalDateTime start = group.get(startDateTime);
+                    LocalDateTime end = group.get(endDateTime);
+
+                    if (representativeEvent == null || start == null || end == null) {
+                        return null;
+                    }
+
+                    return EventCardResponse.builder()
+                            .eventGroupCode(eventGroupCode)
+                            .artistName(representativeEvent.getArtistName())
+                            .title(representativeEvent.getTitle())
+                            .posterUrl(representativeEvent.getPosterUrl())
+                            .eventStartDate(start.toLocalDate())
+                            .eventEndDate(end.toLocalDate())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

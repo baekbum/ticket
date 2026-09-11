@@ -55,7 +55,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("로그인 성공 시 토큰 생성 및 Refresh Token 저장")
     void login_success_and_return_tokens() {
-        LoginRequest info = new LoginRequest("user01", "plain-password");
+        LoginRequest info = new LoginRequest("User01", "plain-password");
         Auth auth = auth("user01");
         TokenResponse tokens = new TokenResponse("access-token", "refresh-token");
 

@@ -1,6 +1,8 @@
 package dev.bum.ticket_service.controller.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
@@ -20,6 +22,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
+
+    @PostMapping("/internal/card/validate")
+    public ResponseEntity<PaymentResponse> validateCard(@Valid @RequestBody CardPaymentValidationRequest request) {
+        return ResponseEntity.ok(paymentService.validateCardBeforeApproval(request));
+    }
+
+    @PostMapping("/internal/card/settle")
+    public ResponseEntity<CardPaymentSettlementResponse> settleCard(@Valid @RequestBody CardPaymentCompleteRequest request) {
+        return ResponseEntity.ok(paymentService.settleCardFromGateway(request));
+    }
 
     @PostMapping("/internal/card/complete")
     public ResponseEntity<PaymentResponse> completeCardFromGateway(

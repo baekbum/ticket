@@ -1,10 +1,15 @@
 package dev.bum.ticket_service.feign.paymentgateway;
 
+import dev.bum.ticket_service.config.PaymentGatewayFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "payment-gateway-virtual-account-client", url = "${app.payment-gateway.base-url}")
+@FeignClient(
+        name = "payment-gateway-virtual-account-client",
+        url = "${app.payment-gateway.base-url}",
+        configuration = PaymentGatewayFeignConfig.class
+)
 public interface PaymentGatewayVirtualAccountClient {
 
     @PostMapping("/api/v1/payments/virtual-account/issue")

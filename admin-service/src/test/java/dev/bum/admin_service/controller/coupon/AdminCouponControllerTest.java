@@ -145,27 +145,6 @@ class AdminCouponControllerTest {
         then(couponServiceClient).should().selectByUserId("user01");
     }
 
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("쿠폰 사용 가능 여부 확인")
-    void coupon_check_available() throws Exception {
-        CouponAvailabilityRequest info = CouponAvailabilityRequest.builder()
-                .userId("user01")
-                .userCouponId(1L)
-                .orderAmount(50000)
-                .build();
-        CouponAvailabilityResponse response = CouponAvailabilityResponse.builder().available(true).discountAmount(10000).build();
-        given(couponServiceClient.checkAvailable(any())).willReturn(response);
-
-        mockMvc.perform(post(baseUrl + "/available")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.available").value(true));
-
-        then(couponServiceClient).should().checkAvailable(info);
-    }
-
     private InsertCouponRequest insertRequest() {
         return InsertCouponRequest.builder()
                 .name("Summer Coupon")

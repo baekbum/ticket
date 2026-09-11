@@ -31,7 +31,7 @@ public class CheckoutConfirmRequest {
     private Long userCouponId;
 
     @Valid
-    @NotNull
+    // null이면 현장 수령, 값이 있으면 배송 정보 전체를 검증한다.
     private ReservationDeliveryRequest delivery;
 
     @NotNull

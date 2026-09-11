@@ -242,9 +242,11 @@ tbody.innerHTML = '';
 
 currentEventList.forEach((ev, index) => {
 let statusHtml;
-if      (ev.status === 'ON_SALE')  statusHtml = `<span class="badge badge-sale">판매중</span>`;
-else if (ev.status === 'SOLD_OUT') statusHtml = `<span class="badge badge-soldout">留ㅼ쭊</span>`;
-else                               statusHtml = `<span class="badge badge-closed">종료</span>`;
+if      (ev.status === 'ON_SALE')    statusHtml = `<span class="badge badge-sale">판매중</span>`;
+else if (ev.status === 'SALE_ENDED') statusHtml = `<span class="badge badge-sale-ended">판매 종료</span>`;
+else if (ev.status === 'SOLD_OUT')   statusHtml = `<span class="badge badge-soldout">매진</span>`;
+else if (ev.status === 'CLOSED')     statusHtml = `<span class="badge badge-closed">마감</span>`;
+else                                 statusHtml = `<span class="badge badge-closed">취소</span>`;
 
 const rowOrder = (pageZeroIndexed * pageSize) + (index + 1);
 const tr = document.createElement('tr');

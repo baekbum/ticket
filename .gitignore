@@ -41,6 +41,11 @@ common/src/test/java/dev/bum/common/JwtGenerator.java
 ### Uploaded files ###
 uploads/
 ticket-service/uploads/
+!client-service/public/ticket/uploads/
+!client-service/public/ticket/uploads/events/
+!client-service/public/ticket/uploads/events/posters/
+!client-service/public/ticket/uploads/events/posters/sample/
+!client-service/public/ticket/uploads/events/posters/sample/*.png
 
 ### Temporary files ###
 tmp/

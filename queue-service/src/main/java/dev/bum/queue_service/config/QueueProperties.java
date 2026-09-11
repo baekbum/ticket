@@ -8,6 +8,7 @@ import java.time.Duration;
 public class QueueProperties {
 
     private int admissionSize = 100;
+    private int maxSessionsPerUser = 4;
     private Duration activeTokenTtl = Duration.ofMinutes(20);
     private Duration waitingTokenTtl = Duration.ofMinutes(1);
     private long cleanupScanCount = 1_000L;
@@ -19,6 +20,16 @@ public class QueueProperties {
     public void setAdmissionSize(int admissionSize) {
         if (admissionSize > 0) {
             this.admissionSize = admissionSize;
+        }
+    }
+
+    public int getMaxSessionsPerUser() {
+        return maxSessionsPerUser;
+    }
+
+    public void setMaxSessionsPerUser(int maxSessionsPerUser) {
+        if (maxSessionsPerUser > 0) {
+            this.maxSessionsPerUser = maxSessionsPerUser;
         }
     }
 

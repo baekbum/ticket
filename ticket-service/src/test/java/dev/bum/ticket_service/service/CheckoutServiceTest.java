@@ -97,12 +97,12 @@ class CheckoutServiceTest {
                 org.mockito.ArgumentMatchers.eq("order-1"),
                 org.mockito.ArgumentMatchers.argThat(seats -> seats.size() == 1)
         );
-        then(queueAccessService).should().complete(1L, "user01", "queue-token");
+        then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
     }
 
     @Test
-    @DisplayName("checkout 준비 성공 후 active token 회수는 트랜잭션 커밋 이후 실행된다")
-    void prepare_releases_active_token_after_commit() {
+    @DisplayName("checkout 준비 커밋 후에도 active token을 유지하여 결제를 계속할 수 있다")
+    void prepare_keeps_active_token_after_commit() {
         TransactionSynchronizationManager.initSynchronization();
         try {
             CheckoutPrepareRequest request = checkoutRequest();
@@ -115,7 +115,7 @@ class CheckoutServiceTest {
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(TransactionSynchronization::afterCommit);
 
-            then(queueAccessService).should().complete(1L, "user01", "queue-token");
+            then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -139,11 +139,12 @@ class CheckoutServiceTest {
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", request);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
+        then(queueAccessService).should().validate(1L, "user01", "queue-token");
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
-        assertThat(response.getAmount()).isEqualTo(180000);
+        assertThat(response.getAmount()).isEqualTo(187200);
         assertThat(response.getPaymentNo()).startsWith("PAY-");
         assertThat(response.getAccountNumber()).isNull();
 
@@ -172,6 +173,7 @@ class CheckoutServiceTest {
         Seat seat = seat(event);
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+        request.setDelivery(null);
 
         given(paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
                 org.mockito.ArgumentMatchers.eq("idem-1"),
@@ -191,9 +193,11 @@ class CheckoutServiceTest {
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", request);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getAmount()).isEqualTo(184000);
+        then(reservationDeliveryJpaRepository).shouldHaveNoInteractions();
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
@@ -213,7 +217,8 @@ class CheckoutServiceTest {
                 anyList()
         )).willReturn(Optional.of(payment));
 
-        PaymentResponse response = checkoutService.confirm("user01", request);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
+        then(queueAccessService).shouldHaveNoInteractions();
 
         assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
@@ -249,7 +254,7 @@ class CheckoutServiceTest {
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", request);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(response.getPaymentNo()).startsWith("PAY-");
@@ -277,6 +282,19 @@ class CheckoutServiceTest {
                         .col(1)
                         .build()))
                 .build();
+    }
+
+    @Test
+    void confirm_rejects_expired_token_before_creating_reservation() {
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+        org.mockito.Mockito.doThrow(new dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException())
+                .when(queueAccessService).validate(1L, "user01", "expired");
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "expired", request))
+                .isInstanceOf(dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException.class);
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutPaymentService).shouldHaveNoInteractions();
     }
 
     private CheckoutConfirmRequest confirmRequest(PaymentMethod paymentMethod) {

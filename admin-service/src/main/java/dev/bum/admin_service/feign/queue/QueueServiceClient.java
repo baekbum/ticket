@@ -3,6 +3,7 @@ package dev.bum.admin_service.feign.queue;
 import dev.bum.common.service.queue.dto.QueueRedisInspectResponse;
 import dev.bum.common.service.queue.enums.QueueRedisInspectMode;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,4 +20,11 @@ public interface QueueServiceClient {
 
     @GetMapping("/token/{token}")
     QueueRedisInspectResponse inspectToken(@PathVariable("token") String token);
+
+    @DeleteMapping("/event/{eventId}/token/{token}")
+    void removeToken(
+            @PathVariable("eventId") Long eventId,
+            @PathVariable("token") String token,
+            @RequestParam("mode") QueueRedisInspectMode mode
+    );
 }

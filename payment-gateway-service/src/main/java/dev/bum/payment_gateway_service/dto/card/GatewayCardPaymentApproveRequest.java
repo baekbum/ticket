@@ -32,9 +32,6 @@ public class GatewayCardPaymentApproveRequest {
     @NotBlank
     private String cardPassword;
 
-    @NotBlank
-    private String customerName;
-
     @NotNull
     @Positive
     private BigDecimal amount;
