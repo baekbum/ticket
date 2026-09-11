@@ -1,8 +1,6 @@
 package dev.bum.admin_service.feign.coupon;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
@@ -47,7 +45,4 @@ public interface CouponServiceClient {
 
     @PostMapping("/user-coupon/select")
     CustomPageResponse<UserCouponResponse> selectUserCouponsByCond(@RequestBody UserCouponCondRequest cond);
-
-    @PostMapping("/available")
-    CouponAvailabilityResponse checkAvailable(@Valid @RequestBody CouponAvailabilityRequest request);
 }

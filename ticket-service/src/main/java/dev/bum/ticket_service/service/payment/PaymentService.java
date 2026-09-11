@@ -2,6 +2,8 @@ package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
@@ -19,6 +21,14 @@ public class PaymentService {
 
     private final CardPaymentService cardPaymentService;
     private final VirtualAccountPaymentService virtualAccountPaymentService;
+
+    public PaymentResponse validateCardBeforeApproval(CardPaymentValidationRequest request) {
+        return cardPaymentService.validateBeforeApproval(request);
+    }
+
+    public CardPaymentSettlementResponse settleCardFromGateway(CardPaymentCompleteRequest request) {
+        return cardPaymentService.settleFromGateway(request);
+    }
 
     /**
      * payment-gateway에서 카드 승인에 성공한 결제를 ticket-service 결제 완료 상태로 반영한다.

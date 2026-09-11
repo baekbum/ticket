@@ -17,6 +17,7 @@ token:
 app:
   queue:
     admission-size: ${APP_QUEUE_ADMISSION_SIZE:100}
+    max-sessions-per-user: ${APP_QUEUE_MAX_SESSIONS_PER_USER:4}
     active-token-ttl: ${APP_QUEUE_ACTIVE_TOKEN_TTL:${APP_QUEUE_TOKEN_TTL:20m}}
     waiting-token-ttl: ${APP_QUEUE_WAITING_TOKEN_TTL:1m}
     cleanup-fixed-delay-ms: ${APP_QUEUE_CLEANUP_FIXED_DELAY_MS:20000}

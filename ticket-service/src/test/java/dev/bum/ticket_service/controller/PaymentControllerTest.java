@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
@@ -56,6 +58,43 @@ class PaymentControllerTest {
 
     private final String baseUrl = "/api/v1/payments";
     private final String serviceToken = "local-internal-service-token";
+
+    @Test
+    void validateCardUsesInternalAuthenticationAndReturnsStoredAmount() throws Exception {
+        CardPaymentValidationRequest request = new CardPaymentValidationRequest("PAY-1", "user01");
+        given(paymentService.validateCardBeforeApproval(request)).willReturn(PaymentResponse.builder()
+                .paymentNo("PAY-1").status(PaymentStatus.READY).amount(180000).build());
+        mockMvc.perform(post(baseUrl + "/internal/card/validate").header("X-Service-Token", serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(180000));
+        then(internalServiceTokenValidator).should().validate(serviceToken);
+    }
+
+    @Test
+    void settlementReturnsExplicitRejectionAsCommittedResult() throws Exception {
+        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
+                .paymentNo("PAY-1").userId("user01").amount(BigDecimal.valueOf(180000))
+                .transactionId("CARD-1").cardCompany(CardCompany.SHINHAN).maskedCardNumber("4111-****-****-1111").build();
+        given(paymentService.settleCardFromGateway(request)).willReturn(new CardPaymentSettlementResponse(
+                CardPaymentSettlementResponse.Outcome.REJECTED,
+                PaymentResponse.builder().paymentNo("PAY-1").status(PaymentStatus.EXPIRED).amount(180000).build()));
+        mockMvc.perform(post(baseUrl + "/internal/card/settle").header("X-Service-Token", serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("REJECTED"))
+                .andExpect(jsonPath("$.payment.status").value("EXPIRED"));
+    }
+
+    @Test
+    void newCardEndpointsRejectInvalidInternalToken() throws Exception {
+        doThrow(new org.springframework.security.access.AccessDeniedException("invalid"))
+                .when(internalServiceTokenValidator).validate("invalid");
+        for (String endpoint : java.util.List.of("validate", "settle")) {
+            mockMvc.perform(post(baseUrl + "/internal/card/" + endpoint).header("X-Service-Token", "invalid")
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+        then(paymentService).shouldHaveNoInteractions();
+    }
 
     @Test
     @DisplayName("payment-gateway 카드 결제 완료 요청을 반영한다")

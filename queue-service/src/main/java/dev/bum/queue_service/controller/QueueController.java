@@ -29,27 +29,28 @@ public class QueueController {
     public ResponseEntity<QueueEnterResponse> enter(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
-            @RequestHeader(value = "X-Active-Token", required = false) String clientToken
+            @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force
     ) {
-        return ResponseEntity.ok(queueService.enter(eventId, currentUserId, clientToken));
+        return ResponseEntity.ok(queueService.enter(eventId, currentUserId, force));
     }
 
     @GetMapping("/events/{eventId}/status")
     public ResponseEntity<QueueStatusResponse> status(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
-            @RequestHeader(value = "X-Active-Token", required = false) String clientToken
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken
     ) {
-        return ResponseEntity.ok(queueService.status(eventId, currentUserId, clientToken));
+        return ResponseEntity.ok(queueService.status(eventId, currentUserId, waitingToken));
     }
 
     @PostMapping("/events/{eventId}/leave")
     public ResponseEntity<Void> leave(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
-            @RequestHeader(value = "X-Active-Token", required = false) String clientToken
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
     ) {
-        queueService.leaveWaiting(eventId, currentUserId, clientToken);
+        queueService.leave(eventId, currentUserId, waitingToken, activeToken);
         return ResponseEntity.noContent().build();
     }
 

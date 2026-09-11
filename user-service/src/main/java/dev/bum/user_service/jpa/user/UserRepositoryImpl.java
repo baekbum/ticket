@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Repository
@@ -41,7 +42,8 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User insert(InsertUserRequest info) {
-        isExist(info.getUserId());
+        info.setUserId(normalizeUserId(info.getUserId()));
+        validateIsUserIdDuplicated(info.getUserId());
 
         // 비밀번호 암호화 작업
         info.setPassword(passwordEncoder.encode(info.getPassword()));
@@ -57,8 +59,8 @@ public class UserRepositoryImpl implements UserRepository {
      * @param userId
      */
     @Override
-    public void isExist(String userId) {
-        if (jpaRepository.findByUserId(userId).isPresent()) {
+    public void validateIsUserIdDuplicated(String userId) {
+        if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
             throw new UserDuplicateException("해당 사용자 ID는 이미 존재합니다.");
         }
     }
@@ -71,8 +73,32 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User selectById(String userId) {
-        return jpaRepository.findByUserId(userId)
+        return jpaRepository.findByUserId(normalizeUserId(userId))
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
+    }
+
+    @Override
+    public User selectByNameAndPhoneNumber(String name, String phoneNumber) {
+        return jpaRepository.findByNameAndPhoneNumber(name, phoneNumber)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
+    }
+
+    @Override
+    public User selectByNameAndEmail(String name, String email) {
+        return jpaRepository.findByNameAndEmail(name, email)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
+    }
+
+    @Override
+    public User selectByUserIdAndNameAndPhoneNumber(String userId, String name, String phoneNumber) {
+        return jpaRepository.findByUserIdAndNameAndPhoneNumber(normalizeUserId(userId), name, phoneNumber)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
+    }
+
+    @Override
+    public User selectByUserIdAndNameAndEmail(String userId, String name, String email) {
+        return jpaRepository.findByUserIdAndNameAndEmail(normalizeUserId(userId), name, email)
+                .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
     }
 
     /**
@@ -170,6 +196,10 @@ public class UserRepositoryImpl implements UserRepository {
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression userIdContains(String userId) {
         return StringUtils.hasText(userId) ? user.userId.containsIgnoreCase(userId) : null;
+    }
+
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
     private BooleanExpression nameContains(String name) {

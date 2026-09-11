@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
-import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
@@ -252,32 +250,6 @@ class CouponManagementControllerTest {
                 .andExpect(jsonPath("$.expiresAt").value("2026-02-01 00:00:00"));
 
         then(userCouponService).should().update(1L, request);
-    }
-
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
-    @Test
-    @DisplayName("쿠폰 사용 가능 여부 확인")
-    void coupon_check_available() throws Exception {
-        CouponAvailabilityRequest request = CouponAvailabilityRequest.builder()
-                .userId("user01")
-                .userCouponId(1L)
-                .orderAmount(50000)
-                .build();
-        CouponAvailabilityResponse response = CouponAvailabilityResponse.builder()
-                .available(true)
-                .discountAmount(10000)
-                .build();
-
-        given(userCouponService.checkAvailable(any())).willReturn(response);
-
-        mockMvc.perform(post(baseUrl + "/available")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.available").value(true))
-                .andExpect(jsonPath("$.discountAmount").value(10000));
-
-        then(userCouponService).should().checkAvailable(request);
     }
 
     private InsertCouponRequest insertRequest() {

@@ -4,11 +4,17 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordResponse;
+import dev.bum.common.service.user.user.dto.FindUserIdRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdResponse;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.audit.AuditContext;
 import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.exception.PasswordIncorrectException;
+import dev.bum.user_service.exception.UserNotExistException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -28,10 +34,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -42,6 +52,7 @@ public class UserService {
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    private final Map<String, PasswordResetToken> passwordResetTokens = new ConcurrentHashMap<>();
 
     @Value("${topic.user.name}")
     private String userTopic;
@@ -51,8 +62,8 @@ public class UserService {
      * @param userId
      */
     @Transactional(readOnly = true)
-    public void isDuplicated(String userId) {
-        repository.isExist(userId);
+    public void validateIsUserIdDuplicated(String userId) {
+        repository.validateIsUserIdDuplicated(normalizeUserId(userId));
     }
 
     /**
@@ -62,6 +73,7 @@ public class UserService {
      */
     @AuditLog(action = "USER_CREATE", targetType = "USER")
     public UserResponse insert(InsertUserRequest info) {
+        info.setUserId(normalizeUserId(info.getUserId()));
         log.info("[INSERT] insertUserInfo : {}", info.toString());
         User savedUser = repository.insert(info);
 
@@ -87,6 +99,89 @@ public class UserService {
     public UserResponse selectById(String userId) {
         log.info("[SELECT] userId : {}", userId);
         return repository.selectById(userId).toResponse();
+    }
+
+    @Transactional(readOnly = true)
+    public FindUserIdResponse findUserIdByPhoneNumber(FindUserIdRequest request) {
+        log.info("[FIND USER ID BY PHONE] name : {}", request.getName());
+        if (!StringUtils.hasText(request.getPhoneNumber())) {
+            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+        }
+
+        User user = repository.selectByNameAndPhoneNumber(request.getName(), request.getPhoneNumber());
+
+        return FindUserIdResponse.builder()
+                .maskedUserId(maskUserId(user.getUserId()))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public FindUserIdResponse findUserIdByEmail(FindUserIdRequest request) {
+        log.info("[FIND USER ID BY EMAIL] name : {}", request.getName());
+        if (!StringUtils.hasText(request.getEmail())) {
+            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+        }
+
+        User user = repository.selectByNameAndEmail(request.getName(), request.getEmail());
+
+        return FindUserIdResponse.builder()
+                .maskedUserId(maskUserId(user.getUserId()))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public FindPasswordResponse findPasswordByPhoneNumber(FindPasswordRequest request) {
+        log.info("[FIND PASSWORD BY PHONE] userId : {}, name : {}", request.getUserId(), request.getName());
+        if (!StringUtils.hasText(request.getPhoneNumber())) {
+            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+        }
+
+        User user = repository.selectByUserIdAndNameAndPhoneNumber(
+                request.getUserId(),
+                request.getName(),
+                request.getPhoneNumber()
+        );
+
+        return createPasswordResetToken(user);
+    }
+
+    @Transactional(readOnly = true)
+    public FindPasswordResponse findPasswordByEmail(FindPasswordRequest request) {
+        log.info("[FIND PASSWORD BY EMAIL] userId : {}, name : {}", request.getUserId(), request.getName());
+        if (!StringUtils.hasText(request.getEmail())) {
+            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+        }
+
+        User user = repository.selectByUserIdAndNameAndEmail(
+                request.getUserId(),
+                request.getName(),
+                request.getEmail()
+        );
+
+        return createPasswordResetToken(user);
+    }
+
+    public void resetPassword(ResetPasswordRequest request) {
+        PasswordResetToken resetToken = passwordResetTokens.remove(request.getResetToken());
+
+        if (resetToken == null || resetToken.isExpired()) {
+            throw new UserNotExistException("비밀번호 재설정 요청이 만료되었습니다.");
+        }
+
+        User updatedUser = repository.update(
+                resetToken.userId(),
+                UpdateUserRequest.builder()
+                        .password(request.getPassword())
+                        .build()
+        );
+
+        sendTopicToKafka(UserDtoForEvent.builder()
+                .eventType(TopicEventType.UPDATE)
+                .id(updatedUser.getId())
+                .userId(updatedUser.getUserId())
+                .password(updatedUser.getPassword())
+                .role(updatedUser.getRole().name())
+                .build());
     }
 
     /**
@@ -223,6 +318,10 @@ public class UserService {
         return sort;
     }
 
+    private String normalizeUserId(String userId) {
+        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
+    }
+
     private void putUserUpdateAuditData(
             Map<String, Object> beforeData,
             Map<String, Object> afterData,
@@ -323,6 +422,36 @@ public class UserService {
 
         int visibleLength = Math.min(4, phoneNumber.length());
         return "***" + phoneNumber.substring(phoneNumber.length() - visibleLength);
+    }
+
+    private String maskUserId(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return "";
+        }
+
+        int maskLength = Math.min(userId.length(), userId.length() >= 8 ? 4 : 3);
+        int visibleLength = userId.length() - maskLength;
+
+        if (visibleLength <= 0) {
+            return "*".repeat(userId.length());
+        }
+
+        return userId.substring(0, visibleLength) + "*".repeat(maskLength);
+    }
+
+    private FindPasswordResponse createPasswordResetToken(User user) {
+        String resetToken = UUID.randomUUID().toString();
+        passwordResetTokens.put(resetToken, new PasswordResetToken(user.getUserId(), LocalDateTime.now().plusMinutes(5)));
+
+        return FindPasswordResponse.builder()
+                .resetToken(resetToken)
+                .build();
+    }
+
+    private record PasswordResetToken(String userId, LocalDateTime expiresAt) {
+        private boolean isExpired() {
+            return expiresAt.isBefore(LocalDateTime.now());
+        }
     }
 
     /**

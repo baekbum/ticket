@@ -1,6 +1,11 @@
 package dev.bum.user_service.controller.user;
 
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordResponse;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdRequest;
+import dev.bum.common.service.user.user.dto.FindUserIdResponse;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
@@ -28,7 +33,7 @@ public class UserController {
 
     @GetMapping("/check/duplication/{userId}")
     public ResponseEntity<Void> isDuplicated(@PathVariable("userId") String userId) {
-        userService.isDuplicated(userId);
+        userService.validateIsUserIdDuplicated(userId);
         log.info("[ID 중복 체크 완료 userId: {}]", userId);
         return ResponseEntity.ok().build();
     }
@@ -36,6 +41,32 @@ public class UserController {
     @PostMapping("/signup")
     public ResponseEntity<UserResponse> signUp(@Valid @RequestBody InsertUserRequest info) {
         return ResponseEntity.ok(userService.insert(info));
+    }
+
+    @PostMapping("/find/id/phone")
+    public ResponseEntity<FindUserIdResponse> findUserIdByPhoneNumber(@Valid @RequestBody FindUserIdRequest request) {
+        return ResponseEntity.ok(userService.findUserIdByPhoneNumber(request));
+    }
+
+    @PostMapping("/find/id/email")
+    public ResponseEntity<FindUserIdResponse> findUserIdByEmail(@Valid @RequestBody FindUserIdRequest request) {
+        return ResponseEntity.ok(userService.findUserIdByEmail(request));
+    }
+
+    @PostMapping("/find/password/phone")
+    public ResponseEntity<FindPasswordResponse> findPasswordByPhoneNumber(@Valid @RequestBody FindPasswordRequest request) {
+        return ResponseEntity.ok(userService.findPasswordByPhoneNumber(request));
+    }
+
+    @PostMapping("/find/password/email")
+    public ResponseEntity<FindPasswordResponse> findPasswordByEmail(@Valid @RequestBody FindPasswordRequest request) {
+        return ResponseEntity.ok(userService.findPasswordByEmail(request));
+    }
+
+    @PostMapping("/reset/password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        userService.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/select/me")

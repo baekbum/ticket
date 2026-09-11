@@ -81,7 +81,6 @@ Content-Type: application/json
   "cardNumber": "4111-1111-1111-1111",
   "cvc": "516",
   "cardPassword": "1234",
-  "customerName": "아이유",
   "amount": 180000
 }
 ```
@@ -103,16 +102,51 @@ Content-Type: application/json
 }
 ```
 
+카드 승인 요청에는 명의자 이름을 받지 않는다. 카드사와 카드번호로 카드를 조회한 뒤 CVC·비밀번호·만료·한도를 검증한다. 카드 소유자와 로그인한 예매자는 달라도 되며, ticket 검증/완료 요청과 결제 이력의 userId는 로그인한 예매자 기준이다. 다른 사람 카드로 결제한 경우 응답의 currentMonthUsedAmount와 limitAmount는 null이다.
+
 처리 규칙:
 
-```text
-1. paymentNo 중복 이력이 있으면 기존 이력 상태 검증
-2. 새 결제번호면 사용자, 카드번호, CVC, 카드 비밀번호, 금액, 한도 검증
-3. gateway transactionId 생성, 카드번호 마스킹, 카드 승인 성공 이력 저장
-4. transactionId, cardCompany, maskedCardNumber를 포함해 ticket-service 내부 카드 완료 API 호출
-5. 성공 시 gateway card history = TICKET_PAYMENT_COMPLETED
-6. 실패 시 카드 승인 취소, gateway card history = CANCELLED, ticket-service 실패 반영 요청
+1. 기존 paymentNo 이력이 있으면 소유자와 금액을 검증한다. APPROVED/TICKET_PAYMENT_FAILED는 기존 거래로 완료 반영을 재시도하고, 완료된 이력은 기존 결과를 반환한다.
+2. 신규 요청은 카드 정보를 검증하고 ticket 내부 `/card/validate`로 결제 가능 여부 및 서버 금액을 확인한다.
+3. 요청 금액이 서버 금액과 같은지 확인하고 서버 금액으로 카드 사용액과 APPROVED 이력을 커밋한다.
+4. 별도 트랜잭션에서 ticket 내부 `/card/settle`로 결제 완료를 요청한다.
+5. COMPLETED면 TICKET_PAYMENT_COMPLETED로 커밋하고 HTTP 200을 반환한다.
+6. REJECTED와 결제의 종료 상태를 확인한 경우에만 승인 취소를 커밋하고 HTTP 400을 반환한다.
+7. 통신 오류 또는 gateway 완료/취소 커밋 실패는 승인 이력을 유지하고 HTTP 202를 반환한다. 서버는 자동 재처리한다.
+
+확인 대기 응답 (HTTP 202, 결제 성공으로 취급하면 안 됨):
+
+```json
+{
+  "paymentNo": "PAY-...",
+  "status": "PENDING",
+  "message": "카드 승인 후 예매 결과를 확인하고 있습니다. 새 결제를 시작하지 말고 상태를 조회해주세요."
+}
 ```
+
+### Gateway 카드 상태 조회
+
+```http
+GET /payment-gateway/api/v1/payments/card/{paymentNo}
+Authorization: Bearer {accessToken}
+```
+
+인증 사용자 본인의 승인 이력만 반환한다.
+
+```json
+{
+  "paymentNo": "PAY-...",
+  "status": "TICKET_PAYMENT_COMPLETED",
+  "transactionId": "CARD-..."
+}
+```
+
+- APPROVED / TICKET_PAYMENT_FAILED: 결과 확인 대기. 같은 paymentNo로 조회를 계속한다.
+- TICKET_PAYMENT_COMPLETED: 완료 화면 이동.
+- CANCELLED: 승인 취소 안내. 새 결제 준비가 필요하다.
+- REFUNDED / PARTIALLY_REFUNDED: 환불 상태 안내.
+- APPROVAL_FAILED: 과거 승인 실패 이력. 새 결제번호가 필요하다.
+- 승인 이력이 아직 없으면 HTTP 400이다. 승인 API 응답 유실 직후라면 아직 실행 중일 수 있으므로 새로운 paymentNo를 만들지 말고 같은 요청을 재시도한다.
 
 ## Gateway 카드 전체 환불
 
@@ -198,11 +232,30 @@ Content-Type: application/json
 ```
 
 ```http
+POST /ticket/api/v1/payments/internal/card/validate
+POST /ticket/api/v1/payments/internal/card/settle
 POST /ticket/api/v1/payments/internal/card/complete
 POST /ticket/api/v1/payments/internal/card/fail
 POST /ticket/api/v1/payments/internal/virtual-account/issued
 POST /ticket/api/v1/payments/internal/virtual-account/deposit/complete
 ```
+
+### 카드 내부 검증/완료 계약
+
+`/card/validate` 요청은 `{"paymentNo":"PAY-...","userId":"user01"}`이며 userId는 gateway의 인증 컨텍스트에서 가져온다. 응답은 READY 상태의 PaymentResponse이다. 카드번호/CVC는 ticket으로 전달하지 않는다.
+
+`/card/settle` 요청은 기존 CardPaymentCompleteRequest(paymentNo, userId, amount, transactionId, cardCompany, maskedCardNumber)이다. 응답은 다음과 같다.
+
+```json
+{
+  "outcome": "COMPLETED",
+  "payment": {"paymentNo": "PAY-...", "amount": 180000, "status": "PAID", "cardTransactionId": "CARD-..."}
+}
+```
+
+outcome은 COMPLETED 또는 REJECTED다. REJECTED는 ticket이 EXPIRED/CANCELLED/FAILED 상태임을 확정한 응답이며, HTTP 오류/타임아웃과 구분한다. 이미 PAID/REFUNDED/PARTIALLY_REFUNDED인 경우 동일 거래번호만 COMPLETED로 인정한다. 기존 `/card/complete`와 `/card/fail`은 호환성을 위해 유지하며 새 gateway 승인 흐름은 `/card/settle`을 사용한다.
+
+ticket의 신규 내부 API를 먼저 배포한 뒤 gateway를 배포해야 한다. 브라우저는 HTTP 202와 상태 조회 계약을 반영해야 한다.
 
 ## 무통장 만료 이벤트
 
@@ -220,5 +273,5 @@ gateway scheduler
 
 - `READY`, `WAITING_DEPOSIT`, `PAID` 상태의 같은 `idempotencyKey`는 기존 결제를 반환한다.
 - `FAILED`, `CANCELLED`, `EXPIRED` 이후 같은 `idempotencyKey`로 `confirm`하면 새 `Payment` row와 새 `paymentNo`를 생성한다.
-- 카드 gateway에 이미 실패/취소 이력이 있는 `paymentNo`로 다시 승인 요청하면 새 결제번호로 재시도해야 한다.
+- 카드 입력/사전 검증 실패는 신규 이력을 남기지 않으며 READY의 같은 paymentNo로 재시도한다. APPROVED/TICKET_PAYMENT_FAILED는 재승인 없이 완료 반영만 재시도한다. CANCELLED 또는 과거 APPROVAL_FAILED 이력은 새 결제번호가 필요하다.
 - `TICKET_PAYMENT_FAILED` 상태의 gateway 가상계좌 수동 재처리 API는 운영/정산 범위로 보고 현재 구현에서는 보류한다.

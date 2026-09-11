@@ -24,8 +24,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -56,9 +54,15 @@ public class CheckoutService {
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
 
+    @Value("${app.checkout.reservation-fee-per-ticket:4000}")
+    private int reservationFeePerTicket = 4000;
+
+    @Value("${app.checkout.delivery-fee:3200}")
+    private int deliveryFee = 3200;
+
     /**
      * 좌석 선택 완료 후 배송/결제 정보 입력 화면으로 이동할 수 있는지 검증한다.
-     * active token과 Redis 좌석 선점 상태가 유효하면 active token을 회수해 다음 대기자가 입장할 수 있게 한다.
+     * active token과 Redis 좌석 선점 상태가 유효한지 검증한다.
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
@@ -72,8 +76,6 @@ public class CheckoutService {
                 request.getOrderId(),
                 request.getSeats()
         );
-
-        releaseActiveTokenAfterCommit(request.getEventId(), currentUserId, activeToken);
 
         return CheckoutPrepareResponse.builder()
                 .eventId(request.getEventId())
@@ -90,12 +92,14 @@ public class CheckoutService {
      * 무통장 결제는 이 단계에서 가상계좌까지 발급하고, 카드 결제는 PG 승인 전 READY 상태로 반환한다.
      */
     @AuditLog(action = "CHECKOUT_CONFIRM", targetType = "CHECKOUT")
-    public PaymentResponse confirm(String currentUserId, CheckoutConfirmRequest request) {
+    public PaymentResponse confirm(String currentUserId, String activeToken, CheckoutConfirmRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
         Payment existingPayment = findExistingPayment(currentUserId, idempotencyKey);
         if (existingPayment != null) {
             return existingPayment.toResponse();
         }
+
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
         seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
@@ -105,11 +109,15 @@ public class CheckoutService {
         );
 
         Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
-        reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+        if (request.getDelivery() != null) {
+            reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+        }
 
         int totalTicketAmount = calculateTotalTicketAmount(reservation);
         int discountAmount = calculateDiscountAmount(reservation);
-        int paymentAmount = totalTicketAmount - discountAmount;
+        int paymentAmount = Math.max(0, totalTicketAmount - discountAmount)
+                + reservationFeePerTicket * reservation.getTickets().size()
+                + (request.getDelivery() != null ? deliveryFee : 0);
         LocalDateTime requestedAt = LocalDateTime.now();
 
         Payment payment = Payment.builder()
@@ -128,13 +136,6 @@ public class CheckoutService {
         Payment savedPayment = paymentJpaRepository.save(payment);
 
         return savedPayment.toResponse();
-    }
-
-    /**
-     * checkout 준비 트랜잭션이 성공한 뒤 active token을 회수해 다음 대기자가 입장할 수 있게 한다.
-     */
-    private void releaseActiveTokenAfterCommit(Long eventId, String userId, String activeToken) {
-        runAfterCommit(() -> queueAccessService.complete(eventId, userId, activeToken));
     }
 
     private Payment findExistingPayment(String currentUserId, String idempotencyKey) {
@@ -183,24 +184,6 @@ public class CheckoutService {
         String timestamp = LocalDateTime.now().format(PAYMENT_NO_FORMATTER);
         String randomValue = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         return "PAY-" + timestamp + "-" + randomValue;
-    }
-
-    /**
-     * DB 트랜잭션 커밋이 성공한 뒤에만 외부 부수 효과를 실행한다.
-     * 트랜잭션이 없을 때는 호출 위치에서 즉시 실행한다.
-     */
-    private void runAfterCommit(Runnable runnable) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            runnable.run();
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                runnable.run();
-            }
-        });
     }
 
     /**

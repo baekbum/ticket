@@ -8,6 +8,13 @@ spring:
     default: local
   application:
     name: payment-gateway-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          ticket-payment-client:
+            connectTimeout: 3000
+            readTimeout: 5000
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/ticket
@@ -28,6 +35,10 @@ token:
   secret: ticket-project-secret-value-is-made-by-random
 
 app:
+  card:
+    recovery:
+      enabled: true
+      fixed-delay-ms: 30000
   ticket:
     base-url: http://localhost:8082/ticket
     service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}

@@ -28,6 +28,12 @@ public class VirtualAccountCheckoutPaymentHandler implements CheckoutPaymentHand
     @Override
     public void process(CheckoutConfirmRequest request, Payment payment) {
         GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
+        if (virtualAccount == null || !Boolean.TRUE.equals(virtualAccount.getIssued())
+                || !StringUtils.hasText(virtualAccount.getBankName())
+                || !StringUtils.hasText(virtualAccount.getAccountNumber())
+                || virtualAccount.getExpiresAt() == null) {
+            throw new IllegalStateException("가상계좌 발급에 실패했습니다.");
+        }
         payment.waitDeposit(
                 virtualAccount.getBankName(),
                 virtualAccount.getAccountNumber(),

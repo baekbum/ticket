@@ -2,6 +2,7 @@ package dev.bum.queue_service.controller.advice;
 
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
+import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,6 +19,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, ex.getMessage()));
+    }
+
+    @ExceptionHandler(QueueTokenInvalidException.class)
+    public ResponseEntity<ErrorResponse> handleQueueTokenInvalidException(QueueTokenInvalidException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(ErrorCode.QUEUE_TOKEN_INVALID, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

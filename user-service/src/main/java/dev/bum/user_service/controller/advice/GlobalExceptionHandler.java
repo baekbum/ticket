@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserDuplicateException.class)
     public ResponseEntity<ErrorResponse> UserDuplicateException(UserDuplicateException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.USER_DUPLICATE, ex.getMessage()));
     }
 

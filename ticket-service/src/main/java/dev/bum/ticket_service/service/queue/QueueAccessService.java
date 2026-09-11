@@ -5,6 +5,8 @@ import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
+import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
 import feign.FeignException;
 import io.micrometer.observation.annotation.Observed;
@@ -44,10 +46,16 @@ public class QueueAccessService {
             response = queueServiceClient.validate(new QueueValidateRequest(eventId, userId, activeToken));
         } catch (FeignException e) {
             log.warn("[QUEUE-VALIDATE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
-            throw new QueueAccessDeniedException("대기열 서버 검증에 실패했습니다.");
+            throw new QueueUnavailableException();
         }
 
-        if (response == null || !response.allowed()) {
+        if (response == null) {
+            throw new QueueUnavailableException();
+        }
+        if (!response.allowed() && "INVALID_QUEUE_TOKEN".equals(response.reason())) {
+            throw new ActiveTokenExpiredException();
+        }
+        if (!response.allowed()) {
             throw new QueueAccessDeniedException("대기열을 통과한 사용자만 티켓팅을 진행할 수 있습니다.");
         }
     }

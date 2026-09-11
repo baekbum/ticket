@@ -6,7 +6,15 @@ public enum CardCompany {
     SAMSUNG,
     HYUNDAI,
     LOTTE,
-    HANA,
+    KAKAO,
+    TOSS,
+    NH,
     WOORI,
-    NH
+    HANA,
+    BC,
+    IBK,
+    CITI,
+    SC,
+    SUHYUP,
+    K_BANK
 }

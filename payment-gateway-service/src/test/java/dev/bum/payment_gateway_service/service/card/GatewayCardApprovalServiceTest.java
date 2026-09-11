@@ -36,7 +36,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
-class GatewayCardPaymentServiceTest {
+class GatewayCardApprovalServiceTest {
 
     @Mock
     private DummyCardJpaRepository dummyCardJpaRepository;
@@ -51,7 +51,7 @@ class GatewayCardPaymentServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    private GatewayCardPaymentService gatewayCardPaymentService;
+    private GatewayCardApprovalService gatewayCardPaymentService;
 
     @Test
     @DisplayName("카드 전체 환불 요청 시 승인 금액을 원복하고 환불 상태로 변경한다")
@@ -59,12 +59,14 @@ class GatewayCardPaymentServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
         GatewayCardPaymentRefundRequest request = refundRequest(BigDecimal.valueOf(10000));
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNoAndTransactionId("PAY-1", "CARD-1"))
                 .willReturn(Optional.of(paymentHistory));
+
+        given(dummyCardJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(dummyCard));
 
         GatewayCardPaymentRefundResponse response = gatewayCardPaymentService.refund(request);
 
@@ -80,11 +82,13 @@ class GatewayCardPaymentServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNoAndTransactionId("PAY-1", "CARD-1"))
                 .willReturn(Optional.of(paymentHistory));
+
+        given(dummyCardJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(dummyCard));
 
         GatewayCardPaymentRefundResponse response = gatewayCardPaymentService.refund(refundRequest(BigDecimal.valueOf(4000)));
 
@@ -102,7 +106,7 @@ class GatewayCardPaymentServiceTest {
         DummyCard dummyCard = dummyCard();
         dummyCard.approve(BigDecimal.valueOf(10000));
         DummyCardPaymentHistory paymentHistory =
-                DummyCardPaymentHistory.approved(dummyCard, "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
+                DummyCardPaymentHistory.approved(dummyCard, "IU", "PAY-1", "CARD-1", "4111-****-****-1111", BigDecimal.valueOf(10000));
         paymentHistory.completeTicketPayment(null);
         paymentHistory.refund(BigDecimal.valueOf(4000));
         dummyCard.cancelApproval(BigDecimal.valueOf(4000));
@@ -119,14 +123,13 @@ class GatewayCardPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("카드 승인 성공 후 ticket-service 결제 완료까지 반영한다")
+    @DisplayName("카드 승인 단계는 승인 이력만 저장하고 완료 API를 호출하지 않는다")
     void approve_card_payment_and_complete_ticket_payment() {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         PaymentResponse ticketPayment = ticketPayment(PaymentStatus.PAID);
 
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.of(dummyCard));
@@ -136,7 +139,7 @@ class GatewayCardPaymentServiceTest {
                 .willAnswer(invocation -> invocation.getArgument(0));
         given(passwordEncoder.matches("516", "cvc-hash")).willReturn(true);
         given(passwordEncoder.matches("1234", "password-hash")).willReturn(true);
-        given(ticketPaymentClient.completeCardPayment(any())).willReturn(ticketPayment);
+        given(ticketPaymentClient.validateCardPayment(any())).willReturn(ticketPayment(PaymentStatus.READY));
 
         GatewayCardPaymentApproveResponse response = gatewayCardPaymentService.approve("IU", request);
 
@@ -148,41 +151,11 @@ class GatewayCardPaymentServiceTest {
 
         ArgumentCaptor<DummyCardPaymentHistory> historyCaptor = ArgumentCaptor.forClass(DummyCardPaymentHistory.class);
         then(dummyCardPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
-        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
+        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.APPROVED);
         assertThat(historyCaptor.getValue().getTransactionId()).startsWith("CARD-");
         assertThat(historyCaptor.getValue().getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
-        then(ticketPaymentClient).should().completeCardPayment(any());
-    }
-
-    @Test
-    @DisplayName("ticket-service 결제 완료 실패 시 카드 승인 취소 후 ticket 결제를 실패 처리한다")
-    void cancel_card_approval_when_ticket_payment_completion_fails() {
-        GatewayCardPaymentApproveRequest request = approveRequest();
-        DummyCard dummyCard = dummyCard();
-
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
-                CardCompany.SHINHAN,
-                "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
-        )).willReturn(Optional.of(dummyCard));
-        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
-                .willReturn(Optional.empty());
-        given(dummyCardPaymentHistoryJpaRepository.save(any(DummyCardPaymentHistory.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-        given(passwordEncoder.matches("516", "cvc-hash")).willReturn(true);
-        given(passwordEncoder.matches("1234", "password-hash")).willReturn(true);
-        given(ticketPaymentClient.completeCardPayment(any())).willThrow(new IllegalStateException("ticket-service down"));
-
-        assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
-                .isInstanceOf(TicketPaymentCompleteException.class)
-                .hasMessage("카드 승인 후 ticket-service 반영에 실패해 카드 승인을 취소했습니다. 다시 결제해주세요.");
-
-        ArgumentCaptor<DummyCardPaymentHistory> historyCaptor = ArgumentCaptor.forClass(DummyCardPaymentHistory.class);
-        then(dummyCardPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
-        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.CANCELLED);
-        assertThat(historyCaptor.getValue().getFailureReason()).isEqualTo("ticket-service 결제 완료 반영 실패: ticket-service down");
-        assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
-        then(ticketPaymentClient).should().failCardPayment(any());
+        then(ticketPaymentClient).should().validateCardPayment(any());
+        then(ticketPaymentClient).should(never()).settleCardPayment(any());
     }
 
     @Test
@@ -191,7 +164,7 @@ class GatewayCardPaymentServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.cancel("ticket-service down");
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -212,7 +185,7 @@ class GatewayCardPaymentServiceTest {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard, request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard, "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -235,7 +208,7 @@ class GatewayCardPaymentServiceTest {
     void reject_existing_history_without_current_user() {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCardPaymentHistory existingHistory =
-                DummyCardPaymentHistory.approved(dummyCard(), request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+                DummyCardPaymentHistory.approved(dummyCard(), "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
         existingHistory.completeTicketPayment(null);
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
@@ -250,64 +223,44 @@ class GatewayCardPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("카드 CVC 검증 실패 시 실패 이력을 저장하고 ticket-service를 호출하지 않는다")
+    @DisplayName("카드 CVC 검증 실패 시 승인 이력과 ticket 상태를 변경하지 않는다")
     void save_failed_history_when_cvc_is_invalid() {
         GatewayCardPaymentApproveRequest request = approveRequest();
         DummyCard dummyCard = dummyCard();
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
                 .willReturn(Optional.empty());
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.of(dummyCard));
-        given(dummyCardPaymentHistoryJpaRepository.save(any(DummyCardPaymentHistory.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-        given(passwordEncoder.matches("516", "cvc-hash")).willReturn(false);
+given(passwordEncoder.matches("516", "cvc-hash")).willReturn(false);
 
         assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("카드 CVC가 일치하지 않습니다.");
 
-        ArgumentCaptor<DummyCardPaymentHistory> historyCaptor = ArgumentCaptor.forClass(DummyCardPaymentHistory.class);
-        then(dummyCardPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
-        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.APPROVAL_FAILED);
-        assertThat(historyCaptor.getValue().getFailureReason()).isEqualTo("카드 CVC가 일치하지 않습니다.");
-        assertThat(historyCaptor.getValue().getPaymentNo()).isEqualTo(request.getPaymentNo());
-        assertThat(historyCaptor.getValue().getDummyCard()).isEqualTo(dummyCard);
-        assertThat(dummyCard.getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
-        then(ticketPaymentClient).should(never()).completeCardPayment(any());
-        then(ticketPaymentClient).should().failCardPayment(any());
+        then(dummyCardPaymentHistoryJpaRepository).should(never()).save(any());
+        then(ticketPaymentClient).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("카드 조회 실패 시 카드 없이 실패 이력을 저장한다")
+    @DisplayName("카드 조회 실패 시 승인 이력을 생성하지 않는다")
     void save_failed_history_without_card_when_card_not_found() {
         GatewayCardPaymentApproveRequest request = approveRequest();
 
         given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
                 .willReturn(Optional.empty());
-        given(dummyCardJpaRepository.findByUserIdAndCardCompanyAndCardNumberHash(
-                "IU",
+        given(dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
                 CardCompany.SHINHAN,
                 "9bbef19476623ca56c17da75fd57734dbf82530686043a6e491c6d71befe8f6e"
         )).willReturn(Optional.empty());
-        given(dummyCardPaymentHistoryJpaRepository.save(any(DummyCardPaymentHistory.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-
-        assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
+assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("카드 정보가 일치하지 않습니다.");
 
-        ArgumentCaptor<DummyCardPaymentHistory> historyCaptor = ArgumentCaptor.forClass(DummyCardPaymentHistory.class);
-        then(dummyCardPaymentHistoryJpaRepository).should().save(historyCaptor.capture());
-        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(CardPaymentHistoryStatus.APPROVAL_FAILED);
-        assertThat(historyCaptor.getValue().getFailureReason()).isEqualTo("카드 정보가 일치하지 않습니다.");
-        assertThat(historyCaptor.getValue().getDummyCard()).isNull();
-        assertThat(historyCaptor.getValue().getMaskedCardNumber()).isEqualTo("4111-****-****-1111");
-        then(ticketPaymentClient).should(never()).completeCardPayment(any());
-        then(ticketPaymentClient).should().failCardPayment(any());
+        then(dummyCardPaymentHistoryJpaRepository).should(never()).save(any());
+        then(ticketPaymentClient).shouldHaveNoInteractions();
     }
 
     private GatewayCardPaymentApproveRequest approveRequest() {
@@ -317,7 +270,7 @@ class GatewayCardPaymentServiceTest {
                 .cardNumber("4111-1111-1111-1111")
                 .cvc("516")
                 .cardPassword("1234")
-                .customerName("아이유")
+
                 .amount(BigDecimal.valueOf(10000))
                 .build();
     }

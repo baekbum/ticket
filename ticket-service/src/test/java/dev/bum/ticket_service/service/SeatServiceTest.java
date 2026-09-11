@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -49,12 +50,15 @@ class SeatServiceTest {
         Seat seat = seat(1L, "VIP", 1, 1);
 
         given(repository.selectById(1L)).willReturn(seat);
+        given(seatCacheService.applyCachedStatus(any(SeatResponse.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
 
         SeatResponse response = seatService.selectById(1L);
 
         assertThat(response.getSeatId()).isEqualTo(1L);
         assertThat(response.getZone()).isEqualTo("VIP");
         then(repository).should().selectById(1L);
+        then(seatCacheService).should().applyCachedStatus(any(SeatResponse.class));
     }
 
     @Test
@@ -70,6 +74,8 @@ class SeatServiceTest {
                 pageable.getSort().getOrderFor("seatId") != null
                         && pageable.getSort().getOrderFor("seatId").isDescending()
         ))).willReturn(page);
+        given(seatCacheService.applyCachedStatuses(any()))
+                .willAnswer(invocation -> invocation.getArgument(0));
 
         CustomPageResponse<SeatResponse> response = seatService.selectByCond(cond);
 
@@ -79,6 +85,7 @@ class SeatServiceTest {
                 pageable.getSort().getOrderFor("seatId") != null
                         && pageable.getSort().getOrderFor("seatId").isDescending()
         ));
+        then(seatCacheService).should().applyCachedStatuses(any());
     }
 
     @Test

@@ -223,19 +223,58 @@ public class SeatCacheService {
         String redisKey = buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
         String value = seatRedisTemplate.opsForValue().get(redisKey);
 
+        applyCachedStatusValue(seat, value);
+        return seat;
+    }
+
+    public List<SeatResponse> applyCachedStatuses(List<SeatResponse> seats) {
+        if (seats == null || seats.isEmpty()) {
+            return seats;
+        }
+
+        List<SeatResponse> cacheableSeats = seats.stream()
+                .filter(this::isCacheableSeatResponse)
+                .toList();
+
+        if (cacheableSeats.isEmpty()) {
+            return seats;
+        }
+
+        List<String> redisKeys = cacheableSeats.stream()
+                .map(seat -> buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol()))
+                .toList();
+        List<String> values = seatRedisTemplate.opsForValue().multiGet(redisKeys);
+
+        if (values == null) {
+            return seats;
+        }
+
+        for (int i = 0; i < cacheableSeats.size(); i++) {
+            String value = i < values.size() ? values.get(i) : null;
+            applyCachedStatusValue(cacheableSeats.get(i), value);
+        }
+
+        return seats;
+    }
+
+    private boolean isCacheableSeatResponse(SeatResponse seat) {
+        return seat != null && seat.getEventId() != null && seat.getZone() != null
+                && seat.getSeatRow() != null && seat.getSeatCol() != null;
+    }
+
+    private void applyCachedStatusValue(SeatResponse seat, String value) {
         if (value == null) {
-            return seat;
+            return;
         }
         if (value.startsWith("LOCKED:")) {
             seat.setStatus(SeatStatus.LOCKED);
-            return seat;
+            return;
         }
         try {
             seat.setStatus(SeatStatus.valueOf(value));
         } catch (IllegalArgumentException ignored) {
             seat.setStatus(SeatStatus.LOCKED);
         }
-        return seat;
     }
 
     @Observed(name = "ticket.seat-cache.redis.occupy", contextualName = "ticket seat cache redis occupy")

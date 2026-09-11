@@ -7,6 +7,7 @@
   let lastEntries = [];
   let autoRefreshEnabled = false;
   let autoRefreshTimer = null;
+  let pendingRemoveToken = null;
 
   function inputValue(id) {
     return document.getElementById(id)?.value.trim() || '';
@@ -28,6 +29,14 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  function escapeJs(value) {
+    return String(value ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n');
   }
 
   function formatTime(millis) {
@@ -64,6 +73,7 @@
         <th>${sortableHeader('TTL', 'ttlSeconds')}</th>
         <th>${sortableHeader('Token Value', 'value')}</th>
         <th>${sortableHeader('Key', 'key')}</th>
+        <th>Action</th>
       `;
       return;
     }
@@ -84,6 +94,7 @@
       <th>${sortableHeader('Entered At', 'timestampMillis')}</th>
       <th>${sortableHeader('Score', 'score')}</th>
       <th>${sortableHeader('Key', 'key')}</th>
+      <th>Action</th>
     `;
   }
 
@@ -147,6 +158,10 @@
 
       const tr = document.createElement('tr');
       if (changed) tr.classList.add('queue-row-changed');
+      const token = entry.token || entry.member || '';
+      const removeButton = queueMode === 'WAITING' || queueMode === 'ACTIVE'
+        ? `<button class="queue-remove-btn" type="button" onclick="openQueueRedisTokenRemoveModal('${escapeJs(token)}')">제거</button>`
+        : '';
 
       if (queueMode === 'ACTIVE') {
         tr.innerHTML = `
@@ -155,6 +170,7 @@
           <td>${escapeHtml(formatTtl(entry.ttlSeconds))}</td>
           <td class="queue-value" title="${escapeHtml(entry.value || '')}">${escapeHtml(entry.value || '-')}</td>
           <td class="queue-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
+          <td>${removeButton}</td>
         `;
       } else if (queueMode === 'TOKEN') {
         tr.innerHTML = `
@@ -170,6 +186,7 @@
           <td>${escapeHtml(formatTime(entry.timestampMillis))}</td>
           <td>${escapeHtml(entry.score ?? '-')}</td>
           <td class="queue-key" title="${escapeHtml(entry.key)}">${escapeHtml(entry.key)}</td>
+          <td>${removeButton}</td>
         `;
       }
       tbody.appendChild(tr);
@@ -254,6 +271,63 @@
     previousSnapshot = new Map();
     document.getElementById('queue-summary-changed').textContent = '0';
     showToast('\uBCC0\uACBD \uAC10\uC9C0 \uAE30\uC900\uC744 \uCD08\uAE30\uD654\uD588\uC2B5\uB2C8\uB2E4.');
+  };
+
+  window.openQueueRedisTokenRemoveModal = function (token) {
+    const eventId = inputValue('queue-event-id');
+    if (!eventId) {
+      showToast('Event ID\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.', true);
+      return;
+    }
+
+    if (!token || !['WAITING', 'ACTIVE'].includes(queueMode)) {
+      showToast('\uC81C\uAC70\uD560 \uD1A0\uD070\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.', true);
+      return;
+    }
+
+    pendingRemoveToken = { eventId, token, mode: queueMode };
+    document.getElementById('queue-token-remove-summary').innerHTML = `
+      <div>Mode: <strong>${escapeHtml(queueMode)}</strong></div>
+      <div>Event ID: <strong>${escapeHtml(eventId)}</strong></div>
+      <div>Token: <strong>${escapeHtml(token)}</strong></div>
+    `;
+    document.getElementById('queue-token-remove-modal').style.display = 'flex';
+  };
+
+  window.cancelQueueRedisTokenRemove = function () {
+    pendingRemoveToken = null;
+    document.getElementById('queue-token-remove-modal').style.display = 'none';
+  };
+
+  window.submitQueueRedisTokenRemove = async function () {
+    if (!pendingRemoveToken) {
+      return;
+    }
+
+    const { eventId, token, mode } = pendingRemoveToken;
+    document.getElementById('queue-token-remove-modal').style.display = 'none';
+    pendingRemoveToken = null;
+
+    try {
+      const params = new URLSearchParams();
+      params.set('mode', mode);
+      const res = await Fetch(
+        `${QUEUE_REDIS_URL}/event/${encodeURIComponent(eventId)}/token/${encodeURIComponent(token)}?${params.toString()}`,
+        { method: 'DELETE', headers }
+      );
+
+      if (!res.ok) {
+        showToast('\uD1A0\uD070 \uC81C\uAC70\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.', true);
+        return;
+      }
+
+      showToast('\uD1A0\uD070\uC744 \uC81C\uAC70\uD588\uC2B5\uB2C8\uB2E4.');
+      previousSnapshot = new Map();
+      await window.loadQueueRedis();
+    } catch (e) {
+      console.error(e);
+      showToast('\uD1A0\uD070 \uC81C\uAC70\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.', true);
+    }
   };
 
   window.loadQueueRedis = async function () {

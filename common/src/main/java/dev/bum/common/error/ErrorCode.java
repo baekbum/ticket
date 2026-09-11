@@ -24,7 +24,7 @@ public enum ErrorCode {
     FEIGN_CLIENT_ERROR("외부 서비스 통신 중 오류가 발생했습니다."),
 
     // Queue-service
-    QUEUE_TOKEN_INVALID("유효하지 않은 active token입니다."),
+    QUEUE_TOKEN_INVALID("유효하지 않은 대기열 토큰입니다."),
 
     // Ticket-service
     // Event
@@ -55,6 +55,8 @@ public enum ErrorCode {
 
     // Queue
     QUEUE_ACCESS_DENIED("대기열 접근 권한이 없습니다."),
+    ACTIVE_TOKEN_EXPIRED("좌석 선택 시간이 초과되었습니다. 예매를 다시 시작해주세요."),
+    QUEUE_UNAVAILABLE("예매 가능 여부를 일시적으로 확인하지 못했습니다. 잠시 후 다시 시도해주세요."),
 
     // 공통으로 사용
     UNAUTHORIZED("인증이 필요합니다."),

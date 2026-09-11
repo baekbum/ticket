@@ -69,7 +69,7 @@ class UserControllerTest {
         mockMvc.perform(get(baseUrl + "/check/duplication/IU"))
                 .andExpect(status().isOk());
 
-        then(userService).should().isDuplicated("IU");
+        then(userService).should().validateIsUserIdDuplicated("IU");
     }
 
     @Test

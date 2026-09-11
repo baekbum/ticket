@@ -1,4 +1,4 @@
-package dev.bum.queue_service.config;
+package dev.bum.queue_service.security;
 
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
