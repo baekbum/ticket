@@ -305,12 +305,29 @@
 
 .queue-token-confirm-modal {
   display: none;
+  position: fixed;
+  inset: 0;
   z-index: 1300;
+  justify-content: center;
   align-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(20, 16, 40, 0.45);
+  backdrop-filter: blur(2px);
 }
 
 .queue-token-confirm-content {
+  width: 100%;
   max-width: 460px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 28px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: 0 12px 42px rgba(30, 20, 60, 0.22);
   text-align: center;
 }
 
@@ -350,6 +367,59 @@
 body.dark-mode .queue-token-confirm-summary {
   background: #202231;
   border-color: var(--border);
+}
+
+.queue-token-confirm-modal .modal-title {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.queue-token-confirm-modal .modal-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.queue-token-confirm-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.queue-token-confirm-modal .btn {
+  min-width: 82px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-token-confirm-modal .btn-secondary {
+  border-color: var(--border);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+}
+
+.queue-token-confirm-modal .btn-secondary:hover {
+  background: var(--surface-hover, #f4f2f8);
+  color: var(--text-primary);
+}
+
+.queue-token-confirm-modal .btn-danger-solid {
+  background: #d63333;
+  color: #ffffff;
+}
+
+.queue-token-confirm-modal .btn-danger-solid:hover {
+  background: #bb2f2f;
 }
 
 .queue-row-changed {
