@@ -16,6 +16,8 @@ public class ReservationResponse {
     private String userId;
     private long eventId;
     private String eventTitle;
+    private String posterUrl;
+    private String cancelDeadlineAt;
     private String reservedDate;
     private String eventDateTime;
     private String venue;
