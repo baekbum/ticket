@@ -11,6 +11,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
@@ -87,6 +88,16 @@ public class UserCouponService {
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId) {
         return userCouponRepository.selectByUserId(userId).stream()
+                .map(UserCoupon::toResponse)
+                .toList();
+    }
+
+    /**
+     * 로그인 사용자의 쿠폰을 화면 조회 조건에 맞춰 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<UserCouponResponse> selectByUserId(String userId, UserCouponFilter filter) {
+        return userCouponRepository.selectByUserId(userId, filter, LocalDateTime.now()).stream()
                 .map(UserCoupon::toResponse)
                 .toList();
     }

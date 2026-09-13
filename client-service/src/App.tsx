@@ -1,3 +1,4 @@
+import MyTicketPage from './MyTicketPage';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
@@ -25,7 +26,7 @@ type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 type ConcertSort = 'soonest' | 'latest';
 type EventGenre = 'CONCERT' | 'MUSICAL_PLAY' | 'FANCLUB_FANMEETING' | 'CLASSIC' | 'EXHIBITION_EVENT';
-type MyTicketTab = 'home' | 'reservation' | 'coupon';
+
 
 type LoginForm = {
   userId: string;
@@ -334,43 +335,6 @@ const initialFindPasswordForm = {
 const savedLoginIdCookieName = 'ticksy.savedLoginId';
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
-const recentTicketHistories = [
-  {
-    id: 1,
-    title: '2026 IU CONCERT - HEREH WORLD TOUR ENCORE',
-    date: '2026.09.12 18:00',
-    venue: 'KSPO DOME',
-    status: '예매완료',
-  },
-  {
-    id: 2,
-    title: 'Ticksy Live Festa',
-    date: '2026.09.05 19:00',
-    venue: '서울월드컵공원 평화광장',
-    status: '예매완료',
-  },
-  {
-    id: 3,
-    title: '한강 재즈 브리즈',
-    date: '2026.09.13 18:30',
-    venue: '노들섬 라이브하우스',
-    status: '취소완료',
-  },
-];
-const recentInquiries = [
-  {
-    id: 1,
-    title: '예매 취소 수수료가 궁금합니다.',
-    date: '2026.08.29',
-    status: '답변완료',
-  },
-  {
-    id: 2,
-    title: '모바일 티켓 입장 가능 여부 문의',
-    date: '2026.08.27',
-    status: '접수완료',
-  },
-];
 const categoryPageConfigs: Record<
   'concertList' | 'musicalPlayList' | 'fanclubFanmeetingList' | 'classicList' | 'exhibitionEventList',
   {
@@ -1004,7 +968,7 @@ function App() {
           onNavigate={navigateToPage}
         />
       )}
-      {page === 'myTicket' && <MyTicketPage />}
+      {page === 'myTicket' && <MyTicketPage request={request} />}
       {page === 'bookingWindow' && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
@@ -1563,75 +1527,6 @@ function CategoryEventListPage({
           {isLoading && events.length > 0 && `${config.label} 공연을 더 불러오는 중입니다.`}
         </div>
       </div>
-    </section>
-  );
-}
-
-function MyTicketPage() {
-  const [activeMyTicketTab, setActiveMyTicketTab] = useState<MyTicketTab>('home');
-  const myTicketTabs: Array<{ key: MyTicketTab; label: string }> = [
-    { key: 'home', label: '마이티켓 홈' },
-    { key: 'reservation', label: '예매 확인/취소' },
-    { key: 'coupon', label: '할인 쿠폰' },
-  ];
-
-  return (
-    <section className="my-ticket-page">
-      <div className="my-ticket-title">
-        <h1>마이티켓</h1>
-      </div>
-
-      <nav className="my-ticket-tabs" aria-label="마이티켓 메뉴">
-        {myTicketTabs.map((tab) => (
-          <button
-            className={activeMyTicketTab === tab.key ? 'active-my-ticket-tab' : ''}
-            type="button"
-            key={tab.key}
-            onClick={() => setActiveMyTicketTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      <section className="my-ticket-section">
-        <div className="my-ticket-section-header">
-          <h2>최근 예매/취소 내역</h2>
-          <button type="button">더보기</button>
-        </div>
-        <div className="ticket-history-list">
-          {recentTicketHistories.slice(0, 3).map((history) => (
-            <article className="ticket-history-card" key={history.id}>
-              <div>
-                <strong>{history.title}</strong>
-                <p>{history.date}</p>
-                <span>{history.venue}</span>
-              </div>
-              <em className={history.status === '예매완료' ? 'confirmed' : 'cancelled'}>
-                {history.status}
-              </em>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="my-ticket-section">
-        <div className="my-ticket-section-header">
-          <h2>최근 1:1 문의</h2>
-          <button type="button">더보기</button>
-        </div>
-        <div className="inquiry-list">
-          {recentInquiries.map((inquiry) => (
-            <article className="inquiry-card" key={inquiry.id}>
-              <div>
-                <strong>{inquiry.title}</strong>
-                <p>{inquiry.date}</p>
-              </div>
-              <em>{inquiry.status}</em>
-            </article>
-          ))}
-        </div>
-      </section>
     </section>
   );
 }

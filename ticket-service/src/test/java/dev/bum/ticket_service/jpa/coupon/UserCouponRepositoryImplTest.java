@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.CouponJpaRepository;
@@ -125,6 +126,39 @@ class UserCouponRepositoryImplTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).getCoupon().getCode()).isEqualTo("SUMMER10");
+    }
+
+    @Test
+    @DisplayName("내 쿠폰을 사용 가능, 사용 완료, 만료 조건으로 조회")
+    void user_coupon_select_by_user_id_and_filter() {
+        LocalDateTime now = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Coupon usedCoupon = couponJpaRepository.save(coupon("Used Coupon", "USED10", 1000));
+        Coupon expiredCoupon = couponJpaRepository.save(coupon("Expired Coupon", "EXPIRED10", 1000));
+        Coupon logicallyExpiredCoupon = couponJpaRepository.save(coupon("Past Coupon", "PAST10", 1000));
+        userCouponJpaRepository.save(userCoupon(
+                "user01", usedCoupon, UserCouponStatus.USED,
+                now.minusDays(5), now.minusDays(1), now.plusDays(30)
+        ));
+        userCouponJpaRepository.save(userCoupon(
+                "user01", expiredCoupon, UserCouponStatus.EXPIRED,
+                now.minusDays(10), null, now.minusDays(2)
+        ));
+        userCouponJpaRepository.save(userCoupon(
+                "user01", logicallyExpiredCoupon, UserCouponStatus.ISSUED,
+                now.minusDays(10), null, now.minusMinutes(1)
+        ));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<UserCoupon> available = userCouponRepository.selectByUserId("user01", UserCouponFilter.AVAILABLE, now);
+        List<UserCoupon> used = userCouponRepository.selectByUserId("user01", UserCouponFilter.USED, now);
+        List<UserCoupon> expired = userCouponRepository.selectByUserId("user01", UserCouponFilter.EXPIRED, now);
+        List<UserCoupon> all = userCouponRepository.selectByUserId("user01", UserCouponFilter.ALL, now);
+
+        assertThat(available).extracting(UserCoupon::getStatus).containsExactly(UserCouponStatus.ISSUED);
+        assertThat(used).extracting(UserCoupon::getStatus).containsExactly(UserCouponStatus.USED);
+        assertThat(expired).hasSize(2);
+        assertThat(all).hasSize(4);
     }
 
     @Test

@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -52,6 +53,7 @@ import java.util.List;
 public class ReservationService {
 
     private final ReservationRepository repository;
+    private final ReservationManagementService reservationManagementService;
     private final SeatCacheService seatCacheService;
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundProcessService paymentRefundProcessService;
@@ -68,6 +70,12 @@ public class ReservationService {
         Reservation reservation = repository.selectById(id);
         validateOwner(currentUserId, reservation);
         return reservation.toResponse();
+    }
+
+    @Transactional(readOnly = true)
+    public ReservationDetailResponse selectMyReservationDetail(String currentUserId, long id) {
+        validateOwner(currentUserId, repository.selectById(id));
+        return reservationManagementService.selectDetailById(id);
     }
 
     /**

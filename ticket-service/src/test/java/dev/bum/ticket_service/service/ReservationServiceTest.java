@@ -70,6 +70,25 @@ class ReservationServiceTest {
     private ReservationRepository repository;
 
     @Mock
+    private dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService reservationManagementService;
+
+    @Test
+    void reservationDetailRejectsOtherOwnerBeforeLoadingPaymentAndDelivery() {
+        given(repository.selectById(1L)).willReturn(Reservation.builder().userId("owner").build());
+        assertThatThrownBy(() -> reservationService.selectMyReservationDetail("other", 1L))
+                .isInstanceOf(AccessDeniedException.class);
+        then(reservationManagementService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void reservationDetailReturnsOwnedReservation() {
+        given(repository.selectById(1L)).willReturn(Reservation.builder().userId("owner").build());
+        var detail = dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse.builder().build();
+        given(reservationManagementService.selectDetailById(1L)).willReturn(detail);
+        assertThat(reservationService.selectMyReservationDetail("owner", 1L)).isSameAs(detail);
+    }
+
+    @Mock
     private SeatCacheService seatCacheService;
 
     @Mock

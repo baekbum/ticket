@@ -90,6 +90,9 @@ public class Reservation {
                 .userId(this.userId)
                 .eventId(this.event != null ? this.event.getEventId() : 0L)
                 .eventTitle(this.event != null ? this.event.getTitle() : null)
+                .posterUrl(this.event != null ? this.event.getPosterUrl() : null)
+                .cancelDeadlineAt(this.event != null && this.event.getCancelDeadlineAt() != null
+                        ? this.event.getCancelDeadlineAt().toString() : null)
                 .reservedDate(this.reservedAt != null ? this.reservedAt.format(RESERVED_FORMATTER) : null)
                 .eventDateTime(this.event != null && this.event.getEventDateTime() != null ?
                         this.event.getEventDateTime().format(EVENT_FORMATTER) : null)

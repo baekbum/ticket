@@ -10,8 +10,10 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.ticket_service.controller.coupon.CouponController;
 import dev.bum.ticket_service.security.SecurityConfig;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,9 @@ class CouponControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
 
     @MockitoBean
     private UserCouponService userCouponService;
@@ -91,7 +96,8 @@ class CouponControllerTest {
     @Test
     @DisplayName("내 쿠폰 조회")
     void coupon_select_me() throws Exception {
-        given(userCouponService.selectByUserId("user01")).willReturn(List.of(userCouponResponse(1L, "user01")));
+        given(userCouponService.selectByUserId("user01", UserCouponFilter.AVAILABLE))
+                .willReturn(List.of(userCouponResponse(1L, "user01")));
 
         mockMvc.perform(get(baseUrl + "/me")
                         .with(authentication(userAuthentication("user01"))))
@@ -99,7 +105,20 @@ class CouponControllerTest {
                 .andExpect(jsonPath("$[0].userCouponId").value(1L))
                 .andExpect(jsonPath("$[0].status").value(UserCouponStatus.ISSUED.name()));
 
-        then(userCouponService).should().selectByUserId("user01");
+        then(userCouponService).should().selectByUserId("user01", UserCouponFilter.AVAILABLE);
+    }
+
+    @Test
+    @DisplayName("내 쿠폰을 지정한 필터로 조회")
+    void coupon_select_me_with_filter() throws Exception {
+        given(userCouponService.selectByUserId("user01", UserCouponFilter.USED)).willReturn(List.of());
+
+        mockMvc.perform(get(baseUrl + "/me")
+                        .param("filter", "USED")
+                        .with(authentication(userAuthentication("user01"))))
+                .andExpect(status().isOk());
+
+        then(userCouponService).should().selectByUserId("user01", UserCouponFilter.USED);
     }
 
     @Test
