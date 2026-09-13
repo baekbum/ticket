@@ -4,6 +4,7 @@ import dev.bum.client_api_service.controller.ClientFeignErrorResponse;
 import dev.bum.client_api_service.feign.ticket.TicketCouponServiceClient;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -25,10 +27,11 @@ public class ClientCouponController {
 
     @GetMapping("/me")
     public ResponseEntity<?> selectMyCoupons(
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam(defaultValue = "AVAILABLE") UserCouponFilter filter
     ) {
         try {
-            return ResponseEntity.ok(ticketCouponServiceClient.selectMyCoupons(authorizationHeader));
+            return ResponseEntity.ok(ticketCouponServiceClient.selectMyCoupons(authorizationHeader, filter));
         } catch (FeignException e) {
             return ClientFeignErrorResponse.from(e);
         }

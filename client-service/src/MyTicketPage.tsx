@@ -4,6 +4,7 @@ import './MyTicketPage.css';
 import MyTicketDetailDialog from './MyTicketDetailDialog';
 
 type Request = ReturnType<typeof createAuthenticatedRequest>;
+type CouponFilter = 'ALL' | 'AVAILABLE' | 'USED' | 'EXPIRED';
 type Reservation = {
   posterUrl: string | null; cancelDeadlineAt: string | null;
   reservationId: number; eventTitle: string; reservedDate: string;
@@ -22,13 +23,11 @@ const reservationLabels: Record<string, string> = {
   PENDING_PAYMENT: '결제 대기', PAID: '예매 완료', PARTIALLY_CANCELLED: '부분 취소',
   CANCELLED: '취소 완료', EXPIRED: '만료',
 };
-const couponLabels: Record<string, string> = { ISSUED: '발급됨', USED: '사용 완료', EXPIRED: '만료' };
-function isUsableCoupon(coupon: Coupon) {
-  if (coupon.status !== 'ISSUED') return false;
-  if (!coupon.expiresAt) return true;
-  const expiresAt = Date.parse(coupon.expiresAt.replace(' ', 'T'));
-  return !Number.isNaN(expiresAt) && expiresAt >= Date.now();
-}
+const couponLabels: Record<string, string> = { ISSUED: '사용 가능', USED: '사용 완료', EXPIRED: '만료', CANCELLED: '취소됨' };
+const couponFilters: { value: CouponFilter; label: string }[] = [
+  { value: 'ALL', label: '전체' }, { value: 'AVAILABLE', label: '사용 가능' },
+  { value: 'USED', label: '사용 완료' }, { value: 'EXPIRED', label: '만료' },
+];
 
 function message(error: unknown) {
   return error instanceof Error ? error.message : '내역을 불러오지 못했습니다. 다시 시도해주세요.';
@@ -50,6 +49,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
   const [tab, setTab] = useState<'home' | 'reservation' | 'coupon'>('home');
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState('');
+  const [couponFilter, setCouponFilter] = useState<CouponFilter>('AVAILABLE');
   const [reservations, setReservations] = useState<ReservationPage | null>(null);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -63,8 +63,8 @@ export default function MyTicketPage({ request }: { request: Request }) {
     const controller = new AbortController();
     void request<{ name: string; userId: string }>('/client-api/api/v1/user/me', { method: 'GET', signal: controller.signal })
       .then((data) => { if (!controller.signal.aborted) setProfile(data); }).catch(() => {});
-    void request<Coupon[]>('/client-api/api/v1/coupon/me', { method: 'GET', signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) setCouponCount(data.filter(isUsableCoupon).length); }).catch(() => {});
+    void request<Coupon[]>('/client-api/api/v1/coupon/me?filter=AVAILABLE', { method: 'GET', signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setCouponCount(data.length); }).catch(() => {});
     return () => controller.abort();
   }, [request]);
 
@@ -76,8 +76,8 @@ export default function MyTicketPage({ request }: { request: Request }) {
     async function load() {
       try {
         if (tab === 'coupon') {
-          const data = await request<Coupon[]>('/client-api/api/v1/coupon/me', { method: 'GET', signal: controller.signal });
-          if (!controller.signal.aborted) setCoupons(data.filter(isUsableCoupon));
+          const data = await request<Coupon[]>(`/client-api/api/v1/coupon/me?filter=${couponFilter}`, { method: 'GET', signal: controller.signal });
+          if (!controller.signal.aborted) setCoupons(data);
         } else {
           const params = new URLSearchParams({ page: String(tab === 'home' ? 0 : page), size: tab === 'home' ? '3' : '10', sort: 'reservedAt-desc' });
           if (tab === 'reservation' && status) params.set('status', status);
@@ -92,7 +92,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
     }
     void load();
     return () => controller.abort();
-  }, [request, tab, page, status, retry]);
+  }, [request, tab, page, status, couponFilter, retry]);
 
   function changeTab(next: typeof tab) {
     setTab(next);
@@ -124,10 +124,15 @@ export default function MyTicketPage({ request }: { request: Request }) {
           {Object.entries(reservationLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>}
+      {tab === 'coupon' && <label className="my-ticket-filter">쿠폰 상태
+        <select value={couponFilter} onChange={(event) => setCouponFilter(event.target.value as CouponFilter)}>
+          {couponFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
+        </select>
+      </label>}
       {loading ? <p className="my-ticket-state" role="status">내역을 불러오는 중입니다.</p>
         : error ? <div className="my-ticket-state" role="alert"><p>{error}</p><button type="button" onClick={() => setRetry((n) => n + 1)}>다시 시도</button></div>
           : tab === 'coupon' ? <div className="ticket-history-list">
-            {coupons.length === 0 && <p className="my-ticket-state">보유한 할인 쿠폰이 없습니다.</p>}
+            {coupons.length === 0 && <p className="my-ticket-state">해당 조건의 할인 쿠폰이 없습니다.</p>}
             {coupons.map((item) => <article className="ticket-history-card" key={item.userCouponId}>
               <div><strong>{item.coupon.name}</strong>
                 <p>{item.coupon.discountValue.toLocaleString()}{item.coupon.discountType === 'PERCENT' ? '%' : '원'} 할인</p>

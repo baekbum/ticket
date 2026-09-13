@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityRequest
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponAvailabilityResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponResponse;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.ticket_service.service.coupon.userCoupon.UserCouponService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -41,8 +43,11 @@ public class CouponController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<List<UserCouponResponse>> selectMyCoupons(@AuthenticationPrincipal String currentUserId) {
-        return ResponseEntity.ok(userCouponService.selectByUserId(currentUserId));
+    public ResponseEntity<List<UserCouponResponse>> selectMyCoupons(
+            @AuthenticationPrincipal String currentUserId,
+            @RequestParam(defaultValue = "AVAILABLE") UserCouponFilter filter
+    ) {
+        return ResponseEntity.ok(userCouponService.selectByUserId(currentUserId, filter));
     }
 
     @PostMapping("/available")
