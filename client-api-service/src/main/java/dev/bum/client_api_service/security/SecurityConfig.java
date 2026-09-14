@@ -12,6 +12,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -35,15 +36,7 @@ public class SecurityConfig {
         http
                 .securityMatcher("/actuator/health", "/actuator/prometheus")
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
@@ -56,15 +49,7 @@ public class SecurityConfig {
         http
                 .securityMatcher("/api/*/event/**")
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/*/event/**").permitAll()
@@ -86,15 +71,7 @@ public class SecurityConfig {
                         "/api/*/user/reset/password"
                 )
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
@@ -106,15 +83,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/*/auth/login").permitAll()
@@ -125,12 +94,26 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
+        configureAuthenticationFilter(http);
+
+        return http.build();
+    }
+
+    private void configureAuthenticationFilter(HttpSecurity http) {
         if ("local".equals(activeProfile)) {
             http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
         } else {
             http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         }
+    }
 
-        return http.build();
+    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+        localCorsConfig.ifPresent(config ->
+                cors.configurationSource(config.corsConfigurationSource())
+        );
+
+        if (localCorsConfig.isEmpty()) {
+            cors.disable();
+        }
     }
 }
