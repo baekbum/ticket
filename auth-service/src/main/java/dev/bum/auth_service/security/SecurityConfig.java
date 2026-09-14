@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,15 +27,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable()) // REST API이므로 CSRF 비활성화
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/*/login").permitAll()
@@ -48,6 +41,16 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())); // H2 콘솔 프레임 허용
 
         return http.build();
+    }
+
+    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+        localCorsConfig.ifPresent(config ->
+                cors.configurationSource(config.corsConfigurationSource())
+        );
+
+        if (localCorsConfig.isEmpty()) {
+            cors.disable();
+        }
     }
 
     @Bean

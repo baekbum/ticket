@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
@@ -68,6 +69,34 @@ class EventRepositoryImplTest {
         assertThat(response.getAvailableSeats()).isEqualTo(30000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
         assertThat(response.getTicketLimitScope()).isEqualTo(TicketLimitScope.PER_GROUP);
+    }
+
+    @Test
+    void search_matches_each_field_and_all_with_literal_case_insensitive_keywords() {
+        assertThat(eventRepository.search("concert", EventSearchField.TITLE, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(2);
+        assertThat(eventRepository.search("iu", EventSearchField.ARTIST, PageRequest.of(0, 10)).getContent())
+                .extracting(EventCardResponse::getArtistName).containsExactly("IU");
+        assertThat(eventRepository.search("olympic", EventSearchField.VENUE, PageRequest.of(0, 10)).getContent())
+                .extracting(EventCardResponse::getVenue).containsExactly("Olympic Hall");
+        assertThat(eventRepository.search("Dome", EventSearchField.ALL, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(1);
+        assertThat(eventRepository.search("Dome", EventSearchField.TITLE, PageRequest.of(0, 10)).getContent()).isEmpty();
+        assertThat(eventRepository.search("%", EventSearchField.ALL, PageRequest.of(0, 10)).getContent()).isEmpty();
+        assertThat(eventRepository.search("_", EventSearchField.ALL, PageRequest.of(0, 10)).getContent()).isEmpty();
+    }
+
+    @Test
+    void search_groups_schedules_and_paginates_per_performance() {
+        jpaRepository.save(event("IU", "IU Concert", "KSPO Dome", LocalDateTime.of(2026, 9, 19, 18, 0)));
+        Page<EventCardResponse> first = eventRepository.search("Concert", EventSearchField.ALL, PageRequest.of(0, 1));
+        Page<EventCardResponse> second = eventRepository.search("Concert", EventSearchField.ALL, PageRequest.of(1, 1));
+        assertThat(first.getTotalElements()).isEqualTo(2);
+        assertThat(first.getTotalPages()).isEqualTo(2);
+        assertThat(first.getContent()).extracting(EventCardResponse::getArtistName).containsExactly("AKMU");
+        assertThat(second.getContent()).singleElement().satisfies(card -> {
+            assertThat(card.getArtistName()).isEqualTo("IU");
+            assertThat(card.getEventStartDate()).isEqualTo(LocalDate.of(2026, 9, 18));
+            assertThat(card.getEventEndDate()).isEqualTo(LocalDate.of(2026, 9, 19));
+        });
     }
 
     @Test

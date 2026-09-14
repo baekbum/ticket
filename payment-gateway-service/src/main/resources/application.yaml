@@ -24,7 +24,7 @@ spring:
     hibernate:
       ddl-auto: update
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_SERVER:localhost:9094}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -55,3 +55,7 @@ topic:
     virtual-account:
       expired:
         name: virtual-account-expired
+
+management:
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}

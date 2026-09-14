@@ -4,12 +4,14 @@ import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.HeaderAuthenticationFilter;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import jakarta.servlet.Filter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -24,6 +26,9 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private final InternalServiceTokenValidator internalServiceTokenValidator;
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_INTERNAL = "INTERNAL_SERVICE";
+    private static final String[] ROLE_ADMIN_USER_OR_INTERNAL = {"ADMIN", "USER", ROLE_INTERNAL};
 
     @Value("${spring.profiles.default:local}")
     private String activeProfile;
@@ -32,34 +37,40 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/*/payments/card/**").hasAnyRole("USER", "ADMIN", "INTERNAL_SERVICE")
-                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole("USER", "ADMIN", "INTERNAL_SERVICE")
-                        .anyRequest().hasRole("ADMIN")
+                        .requestMatchers("/api/*/payments/card/**").hasAnyRole(ROLE_ADMIN_USER_OR_INTERNAL)
+                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole(ROLE_ADMIN_USER_OR_INTERNAL)
+                        .anyRequest().hasRole(ROLE_ADMIN)
                 );
 
-        if ("local".equals(activeProfile)) {
-            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
-        } else {
-            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        }
-
-        http.addFilterBefore(
-                new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
-                UsernamePasswordAuthenticationFilter.class
-        );
+        configureAuthenticationFilters(http);
 
         return http.build();
+    }
+
+    private void configureAuthenticationFilters(HttpSecurity http) {
+        Filter clientAuthenticationFilter = "local".equals(activeProfile)
+                ? new JwtAuthenticationFilter(jwtTokenProvider)
+                : new HeaderAuthenticationFilter();
+
+        // 일반 인증 필터를 기준점으로 등록한 뒤 내부 서비스 필터가 먼저 실행되도록 순서를 고정한다.
+        http.addFilterBefore(clientAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(
+                new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
+                clientAuthenticationFilter.getClass()
+        );
+    }
+
+    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+        localCorsConfig.ifPresent(config ->
+                cors.configurationSource(config.corsConfigurationSource())
+        );
+
+        if (localCorsConfig.isEmpty()) {
+            cors.disable();
+        }
     }
 }

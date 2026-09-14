@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
+
 
 @Slf4j
 @RequestMapping("/api/v1/event")
@@ -40,6 +42,16 @@ public class EventController {
     @GetMapping("/select")
     public ResponseEntity<CustomPageResponse<EventResponse>> selectByCond(@ModelAttribute EventCondRequest cond) {
         return ResponseEntity.ok(eventService.selectVisibleByCond(cond));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<CustomPageResponse<EventCardResponse>> search(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(name = "field", defaultValue = "ALL") EventSearchField field,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(eventService.search(keyword, field, page, size));
     }
 
     @GetMapping("/on-sale/soonest")

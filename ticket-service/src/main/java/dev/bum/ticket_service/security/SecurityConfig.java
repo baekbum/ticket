@@ -8,15 +8,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -30,6 +29,9 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private final InternalServiceTokenValidator internalServiceTokenValidator;
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String[] ROLE_ADMIN_OR_USER = {"ADMIN", "USER"};
+    private static final String ROLE_INTERNAL = "INTERNAL_SERVICE";
 
     @Value("${spring.profiles.default:local}")
     private String activeProfile;
@@ -40,15 +42,7 @@ public class SecurityConfig {
         http
                 .securityMatcher("/uploads/**", "/actuator/health", "/actuator/prometheus", "/h2-console/**")
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
@@ -62,19 +56,11 @@ public class SecurityConfig {
         http
                 .securityMatcher("/api/*/event/**")
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/*/event/**").permitAll()
-                        .anyRequest().hasAnyRole("USER", "ADMIN")
+                        .anyRequest().hasAnyRole(ROLE_ADMIN_OR_USER)
                 );
 
         return http.build();
@@ -82,58 +68,72 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain internalFilterChain(HttpSecurity http) throws Exception {
         http
+                .securityMatcher("/api/*/payments/internal/**")
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 내부 payment-gateway와 통신할 때 보안 강화를 위해 조건 추가
-                        .requestMatchers("/api/*/payments/internal/**").hasRole("INTERNAL_SERVICE")
-
-                        // 2. 관리자용 통로
-                        .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
-
-                        // 3. 사용자용 통로
-                        .requestMatchers("/api/*/coupon/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/event/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/area/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/seat/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/checkout/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/reservation/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/*/ticket/**").hasAnyRole("USER", "ADMIN")
-
-                        // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
-                        .anyRequest().hasRole("ADMIN")
+                .cors(this::configureCors)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+                .authorizeHttpRequests(auth ->
+                        auth.anyRequest().hasRole(ROLE_INTERNAL)
+                );
 
-        // =================================================================
-        // 🌟 [핵심 변경] 실행 환경(Profile)에 따른 필터 자동 교체 스위치
-        // =================================================================
         http.addFilterBefore(
                 new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
                 UsernamePasswordAuthenticationFilter.class
         );
 
-        if ("local".equals(activeProfile)) {
-            // 로컬 개발 환경: 인그레스 없이 직접 포트로 접근하므로 토큰을 직접 복호화하는 기존 필터 작동
-            // (JwtAuthenticationFilter 패키지 경로가 다르면 import를 맞춰주세요)
-            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
-        } else {
-            // 운영/쿠버네티스 환경: Nginx와 auth-service가 검증 후 밀어 넣어준 헤더를 기반으로 신뢰 작동
-            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        }
+        return http.build();
+    }
+
+    @Bean
+    @Order(4)
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(this::configureCors)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // 2. 관리자용 통로
+                        .requestMatchers("/api/*/manage/**").hasRole(ROLE_ADMIN)
+
+                        // 3. 사용자용 통로
+                        .requestMatchers("/api/*/coupon/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/event/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/area/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/seat/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/checkout/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/reservation/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/ticket/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+
+                        // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
+                        .anyRequest().hasRole(ROLE_ADMIN)
+                )
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+
+        configureAuthenticationFilter(http);
 
         return http.build();
+    }
+
+    private void configureAuthenticationFilter(HttpSecurity http) {
+        if ("local".equals(activeProfile)) {
+            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+        } else {
+            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+        }
+    }
+
+    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+        localCorsConfig.ifPresent(config ->
+                cors.configurationSource(config.corsConfigurationSource())
+        );
+
+        if (localCorsConfig.isEmpty()) {
+            cors.disable();
+        }
     }
 
     @Bean

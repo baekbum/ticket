@@ -9,9 +9,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
+import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 
 @FeignClient(name = "client-ticket-event-service", url = "${services.ticket-service.url}", path = "/api/v1/event")
 public interface TicketEventServiceClient {
+    @GetMapping("/search")
+    CustomPageResponse<EventCardResponse> search(
+            @RequestParam("keyword") String keyword,
+            @RequestParam("field") EventSearchField field,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size
+    );
 
     @GetMapping("/on-sale/soonest")
     List<EventCardResponse> selectSoonestOnSaleCards();

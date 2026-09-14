@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EventRepository {
+    Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable);
     Event insert(InsertEventRequest info);
     void isExist(EventCondRequest cond);
     Event selectById(Long id);

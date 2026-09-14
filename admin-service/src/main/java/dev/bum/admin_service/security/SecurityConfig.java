@@ -12,6 +12,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +28,7 @@ public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
+    private static final String ROLE_ADMIN = "ADMIN";
 
     // 🌟 application.yml의 spring.profiles.default 값을 읽어옵니다. (없으면 local)
     @Value("${spring.profiles.default:local}")
@@ -36,15 +38,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable()) // REST API이므로 CSRF 비활성화
-                .cors(cors -> {
-                    localCorsConfig.ifPresent(config ->
-                            cors.configurationSource(config.corsConfigurationSource())
-                    );
-
-                    if (localCorsConfig.isEmpty()) {
-                        cors.disable();
-                    }
-                })
+                .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
                         // 로그인 화면 및 로그인 시도는 허용
@@ -63,23 +57,31 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
 
                         // 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능
-                        .anyRequest().hasRole("ADMIN")
+                        .anyRequest().hasRole(ROLE_ADMIN)
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
 
-        // =================================================================
-        // 🌟 [핵심 변경] 실행 환경(Profile)에 따른 필터 자동 교체 스위치
-        // =================================================================
-        if ("local".equals(activeProfile)) {
-            // 로컬 개발 환경: 인그레스 없이 직접 포트로 접근하므로 토큰을 직접 복호화하는 기존 필터 작동
-            // (JwtAuthenticationFilter 패키지 경로가 다르면 import를 맞춰주세요)
-            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
-        } else {
-            // 운영/쿠버네티스 환경: Nginx와 auth-service가 검증 후 밀어 넣어준 헤더를 기반으로 신뢰 작동
-            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        }
+        configureAuthenticationFilter(http);
 
         return http.build();
+    }
+
+    private void configureAuthenticationFilter(HttpSecurity http) {
+        if ("local".equals(activeProfile)) {
+            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+        } else {
+            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+        }
+    }
+
+    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+        localCorsConfig.ifPresent(config ->
+                cors.configurationSource(config.corsConfigurationSource())
+        );
+
+        if (localCorsConfig.isEmpty()) {
+            cors.disable();
+        }
     }
 
     @Bean

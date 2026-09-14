@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventScheduleResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventSeatPriceResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.exception.event.EventNotExistException;
@@ -37,6 +38,15 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class EventService {
+
+    @Transactional(readOnly = true)
+    public CustomPageResponse<EventCardResponse> search(String keyword, EventSearchField field, int page, int size) {
+        if (keyword == null || keyword.isBlank() || keyword.trim().length() > 100 || page < 0 || size < 1 || size > 100) {
+            throw new IllegalArgumentException("검색어는 1~100자, 페이지는 0 이상, 크기는 1~100이어야 합니다.");
+        }
+        Page<EventCardResponse> results = repository.search(keyword.trim(), field, PageRequest.of(page, size));
+        return CustomPageResponse.of(results.getContent(), size, page, results.getTotalElements(), results.getTotalPages());
+    }
 
     private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
     private static final int HOME_TAB_EVENT_LIMIT = 4;

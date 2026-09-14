@@ -42,6 +42,7 @@ management:
     tags:
       application: ${spring.application.name}
   tracing:
+    enabled: false
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
   otlp:

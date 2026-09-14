@@ -1,4 +1,6 @@
 import MyTicketPage from './MyTicketPage';
+import SearchResultsPage from './SearchResultsPage';
+import { readSearch, type SearchQuery } from './searchQuery';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
@@ -9,6 +11,7 @@ import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
 
 type Page =
+  | 'search'
   | 'home'
   | 'login'
   | 'signup'
@@ -394,6 +397,7 @@ function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
 
   if (
+    page === 'search' ||
     page === 'login' ||
     page === 'signup' ||
     page === 'findId' ||
@@ -826,6 +830,7 @@ function deleteCookie(name: string) {
 }
 
 function App() {
+  const [searchQuery, setSearchQuery] = useState(readSearch);
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
   const [selectedEventGroupCode, setSelectedEventGroupCode] = useState(
     () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
@@ -845,6 +850,7 @@ function App() {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
 
     function handlePopState() {
+      setSearchQuery(readSearch());
       setPage(getPageFromLocation());
       setSelectedEventGroupCode(new URLSearchParams(window.location.search).get('eventGroupCode') || '');
     }
@@ -920,6 +926,20 @@ function App() {
     );
   }
 
+  function navigateToSearch(query: SearchQuery) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'search');
+    url.searchParams.set('keyword', query.keyword);
+    url.searchParams.set('field', query.field);
+    url.searchParams.set('searchPage', String(query.page));
+    url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
+    window.history.pushState({}, '', url);
+    setSearchQuery(query);
+    setPage('search');
+    window.scrollTo(0, 0);
+  }
+
   async function logout() {
     const refreshToken = sessionStorage.getItem('ticksy.refreshToken');
 
@@ -943,6 +963,9 @@ function App() {
     <main className="app-shell">
       {!isFullAuthPage && (
         <Header
+          key={searchQuery.keyword + searchQuery.field}
+          searchQuery={searchQuery}
+          onSearch={navigateToSearch}
           currentPage={page}
           loginUserName={loginUserName}
           onLogout={logout}
@@ -950,6 +973,7 @@ function App() {
         />
       )}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
+      {page === 'search' && <SearchResultsPage query={searchQuery} onSearch={navigateToSearch} onSelectEvent={navigateToEventDetail} />}
       {(page === 'concertList' ||
         page === 'musicalPlayList' ||
         page === 'fanclubFanmeetingList' ||
@@ -1026,16 +1050,49 @@ function CustomAlertModal({
 }
 
 function Header({
+  searchQuery,
+  onSearch,
   currentPage,
   loginUserName,
   onLogout,
   onNavigate,
 }: {
+  searchQuery: SearchQuery;
+  onSearch: (query: SearchQuery) => void;
   currentPage: Page;
   loginUserName: string;
   onLogout: () => void;
   onNavigate: (page: Page) => void;
 }) {
+  const [keyword, setKeyword] = useState(searchQuery.keyword);
+  const [field, setField] = useState(searchQuery.field);
+  const [isSearchFieldOpen, setIsSearchFieldOpen] = useState(false);
+  const searchFieldRef = useRef<HTMLDivElement>(null);
+
+  const searchFields: Array<{ value: SearchQuery['field']; label: string }> = [
+    { value: 'ALL', label: '전체' },
+    { value: 'TITLE', label: '공연' },
+    { value: 'ARTIST', label: '아티스트' },
+    { value: 'VENUE', label: '장소' },
+  ];
+  const selectedSearchFieldLabel = searchFields.find((item) => item.value === field)?.label ?? '전체';
+
+  useEffect(() => {
+    function closeSearchField(event: MouseEvent) {
+      if (!searchFieldRef.current?.contains(event.target as Node)) {
+        setIsSearchFieldOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', closeSearchField);
+    return () => document.removeEventListener('mousedown', closeSearchField);
+  }, []);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (keyword.trim()) onSearch({ keyword: keyword.trim(), field, page: 0 });
+  }
+
   return (
     <header className="site-header">
       <div className="top-menu">
@@ -1077,12 +1134,52 @@ function Header({
           <span className="brand-dot" aria-hidden="true" />
           <span>Ticksy</span>
         </button>
-        <div className="search-bar">
-          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" />
-          <button type="button" aria-label="검색">
+        <form className="search-bar" role="search" onSubmit={submitSearch}>
+          <div className="search-field-select" ref={searchFieldRef}>
+            <button
+              className="search-field-trigger"
+              type="button"
+              aria-label="검색 조건"
+              aria-haspopup="listbox"
+              aria-expanded={isSearchFieldOpen}
+              onClick={() => setIsSearchFieldOpen((current) => !current)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setIsSearchFieldOpen(false);
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setIsSearchFieldOpen(true);
+                }
+              }}
+            >
+              <span>{selectedSearchFieldLabel}</span>
+              <span className="search-field-chevron" aria-hidden="true">⌄</span>
+            </button>
+            {isSearchFieldOpen && (
+              <div className="search-field-menu" role="listbox" aria-label="검색 조건 목록">
+                {searchFields.map((item) => (
+                  <button
+                    className={item.value === field ? 'selected' : ''}
+                    type="button"
+                    role="option"
+                    aria-selected={item.value === field}
+                    key={item.value}
+                    onClick={() => {
+                      setField(item.value);
+                      setIsSearchFieldOpen(false);
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    {item.value === field && <span aria-hidden="true">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
+          <button className="search-submit" type="submit" aria-label="검색">
             ⌕
           </button>
-        </div>
+        </form>
         <span className="brand-note">일상을 넘어, 라이브 속으로 <span aria-hidden="true">↗</span></span>
       </div>
 
