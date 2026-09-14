@@ -9,6 +9,32 @@ const API = {
   const AUTH_URL = `${BASE_URL}/${PATH.API_VERSION}/auth`;
   const VIEW_URL = `${BASE_URL}/${PATH.API_VERSION}/view`;
 
+  function applyLoginTheme() {
+    const savedTheme = localStorage.getItem('adminTheme');
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    document.body.classList.toggle('dark-mode', savedTheme ? savedTheme === 'dark' : prefersDark);
+    syncLoginThemeIcon();
+  }
+
+  function syncLoginThemeIcon() {
+    const dark = document.body.classList.contains('dark-mode');
+    const icon = document.getElementById('login-theme-icon');
+    const button = document.getElementById('login-theme-toggle');
+    if (icon) icon.className = dark ? 'ti ti-sun' : 'ti ti-moon';
+    if (button) {
+      button.title = dark ? '일반 모드' : '다크 모드';
+      button.setAttribute('aria-label', `${button.title}로 전환`);
+    }
+  }
+
+  function toggleLoginTheme() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('adminTheme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+    syncLoginThemeIcon();
+  }
+
+  document.addEventListener('DOMContentLoaded', applyLoginTheme);
+
   function togglePw(inputId, iconId) {
     const inp = document.getElementById(inputId);
     const ic = document.getElementById(iconId);
