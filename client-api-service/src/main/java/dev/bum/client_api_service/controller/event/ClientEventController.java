@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
+import dev.bum.common.feign.dto.CustomPageResponse;
 
 @RestController
 @RequestMapping("/api/v1/event")
@@ -20,6 +22,16 @@ import java.util.List;
 public class ClientEventController {
 
     private final TicketEventServiceClient ticketEventServiceClient;
+
+    @GetMapping("/search")
+    public ResponseEntity<CustomPageResponse<EventCardResponse>> search(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(name = "field", defaultValue = "ALL") EventSearchField field,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(ticketEventServiceClient.search(keyword, field, page, size));
+    }
 
     @GetMapping("/on-sale/soonest")
     public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {

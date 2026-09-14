@@ -10,6 +10,7 @@ import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
@@ -42,6 +43,29 @@ import java.util.Objects;
 @Repository
 @RequiredArgsConstructor
 public class EventRepositoryImpl implements EventRepository {
+
+    @Override
+    public Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable) {
+        event = QEvent.event;
+        BooleanExpression title = event.title.containsIgnoreCase(keyword);
+        BooleanExpression artist = event.artistName.containsIgnoreCase(keyword);
+        BooleanExpression venue = event.venue.containsIgnoreCase(keyword);
+        BooleanExpression condition = switch (field) {
+            case TITLE -> title;
+            case ARTIST -> artist;
+            case VENUE -> venue;
+            case ALL -> title.or(artist).or(venue);
+        };
+        DateTimeExpression<LocalDateTime> start = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> end = event.eventDateTime.max();
+        List<Tuple> groups = queryFactory.select(event.eventGroupCode, start, end)
+                .from(event).where(condition).groupBy(event.eventGroupCode)
+                .orderBy(start.desc(), event.eventGroupCode.asc())
+                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
+        Long total = queryFactory.select(event.eventGroupCode.countDistinct())
+                .from(event).where(condition).fetchOne();
+        return new PageImpl<>(toEventCardResponses(groups, start, end, null), pageable, total == null ? 0 : total);
+    }
 
     private final JPAQueryFactory queryFactory;
     private final EventJpaRepository jpaRepository;
@@ -160,6 +184,7 @@ public class EventRepositoryImpl implements EventRepository {
                             .artistName(representativeEvent.getArtistName())
                             .title(representativeEvent.getTitle())
                             .posterUrl(representativeEvent.getPosterUrl())
+                            .venue(representativeEvent.getVenue())
                             .eventStartDate(start.toLocalDate())
                             .eventEndDate(end.toLocalDate())
                             .build();
@@ -326,6 +351,7 @@ public class EventRepositoryImpl implements EventRepository {
                             .artistName(representativeEvent.getArtistName())
                             .title(representativeEvent.getTitle())
                             .posterUrl(representativeEvent.getPosterUrl())
+                            .venue(representativeEvent.getVenue())
                             .eventStartDate(start.toLocalDate())
                             .eventEndDate(end.toLocalDate())
                             .build();

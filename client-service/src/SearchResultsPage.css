@@ -1,0 +1,44 @@
+.search-bar { overflow: visible; }
+.search-field-select { position: relative; align-self: stretch; flex: 0 0 108px; margin-left: 8px; }
+.search-bar .search-field-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 100%; padding: 0 12px 0 16px; border: 0; border-right: 1px solid #dfe4da; border-radius: 0; background: transparent; color: #237344; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transform: none; }
+.search-field-chevron { font-size: 17px; line-height: 1; transform: translateY(-2px); transition: transform .18s ease; }
+.search-field-trigger[aria-expanded="true"] .search-field-chevron { transform: translateY(1px) rotate(180deg); }
+.search-field-menu { position: absolute; z-index: 30; top: calc(100% + 10px); left: 0; width: 138px; padding: 7px; border: 1px solid #dfe4da; border-radius: 14px; background: #fff; box-shadow: 0 12px 30px rgba(25, 47, 34, .14); }
+.search-bar .search-field-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 38px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: #4c574f; font: inherit; font-size: 13px; text-align: left; cursor: pointer; transform: none; }
+.search-bar .search-field-menu button:hover { background: #f0f5eb; color: #237344; }
+.search-bar .search-field-menu button.selected { background: #e8f3de; color: #237344; font-weight: 700; }
+.search-bar input { min-width: 0; padding-left: 14px; }
+.search-bar .search-submit { flex-shrink: 0; }
+.search-bar input:focus, .search-bar input:focus-visible, .search-bar button:focus, .search-bar button:focus-visible { outline: none; box-shadow: none; }
+.search-results { max-width: 1200px; min-height: 55vh; margin: 0 auto; padding: 56px 24px 80px; }
+.search-results h1 { margin: 0 0 40px; font-size: 30px; font-weight: 500; overflow-wrap: anywhere; }
+.search-results h1 span { color: #237344; font-weight: 700; }
+.search-count { margin-bottom: 18px; font-size: 16px; }
+.search-count strong { color: #237344; }
+.search-result-list { margin: 0; padding: 0; list-style: none; border-top: 2px solid #283c30; }
+.search-result-list li { border-bottom: 1px solid #dfe4da; }
+.search-result-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) 150px 180px 24px; align-items: center; gap: 28px; width: 100%; padding: 24px 12px; border: 0; background: transparent; color: #141817; text-align: left; font: inherit; cursor: pointer; }
+.search-result-row:hover { background: #edf3e7; }
+.search-result-row img, .search-poster-placeholder { width: 100px; height: 140px; object-fit: cover; border-radius: 6px; background: #e5ebdf; }
+.search-poster-placeholder { display: grid; place-items: center; color: #237344; }
+.search-result-info { display: grid; gap: 12px; overflow-wrap: anywhere; }
+.search-result-info strong { font-size: 18px; line-height: 1.5; }
+.search-result-info > span, .search-result-date, .search-result-venue { color: #68716b; font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
+.search-result-arrow { color: #237344; font-size: 22px; }
+.search-message { padding: 64px 12px; text-align: center; color: #68716b; }
+.search-pagination { display: flex; justify-content: center; align-items: center; gap: 24px; margin-top: 32px; }
+.search-pagination button, .search-message button { padding: 10px 18px; border: 1px solid #dfe4da; border-radius: 8px; background: white; cursor: pointer; }
+.search-pagination button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 700px) {
+  .search-results { padding: 32px 16px 56px; }
+  .search-results h1 { font-size: 24px; }
+  .search-result-row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px 16px; padding: 20px 0; }
+  .search-result-row img, .search-poster-placeholder { grid-row: span 3; width: 72px; height: 102px; }
+  .search-result-info { gap: 4px; }
+  .search-result-info strong { font-size: 16px; }
+  .search-result-date, .search-result-venue { grid-column: 2; font-size: 12px; }
+  .search-result-date br, .search-result-arrow { display: none; }
+  .search-field-select { flex-basis: 86px; margin-left: 4px; }
+  .search-bar .search-field-trigger { padding: 0 8px 0 11px; }
+  .search-field-menu { width: 124px; }
+}
