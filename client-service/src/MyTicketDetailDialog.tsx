@@ -35,8 +35,8 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const [retry, setRetry] = useState(0);
   const [refundTicket, setRefundTicket] = useState<Ticket | null>(null);
   const [confirmTicket, setConfirmTicket] = useState<Ticket | null>(null);
+  const [refundAlert, setRefundAlert] = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
   const [refundingTicketId, setRefundingTicketId] = useState<number | null>(null);
-  const [refundMessage, setRefundMessage] = useState('');
   const [bankCompany, setBankCompany] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
@@ -72,7 +72,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
   function beginRefund(ticket: Ticket) {
-    setRefundMessage('');
     setRefundTicket(ticket);
     if (!isBankTransfer) setConfirmTicket(ticket);
   }
@@ -81,7 +80,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     event?.preventDefault();
     if (refundingTicketId != null) return;
     if (isBankTransfer && (!bankCompany || !accountNumber.trim() || !accountHolder.trim())) {
-      window.alert('환불받을 은행, 계좌번호, 예금주를 모두 입력해주세요.');
+      setRefundAlert({ message: '환불받을 은행, 계좌번호, 예금주를 모두 입력해주세요.', kind: 'error' });
       return;
     }
     setConfirmTicket(ticket);
@@ -92,7 +91,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
-    setRefundMessage('');
     try {
       await request(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
         method: 'PUT',
@@ -111,13 +109,16 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       setBankCompany('');
       setAccountNumber('');
       setAccountHolder('');
-      setRefundMessage('환불이 완료되었습니다.');
+      setRefundAlert({ message: '환불이 완료되었습니다.', kind: 'success' });
       setRetry((value) => value + 1);
       onRefunded?.();
     } catch (failure) {
-      window.alert(failure instanceof SessionExpiredError
-        ? failure.message
-        : '환불 처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      setRefundAlert({
+        message: failure instanceof SessionExpiredError
+          ? failure.message
+          : '환불 처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        kind: 'error',
+      });
     } finally {
       setRefundingTicketId(null);
     }
@@ -126,7 +127,8 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   return <dialog ref={dialogRef} className="my-ticket-detail-dialog" aria-labelledby="my-ticket-detail-title"
     onCancel={(event) => {
       event.preventDefault();
-      if (confirmTicket) setConfirmTicket(null);
+      if (refundAlert) setRefundAlert(null);
+      else if (confirmTicket) setConfirmTicket(null);
       else if (refundingTicketId == null) onClose();
     }}>
     <header><div><small>MY TICKET · 예매 번호 {reservationId}</small><h2 id="my-ticket-detail-title">예매 상세</h2></div>
@@ -173,7 +175,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
             <label>예금주<input value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} autoComplete="name" disabled={refundingTicketId != null} /></label>
             <div className="my-ticket-refund-actions"><button type="button" onClick={() => setRefundTicket(null)} disabled={refundingTicketId != null}>취소</button><button type="submit" disabled={refundingTicketId != null}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button></div>
           </form>}
-          {refundMessage && <p className="my-ticket-refund-result" role="status">{refundMessage}</p>}
           <p className="my-ticket-deadline">공연 취소 마감: {date(detail.reservation.cancelDeadlineAt)}</p>
         </section>
       </>}
@@ -186,6 +187,16 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
         <div className="my-ticket-refund-confirm-actions">
           <button type="button" onClick={() => { setConfirmTicket(null); if (!isBankTransfer) setRefundTicket(null); }}>취소</button>
           <button type="button" autoFocus onClick={() => void submitRefund(confirmTicket)}>환불하기</button>
+        </div>
+      </section>
+    </div>}
+    {refundAlert && <div className="my-ticket-refund-confirm-backdrop" role="presentation">
+      <section className="my-ticket-refund-confirm" role="alertdialog" aria-modal="true" aria-labelledby="refund-alert-title" aria-describedby="refund-alert-message">
+        <div className={`my-ticket-refund-confirm-icon ${refundAlert.kind}`} aria-hidden="true">{refundAlert.kind === 'success' ? '✓' : '!'}</div>
+        <h2 id="refund-alert-title">{refundAlert.kind === 'success' ? '환불 완료' : '안내'}</h2>
+        <p id="refund-alert-message">{refundAlert.message}</p>
+        <div className="my-ticket-refund-confirm-actions single">
+          <button type="button" autoFocus onClick={() => setRefundAlert(null)}>확인</button>
         </div>
       </section>
     </div>}

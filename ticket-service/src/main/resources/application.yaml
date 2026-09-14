@@ -52,6 +52,10 @@ spring:
             connectTimeout: 3000
             readTimeout: 9000
             loggerLevel: basic
+          payment-gateway-card-client:
+            connectTimeout: 3000
+            readTimeout: 120000
+            loggerLevel: basic
           queue-service-client:
             connectTimeout: 1500
             readTimeout: 3000
