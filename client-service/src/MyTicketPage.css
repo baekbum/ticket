@@ -71,7 +71,6 @@
 .my-ticket-refund-actions { display: flex; gap: 8px; }
 .my-ticket-refund-actions button:last-child { border-color: #237344; background: #237344; color: white; white-space: nowrap; }
 .my-ticket-refund-result { margin: 14px 0 0; text-align: center; color: #237344; }
-.my-ticket-refund-result.error { color: #b42318; }
 .my-ticket-refund-confirm-backdrop { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; padding: 24px; background: #12201980; backdrop-filter: blur(8px); }
 .my-ticket-refund-confirm { width: min(420px, 100%); padding: 30px 28px 24px; border: 1px solid #e2e8f0e6; border-radius: 22px; background: white; box-shadow: 0 28px 80px #0f172a42; text-align: center; animation: customAlertIn .18s ease-out; }
 .my-ticket-refund-confirm-icon { display: inline-grid; place-items: center; width: 48px; height: 48px; margin-bottom: 14px; border-radius: 50%; background: #fff3f1; color: #b42318; font-size: 26px; font-weight: 900; }

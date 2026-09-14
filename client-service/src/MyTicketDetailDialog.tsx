@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { createAuthenticatedRequest } from './authenticatedRequest';
+import { SessionExpiredError, type createAuthenticatedRequest } from './authenticatedRequest';
 import { CARD_COMPANIES } from './cardPayment';
 
 type Ticket = { ticketId: number; seatName: string; zone: string; seatRow: number; seatCol: number; grade: string; price: number; status: string };
@@ -36,7 +36,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const [refundTicket, setRefundTicket] = useState<Ticket | null>(null);
   const [confirmTicket, setConfirmTicket] = useState<Ticket | null>(null);
   const [refundingTicketId, setRefundingTicketId] = useState<number | null>(null);
-  const [refundError, setRefundError] = useState('');
   const [refundMessage, setRefundMessage] = useState('');
   const [bankCompany, setBankCompany] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -73,7 +72,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
   function beginRefund(ticket: Ticket) {
-    setRefundError('');
     setRefundMessage('');
     setRefundTicket(ticket);
     if (!isBankTransfer) setConfirmTicket(ticket);
@@ -83,10 +81,9 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     event?.preventDefault();
     if (refundingTicketId != null) return;
     if (isBankTransfer && (!bankCompany || !accountNumber.trim() || !accountHolder.trim())) {
-      setRefundError('환불받을 은행, 계좌번호, 예금주를 모두 입력해주세요.');
+      window.alert('환불받을 은행, 계좌번호, 예금주를 모두 입력해주세요.');
       return;
     }
-    setRefundError('');
     setConfirmTicket(ticket);
   }
 
@@ -95,7 +92,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
-    setRefundError('');
     setRefundMessage('');
     try {
       await request(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
@@ -119,7 +115,9 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       setRetry((value) => value + 1);
       onRefunded?.();
     } catch (failure) {
-      setRefundError(failure instanceof Error ? failure.message : '환불을 완료하지 못했습니다. 다시 시도해주세요.');
+      window.alert(failure instanceof SessionExpiredError
+        ? failure.message
+        : '환불 처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setRefundingTicketId(null);
     }
@@ -173,9 +171,8 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
             </select></label>
             <label>계좌번호<input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} autoComplete="off" placeholder="숫자만 입력" disabled={refundingTicketId != null} /></label>
             <label>예금주<input value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} autoComplete="name" disabled={refundingTicketId != null} /></label>
-            <div className="my-ticket-refund-actions"><button type="button" onClick={() => { setRefundTicket(null); setRefundError(''); }} disabled={refundingTicketId != null}>취소</button><button type="submit" disabled={refundingTicketId != null}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button></div>
+            <div className="my-ticket-refund-actions"><button type="button" onClick={() => setRefundTicket(null)} disabled={refundingTicketId != null}>취소</button><button type="submit" disabled={refundingTicketId != null}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button></div>
           </form>}
-          {refundError && <p className="my-ticket-refund-result error" role="alert">{refundError}</p>}
           {refundMessage && <p className="my-ticket-refund-result" role="status">{refundMessage}</p>}
           <p className="my-ticket-deadline">공연 취소 마감: {date(detail.reservation.cancelDeadlineAt)}</p>
         </section>
