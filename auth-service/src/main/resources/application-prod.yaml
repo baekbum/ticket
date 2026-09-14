@@ -18,6 +18,7 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
   kafka:
     bootstrap-servers: ${KAFKA_SERVER}
     producer:
