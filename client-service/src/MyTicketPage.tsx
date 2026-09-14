@@ -72,7 +72,6 @@ export default function MyTicketPage({ request }: { request: Request }) {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    setExpandedId(null);
     async function load() {
       try {
         if (tab === 'coupon') {
@@ -101,7 +100,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
   }
 
   return <section className="my-ticket-page">
-    {expandedId != null && <MyTicketDetailDialog reservationId={expandedId} request={request} onClose={() => setExpandedId(null)} />}
+    {expandedId != null && <MyTicketDetailDialog reservationId={expandedId} request={request} onClose={() => setExpandedId(null)} onRefunded={() => setRetry((n) => n + 1)} />}
     <div className="my-ticket-title"><h1>마이티켓</h1></div>
     <nav className="my-ticket-tabs" aria-label="마이티켓 메뉴">
       {([{ key: 'home', label: '마이티켓 홈' }, { key: 'reservation', label: '예매/취소 내역' }, { key: 'coupon', label: '할인 쿠폰' }] as const).map((item) =>
