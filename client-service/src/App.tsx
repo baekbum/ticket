@@ -9,6 +9,8 @@ import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAu
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
+import CustomerServicePage from './CustomerServicePage';
+import type { CustomerServiceTab, GuideTab } from './CustomerServicePage';
 
 type Page =
   | 'search'
@@ -24,6 +26,7 @@ type Page =
   | 'classicList'
   | 'exhibitionEventList'
   | 'myTicket'
+  | 'customerService'
   | 'bookingWindow';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
@@ -409,6 +412,7 @@ function getPageFromLocation(): Page {
     page === 'classicList' ||
     page === 'exhibitionEventList' ||
     page === 'myTicket' ||
+    page === 'customerService' ||
     page === 'bookingWindow'
   ) {
     return page;
@@ -424,6 +428,11 @@ function getUrlForPage(page: Page) {
     url.searchParams.delete('keyword');
     url.searchParams.delete('field');
     url.searchParams.delete('searchPage');
+  }
+
+  if (page !== 'customerService') {
+    url.searchParams.delete('serviceTab');
+    url.searchParams.delete('guideTab');
   }
 
   if (page === 'home') {
@@ -838,6 +847,14 @@ function deleteCookie(name: string) {
 function App() {
   const [searchQuery, setSearchQuery] = useState(readSearch);
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
+  const [customerServiceTab, setCustomerServiceTab] = useState<CustomerServiceTab>(() => {
+    const tab = new URLSearchParams(window.location.search).get('serviceTab');
+    return tab === 'guide' || tab === 'faq' || tab === 'inquiry' ? tab : 'notice';
+  });
+  const [guideTab, setGuideTab] = useState<GuideTab>(() => {
+    const tab = new URLSearchParams(window.location.search).get('guideTab');
+    return tab === 'cancel' || tab === 'delivery' ? tab : 'booking';
+  });
   const [selectedEventGroupCode, setSelectedEventGroupCode] = useState(
     () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
   );
@@ -856,9 +873,18 @@ function App() {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
 
     function handlePopState() {
+      const searchParams = new URLSearchParams(window.location.search);
+      const nextServiceTab = searchParams.get('serviceTab');
+      const nextGuideTab = searchParams.get('guideTab');
       setSearchQuery(readSearch());
       setPage(getPageFromLocation());
-      setSelectedEventGroupCode(new URLSearchParams(window.location.search).get('eventGroupCode') || '');
+      setSelectedEventGroupCode(searchParams.get('eventGroupCode') || '');
+      setCustomerServiceTab(
+        nextServiceTab === 'guide' || nextServiceTab === 'faq' || nextServiceTab === 'inquiry'
+          ? nextServiceTab
+          : 'notice',
+      );
+      setGuideTab(nextGuideTab === 'cancel' || nextGuideTab === 'delivery' ? nextGuideTab : 'booking');
     }
 
     window.addEventListener('popstate', handlePopState);
@@ -939,6 +965,33 @@ function App() {
     );
   }
 
+  function navigateToCustomerService(tab: CustomerServiceTab, nextGuideTab: GuideTab = 'booking') {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'customerService');
+    url.searchParams.set('serviceTab', tab);
+    if (tab === 'guide') {
+      url.searchParams.set('guideTab', nextGuideTab);
+    } else {
+      url.searchParams.delete('guideTab');
+    }
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
+    url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
+
+    setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
+    setPage('customerService');
+    setCustomerServiceTab(tab);
+    setGuideTab(nextGuideTab);
+    window.history.pushState(
+      { page: 'customerService', serviceTab: tab, guideTab: nextGuideTab },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    window.scrollTo(0, 0);
+  }
+
   function navigateToSearch(query: SearchQuery) {
     const url = new URL(window.location.href);
     url.searchParams.set('page', 'search');
@@ -980,9 +1033,11 @@ function App() {
           searchQuery={searchQuery}
           onSearch={navigateToSearch}
           currentPage={page}
+          customerServiceTab={customerServiceTab}
           loginUserName={loginUserName}
           onLogout={logout}
           onNavigate={navigateToPage}
+          onNavigateToCustomerService={navigateToCustomerService}
         />
       )}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
@@ -1006,12 +1061,20 @@ function App() {
         />
       )}
       {page === 'myTicket' && <MyTicketPage request={request} />}
+      {page === 'customerService' && (
+        <CustomerServicePage
+          activeTab={customerServiceTab}
+          activeGuideTab={guideTab}
+          onTabChange={(tab) => navigateToCustomerService(tab, guideTab)}
+          onGuideTabChange={(tab) => navigateToCustomerService('guide', tab)}
+        />
+      )}
       {page === 'bookingWindow' && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
       {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
-      {!isFullAuthPage && <SiteFooter />}
+      {!isFullAuthPage && <SiteFooter onNavigateToCustomerService={navigateToCustomerService} />}
       {!isFullAuthPage && <TopButton />}
       <CustomAlertModal
         alert={customAlert}
@@ -1066,16 +1129,20 @@ function Header({
   searchQuery,
   onSearch,
   currentPage,
+  customerServiceTab,
   loginUserName,
   onLogout,
   onNavigate,
+  onNavigateToCustomerService,
 }: {
   searchQuery: SearchQuery;
   onSearch: (query: SearchQuery) => void;
   currentPage: Page;
+  customerServiceTab: CustomerServiceTab;
   loginUserName: string;
   onLogout: () => void;
   onNavigate: (page: Page) => void;
+  onNavigateToCustomerService: (tab: CustomerServiceTab, guideTab?: GuideTab) => void;
 }) {
   const [keyword, setKeyword] = useState(searchQuery.keyword);
   const [field, setField] = useState(searchQuery.field);
@@ -1143,9 +1210,21 @@ function Header({
           </button>
         )}
         <span aria-hidden="true">|</span>
-        <button type="button">고객센터</button>
+        <button
+          className={currentPage === 'customerService' && customerServiceTab !== 'guide' ? 'active-link' : ''}
+          type="button"
+          onClick={() => onNavigateToCustomerService('notice')}
+        >
+          고객센터
+        </button>
         <span aria-hidden="true">|</span>
-        <button type="button">이용안내</button>
+        <button
+          className={currentPage === 'customerService' && customerServiceTab === 'guide' ? 'active-link' : ''}
+          type="button"
+          onClick={() => onNavigateToCustomerService('guide')}
+        >
+          이용안내
+        </button>
       </div>
 
       <div className="brand-row">
@@ -4478,7 +4557,11 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   );
 }
 
-function SiteFooter() {
+function SiteFooter({
+  onNavigateToCustomerService,
+}: {
+  onNavigateToCustomerService: (tab: CustomerServiceTab, guideTab?: GuideTab) => void;
+}) {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -4488,7 +4571,7 @@ function SiteFooter() {
           <button type="button">개인정보처리방침</button>
           <button type="button">청소년보호정책</button>
           <button type="button">티켓판매안내</button>
-          <button type="button">고객센터</button>
+          <button type="button" onClick={() => onNavigateToCustomerService('notice')}>고객센터</button>
         </nav>
 
         <div className="footer-content">
