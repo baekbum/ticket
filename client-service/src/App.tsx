@@ -2139,6 +2139,8 @@ function BookingWindowPage() {
   const [activeToken] = useState(() => getBookingActiveTokenFromLocation());
   const [activeTokenExpiresAt] = useState(() => getBookingActiveTokenExpiresAtFromLocation());
   const [activeTokenRemainingSeconds, setActiveTokenRemainingSeconds] = useState<number | null>(null);
+  const [seatHoldExpiresAt, setSeatHoldExpiresAt] = useState<string | null>(null);
+  const [checkoutRemainingSeconds, setCheckoutRemainingSeconds] = useState<number | null>(null);
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [layoutSvgText, setLayoutSvgText] = useState('');
@@ -2164,6 +2166,9 @@ function BookingWindowPage() {
     const saved = savedCardCheckout(activeToken);
     return saved;
   });
+  const [paymentExpiresAt, setPaymentExpiresAt] = useState<string | null>(() =>
+    savedCardCheckout(activeToken)?.expiresAt ?? null,
+  );
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const paymentSubmittingRef = useRef(false);
   const [ordererInfo, setOrdererInfo] = useState<BookingOrdererInfo>({
@@ -2207,6 +2212,10 @@ function BookingWindowPage() {
     '--layout-x': `${sideLayoutPan.x}px`,
     '--layout-y': `${sideLayoutPan.y}px`,
   } as CSSProperties;
+  const checkoutExpiresAt = paymentExpiresAt || seatHoldExpiresAt;
+  const displayedRemainingSeconds = checkoutStep === 'SEAT'
+    ? activeTokenRemainingSeconds
+    : checkoutRemainingSeconds;
 
   useEffect(() => {
     if (selectedScheduleId && activeToken) {
@@ -2215,7 +2224,7 @@ function BookingWindowPage() {
   }, [activeToken, activeTokenExpiresAt, selectedScheduleId]);
 
   useEffect(() => {
-    if (!activeTokenExpiresAt || completedPayment || cardPayment) {
+    if (!activeTokenExpiresAt || completedPayment) {
       setActiveTokenRemainingSeconds(null);
       return undefined;
     }
@@ -2233,7 +2242,28 @@ function BookingWindowPage() {
     syncRemainingSeconds();
     const timer = window.setInterval(syncRemainingSeconds, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTokenExpiresAt, completedPayment, cardPayment]);
+  }, [activeTokenExpiresAt, completedPayment]);
+
+  useEffect(() => {
+    if (!checkoutExpiresAt || completedPayment) {
+      setCheckoutRemainingSeconds(null);
+      return undefined;
+    }
+
+    const expiresAtMillis = Date.parse(checkoutExpiresAt.replace(' ', 'T'));
+    if (Number.isNaN(expiresAtMillis)) {
+      setCheckoutRemainingSeconds(null);
+      return undefined;
+    }
+
+    function syncRemainingSeconds() {
+      setCheckoutRemainingSeconds(Math.max(0, Math.ceil((expiresAtMillis - Date.now()) / 1000)));
+    }
+
+    syncRemainingSeconds();
+    const timer = window.setInterval(syncRemainingSeconds, 1000);
+    return () => window.clearInterval(timer);
+  }, [checkoutExpiresAt, completedPayment]);
 
   // 새로고침도 unload를 발생시키므로 여기서 active-token을 반환하지 않는다.
   // 예매 완료 시 반환하며, 그 외에는 서버 TTL로 정리한다.
@@ -2498,12 +2528,18 @@ function BookingWindowPage() {
   }
 
   useEffect(() => {
-    if (activeTokenRemainingSeconds !== 0 || completedPayment || cardPayment || isPaymentSubmitting) {
+    if (
+      checkoutStep !== 'SEAT'
+      || activeTokenRemainingSeconds !== 0
+      || completedPayment
+      || cardPayment
+      || isPaymentSubmitting
+    ) {
       return;
     }
 
     alertSessionExpiredAndClose(new ActiveTokenExpiredError());
-  }, [activeTokenRemainingSeconds, completedPayment, cardPayment, isPaymentSubmitting]);
+  }, [activeTokenRemainingSeconds, checkoutStep, completedPayment, cardPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
     return selectedSeats.map((seat) => ({
@@ -2543,6 +2579,10 @@ function BookingWindowPage() {
       });
 
       occupiedSeatsRef.current = occupyResult;
+      // 새 좌석 선점으로 체크아웃을 시작하면 이전 결제 건의 제한시간 대신
+      // 이번 선점 응답의 expiresAt부터 다시 카운트다운한다.
+      setPaymentExpiresAt(null);
+      setSeatHoldExpiresAt(occupyResult.expiresAt);
 
       const prepareResult = await request<CheckoutPrepareResponse>('/client-api/api/v1/checkout/prepare', {
         method: 'POST',
@@ -2675,6 +2715,7 @@ function BookingWindowPage() {
         ...payment,
         selectedSeats: selectedSeats.map((seat) => ({ ...seat })),
       };
+      setPaymentExpiresAt(payment.expiresAt);
       if (payment.method === 'CREDIT_CARD') {
         if (payment.status === 'PAID') {
           setCompletedPayment(paymentWithSelectedSeats);
@@ -2875,11 +2916,11 @@ function BookingWindowPage() {
           <span>{eventDetail?.title || '좌석 선택'}</span>
           <em
             className={[
-              activeTokenRemainingSeconds !== null && activeTokenRemainingSeconds <= 300 ? 'warning' : '',
-              activeTokenRemainingSeconds === 0 ? 'expired' : '',
+              displayedRemainingSeconds !== null && displayedRemainingSeconds <= 300 ? 'warning' : '',
+              displayedRemainingSeconds === 0 ? 'expired' : '',
             ].filter(Boolean).join(' ')}
           >
-            남은 시간 {formatRemainingTime(activeTokenRemainingSeconds)}
+            남은 시간 {formatRemainingTime(displayedRemainingSeconds)}
           </em>
         </div>
       </header>
