@@ -420,6 +420,12 @@ function getPageFromLocation(): Page {
 function getUrlForPage(page: Page) {
   const url = new URL(window.location.href);
 
+  if (page !== 'search') {
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
+  }
+
   if (page === 'home') {
     url.searchParams.delete('page');
     url.searchParams.delete('eventGroupCode');
@@ -895,6 +901,9 @@ function App() {
   }, [customAlert]);
 
   function navigateToPage(nextPage: Page) {
+    if (nextPage !== 'search') {
+      setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
+    }
     setPage(nextPage);
 
     const nextUrl = getUrlForPage(nextPage);
@@ -916,7 +925,11 @@ function App() {
     const url = new URL(window.location.href);
     url.searchParams.set('page', 'eventDetail');
     url.searchParams.set('eventGroupCode', eventGroupCode);
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
 
+    setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
     setPage('eventDetail');
     setSelectedEventGroupCode(eventGroupCode);
     window.history.pushState(
@@ -1093,6 +1106,12 @@ function Header({
     if (keyword.trim()) onSearch({ keyword: keyword.trim(), field, page: 0 });
   }
 
+  function navigateFromHeader(nextPage: Page) {
+    setKeyword('');
+    setIsSearchFieldOpen(false);
+    onNavigate(nextPage);
+  }
+
   return (
     <header className="site-header">
       <div className="top-menu">
@@ -1104,21 +1123,21 @@ function Header({
           <button
             className={currentPage === 'login' ? 'active-link' : ''}
             type="button"
-            onClick={() => onNavigate('login')}
+            onClick={() => navigateFromHeader('login')}
           >
             로그인
           </button>
         )}
         <span aria-hidden="true">|</span>
         {loginUserName ? (
-          <button type="button" onClick={onLogout}>
+          <button type="button" onClick={() => { setKeyword(''); onLogout(); }}>
             로그아웃
           </button>
         ) : (
           <button
             className={currentPage === 'signup' ? 'active-link' : ''}
             type="button"
-            onClick={() => onNavigate('signup')}
+            onClick={() => navigateFromHeader('signup')}
           >
             회원가입
           </button>
@@ -1130,7 +1149,7 @@ function Header({
       </div>
 
       <div className="brand-row">
-        <button className="brand" type="button" onClick={() => onNavigate('home')}>
+        <button className="brand" type="button" onClick={() => navigateFromHeader('home')}>
           <span className="brand-dot" aria-hidden="true" />
           <span>Ticksy</span>
         </button>
@@ -1199,15 +1218,15 @@ function Header({
             key={category}
             onClick={() => {
               if (category === '콘서트') {
-                onNavigate('concertList');
+                navigateFromHeader('concertList');
               } else if (category === '뮤지컬/연극') {
-                onNavigate('musicalPlayList');
+                navigateFromHeader('musicalPlayList');
               } else if (category === '팬클럽/팬미팅') {
-                onNavigate('fanclubFanmeetingList');
+                navigateFromHeader('fanclubFanmeetingList');
               } else if (category === '클래식') {
-                onNavigate('classicList');
+                navigateFromHeader('classicList');
               } else if (category === '전시/행사') {
-                onNavigate('exhibitionEventList');
+                navigateFromHeader('exhibitionEventList');
               }
             }}
           >
@@ -1217,7 +1236,7 @@ function Header({
         <button
           className={currentPage === 'myTicket' ? 'my-ticket active-category' : 'my-ticket'}
           type="button"
-          onClick={() => onNavigate(loginUserName ? 'myTicket' : 'login')}
+          onClick={() => navigateFromHeader(loginUserName ? 'myTicket' : 'login')}
         >
           마이티켓
         </button>
