@@ -137,9 +137,7 @@ function CancelGuide() {
           <table>
             <thead><tr><th>공연 관람일</th><th>취소 마감</th></tr></thead>
             <tbody>
-              <tr><td>화요일 ~ 토요일</td><td>관람일 전일 오후 5시</td></tr>
-              <tr><td>일요일 ~ 월요일</td><td>토요일 오전 11시</td></tr>
-              <tr><td>공휴일 및 공휴일 다음 날</td><td>공휴일 전 평일 오후 5시</td></tr>
+              <tr><td>모든 공연</td><td>관람일 전날까지</td></tr>
             </tbody>
           </table>
         </div>
@@ -160,7 +158,6 @@ function CancelGuide() {
         </div>
         <ul className="guide-notes">
           <li>취소 마감 이후 및 관람일 당일에는 취소·변경·환불이 불가합니다.</li>
-          <li>예매 당일 자정 이후에는 예매 수수료가 환불되지 않을 수 있습니다.</li>
           <li>환불 완료 시점은 카드사 및 은행 영업일에 따라 달라질 수 있습니다.</li>
         </ul>
       </div>
