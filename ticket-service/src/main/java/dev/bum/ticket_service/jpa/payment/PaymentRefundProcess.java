@@ -71,6 +71,10 @@ public class PaymentRefundProcess {
     @Column(name = "refund_amount", nullable = false)
     private Integer refundAmount;
 
+    @Builder.Default
+    @Column(name = "cancellation_fee_amount", nullable = false)
+    private Integer cancellationFeeAmount = 0;
+
     @Column(name = "full_cancellation", nullable = false)
     private boolean fullCancellation;
 
@@ -119,12 +123,24 @@ public class PaymentRefundProcess {
             boolean fullCancellation,
             RefundAccountRequest refundAccount
     ) {
+        return create(payment, selectedTickets, refundAmount, 0, fullCancellation, refundAccount);
+    }
+
+    public static PaymentRefundProcess create(
+            Payment payment,
+            List<Ticket> selectedTickets,
+            Integer refundAmount,
+            Integer cancellationFeeAmount,
+            boolean fullCancellation,
+            RefundAccountRequest refundAccount
+    ) {
         return PaymentRefundProcess.builder()
                 .payment(payment)
                 .reservation(payment.getReservation())
                 .paymentNo(payment.getPaymentNo())
                 .method(payment.getMethod())
                 .refundAmount(refundAmount)
+                .cancellationFeeAmount(cancellationFeeAmount)
                 .fullCancellation(fullCancellation)
                 .selectedTicketIds(formatTicketIds(selectedTickets))
                 .status(PaymentRefundProcessStatus.REQUESTED)
@@ -134,6 +150,10 @@ public class PaymentRefundProcess {
                 .retryCount(0)
                 .lastTriedAt(LocalDateTime.now())
                 .build();
+    }
+
+    public Integer getCancellationFeeAmount() {
+        return cancellationFeeAmount != null ? cancellationFeeAmount : 0;
     }
 
     public void gatewaySucceeded() {

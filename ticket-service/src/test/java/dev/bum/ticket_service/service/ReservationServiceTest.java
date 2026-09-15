@@ -111,7 +111,7 @@ class ReservationServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyBoolean(), any()))
+        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyInt(), anyBoolean(), any()))
                 .thenReturn(new PaymentRefundProcessGatewayAttempt(1L, true, false));
     }
 
@@ -239,7 +239,7 @@ class ReservationServiceTest {
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should().findByReservation(reservation);
     }
 
     @Test
@@ -276,6 +276,59 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("관람일 3일 전 전체 취소는 티켓 금액의 20%를 제외하고 부분 환불한다")
+    void apply_cancellation_fee_to_full_reservation_cancel() {
+        LocalDateTime now = LocalDateTime.now();
+        Event event = Event.builder()
+                .eventId(1L)
+                .artistName("IU")
+                .title("IU Concert")
+                .venue("KSPO Dome")
+                .eventDateTime(now.plusDays(3))
+                .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(4)
+                .build();
+        Reservation reservation = Reservation.builder()
+                .reservationId(1L)
+                .orderId("order-1")
+                .userId("user01")
+                .event(event)
+                .status(ReservationStatus.PAID)
+                .reservedAt(now.minusDays(8))
+                .build();
+        Payment payment = cardPayment(reservation);
+        CancelReservationRequest info = CancelReservationRequest.builder()
+                .userId("user01")
+                .eventId(1L)
+                .selectedTicketIdList(List.of(1L, 2L))
+                .build();
+        Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
+
+        given(repository.selectById(1L)).willReturn(reservation);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+        willAnswer(invocation -> {
+            payment.partialRefund(190000);
+            return 190000;
+        }).given(cardPaymentRefundService).refundPartial(payment, 190000);
+
+        reservationService.cancelMyReservation("user01", 1L, info);
+
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(190000);
+        assertThat(payment.getCancellationFeeAmount()).isEqualTo(60000);
+        assertThat(payment.getRefundableAmount()).isZero();
+        then(cardPaymentRefundService).should().refundPartial(payment, 190000);
+        then(cardPaymentRefundService).should(never()).refundAll(payment);
+        then(paymentRefundProcessService).should().startGatewayAttempt(
+                payment, List.of(firstTicket, secondTicket), 190000, 60000, true, null);
+        then(paymentRefundProcessService).should().savePaymentRefundHistory(
+                1L, payment, List.of(firstTicket, secondTicket), 190000, true);
+    }
+
+    @Test
     @DisplayName("gateway 환불 성공 후 본인 예매 취소 재요청은 gateway 재호출 없이 로컬 상태를 반영한다")
     void complete_local_state_without_gateway_call_when_gateway_already_succeeded() {
         Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
@@ -291,7 +344,7 @@ class ReservationServiceTest {
         given(repository.selectById(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
-        given(paymentRefundProcessService.startGatewayAttempt(payment, List.of(firstTicket, secondTicket), 250000, true, null))
+        given(paymentRefundProcessService.startGatewayAttempt(payment, List.of(firstTicket, secondTicket), 250000, 0, true, null))
                 .willReturn(new PaymentRefundProcessGatewayAttempt(1L, false, true));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -389,7 +442,7 @@ class ReservationServiceTest {
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should().findByReservation(reservation);
     }
 
     @Test
@@ -413,7 +466,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test
@@ -438,7 +491,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test
@@ -624,7 +677,7 @@ class ReservationServiceTest {
                 .artistName("IU")
                 .title("IU Concert")
                 .venue("KSPO Dome")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2099, 9, 18, 18, 0))
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)
                 .build();

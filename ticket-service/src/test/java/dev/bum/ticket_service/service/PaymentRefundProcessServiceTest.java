@@ -179,6 +179,29 @@ class PaymentRefundProcessServiceTest {
     }
 
     @Test
+    @DisplayName("전체 예매 취소의 환불액과 수수료를 합산해 결제 정산을 완료한다")
+    void complete_local_full_cancellation_with_fee() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess process = refundProcess(
+                1L, payment, List.of(firstTicket, secondTicket), 190000, 60000, true,
+                PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
+
+        given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
+        given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(firstTicket, secondTicket));
+
+        paymentRefundProcessService.completeLocal(1L);
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(190000);
+        assertThat(payment.getCancellationFeeAmount()).isEqualTo(60000);
+        assertThat(payment.getRefundableAmount()).isZero();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+    }
+
+    @Test
     @DisplayName("관리자는 LOCAL_FAILED 환불 프로세스의 로컬 상태를 수동 완료 처리한다")
     void complete_local_when_local_failed() {
         Reservation reservation = reservation(ReservationStatus.PAID);
@@ -230,6 +253,18 @@ class PaymentRefundProcessServiceTest {
             boolean fullCancellation,
             PaymentRefundProcessStatus status
     ) {
+        return refundProcess(paymentRefundProcessId, payment, tickets, refundAmount, 0, fullCancellation, status);
+    }
+
+    private PaymentRefundProcess refundProcess(
+            Long paymentRefundProcessId,
+            Payment payment,
+            List<Ticket> tickets,
+            Integer refundAmount,
+            Integer cancellationFeeAmount,
+            boolean fullCancellation,
+            PaymentRefundProcessStatus status
+    ) {
         return PaymentRefundProcess.builder()
                 .paymentRefundProcessId(paymentRefundProcessId)
                 .payment(payment)
@@ -237,6 +272,7 @@ class PaymentRefundProcessServiceTest {
                 .paymentNo(payment.getPaymentNo())
                 .method(payment.getMethod())
                 .refundAmount(refundAmount)
+                .cancellationFeeAmount(cancellationFeeAmount)
                 .fullCancellation(fullCancellation)
                 .selectedTicketIds(tickets.stream()
                         .map(Ticket::getTicketId)
