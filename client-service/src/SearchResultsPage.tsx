@@ -1,6 +1,7 @@
 import type { SearchQuery } from './searchQuery';
 import { useEffect, useState } from 'react';
 import './SearchResultsPage.css';
+import { ticketAssetUrl } from './ticketAssetUrl';
 
 type SearchResult = {
   eventGroupCode: string;
@@ -59,7 +60,7 @@ export default function SearchResultsPage({ query, onSearch, onSelectEvent }: {
                 {results.content.map((event) => (
                   <li key={event.eventGroupCode}>
                     <button className="search-result-row" type="button" onClick={() => onSelectEvent(event.eventGroupCode)}>
-                      {event.posterUrl ? <img src={event.posterUrl} alt="" /> : <span className="search-poster-placeholder">Ticksy</span>}
+                      {event.posterUrl ? <img src={ticketAssetUrl(event.posterUrl)} alt="" /> : <span className="search-poster-placeholder">Ticksy</span>}
                       <span className="search-result-info"><strong>{event.title}</strong><span>{event.artistName}</span></span>
                       <span className="search-result-date">{event.eventStartDate.replaceAll('-', '.')}<br />~ {event.eventEndDate.replaceAll('-', '.')}</span>
                       <span className="search-result-venue">{event.venue}</span>

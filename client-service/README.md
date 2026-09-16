@@ -33,10 +33,10 @@ npm run dev
 
 - 개발 서버: `http://localhost:3000`
 - API 프록시
-  - `/auth/*` → `http://localhost:8080`
-  - `/user/*` → `http://localhost:8081`
-  - `/ticket/*` → `http://localhost:8082`
-  - `/queue/*` → `http://localhost:8083`
+  - `/client-api/*` → `http://localhost:8090`
+  - `/payment-gateway/*` → `http://localhost:8099`
+
+사용자용 티켓 API는 프론트에서 ticket-service로 직접 요청하지 않고 client-api BFF를 통해 호출합니다.
 
 ## 빌드
 

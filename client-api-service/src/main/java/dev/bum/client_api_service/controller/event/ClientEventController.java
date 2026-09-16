@@ -1,6 +1,7 @@
 package dev.bum.client_api_service.controller.event;
 
 import dev.bum.client_api_service.feign.ticket.TicketEventServiceClient;
+import dev.bum.client_api_service.feign.ticket.TicketPosterServiceClient;
 import dev.bum.common.service.ticket.event.event.dto.EventBookingDetailResponse;
 import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
@@ -22,6 +23,15 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 public class ClientEventController {
 
     private final TicketEventServiceClient ticketEventServiceClient;
+    private final TicketPosterServiceClient ticketPosterServiceClient;
+
+    @GetMapping("/posters/{directory}/{fileName:.+}")
+    public ResponseEntity<byte[]> selectPoster(
+            @PathVariable("directory") String directory,
+            @PathVariable("fileName") String fileName
+    ) {
+        return ticketPosterServiceClient.selectPoster(directory, fileName);
+    }
 
     @GetMapping("/search")
     public ResponseEntity<CustomPageResponse<EventCardResponse>> search(

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { createAuthenticatedRequest } from './authenticatedRequest';
 import './MyTicketPage.css';
 import MyTicketDetailDialog from './MyTicketDetailDialog';
+import { ticketAssetUrl } from './ticketAssetUrl';
 
 type Request = ReturnType<typeof createAuthenticatedRequest>;
 type CouponFilter = 'ALL' | 'AVAILABLE' | 'USED' | 'EXPIRED';
@@ -37,7 +38,7 @@ function ReservationRow({ item, onOpen }: { item: Reservation; onOpen: () => voi
   return <article className="my-ticket-history-row">
     <div className="my-ticket-reserved-date">{item.reservedDate}</div>
     <div className="my-ticket-performance">
-      {item.posterUrl ? <img src={item.posterUrl} alt="" loading="lazy" /> : <div className="my-ticket-poster-placeholder" aria-hidden="true">TICKET</div>}
+      {item.posterUrl ? <img src={ticketAssetUrl(item.posterUrl)} alt="" loading="lazy" /> : <div className="my-ticket-poster-placeholder" aria-hidden="true">TICKET</div>}
       <div><strong>{item.eventTitle}</strong><p>{item.eventDateTime}</p><span>{item.venue}</span></div>
     </div>
     <dl className="my-ticket-booking-info"><div><dt>예매 번호</dt><dd>{item.reservationId}</dd></div><div><dt>관람일</dt><dd>{item.eventDateTime}</dd></div><div><dt>매수</dt><dd>{item.ticketCount}매</dd></div><div><dt>취소 마감</dt><dd>{item.cancelDeadlineAt?.replace('T', ' ') || '-'}</dd></div></dl>
@@ -80,7 +81,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
         } else {
           const params = new URLSearchParams({ page: String(tab === 'home' ? 0 : page), size: tab === 'home' ? '3' : '10', sort: 'reservedAt-desc' });
           if (tab === 'reservation' && status) params.set('status', status);
-          const data = await request<ReservationPage>(`/ticket/api/v1/reservation/select?${params}`, { method: 'GET', signal: controller.signal });
+          const data = await request<ReservationPage>(`/client-api/api/v1/reservation/select?${params}`, { method: 'GET', signal: controller.signal });
           if (!controller.signal.aborted) setReservations(data);
         }
       } catch (failure) {

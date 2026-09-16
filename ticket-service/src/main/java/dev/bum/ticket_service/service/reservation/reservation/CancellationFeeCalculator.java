@@ -5,6 +5,7 @@ import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -16,12 +17,10 @@ import java.util.List;
 /**
  * 이용 안내에 고지된 관람 취소 수수료를 계산한다.
  */
+@NoArgsConstructor
 public final class CancellationFeeCalculator {
 
     private static final int BOOKING_GRACE_PERIOD_DAYS = 7;
-
-    private CancellationFeeCalculator() {
-    }
 
     public static int calculateRefundAmount(
             Reservation reservation,
@@ -204,6 +203,12 @@ public final class CancellationFeeCalculator {
                 .sum();
     }
 
+    /**
+     * 환불 수수료 계산
+     * @param reservation
+     * @param cancelledAt
+     * @return
+     */
     static int resolveFeeRate(Reservation reservation, LocalDateTime cancelledAt) {
         LocalDate eventDate = reservation.getEvent().getEventDateTime().toLocalDate();
         long daysBeforeEvent = ChronoUnit.DAYS.between(cancelledAt.toLocalDate(), eventDate);
