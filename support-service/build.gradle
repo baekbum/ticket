@@ -1,0 +1,67 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.bum'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// JWT 인증/인가와 공통 예외 응답 등 프로젝트 공통 기능
+	implementation project(':common')
+
+	// 공지사항 및 1:1 문의 REST API
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+
+	// 공지사항/문의 영속화 및 목록 검색
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+	annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+	annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+	// 운영 상태 및 Prometheus 메트릭
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+	// 보일러플레이트 코드 감소
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	runtimeOnly 'org.postgresql:postgresql'
+	testRuntimeOnly 'com.h2database:h2'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+def querydslDir = 'src/main/generated'
+
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs.add('-parameters')
+	options.getGeneratedSourceOutputDirectory().set(file(querydslDir))
+}
+
+clean {
+	delete file(querydslDir)
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
