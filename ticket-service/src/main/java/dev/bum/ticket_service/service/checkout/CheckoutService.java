@@ -126,6 +126,8 @@ public class CheckoutService {
                 .method(request.getPaymentMethod())
                 .status(PaymentStatus.READY)
                 .amount(paymentAmount)
+                .reservationFeeAmount(reservationFeePerTicket * reservation.getTickets().size())
+                .deliveryFeeAmount(request.getDelivery() != null ? deliveryFee : 0)
                 .idempotencyKey(idempotencyKey)
                 .requestedAt(requestedAt)
                 .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))

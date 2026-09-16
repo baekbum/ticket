@@ -161,7 +161,9 @@ class CheckoutServiceTest {
                 org.mockito.ArgumentMatchers.eq(request),
                 org.mockito.ArgumentMatchers.any(Payment.class)
         );
-        then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.any(Payment.class));
+        then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.argThat(payment ->
+                payment.getReservationFeeAmount() == 4000
+                        && payment.getDeliveryFeeAmount() == 3200));
         then(seatCacheService).should(never()).updateUserPurchaseLimit(event, "user01", 1, "PLUS");
     }
 

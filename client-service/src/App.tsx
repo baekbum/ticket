@@ -11,6 +11,7 @@ import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
 import CustomerServicePage from './CustomerServicePage';
 import type { CustomerServiceTab, GuideTab } from './CustomerServicePage';
+import { ticketAssetUrl } from './ticketAssetUrl';
 
 type Page =
   | 'search'
@@ -1516,7 +1517,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
               aria-label={`${event.title} 공연 상세 보기`}
             >
               <div className="poster-art">
-                <img src={event.posterUrl} alt={`${event.title} 포스터`} />
+                <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
               <p>{event.artistName}</p>
@@ -1562,7 +1563,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
                   onClick={() => handlePosterClick(event)}
                   aria-label={`${event.title} 공연 상세 보기`}
                 >
-                  <img src={event.posterUrl} alt="" />
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" />
                   <span className="mini-poster-rank">{index + 1}</span>
                 </button>
                 <strong>{event.title}</strong>
@@ -1709,7 +1710,7 @@ function CategoryEventListPage({
             onClick={() => onSelectEvent(event.eventGroupCode)}
           >
             <span className="concert-list-poster">
-              <img src={event.posterUrl} alt={`${event.title} 포스터`} />
+              <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
             </span>
             <span className="concert-list-info">
               <strong>{event.title}</strong>
@@ -1965,7 +1966,7 @@ function EventDetailPage({
       <article className="event-booking-panel">
         <div className="event-booking-top">
           <div className="event-detail-poster">
-            <img src={eventDetail.posterUrl} alt={`${eventDetail.title} 포스터`} />
+            <img src={ticketAssetUrl(eventDetail.posterUrl)} alt={`${eventDetail.title} 포스터`} />
           </div>
 
           <div className="event-detail-info">
@@ -2843,7 +2844,7 @@ function BookingWindowPage() {
 
     let disposed = false;
     request<ReservationTicketResponse[]>(
-      `/ticket/api/v1/ticket/reservation/${completedPayment.reservationId}`,
+      `/client-api/api/v1/ticket/reservation/${completedPayment.reservationId}`,
       { method: 'GET' },
     ).then((tickets) => {
       if (disposed) return;

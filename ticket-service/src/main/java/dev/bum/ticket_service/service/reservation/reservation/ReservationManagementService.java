@@ -42,8 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -136,7 +134,9 @@ public class ReservationManagementService {
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
         boolean fullCancellation = isFullCancellation(activeTickets, selectedTickets);
-        boolean restoreCouponOnCancel = fullCancellation && reservation.getStatus() == ReservationStatus.PAID;
+        boolean restoreCouponOnCancel = fullCancellation
+                && (reservation.getStatus() == ReservationStatus.PAID
+                || reservation.getStatus() == ReservationStatus.PARTIALLY_CANCELLED);
 
         Long paymentRefundProcessId = null;
         try {
@@ -183,36 +183,54 @@ public class ReservationManagementService {
                     }
 
                     if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
-                        int refundAmount = fullCancellation
-                                ? payment.getRefundableAmount()
-                                : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
-                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(payment, selectedTickets, refundAmount, fullCancellation, null);
+                        CancellationFeeCalculator.CancellationRefundCalculation calculation =
+                                calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
+                        int refundAmount = calculation.refundAmount();
+                        int cancellationFeeAmount = calculation.cancellationFeeAmount();
+                        if (refundAmount == 0) {
+                            payment.applyCancellation(0, cancellationFeeAmount);
+                            restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
+                            return null;
+                        }
+                        boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
+                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
+                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, null);
                         Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
 
                         if (gatewayAttempt.isGatewayRequired()) {
-                            refundCardPayment(payment, refundAmount, fullCancellation, paymentRefundProcessId);
+                            refundCardPayment(payment, refundAmount, cancellationFeeAmount, fullPaymentRefund, paymentRefundProcessId);
                         } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
-                            applyPaymentRefund(payment, refundAmount, fullCancellation);
+                            applyPaymentRefund(payment, refundAmount, cancellationFeeAmount);
                         }
 
                         savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
+                        restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
                         return paymentRefundProcessId;
                     }
 
                     if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
-                        int refundAmount = fullCancellation
-                                ? payment.getRefundableAmount()
-                                : calculatePartialRefundAmount(payment.getRefundableAmount(), activeTickets, selectedTickets);
-                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(payment, selectedTickets, refundAmount, fullCancellation, info.getRefundAccount());
+                        CancellationFeeCalculator.CancellationRefundCalculation calculation =
+                                calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
+                        int refundAmount = calculation.refundAmount();
+                        int cancellationFeeAmount = calculation.cancellationFeeAmount();
+                        if (refundAmount == 0) {
+                            payment.applyCancellation(0, cancellationFeeAmount);
+                            restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
+                            return null;
+                        }
+                        boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
+                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
+                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, info.getRefundAccount());
                         Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
 
                         if (gatewayAttempt.isGatewayRequired()) {
-                            refundVirtualAccountPayment(payment, info, refundAmount, fullCancellation, paymentRefundProcessId);
+                            refundVirtualAccountPayment(payment, info, refundAmount, cancellationFeeAmount, fullPaymentRefund, paymentRefundProcessId);
                         } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
-                            applyPaymentRefund(payment, refundAmount, fullCancellation);
+                            applyPaymentRefund(payment, refundAmount, cancellationFeeAmount);
                         }
 
                         savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
+                        restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
                         return paymentRefundProcessId;
                     }
 
@@ -223,6 +241,7 @@ public class ReservationManagementService {
     private void refundCardPayment(
             Payment payment,
             int refundAmount,
+            int cancellationFeeAmount,
             boolean fullCancellation,
             Long paymentRefundProcessId
     ) {
@@ -232,6 +251,7 @@ public class ReservationManagementService {
             } else {
                 cardPaymentRefundService.refundPartial(payment, refundAmount);
             }
+            payment.applyCancellationFee(cancellationFeeAmount);
             markGatewaySucceeded(paymentRefundProcessId);
         } catch (RuntimeException e) {
             markGatewayFailed(paymentRefundProcessId, e);
@@ -243,6 +263,7 @@ public class ReservationManagementService {
             Payment payment,
             CancelReservationRequest info,
             int refundAmount,
+            int cancellationFeeAmount,
             boolean fullCancellation,
             Long paymentRefundProcessId
     ) {
@@ -252,6 +273,7 @@ public class ReservationManagementService {
             } else {
                 virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount());
             }
+            payment.applyCancellationFee(cancellationFeeAmount);
             markGatewaySucceeded(paymentRefundProcessId);
         } catch (RuntimeException e) {
             markGatewayFailed(paymentRefundProcessId, e);
@@ -311,18 +333,19 @@ public class ReservationManagementService {
         paymentRefundProcessService.savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
     }
 
-    private void applyPaymentRefund(Payment payment, int refundAmount, boolean fullCancellation) {
-        if (fullCancellation) {
-            payment.refund();
-            return;
-        }
-        payment.partialRefund(refundAmount);
+    private void applyPaymentRefund(Payment payment, int refundAmount, int cancellationFeeAmount) {
+        payment.applyCancellation(refundAmount, cancellationFeeAmount);
     }
 
     private void validateCancelableReservation(Reservation reservation) {
         if (reservation.getStatus() == ReservationStatus.CANCELLED
                 || reservation.getStatus() == ReservationStatus.EXPIRED) {
             throw new IllegalArgumentException("이미 취소되었거나 만료된 예매입니다.");
+        }
+        if (reservation.getEvent() != null
+                && reservation.getEvent().getCancelDeadlineAt() != null
+                && LocalDateTime.now().isAfter(reservation.getEvent().getCancelDeadlineAt())) {
+            throw new IllegalArgumentException("취소 가능 기한이 지났습니다.");
         }
     }
 
@@ -355,23 +378,31 @@ public class ReservationManagementService {
         return selectedTickets;
     }
 
-    private int calculatePartialRefundAmount(Integer remainingPaymentAmount, List<Ticket> activeTickets, List<Ticket> selectedTickets) {
-        int totalTicketAmount = activeTickets.stream()
-                .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
-                .sum();
-        int selectedTicketAmount = selectedTickets.stream()
-                .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
-                .sum();
+    private CancellationFeeCalculator.CancellationRefundCalculation calculateRefund(
+            Reservation reservation,
+            Payment payment,
+            List<Ticket> activeTickets,
+            List<Ticket> selectedTickets,
+            boolean fullCancellation
+    ) {
+        return CancellationFeeCalculator.calculate(
+                reservation,
+                payment,
+                activeTickets,
+                selectedTickets,
+                reservationDiscountJpaRepository.findByReservation(reservation),
+                fullCancellation,
+                LocalDateTime.now());
+    }
 
-        if (totalTicketAmount <= 0 || selectedTicketAmount <= 0) {
-            throw new IllegalArgumentException("부분 환불 금액을 계산할 수 없습니다.");
+    private void restoreCouponAfterPartialCancel(
+            Reservation reservation,
+            boolean fullCancellation,
+            CancellationFeeCalculator.CancellationRefundCalculation calculation
+    ) {
+        if (!fullCancellation && calculation.restoreCoupon()) {
+            restoreUsedCoupons(reservation);
         }
-
-        // 부분 취소 시 쿠폰은 복구하지 않으므로, 남은 실결제금액을 남은 활성 티켓 정가 비율로 배분해 환불한다.
-        return BigDecimal.valueOf(remainingPaymentAmount)
-                .multiply(BigDecimal.valueOf(selectedTicketAmount))
-                .divide(BigDecimal.valueOf(totalTicketAmount), 0, RoundingMode.DOWN)
-                .intValueExact();
     }
 
     private boolean isActiveTicket(Ticket ticket) {

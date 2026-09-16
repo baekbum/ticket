@@ -24,9 +24,13 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final NumberPath<Integer> amount = createNumber("amount", Integer.class);
 
+    public final NumberPath<Integer> cancellationFeeAmount = createNumber("cancellationFeeAmount", Integer.class);
+
     public final QCardPaymentInfo cardInfo;
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
+
+    public final NumberPath<Integer> deliveryFeeAmount = createNumber("deliveryFeeAmount", Integer.class);
 
     public final DateTimePath<java.time.LocalDateTime> expiresAt = createDateTime("expiresAt", java.time.LocalDateTime.class);
 
@@ -45,6 +49,8 @@ public class QPayment extends EntityPathBase<Payment> {
     public final DateTimePath<java.time.LocalDateTime> requestedAt = createDateTime("requestedAt", java.time.LocalDateTime.class);
 
     public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;
+
+    public final NumberPath<Integer> reservationFeeAmount = createNumber("reservationFeeAmount", Integer.class);
 
     public final EnumPath<dev.bum.common.service.ticket.payment.enums.PaymentStatus> status = createEnum("status", dev.bum.common.service.ticket.payment.enums.PaymentStatus.class);
 
