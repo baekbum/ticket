@@ -45,14 +45,14 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain publicEventFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain publicContentFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/*/event/**")
+                .securityMatcher("/api/*/event/**", "/api/*/notice/**")
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/*/event/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/*/event/**", "/api/*/notice/**").permitAll()
                         .anyRequest().authenticated()
                 );
 

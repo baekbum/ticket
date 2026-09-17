@@ -1,5 +1,5 @@
 import './CustomerServicePage.css';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export type CustomerServiceTab = 'notice' | 'guide' | 'faq' | 'inquiry';
 export type GuideTab = 'booking' | 'cancel' | 'delivery';
@@ -67,11 +67,45 @@ const bookingSteps = [
   },
 ];
 
-const notices = [
-  { category: '안내', title: 'Ticksy 고객센터 이용 안내', date: '2026.09.01' },
-  { category: '예매', title: '안전한 티켓 예매를 위한 유의사항', date: '2026.08.25' },
-  { category: '결제', title: '무통장입금 결제 및 입금 기한 안내', date: '2026.08.18' },
-];
+type NoticeCategory = 'GENERAL' | 'SERVICE' | 'EVENT' | 'MAINTENANCE';
+
+type Notice = {
+  noticeId: number;
+  title: string;
+  category: NoticeCategory;
+  pinned: boolean;
+  publishedAt: string | null;
+};
+
+type NoticePageResponse = {
+  content: Notice[];
+};
+
+type NoticeDetail = Notice & {
+  content: string;
+  viewCount: number;
+};
+
+const noticeCategoryLabels: Record<NoticeCategory, string> = {
+  GENERAL: '일반',
+  SERVICE: '서비스',
+  EVENT: '이벤트',
+  MAINTENANCE: '점검',
+};
+
+function formatNoticeDate(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+    .join('.');
+}
+
+function readNoticeId() {
+  const value = Number(new URLSearchParams(window.location.search).get('noticeId'));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 
 const faqItems = [
   ['선택한 좌석은 언제까지 유지되나요?', '좌석 선택이 완료된 시점부터 10분 동안 유지됩니다. 시간 안에 결제를 완료하지 않으면 좌석이 자동으로 해제됩니다.'],
@@ -201,6 +235,101 @@ export default function CustomerServicePage({
   onTabChange,
   onGuideTabChange,
 }: Props) {
+  const noticeIdFromUrl = readNoticeId();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [noticeError, setNoticeError] = useState('');
+  const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(noticeIdFromUrl);
+  const [selectedNotice, setSelectedNotice] = useState<NoticeDetail | null>(null);
+  const [noticeDetailLoading, setNoticeDetailLoading] = useState(false);
+  const [noticeDetailError, setNoticeDetailError] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'notice' || selectedNoticeId !== null) return;
+
+    const controller = new AbortController();
+    setNoticeLoading(true);
+    setNoticeError('');
+
+    fetch('/client-api/api/v1/notice/select?page=0&size=100', { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('공지사항을 불러오지 못했습니다.');
+        return response.json() as Promise<NoticePageResponse>;
+      })
+      .then((response) => setNotices(response.content ?? []))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNoticeError('공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNoticeLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, selectedNoticeId]);
+
+  useEffect(() => {
+    const syncNoticeId = () => {
+      setSelectedNoticeId(activeTab === 'notice' ? readNoticeId() : null);
+    };
+    syncNoticeId();
+    window.addEventListener('popstate', syncNoticeId);
+    return () => window.removeEventListener('popstate', syncNoticeId);
+  }, [activeTab, noticeIdFromUrl]);
+
+  useEffect(() => {
+    if (activeTab !== 'notice' || selectedNoticeId === null) {
+      setSelectedNotice(null);
+      setNoticeDetailError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    setNoticeDetailLoading(true);
+    setNoticeDetailError('');
+
+    fetch(`/client-api/api/v1/notice/select/id/${selectedNoticeId}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('공지사항 상세 내용을 불러오지 못했습니다.');
+        return response.json() as Promise<NoticeDetail>;
+      })
+      .then(setSelectedNotice)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSelectedNotice(null);
+        setNoticeDetailError('공지사항 상세 내용을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNoticeDetailLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, selectedNoticeId]);
+
+  function openNoticeDetail(noticeId: number) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('noticeId', String(noticeId));
+    window.history.pushState(
+      { ...window.history.state, noticeId },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    setSelectedNoticeId(noticeId);
+    window.scrollTo(0, 0);
+  }
+
+  function closeNoticeDetail() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('noticeId');
+    window.history.pushState(
+      { ...window.history.state, noticeId: null },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    setSelectedNoticeId(null);
+    window.scrollTo(0, 0);
+  }
+
   return (
     <main className="customer-service-page">
       <div className="customer-service-breadcrumb" aria-label="현재 위치">
@@ -226,15 +355,52 @@ export default function CustomerServicePage({
         ))}
       </nav>
 
-      {activeTab === 'notice' && (
+      {activeTab === 'notice' && selectedNoticeId === null && (
         <section className="service-simple-panel">
           <div className="service-panel-title"><h2>공지사항</h2><p>Ticksy의 새로운 소식과 서비스 안내입니다.</p></div>
-          <div className="notice-list">
-            {notices.map((notice) => (
-              <article key={notice.title}>
-                <span>{notice.category}</span><h3>{notice.title}</h3><time>{notice.date}</time><b aria-hidden="true">›</b>
-              </article>
+          <div className="notice-list" aria-busy={noticeLoading}>
+            {noticeLoading && <p className="notice-list-status">공지사항을 불러오고 있습니다.</p>}
+            {!noticeLoading && noticeError && <p className="notice-list-status error">{noticeError}</p>}
+            {!noticeLoading && !noticeError && notices.length === 0 && (
+              <p className="notice-list-status">등록된 공지사항이 없습니다.</p>
+            )}
+            {!noticeLoading && !noticeError && notices.map((notice) => (
+              <button
+                className="notice-list-row"
+                key={notice.noticeId}
+                type="button"
+                onClick={() => openNoticeDetail(notice.noticeId)}
+              >
+                <h3>[ {noticeCategoryLabels[notice.category] ?? notice.category} ] {notice.title}</h3>
+                <time>{formatNoticeDate(notice.publishedAt)}</time>
+                <b aria-hidden="true">›</b>
+              </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'notice' && selectedNoticeId !== null && (
+        <section className="service-simple-panel notice-detail">
+          <div className="service-panel-title"><h2>공지사항</h2><p>Ticksy의 새로운 소식과 서비스 안내입니다.</p></div>
+          <div className="notice-detail-card" aria-busy={noticeDetailLoading}>
+            {noticeDetailLoading && <p className="notice-detail-status">공지사항을 불러오고 있습니다.</p>}
+            {!noticeDetailLoading && noticeDetailError && (
+              <p className="notice-detail-status error">{noticeDetailError}</p>
+            )}
+            {!noticeDetailLoading && !noticeDetailError && selectedNotice && (
+              <>
+                <header className="notice-detail-header">
+                  <span>{selectedNotice.noticeId}</span>
+                  <h3>[ {noticeCategoryLabels[selectedNotice.category] ?? selectedNotice.category} ] {selectedNotice.title}</h3>
+                  <time>{formatNoticeDate(selectedNotice.publishedAt)}</time>
+                </header>
+                <div className="notice-detail-content">{selectedNotice.content}</div>
+              </>
+            )}
+          </div>
+          <div className="notice-detail-actions">
+            <button type="button" onClick={closeNoticeDetail}>목록</button>
           </div>
         </section>
       )}
