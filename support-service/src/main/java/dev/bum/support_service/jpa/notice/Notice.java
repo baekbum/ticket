@@ -110,6 +110,10 @@ public class Notice {
         this.publishedAt = LocalDateTime.now();
     }
 
+    public void draft() {
+        this.status = PublicationStatus.DRAFT;
+    }
+
     public void hide() {
         this.status = PublicationStatus.HIDDEN;
     }
@@ -123,7 +127,4 @@ public class Notice {
         this.pinned = pinned;
     }
 
-    public void increaseViewCount() {
-        this.viewCount++;
-    }
 }
