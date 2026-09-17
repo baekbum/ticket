@@ -1,6 +1,6 @@
 package dev.bum.support_service.jpa.notice;
 
-import dev.bum.support_service.jpa.common.PublicationStatus;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

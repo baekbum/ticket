@@ -1,6 +1,6 @@
 package dev.bum.support_service.jpa.faq;
 
-import dev.bum.support_service.jpa.common.PublicationStatus;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

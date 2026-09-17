@@ -1,9 +1,10 @@
 package dev.bum.support_service.service.notice;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.support_service.dto.notice.NoticeResponse;
-import dev.bum.support_service.jpa.notice.NoticeCategory;
+import dev.bum.common.service.support.notice.dto.NoticeResponse;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
 import dev.bum.support_service.jpa.notice.NoticeRepository;
+import dev.bum.support_service.mapper.NoticeMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,7 +28,7 @@ public class NoticeService {
     ) {
         PageRequest pageRequest = pageRequest(page, size);
         Page<NoticeResponse> result = noticeRepository.findPublished(category, keyword, pageRequest)
-                .map(NoticeResponse::from);
+                .map(NoticeMapper::toResponse);
 
         return toPageResponse(result);
     }
@@ -35,7 +36,7 @@ public class NoticeService {
     @Transactional
     public NoticeResponse selectPublishedById(Long noticeId) {
         noticeRepository.increaseViewCount(noticeId);
-        return NoticeResponse.from(noticeRepository.findPublishedById(noticeId));
+        return NoticeMapper.toResponse(noticeRepository.findPublishedById(noticeId));
     }
 
     private PageRequest pageRequest(int page, int size) {

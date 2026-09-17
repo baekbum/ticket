@@ -33,7 +33,7 @@ public class QFaq extends EntityPathBase<Faq> {
 
     public final StringPath question = createString("question");
 
-    public final EnumPath<dev.bum.support_service.jpa.common.PublicationStatus> status = createEnum("status", dev.bum.support_service.jpa.common.PublicationStatus.class);
+    public final EnumPath<dev.bum.common.service.support.notice.enums.PublicationStatus> status = createEnum("status", dev.bum.common.service.support.notice.enums.PublicationStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 

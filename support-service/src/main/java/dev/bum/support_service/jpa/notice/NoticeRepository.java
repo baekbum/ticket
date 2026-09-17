@@ -1,6 +1,7 @@
 package dev.bum.support_service.jpa.notice;
 
-import dev.bum.support_service.dto.notice.NoticeSearchRequest;
+import dev.bum.common.service.support.notice.dto.NoticeSearchRequest;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

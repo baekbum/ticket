@@ -2,9 +2,10 @@ package dev.bum.support_service.jpa.notice;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import dev.bum.support_service.dto.notice.NoticeSearchRequest;
+import dev.bum.common.service.support.notice.dto.NoticeSearchRequest;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import dev.bum.support_service.exception.NoticeNotFoundException;
-import dev.bum.support_service.jpa.common.PublicationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

@@ -1,7 +1,7 @@
-package dev.bum.support_service.dto.notice;
+package dev.bum.common.service.support.notice.dto;
 
-import dev.bum.support_service.jpa.common.PublicationStatus;
-import dev.bum.support_service.jpa.notice.NoticeCategory;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
@@ -10,11 +10,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class NoticeSearchRequest {
-
     private PublicationStatus status;
-
     private NoticeCategory category;
-
     private String keyword;
 
     @Min(value = 0, message = "페이지는 0 이상이어야 합니다.")

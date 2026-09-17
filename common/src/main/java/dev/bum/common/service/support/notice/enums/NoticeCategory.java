@@ -1,4 +1,4 @@
-package dev.bum.support_service.jpa.notice;
+package dev.bum.common.service.support.notice.enums;
 
 public enum NoticeCategory {
     // 일반 안내 공지.

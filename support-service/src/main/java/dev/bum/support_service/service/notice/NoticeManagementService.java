@@ -1,13 +1,14 @@
 package dev.bum.support_service.service.notice;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.support_service.dto.notice.CreateNoticeRequest;
-import dev.bum.support_service.dto.notice.NoticeResponse;
-import dev.bum.support_service.dto.notice.NoticeSearchRequest;
-import dev.bum.support_service.dto.notice.UpdateNoticeRequest;
-import dev.bum.support_service.jpa.common.PublicationStatus;
+import dev.bum.common.service.support.notice.dto.CreateNoticeRequest;
+import dev.bum.common.service.support.notice.dto.NoticeResponse;
+import dev.bum.common.service.support.notice.dto.NoticeSearchRequest;
+import dev.bum.common.service.support.notice.dto.UpdateNoticeRequest;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import dev.bum.support_service.jpa.notice.Notice;
 import dev.bum.support_service.jpa.notice.NoticeRepository;
+import dev.bum.support_service.mapper.NoticeMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,12 +39,12 @@ public class NoticeManagementService {
             notice.publish();
         }
 
-        return NoticeResponse.from(noticeRepository.save(notice));
+        return NoticeMapper.toResponse(noticeRepository.save(notice));
     }
 
     @Transactional(readOnly = true)
     public NoticeResponse selectById(Long noticeId) {
-        return NoticeResponse.from(findById(noticeId));
+        return NoticeMapper.toResponse(findById(noticeId));
     }
 
     @Transactional(readOnly = true)
@@ -52,7 +53,7 @@ public class NoticeManagementService {
                         request,
                         PageRequest.of(request.getPage(), request.getSize())
                 )
-                .map(NoticeResponse::from);
+                .map(NoticeMapper::toResponse);
 
         return CustomPageResponse.of(
                 result.getContent(),
@@ -68,7 +69,7 @@ public class NoticeManagementService {
         notice.update(request.title().trim(), request.content().trim(), request.category());
         notice.changePinned(request.pinned());
         changeStatus(notice, request.status());
-        return NoticeResponse.from(notice);
+        return NoticeMapper.toResponse(notice);
     }
 
     public void delete(Long noticeId) {

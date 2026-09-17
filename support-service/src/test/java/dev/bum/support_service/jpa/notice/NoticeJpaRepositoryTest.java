@@ -1,6 +1,7 @@
 package dev.bum.support_service.jpa.notice;
 
 import dev.bum.support_service.config.QuerydslConfig;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;

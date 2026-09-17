@@ -1,10 +1,10 @@
 package dev.bum.support_service.service.notice;
 
-import dev.bum.support_service.dto.notice.CreateNoticeRequest;
-import dev.bum.support_service.dto.notice.UpdateNoticeRequest;
-import dev.bum.support_service.jpa.common.PublicationStatus;
+import dev.bum.common.service.support.notice.dto.CreateNoticeRequest;
+import dev.bum.common.service.support.notice.dto.UpdateNoticeRequest;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
+import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import dev.bum.support_service.jpa.notice.Notice;
-import dev.bum.support_service.jpa.notice.NoticeCategory;
 import dev.bum.support_service.jpa.notice.NoticeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

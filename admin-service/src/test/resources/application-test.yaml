@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:admindb;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+services:
+  auth-service:
+    url: http://localhost
+  user-service:
+    url: http://localhost
+  ticket-service:
+    url: http://localhost
+  queue-service:
+    url: http://localhost
+  audit-service:
+    url: http://localhost
+  support-service:
+    url: http://localhost

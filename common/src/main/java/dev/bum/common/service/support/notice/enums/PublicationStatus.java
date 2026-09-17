@@ -1,4 +1,4 @@
-package dev.bum.support_service.jpa.common;
+package dev.bum.common.service.support.notice.enums;
 
 public enum PublicationStatus {
     // 관리자가 작성 중인 초안 상태.

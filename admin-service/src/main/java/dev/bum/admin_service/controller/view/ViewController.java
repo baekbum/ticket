@@ -70,6 +70,8 @@ public class ViewController {
             return "fragment/fragment-coupon";
         } else if ("userCoupon".equals(menuName)) {
             return "fragment/fragment-user-coupon";
+        } else if ("notice".equals(menuName)) {
+            return "fragment/fragment-notice";
         } else if ("auditLog".equals(menuName)) {
             return "fragment/fragment-audit-log";
         } else if ("monitoring".equals(menuName)) {

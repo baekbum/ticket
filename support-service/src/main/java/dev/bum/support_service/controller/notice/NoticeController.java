@@ -1,8 +1,8 @@
 package dev.bum.support_service.controller.notice;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.support_service.dto.notice.NoticeResponse;
-import dev.bum.support_service.jpa.notice.NoticeCategory;
+import dev.bum.common.service.support.notice.dto.NoticeResponse;
+import dev.bum.common.service.support.notice.enums.NoticeCategory;
 import dev.bum.support_service.service.notice.NoticeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

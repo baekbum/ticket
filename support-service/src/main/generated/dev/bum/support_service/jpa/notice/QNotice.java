@@ -21,7 +21,7 @@ public class QNotice extends EntityPathBase<Notice> {
 
     public final StringPath authorId = createString("authorId");
 
-    public final EnumPath<NoticeCategory> category = createEnum("category", NoticeCategory.class);
+    public final EnumPath<dev.bum.common.service.support.notice.enums.NoticeCategory> category = createEnum("category", dev.bum.common.service.support.notice.enums.NoticeCategory.class);
 
     public final StringPath content = createString("content");
 
@@ -33,7 +33,7 @@ public class QNotice extends EntityPathBase<Notice> {
 
     public final DateTimePath<java.time.LocalDateTime> publishedAt = createDateTime("publishedAt", java.time.LocalDateTime.class);
 
-    public final EnumPath<dev.bum.support_service.jpa.common.PublicationStatus> status = createEnum("status", dev.bum.support_service.jpa.common.PublicationStatus.class);
+    public final EnumPath<dev.bum.common.service.support.notice.enums.PublicationStatus> status = createEnum("status", dev.bum.common.service.support.notice.enums.PublicationStatus.class);
 
     public final StringPath title = createString("title");
 
