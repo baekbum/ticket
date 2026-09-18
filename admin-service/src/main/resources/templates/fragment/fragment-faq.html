@@ -9,11 +9,142 @@
     <p class="sub-txt">고객에게 제공할 자주 묻는 질문과 답변을 관리합니다.</p>
   </div>
 
-  <section class="faq-admin-ready" aria-labelledby="faq-ready-title">
-    <div class="faq-admin-ready-icon" aria-hidden="true">
-      <i class="ti ti-message-question"></i>
+  <div class="faq-toolbar">
+    <div class="faq-toolbar-left">
+      <select id="faq-search-status" aria-label="게시 상태">
+        <option value="">전체 상태</option>
+        <option value="DRAFT">초안</option>
+        <option value="PUBLISHED">게시</option>
+        <option value="HIDDEN">숨김</option>
+        <option value="ARCHIVED">보관</option>
+      </select>
+      <select id="faq-search-category" aria-label="FAQ 분류">
+        <option value="">전체 분류</option>
+        <option value="BOOKING">예매</option>
+        <option value="PAYMENT">결제</option>
+        <option value="REFUND">취소/환불</option>
+        <option value="TICKET">티켓</option>
+        <option value="ACCOUNT">계정</option>
+        <option value="ETC">기타</option>
+      </select>
+      <input id="faq-search-keyword" type="search" placeholder="질문 또는 답변 검색"
+             onkeydown="if(event.key === 'Enter') triggerFaqSearch()">
+      <button class="faq-btn" type="button" onclick="triggerFaqSearch()">
+        <i class="ti ti-search"></i>검색
+      </button>
+      <button class="faq-btn outline" type="button" onclick="resetFaqSearch()">
+        <i class="ti ti-refresh"></i>초기화
+      </button>
     </div>
-    <h3 id="faq-ready-title">FAQ 관리</h3>
-    <p>FAQ 등록·수정과 공개 상태 관리 기능을 연결할 준비가 되었습니다.</p>
-  </section>
+    <button class="faq-btn success" type="button" onclick="openFaqModalForCreate()">
+      <i class="ti ti-plus"></i>신규 FAQ 등록
+    </button>
+  </div>
+
+  <div class="faq-table-wrap">
+    <table class="faq-table">
+      <colgroup>
+        <col style="width:65px">
+        <col style="width:85px">
+        <col style="width:100px">
+        <col style="width:120px">
+        <col>
+        <col style="width:120px">
+        <col style="width:170px">
+        <col style="width:150px">
+      </colgroup>
+      <thead>
+      <tr>
+        <th>순서</th>
+        <th>ID</th>
+        <th>노출 순서</th>
+        <th>분류</th>
+        <th>질문</th>
+        <th>상태</th>
+        <th>수정 일시</th>
+        <th class="actions">관리</th>
+      </tr>
+      </thead>
+      <tbody id="faq-table-body"></tbody>
+    </table>
+  </div>
+
+  <div th:replace="~{common/pagination :: pagination}"></div>
 </div>
+
+<div class="faq-modal" id="faq-modal" role="dialog" aria-modal="true" aria-labelledby="faq-modal-title">
+  <div class="faq-modal-content">
+    <div class="faq-modal-header">
+      <div>
+        <p class="faq-modal-title" id="faq-modal-title">FAQ 등록</p>
+        <p class="faq-modal-subtitle" id="faq-modal-subtitle">질문과 답변을 입력합니다.</p>
+      </div>
+      <button class="faq-icon-btn" type="button" onclick="closeFaqModal()" aria-label="닫기">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+
+    <input type="hidden" id="faq-modal-mode" value="CREATE">
+    <input type="hidden" id="faq-target-id">
+
+    <div class="faq-form-group">
+      <label for="faq-question">질문</label>
+      <input id="faq-question" type="text" maxlength="300" placeholder="자주 묻는 질문을 입력하세요">
+    </div>
+
+    <div class="faq-form-row">
+      <div class="faq-form-group">
+        <label for="faq-status">게시 상태</label>
+        <select id="faq-status">
+          <option value="DRAFT">초안</option>
+          <option value="PUBLISHED">게시</option>
+          <option value="HIDDEN">숨김</option>
+          <option value="ARCHIVED">보관</option>
+        </select>
+      </div>
+      <div class="faq-form-group">
+        <label for="faq-category">분류</label>
+        <select id="faq-category">
+          <option value="BOOKING">예매</option>
+          <option value="PAYMENT">결제</option>
+          <option value="REFUND">취소/환불</option>
+          <option value="TICKET">티켓</option>
+          <option value="ACCOUNT">계정</option>
+          <option value="ETC">기타</option>
+        </select>
+      </div>
+      <div class="faq-form-group">
+        <label for="faq-display-order">노출 순서</label>
+        <input id="faq-display-order" type="number" min="0" max="9999" step="1" value="0">
+      </div>
+    </div>
+
+    <div class="faq-form-group">
+      <label for="faq-answer">답변</label>
+      <textarea id="faq-answer" rows="13" placeholder="질문에 대한 답변을 입력하세요"></textarea>
+    </div>
+
+    <div class="faq-meta" id="faq-meta" hidden>
+      <span><i class="ti ti-user"></i>작성자 <strong id="faq-meta-author">-</strong></span>
+      <span><i class="ti ti-calendar-plus"></i>등록 <strong id="faq-meta-created">-</strong></span>
+      <span><i class="ti ti-calendar"></i>수정 <strong id="faq-meta-updated">-</strong></span>
+    </div>
+
+    <div class="faq-modal-actions">
+      <button class="faq-btn danger" id="faq-delete-btn" type="button" onclick="deleteCurrentFaq()" hidden>
+        <i class="ti ti-archive"></i>보관
+      </button>
+      <span class="faq-action-spacer"></span>
+      <button class="faq-btn outline" type="button" onclick="closeFaqModal()">닫기</button>
+      <button class="faq-btn outline" id="faq-edit-btn" type="button" onclick="switchFaqModalToEdit()" hidden>
+        <i class="ti ti-edit"></i>수정
+      </button>
+      <button class="faq-btn" id="faq-save-btn" type="button" onclick="submitFaqForm()">
+        <i class="ti ti-device-floppy"></i>저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/faq/fragment-faq.js}"></script>
