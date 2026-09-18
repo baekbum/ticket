@@ -23,6 +23,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/*/notice/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/*/faq/**").permitAll()
                         .requestMatchers("/api/*/manage/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

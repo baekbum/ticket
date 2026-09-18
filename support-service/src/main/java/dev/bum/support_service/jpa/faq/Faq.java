@@ -1,5 +1,6 @@
 package dev.bum.support_service.jpa.faq;
 
+import dev.bum.common.service.support.faq.enums.FaqCategory;
 import dev.bum.common.service.support.notice.enums.PublicationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -107,6 +108,10 @@ public class Faq {
 
     public void publish() {
         this.status = PublicationStatus.PUBLISHED;
+    }
+
+    public void draft() {
+        this.status = PublicationStatus.DRAFT;
     }
 
     public void hide() {

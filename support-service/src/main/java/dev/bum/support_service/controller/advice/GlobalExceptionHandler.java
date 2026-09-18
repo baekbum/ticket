@@ -2,6 +2,7 @@ package dev.bum.support_service.controller.advice;
 
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
+import dev.bum.support_service.exception.FaqNotFoundException;
 import dev.bum.support_service.exception.NoticeNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("NOTICE_NOT_FOUND")
+                        .message(exception.getMessage())
+                        .build());
+    }
+
+    @ExceptionHandler(FaqNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleFaqNotFound(FaqNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.builder()
+                        .code("FAQ_NOT_FOUND")
                         .message(exception.getMessage())
                         .build());
     }

@@ -23,7 +23,7 @@ public class QFaq extends EntityPathBase<Faq> {
 
     public final StringPath authorId = createString("authorId");
 
-    public final EnumPath<FaqCategory> category = createEnum("category", FaqCategory.class);
+    public final EnumPath<dev.bum.common.service.support.faq.enums.FaqCategory> category = createEnum("category", dev.bum.common.service.support.faq.enums.FaqCategory.class);
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 

@@ -1,4 +1,4 @@
-package dev.bum.support_service.jpa.faq;
+package dev.bum.common.service.support.faq.enums;
 
 public enum FaqCategory {
     // 공연 예매 관련 질문.
