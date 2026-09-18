@@ -47,12 +47,12 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain publicContentFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/*/event/**", "/api/*/notice/**")
+                .securityMatcher("/api/*/event/**", "/api/*/notice/**", "/api/*/faq/**")
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/*/event/**", "/api/*/notice/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/*/event/**", "/api/*/notice/**", "/api/*/faq/**").permitAll()
                         .anyRequest().authenticated()
                 );
 

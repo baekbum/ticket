@@ -1,5 +1,5 @@
 import './CustomerServicePage.css';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 export type CustomerServiceTab = 'notice' | 'guide' | 'faq' | 'inquiry';
 export type GuideTab = 'booking' | 'cancel' | 'delivery';
@@ -107,10 +107,40 @@ function readNoticeId() {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
-const faqItems = [
-  ['선택한 좌석은 언제까지 유지되나요?', '좌석 선택이 완료된 시점부터 10분 동안 유지됩니다. 시간 안에 결제를 완료하지 않으면 좌석이 자동으로 해제됩니다.'],
-  ['예매 내역은 어디에서 확인하나요?', '상단의 마이티켓 메뉴에서 예매 내역과 결제 상태를 확인할 수 있습니다.'],
-  ['무통장입금은 언제까지 해야 하나요?', '예매 완료 화면과 마이티켓에 표시된 입금 기한까지 입금해야 하며, 기한이 지나면 예매가 자동 취소될 수 있습니다.'],
+type FaqCategory = 'BOOKING' | 'PAYMENT' | 'REFUND' | 'TICKET' | 'ACCOUNT' | 'ETC';
+
+type Faq = {
+  faqId: number;
+  question: string;
+  answer: string;
+  category: FaqCategory;
+  displayOrder: number;
+};
+
+type FaqPageResponse = {
+  content: Faq[];
+  page?: {
+    totalElements?: number;
+  };
+};
+
+const faqCategoryLabels: Record<FaqCategory, string> = {
+  BOOKING: '예매',
+  PAYMENT: '결제',
+  REFUND: '취소/환불',
+  TICKET: '티켓',
+  ACCOUNT: '계정',
+  ETC: '기타',
+};
+
+const faqCategories: Array<{ key: '' | FaqCategory; label: string }> = [
+  { key: '', label: '전체' },
+  { key: 'BOOKING', label: '예매' },
+  { key: 'PAYMENT', label: '결제' },
+  { key: 'REFUND', label: '취소/환불' },
+  { key: 'TICKET', label: '티켓' },
+  { key: 'ACCOUNT', label: '계정' },
+  { key: 'ETC', label: '기타' },
 ];
 
 function GuideIcon({ name }: { name: string }) {
@@ -243,6 +273,13 @@ export default function CustomerServicePage({
   const [selectedNotice, setSelectedNotice] = useState<NoticeDetail | null>(null);
   const [noticeDetailLoading, setNoticeDetailLoading] = useState(false);
   const [noticeDetailError, setNoticeDetailError] = useState('');
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [faqCategory, setFaqCategory] = useState<'' | FaqCategory>('');
+  const [faqSearchInput, setFaqSearchInput] = useState('');
+  const [faqKeyword, setFaqKeyword] = useState('');
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [faqError, setFaqError] = useState('');
+  const [faqTotalCount, setFaqTotalCount] = useState(0);
 
   useEffect(() => {
     if (activeTab !== 'notice' || selectedNoticeId !== null) return;
@@ -328,6 +365,47 @@ export default function CustomerServicePage({
     );
     setSelectedNoticeId(null);
     window.scrollTo(0, 0);
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'faq') return;
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ page: '0', size: '100' });
+    if (faqCategory) params.set('category', faqCategory);
+    if (faqKeyword) params.set('keyword', faqKeyword);
+
+    setFaqLoading(true);
+    setFaqError('');
+
+    fetch(`/client-api/api/v1/faq/select?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('FAQ를 불러오지 못했습니다.');
+        return response.json() as Promise<FaqPageResponse>;
+      })
+      .then((response) => {
+        setFaqs(response.content ?? []);
+        setFaqTotalCount(Number(response.page?.totalElements ?? response.content?.length ?? 0));
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setFaqError('FAQ를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setFaqLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, faqCategory, faqKeyword]);
+
+  function submitFaqSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFaqKeyword(faqSearchInput.trim());
+  }
+
+  function resetFaqSearch() {
+    setFaqSearchInput('');
+    setFaqKeyword('');
   }
 
   return (
@@ -427,11 +505,59 @@ export default function CustomerServicePage({
       )}
 
       {activeTab === 'faq' && (
-        <section className="service-simple-panel">
+        <section className="service-simple-panel faq-service-panel">
           <div className="service-panel-title"><h2>자주 묻는 질문</h2><p>궁금한 내용을 빠르게 확인해 보세요.</p></div>
-          <div className="faq-list">
-            {faqItems.map(([question, answer]) => (
-              <details key={question}><summary><span>Q</span>{question}<b aria-hidden="true">+</b></summary><p>{answer}</p></details>
+
+          <form className="faq-search-box" onSubmit={submitFaqSearch}>
+            <label htmlFor="faq-search-input">자주 묻는 질문 검색</label>
+            <div>
+              <input
+                id="faq-search-input"
+                type="search"
+                value={faqSearchInput}
+                placeholder="궁금한 내용을 입력해 주세요."
+                onChange={(event) => setFaqSearchInput(event.target.value)}
+              />
+              {faqKeyword && <button className="faq-search-reset" type="button" onClick={resetFaqSearch}>초기화</button>}
+              <button className="faq-search-submit" type="submit" aria-label="FAQ 검색">검색</button>
+            </div>
+          </form>
+
+          <nav className="faq-category-tabs" aria-label="FAQ 분류">
+            {faqCategories.map((category) => (
+              <button
+                key={category.key || 'ALL'}
+                className={faqCategory === category.key ? 'active' : ''}
+                type="button"
+                aria-pressed={faqCategory === category.key}
+                onClick={() => setFaqCategory(category.key)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="faq-result-heading">
+            <h3>{faqCategory ? `${faqCategoryLabels[faqCategory]} FAQ` : '자주 묻는 질문'}</h3>
+            {!faqLoading && !faqError && <span>총 {faqTotalCount}건</span>}
+          </div>
+
+          <div className="faq-list" aria-busy={faqLoading}>
+            {faqLoading && <p className="faq-list-status">FAQ를 불러오고 있습니다.</p>}
+            {!faqLoading && faqError && <p className="faq-list-status error">{faqError}</p>}
+            {!faqLoading && !faqError && faqs.length === 0 && (
+              <p className="faq-list-status">조건에 맞는 FAQ가 없습니다.</p>
+            )}
+            {!faqLoading && !faqError && faqs.map((faq, index) => (
+              <details key={faq.faqId}>
+                <summary>
+                  <span className="faq-number">{index + 1}</span>
+                  <span className="faq-category">{faqCategoryLabels[faq.category] ?? faq.category}</span>
+                  <strong>{faq.question}</strong>
+                  <b aria-hidden="true">+</b>
+                </summary>
+                <div className="faq-answer"><span>A</span><p>{faq.answer}</p></div>
+              </details>
             ))}
           </div>
         </section>
