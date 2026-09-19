@@ -434,6 +434,7 @@ function getUrlForPage(page: Page) {
   if (page !== 'customerService') {
     url.searchParams.delete('serviceTab');
     url.searchParams.delete('guideTab');
+    url.searchParams.delete('noticeId');
   }
 
   if (page === 'home') {
@@ -975,6 +976,7 @@ function App() {
     } else {
       url.searchParams.delete('guideTab');
     }
+    url.searchParams.delete('noticeId');
     url.searchParams.delete('keyword');
     url.searchParams.delete('field');
     url.searchParams.delete('searchPage');

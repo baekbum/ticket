@@ -27,6 +27,8 @@ services:
     url: "http://ticket-service:8080"
   queue-service:
     url: "http://queue-service:8080"
+  support-service:
+    url: "http://support-service:8080"
 
 management:
   endpoints:

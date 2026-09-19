@@ -42,6 +42,8 @@ services:
     url: "http://queue-service:8080"
   audit-service:
     url: "http://audit-service:8080"
+  support-service:
+    url: "http://support-service:8080"
 
 app:
   kafka-dlq:

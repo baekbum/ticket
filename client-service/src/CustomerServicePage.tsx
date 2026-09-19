@@ -1,5 +1,5 @@
 import './CustomerServicePage.css';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 export type CustomerServiceTab = 'notice' | 'guide' | 'faq' | 'inquiry';
 export type GuideTab = 'booking' | 'cancel' | 'delivery';
@@ -67,16 +67,80 @@ const bookingSteps = [
   },
 ];
 
-const notices = [
-  { category: '안내', title: 'Ticksy 고객센터 이용 안내', date: '2026.09.01' },
-  { category: '예매', title: '안전한 티켓 예매를 위한 유의사항', date: '2026.08.25' },
-  { category: '결제', title: '무통장입금 결제 및 입금 기한 안내', date: '2026.08.18' },
-];
+type NoticeCategory = 'GENERAL' | 'SERVICE' | 'EVENT' | 'MAINTENANCE';
 
-const faqItems = [
-  ['선택한 좌석은 언제까지 유지되나요?', '좌석 선택이 완료된 시점부터 10분 동안 유지됩니다. 시간 안에 결제를 완료하지 않으면 좌석이 자동으로 해제됩니다.'],
-  ['예매 내역은 어디에서 확인하나요?', '상단의 마이티켓 메뉴에서 예매 내역과 결제 상태를 확인할 수 있습니다.'],
-  ['무통장입금은 언제까지 해야 하나요?', '예매 완료 화면과 마이티켓에 표시된 입금 기한까지 입금해야 하며, 기한이 지나면 예매가 자동 취소될 수 있습니다.'],
+type Notice = {
+  noticeId: number;
+  title: string;
+  category: NoticeCategory;
+  pinned: boolean;
+  publishedAt: string | null;
+};
+
+type NoticePageResponse = {
+  content: Notice[];
+};
+
+type NoticeDetail = Notice & {
+  content: string;
+  viewCount: number;
+};
+
+const noticeCategoryLabels: Record<NoticeCategory, string> = {
+  GENERAL: '일반',
+  SERVICE: '서비스',
+  EVENT: '이벤트',
+  MAINTENANCE: '점검',
+};
+
+function formatNoticeDate(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+    .join('.');
+}
+
+function readNoticeId() {
+  const value = Number(new URLSearchParams(window.location.search).get('noticeId'));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+type FaqCategory = 'BOOKING' | 'PAYMENT' | 'REFUND' | 'TICKET' | 'ACCOUNT' | 'ETC';
+
+type Faq = {
+  faqId: number;
+  question: string;
+  answer: string;
+  category: FaqCategory;
+  displayOrder: number;
+};
+
+type FaqPageResponse = {
+  content: Faq[];
+  page?: {
+    totalElements?: number;
+  };
+};
+
+const faqCategoryLabels: Record<FaqCategory, string> = {
+  BOOKING: '예매',
+  PAYMENT: '결제',
+  REFUND: '취소/환불',
+  TICKET: '티켓',
+  ACCOUNT: '계정',
+  ETC: '기타',
+};
+
+const faqCategories: Array<{ key: '' | FaqCategory; label: string }> = [
+  { key: '', label: '전체' },
+  { key: 'BOOKING', label: '예매' },
+  { key: 'PAYMENT', label: '결제' },
+  { key: 'REFUND', label: '취소/환불' },
+  { key: 'TICKET', label: '티켓' },
+  { key: 'ACCOUNT', label: '계정' },
+  { key: 'ETC', label: '기타' },
 ];
 
 function GuideIcon({ name }: { name: string }) {
@@ -201,6 +265,149 @@ export default function CustomerServicePage({
   onTabChange,
   onGuideTabChange,
 }: Props) {
+  const noticeIdFromUrl = readNoticeId();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [noticeError, setNoticeError] = useState('');
+  const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(noticeIdFromUrl);
+  const [selectedNotice, setSelectedNotice] = useState<NoticeDetail | null>(null);
+  const [noticeDetailLoading, setNoticeDetailLoading] = useState(false);
+  const [noticeDetailError, setNoticeDetailError] = useState('');
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [faqCategory, setFaqCategory] = useState<'' | FaqCategory>('');
+  const [faqSearchInput, setFaqSearchInput] = useState('');
+  const [faqKeyword, setFaqKeyword] = useState('');
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [faqError, setFaqError] = useState('');
+  const [faqTotalCount, setFaqTotalCount] = useState(0);
+
+  useEffect(() => {
+    if (activeTab !== 'notice' || selectedNoticeId !== null) return;
+
+    const controller = new AbortController();
+    setNoticeLoading(true);
+    setNoticeError('');
+
+    fetch('/client-api/api/v1/notice/select?page=0&size=100', { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('공지사항을 불러오지 못했습니다.');
+        return response.json() as Promise<NoticePageResponse>;
+      })
+      .then((response) => setNotices(response.content ?? []))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNoticeError('공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNoticeLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, selectedNoticeId]);
+
+  useEffect(() => {
+    const syncNoticeId = () => {
+      setSelectedNoticeId(activeTab === 'notice' ? readNoticeId() : null);
+    };
+    syncNoticeId();
+    window.addEventListener('popstate', syncNoticeId);
+    return () => window.removeEventListener('popstate', syncNoticeId);
+  }, [activeTab, noticeIdFromUrl]);
+
+  useEffect(() => {
+    if (activeTab !== 'notice' || selectedNoticeId === null) {
+      setSelectedNotice(null);
+      setNoticeDetailError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    setNoticeDetailLoading(true);
+    setNoticeDetailError('');
+
+    fetch(`/client-api/api/v1/notice/select/id/${selectedNoticeId}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('공지사항 상세 내용을 불러오지 못했습니다.');
+        return response.json() as Promise<NoticeDetail>;
+      })
+      .then(setSelectedNotice)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSelectedNotice(null);
+        setNoticeDetailError('공지사항 상세 내용을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNoticeDetailLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, selectedNoticeId]);
+
+  function openNoticeDetail(noticeId: number) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('noticeId', String(noticeId));
+    window.history.pushState(
+      { ...window.history.state, noticeId },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    setSelectedNoticeId(noticeId);
+    window.scrollTo(0, 0);
+  }
+
+  function closeNoticeDetail() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('noticeId');
+    window.history.pushState(
+      { ...window.history.state, noticeId: null },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    setSelectedNoticeId(null);
+    window.scrollTo(0, 0);
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'faq') return;
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ page: '0', size: '100' });
+    if (faqCategory) params.set('category', faqCategory);
+    if (faqKeyword) params.set('keyword', faqKeyword);
+
+    setFaqLoading(true);
+    setFaqError('');
+
+    fetch(`/client-api/api/v1/faq/select?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('FAQ를 불러오지 못했습니다.');
+        return response.json() as Promise<FaqPageResponse>;
+      })
+      .then((response) => {
+        setFaqs(response.content ?? []);
+        setFaqTotalCount(Number(response.page?.totalElements ?? response.content?.length ?? 0));
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setFaqError('FAQ를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setFaqLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, faqCategory, faqKeyword]);
+
+  function submitFaqSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFaqKeyword(faqSearchInput.trim());
+  }
+
+  function resetFaqSearch() {
+    setFaqSearchInput('');
+    setFaqKeyword('');
+  }
+
   return (
     <main className="customer-service-page">
       <div className="customer-service-breadcrumb" aria-label="현재 위치">
@@ -226,15 +433,52 @@ export default function CustomerServicePage({
         ))}
       </nav>
 
-      {activeTab === 'notice' && (
+      {activeTab === 'notice' && selectedNoticeId === null && (
         <section className="service-simple-panel">
           <div className="service-panel-title"><h2>공지사항</h2><p>Ticksy의 새로운 소식과 서비스 안내입니다.</p></div>
-          <div className="notice-list">
-            {notices.map((notice) => (
-              <article key={notice.title}>
-                <span>{notice.category}</span><h3>{notice.title}</h3><time>{notice.date}</time><b aria-hidden="true">›</b>
-              </article>
+          <div className="notice-list" aria-busy={noticeLoading}>
+            {noticeLoading && <p className="notice-list-status">공지사항을 불러오고 있습니다.</p>}
+            {!noticeLoading && noticeError && <p className="notice-list-status error">{noticeError}</p>}
+            {!noticeLoading && !noticeError && notices.length === 0 && (
+              <p className="notice-list-status">등록된 공지사항이 없습니다.</p>
+            )}
+            {!noticeLoading && !noticeError && notices.map((notice) => (
+              <button
+                className="notice-list-row"
+                key={notice.noticeId}
+                type="button"
+                onClick={() => openNoticeDetail(notice.noticeId)}
+              >
+                <h3>[ {noticeCategoryLabels[notice.category] ?? notice.category} ] {notice.title}</h3>
+                <time>{formatNoticeDate(notice.publishedAt)}</time>
+                <b aria-hidden="true">›</b>
+              </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'notice' && selectedNoticeId !== null && (
+        <section className="service-simple-panel notice-detail">
+          <div className="service-panel-title"><h2>공지사항</h2><p>Ticksy의 새로운 소식과 서비스 안내입니다.</p></div>
+          <div className="notice-detail-card" aria-busy={noticeDetailLoading}>
+            {noticeDetailLoading && <p className="notice-detail-status">공지사항을 불러오고 있습니다.</p>}
+            {!noticeDetailLoading && noticeDetailError && (
+              <p className="notice-detail-status error">{noticeDetailError}</p>
+            )}
+            {!noticeDetailLoading && !noticeDetailError && selectedNotice && (
+              <>
+                <header className="notice-detail-header">
+                  <span>{selectedNotice.noticeId}</span>
+                  <h3>[ {noticeCategoryLabels[selectedNotice.category] ?? selectedNotice.category} ] {selectedNotice.title}</h3>
+                  <time>{formatNoticeDate(selectedNotice.publishedAt)}</time>
+                </header>
+                <div className="notice-detail-content">{selectedNotice.content}</div>
+              </>
+            )}
+          </div>
+          <div className="notice-detail-actions">
+            <button type="button" onClick={closeNoticeDetail}>목록</button>
           </div>
         </section>
       )}
@@ -261,11 +505,59 @@ export default function CustomerServicePage({
       )}
 
       {activeTab === 'faq' && (
-        <section className="service-simple-panel">
+        <section className="service-simple-panel faq-service-panel">
           <div className="service-panel-title"><h2>자주 묻는 질문</h2><p>궁금한 내용을 빠르게 확인해 보세요.</p></div>
-          <div className="faq-list">
-            {faqItems.map(([question, answer]) => (
-              <details key={question}><summary><span>Q</span>{question}<b aria-hidden="true">+</b></summary><p>{answer}</p></details>
+
+          <form className="faq-search-box" onSubmit={submitFaqSearch}>
+            <label htmlFor="faq-search-input">자주 묻는 질문 검색</label>
+            <div>
+              <input
+                id="faq-search-input"
+                type="search"
+                value={faqSearchInput}
+                placeholder="궁금한 내용을 입력해 주세요."
+                onChange={(event) => setFaqSearchInput(event.target.value)}
+              />
+              {faqKeyword && <button className="faq-search-reset" type="button" onClick={resetFaqSearch}>초기화</button>}
+              <button className="faq-search-submit" type="submit" aria-label="FAQ 검색">검색</button>
+            </div>
+          </form>
+
+          <nav className="faq-category-tabs" aria-label="FAQ 분류">
+            {faqCategories.map((category) => (
+              <button
+                key={category.key || 'ALL'}
+                className={faqCategory === category.key ? 'active' : ''}
+                type="button"
+                aria-pressed={faqCategory === category.key}
+                onClick={() => setFaqCategory(category.key)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="faq-result-heading">
+            <h3>{faqCategory ? `${faqCategoryLabels[faqCategory]} FAQ` : '자주 묻는 질문'}</h3>
+            {!faqLoading && !faqError && <span>총 {faqTotalCount}건</span>}
+          </div>
+
+          <div className="faq-list" aria-busy={faqLoading}>
+            {faqLoading && <p className="faq-list-status">FAQ를 불러오고 있습니다.</p>}
+            {!faqLoading && faqError && <p className="faq-list-status error">{faqError}</p>}
+            {!faqLoading && !faqError && faqs.length === 0 && (
+              <p className="faq-list-status">조건에 맞는 FAQ가 없습니다.</p>
+            )}
+            {!faqLoading && !faqError && faqs.map((faq, index) => (
+              <details key={faq.faqId}>
+                <summary>
+                  <span className="faq-number">{index + 1}</span>
+                  <span className="faq-category">{faqCategoryLabels[faq.category] ?? faq.category}</span>
+                  <strong>{faq.question}</strong>
+                  <b aria-hidden="true">+</b>
+                </summary>
+                <div className="faq-answer"><span>A</span><p>{faq.answer}</p></div>
+              </details>
             ))}
           </div>
         </section>

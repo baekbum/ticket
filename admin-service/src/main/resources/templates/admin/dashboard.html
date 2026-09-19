@@ -104,6 +104,21 @@
         </div>
       </div>
 
+      <div class="menu-group is-open" data-menu-group="support">
+        <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
+          <span><i class="ti ti-help-circle"></i>고객지원</span>
+          <i class="ti ti-chevron-down menu-group-chevron"></i>
+        </button>
+        <div class="menu-group-items">
+          <button class="menu-btn" data-menu="notice" onclick="switchMenu('notice', this)">
+            <i class="ti ti-speakerphone"></i>공지사항
+          </button>
+          <button class="menu-btn" data-menu="faq" onclick="switchMenu('faq', this)">
+            <i class="ti ti-message-question"></i>FAQ
+          </button>
+        </div>
+      </div>
+
       <div class="menu-group is-open" data-menu-group="audit">
         <button class="menu-group-toggle" type="button" onclick="toggleMenuGroup(this)" aria-expanded="true">
           <span><i class="ti ti-shield-search"></i>감사/운영</span>
