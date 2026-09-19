@@ -31,12 +31,13 @@ npm install
 npm run dev
 ```
 
-- 개발 서버: `http://localhost:3000`
+- 개발 서버: `http://localhost:3000` (통합 경로는 로컬 ingress의 `http://localhost`)
 - API 프록시
-  - `/client-api/*` → `http://localhost:8090`
-  - `/payment-gateway/*` → `http://localhost:8099`
+  - `/client-api/*` → `http://localhost:80` (로컬 ingress)
+  - `/payment-gateway/*` → `http://localhost:80` (로컬 ingress)
 
 사용자용 티켓 API는 프론트에서 ticket-service로 직접 요청하지 않고 client-api BFF를 통해 호출합니다.
+카드 승인과 상태 조회는 ingress의 `/payment-gateway/` 경로를 통해 payment-gateway-service에 전달합니다.
 
 ## 빌드
 
@@ -45,9 +46,10 @@ npm run build
 npm run preview
 ```
 
-## Docker
+## 운영 Docker
+
+운영에서는 ingress 이미지가 React를 빌드해 정적 파일을 직접 제공합니다. 별도의 client-service 컨테이너는 사용하지 않습니다.
 
 ```bash
-docker build -t client-service ./client-service
-docker run --rm -p 3000:3000 client-service
+docker compose -f infra/infra-ingress/docker-compose.yml up -d --build
 ```

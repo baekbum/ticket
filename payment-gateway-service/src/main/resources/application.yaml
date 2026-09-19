@@ -1,7 +1,5 @@
 server:
   port: 8099
-  servlet:
-    context-path: /payment-gateway
 
 spring:
   profiles:
@@ -40,7 +38,7 @@ app:
       enabled: true
       fixed-delay-ms: 30000
   ticket:
-    base-url: http://localhost:8082/ticket
+    base-url: http://localhost:8082
     service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   virtual-account:
     expiration:

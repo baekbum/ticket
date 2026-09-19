@@ -41,17 +41,17 @@ token:
 
 services:
   auth-service:
-    url: "http://localhost:8080/auth"
+    url: "http://localhost:8080"
   user-service:
-    url: "http://localhost:8081/user"
+    url: "http://localhost:8081"
   ticket-service:
-    url: "http://localhost:8082/ticket"
+    url: "http://localhost:8082"
   queue-service:
-    url: "http://localhost:8083/queue"
+    url: "http://localhost:8083"
   audit-service:
-    url: "http://localhost:8084/audit"
+    url: "http://localhost:8084"
   support-service:
-    url: "http://localhost:8085/support"
+    url: "http://localhost:8085"
 
 app:
   kafka-dlq:

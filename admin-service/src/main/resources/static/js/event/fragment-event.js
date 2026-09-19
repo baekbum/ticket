@@ -1,7 +1,7 @@
 (function () {
 const API = { VERSION: 'v1', LOCAL_PORT: '8999', DEV_PORT: '8080' };
 const BASE_URL  = window.location.port === API.LOCAL_PORT ? `http://localhost:${API.LOCAL_PORT}/admin` : '';
-const TICKET_PUBLIC_BASE_URL = window.location.port === API.LOCAL_PORT ? 'http://localhost:8082' : '';
+const TICKET_PUBLIC_BASE_URL = window.location.port === API.LOCAL_PORT ? 'http://localhost' : '';
 const EVENT_URL = `${BASE_URL}/api/${API.VERSION}/event`;
 const AREA_URL  = `${BASE_URL}/api/${API.VERSION}/area`;
 const SEAT_URL  = `${BASE_URL}/api/${API.VERSION}/seat`;

@@ -8,11 +8,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/payment-gateway': {
-        target: 'http://localhost:8099',
+        target: 'http://localhost:80',
         changeOrigin: true,
       },
       '/client-api': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:80',
         changeOrigin: true,
       },
     },
