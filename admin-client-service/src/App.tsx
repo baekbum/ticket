@@ -24,16 +24,26 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '감사/운영', icon: 'shield-search', items: [
     { key: 'auditLog', label: '감사 로그', icon: 'history' },
     { key: 'monitoring', label: '모니터링', icon: 'chart-line' },
+  ] },
+  { label: 'Redis', icon: 'database', items: [
     { key: 'redisHub', label: 'Redis 관리', icon: 'database' },
     { key: 'seatCacheSyncFailures', label: 'Redis 보정 이력', icon: 'refresh-alert' },
+  ] },
+  { label: 'DLQ', icon: 'alert-triangle', items: [
     { key: 'kafkaDlq', label: 'DLQ 관리', icon: 'inbox' },
     { key: 'kafkaDlqHistory', label: 'DLQ 처리 이력', icon: 'list-details' },
   ] },
   { label: '개발/테스트', icon: 'flask', items: [{ key: 'testHub', label: '테스트', icon: 'flask' }] },
 ];
 const allowedMenus = new Set(menuGroups.flatMap(group => group.items.map(item => item.key)));
+const rememberedIdKey = 'adminRememberedUserId';
 
 function Icon({ name }: { name: string }) { return <i className={`ti ti-${name}`} aria-hidden="true" />; }
+
+function getRememberedId(): string {
+  try { return localStorage.getItem(rememberedIdKey) || ''; }
+  catch { return ''; }
+}
 
 function initialMenuContext(): Record<string, unknown> {
   const query = new URLSearchParams(window.location.search);
@@ -49,8 +59,10 @@ function initialMenuContext(): Record<string, unknown> {
 }
 
 function Login({ onLogin }: { onLogin: (user: AdminUser) => void }) {
-  const [userId, setUserId] = useState('');
+  const [userId, setUserId] = useState(getRememberedId);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberId, setRememberId] = useState(() => Boolean(getRememberedId()));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -58,7 +70,15 @@ function Login({ onLogin }: { onLogin: (user: AdminUser) => void }) {
     event.preventDefault();
     setBusy(true);
     setError('');
-    try { onLogin(await login(userId.trim(), password)); }
+    try {
+      const trimmedUserId = userId.trim();
+      const user = await login(trimmedUserId, password);
+      try {
+        if (rememberId) localStorage.setItem(rememberedIdKey, trimmedUserId);
+        else localStorage.removeItem(rememberedIdKey);
+      } catch { /* 저장소를 사용할 수 없어도 로그인은 계속합니다. */ }
+      onLogin(user);
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : '로그인에 실패했습니다.'); }
     finally { setBusy(false); }
   }
@@ -69,8 +89,20 @@ function Login({ onLogin }: { onLogin: (user: AdminUser) => void }) {
       <p className="eyebrow">SECURE ADMIN PORTAL</p>
       <h1>관리자 로그인</h1>
       <p className="muted">관리 콘솔에 접속하려면 계정 정보를 입력하세요.</p>
-      <label>아이디<input autoComplete="username" value={userId} onChange={event => setUserId(event.target.value)} required /></label>
-      <label>비밀번호<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></label>
+      <label className="field-label" htmlFor="admin-login-user-id">아이디</label>
+      <input id="admin-login-user-id" autoComplete="username" value={userId} onChange={event => setUserId(event.target.value)} required />
+      <label className="field-label" htmlFor="admin-login-password">비밀번호</label>
+      <div className="password-field">
+        <input id="admin-login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required />
+        <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'} aria-pressed={showPassword}>{showPassword ? '숨기기' : '보기'}</button>
+      </div>
+      <label className="remember-id"><input type="checkbox" checked={rememberId} onChange={event => {
+        setRememberId(event.target.checked);
+        if (!event.target.checked) {
+          try { localStorage.removeItem(rememberedIdKey); }
+          catch { /* 저장소를 사용할 수 없어도 체크 해제는 계속합니다. */ }
+        }
+      }} />아이디 기억</label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button" disabled={busy} type="submit">{busy ? '확인 중…' : '로그인하기'}</button>
     </form>
@@ -127,6 +159,9 @@ function Profile({ user, onClose, onUpdate }: { user: AdminUser; onClose: () => 
 function Dashboard({ user, onLogout }: { user: AdminUser; onLogout: () => void }) {
   const initial = new URLSearchParams(window.location.search).get('menu') || 'user';
   const [menu, setMenu] = useState(allowedMenus.has(initial) ? initial : 'user');
+  const [openGroups, setOpenGroups] = useState(() => new Set([
+    menuGroups.find(group => group.items.some(item => item.key === menu))?.label || '사용자',
+  ]));
   const [menuContext, setMenuContext] = useState<Record<string, unknown>>(initialMenuContext);
   const [profile, setProfile] = useState(false);
   const [currentUser, setCurrentUser] = useState(user);
@@ -143,6 +178,26 @@ function Dashboard({ user, onLogout }: { user: AdminUser; onLogout: () => void }
     window.addEventListener('message', listener);
     return () => window.removeEventListener('message', listener);
   }, []);
+
+  useEffect(() => {
+    const group = menuGroups.find(item => item.items.some(child => child.key === menu));
+    if (!group) return;
+    setOpenGroups(previous => {
+      if (previous.has(group.label)) return previous;
+      const next = new Set(previous);
+      next.add(group.label);
+      return next;
+    });
+  }, [menu]);
+
+  function toggleGroup(label: string) {
+    setOpenGroups(previous => {
+      const next = new Set(previous);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -163,7 +218,18 @@ function Dashboard({ user, onLogout }: { user: AdminUser; onLogout: () => void }
     </header>
     <div className="admin-layout">
       <nav className="admin-sidebar" aria-label="관리 메뉴">
-        {menuGroups.map(group => <section key={group.label}><h2><Icon name={group.icon} /> {group.label}</h2>{group.items.map(item => <button key={item.key} className={menu === item.key ? 'selected' : ''} onClick={() => { setMenuContext({}); setMenu(item.key); }}><Icon name={item.icon} /> {item.label}</button>)}</section>)}
+        {menuGroups.map((group, index) => {
+          const isOpen = openGroups.has(group.label);
+          const itemsId = `admin-menu-group-${index}`;
+          return <section key={group.label}>
+            <button type="button" className="group-toggle" aria-expanded={isOpen} aria-controls={itemsId} onClick={() => toggleGroup(group.label)}>
+              <span><Icon name={group.icon} /> {group.label}</span><Icon name="chevron-down" />
+            </button>
+            <div id={itemsId} className="group-items" hidden={!isOpen}>{group.items.map(item =>
+              <button type="button" key={item.key} className={`menu-item${menu === item.key ? ' selected' : ''}`} aria-current={menu === item.key ? 'page' : undefined} onClick={() => { setMenuContext({}); setMenu(item.key); }}><Icon name={item.icon} /> {item.label}</button>
+            )}</div>
+          </section>;
+        })}
       </nav>
       <main className="admin-main"><iframe key={`${menu}:${JSON.stringify(menuContext)}`} title={menuGroups.flatMap(group => group.items).find(item => item.key === menu)?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} /></main>
     </div>
