@@ -48,12 +48,9 @@ type SignupForm = LoginForm & {
   birthDate: string;
 };
 
-type LoginResponse = {
-  success: boolean;
-  message: string;
-  name?: string;
-  accessToken?: string;
-  refreshToken?: string;
+type TokenResponse = {
+  accessToken: string;
+  refreshToken: string;
 };
 
 type QueueEntryResponse = {
@@ -380,19 +377,19 @@ const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string;
   {
     key: 'festival',
     label: '페스티벌',
-    endpoint: '/client-api/api/v1/event/cards/festival',
+    endpoint: '/ticket/api/v1/event/cards/festival',
     emptyMessage: '판매 중인 페스티벌 공연이 없습니다.',
   },
   {
     key: 'openSoon',
     label: '오픈 예정 공연',
-    endpoint: '/client-api/api/v1/event/cards/open-soon',
+    endpoint: '/ticket/api/v1/event/cards/open-soon',
     emptyMessage: '10일 안에 오픈 예정인 공연이 없습니다.',
   },
   {
     key: 'weekly',
     label: '이 주의 추천공연',
-    endpoint: '/client-api/api/v1/event/cards/weekly',
+    endpoint: '/ticket/api/v1/event/cards/weekly',
     emptyMessage: '2주 안에 진행되는 추천 공연이 없습니다.',
   },
 ];
@@ -697,7 +694,7 @@ function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' 
     return;
   }
 
-  fetch(`/client-api/api/v1/queue/events/${eventId}/leave`, {
+  fetch(`/queue/api/v1/queue/events/${eventId}/leave`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -1014,7 +1011,7 @@ function App() {
 
     try {
       if (refreshToken) {
-        await request<void>('/client-api/api/v1/auth/logout', {
+        await request<void>('/auth/api/v1/logout', {
           method: 'POST',
           headers: {
             'Authorization-Refresh': `Bearer ${refreshToken}`,
@@ -1351,7 +1348,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   useEffect(() => {
     async function loadSoonestOnSaleEvents() {
       try {
-        const events = await request<TicketingEvent[]>('/client-api/api/v1/event/on-sale/soonest', {
+        const events = await request<TicketingEvent[]>('/ticket/api/v1/event/on-sale/soonest', {
           method: 'GET',
         });
         setSoonestOnSaleEvents(events);
@@ -1627,7 +1624,7 @@ function CategoryEventListPage({
 
       try {
         const nextEvents = await request<TicketingEvent[]>(
-          `/client-api/api/v1/event/cards/genre/${config.genre}?sort=${eventSort}&page=${eventPage}&size=${eventPageSize}`,
+          `/ticket/api/v1/event/cards/genre/${config.genre}?sort=${eventSort}&page=${eventPage}&size=${eventPageSize}`,
           {
             method: 'GET',
           },
@@ -1759,7 +1756,7 @@ function EventDetailPage({
 
       try {
         const detail = await request<EventDetail>(
-          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          `/ticket/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
           {
             method: 'GET',
           },
@@ -1940,7 +1937,7 @@ function EventDetailPage({
     }
 
     return request<QueueEntryResponse>(
-      `/client-api/api/v1/queue/events/${eventId}/enter`,
+      `/queue/api/v1/queue/events/${eventId}/enter`,
       {
         method: 'POST',
         headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -1950,7 +1947,7 @@ function EventDetailPage({
 
   async function fetchBookingQueueStatus(eventId: number, token: string) {
     return request<QueueEntryResponse>(
-      `/client-api/api/v1/queue/events/${eventId}/status`,
+      `/queue/api/v1/queue/events/${eventId}/status`,
       {
         method: 'GET',
         headers: { 'X-Waiting-Token': token },
@@ -2291,7 +2288,7 @@ function BookingWindowPage() {
 
       try {
         const detail = await request<EventDetail>(
-          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          `/ticket/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
           { method: 'GET' },
         );
 
@@ -2327,14 +2324,14 @@ function BookingWindowPage() {
       try {
         const [areaResponse, layoutResponse] = await Promise.all([
           request<PageResponse<AreaResponse>>(
-            `/client-api/api/v1/area/select?eventId=${selectedScheduleId}`,
+            `/ticket/api/v1/area/select?eventId=${selectedScheduleId}&page=0&size=500&sort=areaId-asc`,
             {
               method: 'GET',
               headers: { 'X-Active-Token': activeToken },
             },
           ),
           request<EventLayoutResponse | undefined>(
-            `/client-api/api/v1/area/layout/event/${selectedScheduleId}`,
+            `/ticket/api/v1/area/layout/event/${selectedScheduleId}`,
             {
               method: 'GET',
               headers: { 'X-Active-Token': activeToken },
@@ -2467,7 +2464,7 @@ function BookingWindowPage() {
 
     try {
       const seatResponse = await request<PageResponse<SeatResponse>>(
-        `/client-api/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}`,
+        `/ticket/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}&page=0&size=10000&sort=seatRow-asc&sort=seatCol-asc`,
         {
           method: 'GET',
           headers: { 'X-Active-Token': activeToken },
@@ -2569,7 +2566,7 @@ function BookingWindowPage() {
         && previousOccupation.seats.length === seatInfoList.length
         && previousOccupation.seats.every((seat) => seatInfoList.some((selected) => selected.id === seat.id));
       // prepare 통신 실패 후에는 확보한 좌석을 중복 선점하지 않고 같은 주문으로 재시도한다.
-      const occupyResult = canReuseOccupation ? previousOccupation : await request<SeatOccupyResponse>('/client-api/api/v1/seat/occupy', {
+      const occupyResult = canReuseOccupation ? previousOccupation : await request<SeatOccupyResponse>('/ticket/api/v1/seat/occupy', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2587,7 +2584,7 @@ function BookingWindowPage() {
       setPaymentExpiresAt(null);
       setSeatHoldExpiresAt(occupyResult.expiresAt);
 
-      const prepareResult = await request<CheckoutPrepareResponse>('/client-api/api/v1/checkout/prepare', {
+      const prepareResult = await request<CheckoutPrepareResponse>('/ticket/api/v1/checkout/prepare', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2599,7 +2596,7 @@ function BookingWindowPage() {
 
       let coupons: UserCouponResponse[] = [];
       try {
-        coupons = await request<UserCouponResponse[]>('/client-api/api/v1/coupon/me', { method: 'GET' });
+        coupons = await request<UserCouponResponse[]>('/ticket/api/v1/coupon/me', { method: 'GET' });
       } catch {
         coupons = [];
       }
@@ -2633,7 +2630,7 @@ function BookingWindowPage() {
     }
 
     try {
-      const availability = await request<CouponAvailabilityResponse>('/client-api/api/v1/coupon/available', {
+      const availability = await request<CouponAvailabilityResponse>('/ticket/api/v1/coupon/available', {
         method: 'POST',
         body: JSON.stringify({
           userCouponId,
@@ -2700,7 +2697,7 @@ function BookingWindowPage() {
     setIsPaymentSubmitting(true);
     try {
       // 카드 결제는 READY 응답 후 카드 입력창에서 승인하고, 무통장은 계좌 발급까지 진행한다.
-      const payment = await request<BookingPaymentResponse>('/client-api/api/v1/checkout/confirm', {
+      const payment = await request<BookingPaymentResponse>('/ticket/api/v1/checkout/confirm', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2769,9 +2766,9 @@ function BookingWindowPage() {
 
     try {
       const [feeResponse, userResponse, addressResponse] = await Promise.all([
-        request<CheckoutFeeResponse>('/client-api/api/v1/checkout/fees', { method: 'GET' }),
-        request<UserInfoResponse>('/client-api/api/v1/user/me', { method: 'GET' }),
-        request<PageResponse<UserAddressResponse>>('/client-api/api/v1/address/select/me', {
+        request<CheckoutFeeResponse>('/ticket/api/v1/checkout/fees', { method: 'GET' }),
+        request<UserInfoResponse>('/user/api/v1/select/me', { method: 'GET' }),
+        request<PageResponse<UserAddressResponse>>('/user/api/v1/address/select/me', {
           method: 'POST',
           body: JSON.stringify({
             page: 0,
@@ -2846,7 +2843,7 @@ function BookingWindowPage() {
 
     let disposed = false;
     request<ReservationTicketResponse[]>(
-      `/client-api/api/v1/ticket/reservation/${completedPayment.reservationId}`,
+      `/ticket/api/v1/ticket/reservation/${completedPayment.reservationId}`,
       { method: 'GET' },
     ).then((tickets) => {
       if (disposed) return;
@@ -3770,19 +3767,25 @@ function LoginPage({
     setIsSubmitting(true);
 
     try {
-      const loginResponse = await request<LoginResponse>('/client-api/api/v1/auth/login', {
+      const tokens = await request<TokenResponse>('/auth/api/v1/login', {
         method: 'POST',
         body: JSON.stringify(loginForm),
       });
 
-      if (!loginResponse.success || !loginResponse.accessToken || !loginResponse.refreshToken) {
-        alert(loginResponse.message || '정보가 올바르지 않습니다.');
-        return;
-      }
+      if (!tokens.accessToken || !tokens.refreshToken) throw new Error('로그인 정보를 받지 못했습니다.');
+      sessionStorage.setItem('ticksy.accessToken', tokens.accessToken);
+      sessionStorage.setItem('ticksy.refreshToken', tokens.refreshToken);
 
-      sessionStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
-      sessionStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
-      sessionStorage.setItem('ticksy.userName', loginResponse.name || loginForm.userId);
+      // 로그인 응답에는 이름이 없으므로 사용자 서비스에서 직접 조회한다.
+      let userName = loginForm.userId;
+      try {
+        const user = await request<UserInfoResponse>('/user/api/v1/select/me', { method: 'GET' });
+        userName = user.name || userName;
+      } catch (error) {
+        if (error instanceof SessionExpiredError) throw error;
+        // 사용자 정보 조회가 지연되어도 발급된 로그인 토큰은 유지한다.
+      }
+      sessionStorage.setItem('ticksy.userName', userName);
 
       if (isLoginIdSaved) {
         setCookie(savedLoginIdCookieName, loginForm.userId, 60 * 60 * 24 * 365);
@@ -3790,7 +3793,7 @@ function LoginPage({
         deleteCookie(savedLoginIdCookieName);
       }
 
-      onLoginSuccess(loginResponse.name || loginForm.userId);
+      onLoginSuccess(userName);
       onNavigate('home');
     } catch (error) {
       alert(error instanceof Error ? error.message : '로그인에 실패했습니다.');
@@ -3880,7 +3883,7 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
     try {
       const response = await request<FindUserIdResponse>(
-        `/client-api/api/v1/user/find/id/${findIdMethod}`,
+        `/user/api/v1/find/id/${findIdMethod}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -4025,7 +4028,7 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
 
     try {
       const response = await request<FindPasswordResponse>(
-        `/client-api/api/v1/user/find/password/${findPasswordMethod}`,
+        `/user/api/v1/find/password/${findPasswordMethod}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -4057,7 +4060,7 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
     setIsResetting(true);
 
     try {
-      await request('/client-api/api/v1/user/reset/password', {
+      await request('/user/api/v1/reset/password', {
         method: 'POST',
         body: JSON.stringify({
           resetToken,
@@ -4320,7 +4323,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     setUserIdCheckMessage('');
 
     try {
-      await request(`/client-api/api/v1/user/check/duplication/${encodeURIComponent(signupForm.userId)}`, {
+      await request(`/user/api/v1/check/duplication/${encodeURIComponent(signupForm.userId)}`, {
         method: 'GET',
       });
 
@@ -4369,7 +4372,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     try {
       const { passwordConfirm, ...requestBody } = signupForm;
 
-      await request('/client-api/api/v1/user/signup', {
+      await request('/user/api/v1/signup', {
         method: 'POST',
         body: JSON.stringify({
           ...requestBody,

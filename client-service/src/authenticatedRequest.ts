@@ -58,7 +58,7 @@ export function createAuthenticatedRequest(deps: Dependencies) {
   async function refresh() {
     const refreshToken = deps.storage.getItem('ticksy.refreshToken');
     if (!refreshToken) expireLogin();
-    const response = await fetchResponse('/client-api/api/v1/auth/reissue', {
+    const response = await fetchResponse('/auth/api/v1/reissue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization-Refresh': `Bearer ${refreshToken}` },
     });
@@ -73,7 +73,15 @@ export function createAuthenticatedRequest(deps: Dependencies) {
   }
 
   return async function request<T = unknown>(url: string, options: RequestInit): Promise<T> {
-    const useAuth = !['/auth/login', '/auth/reissue', '/auth/logout'].some((path) => url.includes(path));
+    const publicPaths = [
+      '/auth/api/v1/login', '/auth/api/v1/reissue', '/auth/api/v1/logout',
+      '/user/api/v1/signup', '/user/api/v1/reset/password',
+    ];
+    const publicPrefixes = [
+      '/user/api/v1/find/', '/user/api/v1/check/duplication/',
+      '/ticket/api/v1/event/', '/support/api/v1/',
+    ];
+    const useAuth = !publicPaths.includes(url) && !publicPrefixes.some((path) => url.startsWith(path));
     const sentToken = deps.storage.getItem('ticksy.accessToken');
     const send = (token: string | null) => {
       const headers = new Headers(options.headers);
@@ -82,7 +90,7 @@ export function createAuthenticatedRequest(deps: Dependencies) {
       return fetchResponse(url, { ...options, headers });
     };
     let response = await send(sentToken);
-    if (response.status === 401 && useAuth) {
+    if (response.status === 401 && useAuth && sentToken) {
       // 동시에 발생한 401은 refresh를 공유하고, 늦게 도착한 401은 이미 갱신된 토큰을 사용한다.
       if (deps.storage.getItem('ticksy.accessToken') === sentToken) {
         if (!refreshPromise) refreshPromise = refresh().finally(() => { refreshPromise = null; });

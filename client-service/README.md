@@ -6,7 +6,7 @@ React 기반 사용자 클라이언트 서비스입니다.
 
 - 예매 팝업의 결제 단계에서 무통장 입금과 은행을 선택하고 약관 동의 후 결제합니다.
 - 은행 선택지는 `common`의 `BankCompany` 코드/표시명과 일치해야 합니다.
-- `/client-api/api/v1/checkout/confirm` → ticket-service의 `/api/v1/checkout/confirm` → payment-gateway-service의 `/api/v1/payments/virtual-account/issue` 순서로 호출합니다.
+- `/ticket/api/v1/checkout/confirm` → ticket-service의 `/api/v1/checkout/confirm` → payment-gateway-service의 `/api/v1/payments/virtual-account/issue` 순서로 호출합니다.
 - `prepare`의 `idempotencyKey`를 재시도에도 유지합니다. 현장 수령은 `delivery: null`, 배송은 배송지 객체를 전달합니다.
 - 발급 금액은 좌석 금액에서 쿠폰 할인을 적용한 뒤 서버 설정의 예매 수수료와 배송비를 더합니다.
 - 발급 성공 시 예매 완료 화면에 은행, 계좌번호, 실제 입금 금액, 입금 기한을 표시합니다. 입금 전 상태는 `WAITING_DEPOSIT`입니다.
@@ -31,12 +31,11 @@ npm install
 npm run dev
 ```
 
-- 개발 서버: `http://localhost:3000`
-- API 프록시
-  - `/client-api/*` → `http://localhost:8090`
-  - `/payment-gateway/*` → `http://localhost:8099`
+- 개발 서버: `http://localhost:3000` (통합 경로는 로컬 ingress의 `http://localhost`)
+- API 프록시: `/auth/*`, `/user/*`, `/ticket/*`, `/queue/*`, `/support/*`, `/payment-gateway/*` → `http://localhost:80` (로컬 ingress)
 
-사용자용 티켓 API는 프론트에서 ticket-service로 직접 요청하지 않고 client-api BFF를 통해 호출합니다.
+사용자 화면의 API 요청은 ingress의 서비스별 경로를 통해 각 서비스에 전달합니다.
+카드 승인과 상태 조회는 ingress의 `/payment-gateway/` 경로를 통해 payment-gateway-service에 전달합니다.
 
 ## 빌드
 
@@ -45,9 +44,10 @@ npm run build
 npm run preview
 ```
 
-## Docker
+## 운영 Docker
+
+운영에서는 ingress 이미지가 React를 빌드해 정적 파일을 직접 제공합니다. 별도의 client-service 컨테이너는 사용하지 않습니다.
 
 ```bash
-docker build -t client-service ./client-service
-docker run --rm -p 3000:3000 client-service
+docker compose -f infra/infra-ingress/docker-compose.yml up -d --build
 ```

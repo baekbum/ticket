@@ -16,8 +16,10 @@ public class LocalCorsConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // 1. 허용할 Origin (출처) 설정
-        // 로컬 개발 시 3000포트에서 오는 요청을 허용합니다.
+        // 로컬 클라이언트와 관리자 개발 서버에서 오는 요청을 허용합니다.
         configuration.addAllowedOrigin("http://localhost:3000");
+        configuration.addAllowedOrigin("http://localhost:8999");
+        configuration.addAllowedOrigin("http://127.0.0.1:8999");
 
         // 2. 허용할 HTTP Method
         // GET, POST뿐만 아니라 브라우저가 미리 찔러보는 OPTIONS까지 모두 허용합니다.

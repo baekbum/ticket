@@ -7,17 +7,3 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-
-services:
-  auth-service:
-    url: http://localhost
-  user-service:
-    url: http://localhost
-  ticket-service:
-    url: http://localhost
-  queue-service:
-    url: http://localhost
-  audit-service:
-    url: http://localhost
-  support-service:
-    url: http://localhost

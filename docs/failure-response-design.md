@@ -323,7 +323,7 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 
 아래 항목은 현재 코드와 목표 정책 사이의 차이다.
 
-1. Feign timeout 설정을 `admin-service`, `client-api-service`, `ticket-service`에 추가한다.
+1. Feign timeout 설정을 `admin-service`, `ticket-service`에 추가한다.
 2. `queue-service-client`는 짧은 timeout을 별도로 적용한다.
 3. Redis 장애 로그에 key prefix, eventId, userId, orderId 같은 복구 단서를 포함한다.
 4. DB 커밋 후 Redis 좌석 동기화 실패를 운영 보정 대상으로 남기는 테이블 또는 Kafka 이벤트를 추가한다.

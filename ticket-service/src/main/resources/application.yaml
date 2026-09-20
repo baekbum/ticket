@@ -1,7 +1,5 @@
 server:
   port: 8082
-  servlet:
-    context-path: /ticket
 
 spring:
   profiles:
@@ -84,17 +82,17 @@ app:
     public-url-prefix: /ticket/uploads
   queue:
     enabled: true
-    base-url: http://localhost:8083/queue
+    base-url: http://localhost:8083
   checkout:
     reservation-fee-per-ticket: 4000
     delivery-fee: 3200
   payment-gateway:
-    base-url: http://localhost:8099/payment-gateway
+    base-url: http://localhost:8099
   kafka-dlt:
     slack:
       enabled: true
       webhook-url: ${SLACK_WEBHOOK_URL:}
-      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost:8999/admin/api/v1/view/embed/kafkaDlq}"
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost/admin/?menu=kafkaDlq}"
 
 management:
   endpoints:

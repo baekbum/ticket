@@ -24,7 +24,7 @@ class KafkaDltSlackNotifierTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
         KafkaDltSlackProperties properties = new KafkaDltSlackProperties();
         properties.setWebhookUrl("http://localhost/slack");
-        properties.setAdminDlqUrl("http://localhost:8999/admin/api/v1/view/embed/kafkaDlq");
+        properties.setAdminDlqUrl("http://localhost/admin/?menu=kafkaDlq");
         KafkaDltSlackNotifier notifier = new KafkaDltSlackNotifier(properties, restClientBuilder);
         ReflectionTestUtils.setField(notifier, "serviceName", "auth-service");
 
@@ -34,7 +34,7 @@ class KafkaDltSlackNotifierTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Service:* auth-service")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*Origin Topic:* user-event")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLT Topic:* user-event.DLT")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLQ 확인:* <http://localhost:8999/admin/api/v1/view/embed/kafkaDlq|관리자 DLQ 메뉴로 이동>")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLQ 확인:* <http://localhost/admin/?menu=kafkaDlq|관리자 DLQ 메뉴로 이동>")))
                 .andRespond(withSuccess());
 
         boolean notified = notifier.notifyDlt(

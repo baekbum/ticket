@@ -57,7 +57,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
-    request<Detail>(`/client-api/api/v1/reservation/select/detail/${reservationId}`, { method: 'GET', signal: controller.signal })
+    request<Detail>(`/ticket/api/v1/reservation/select/detail/${reservationId}`, { method: 'GET', signal: controller.signal })
       .then((data) => { if (!controller.signal.aborted) setDetail(data); })
       .catch((failure) => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : '상세 내역을 불러오지 못했습니다.'); });
     return () => controller.abort();
@@ -92,7 +92,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
     try {
-      await request(`/client-api/api/v1/reservation/cancel/id/${reservationId}`, {
+      await request(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
         method: 'PUT',
         body: JSON.stringify({
           userId: detail.reservation.userId,

@@ -2,10 +2,8 @@ package dev.bum.audit_service.security;
 
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.security.HeaderAuthenticationFilter;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,9 +24,6 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private static final String ROLE_ADMIN = "ADMIN";
 
-    @Value("${spring.profiles.default:local}")
-    private String activeProfile;
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,17 +35,9 @@ public class SecurityConfig {
                         .anyRequest().hasRole(ROLE_ADMIN)
                 );
 
-        configureAuthenticationFilter(http);
+        http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    private void configureAuthenticationFilter(HttpSecurity http) {
-        if ("local".equals(activeProfile)) {
-            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
-        } else {
-            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        }
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {

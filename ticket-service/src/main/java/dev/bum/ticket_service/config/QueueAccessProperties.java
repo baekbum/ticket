@@ -7,7 +7,7 @@ import org.springframework.util.StringUtils;
 public class QueueAccessProperties {
 
     private boolean enabled;
-    private String baseUrl = "http://localhost:8083/queue";
+    private String baseUrl = "http://localhost:8083";
 
     public boolean isEnabled() {
         return enabled;

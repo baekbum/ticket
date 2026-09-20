@@ -1,7 +1,5 @@
 server:
   port: 8085
-  servlet:
-    context-path: /support
 
 spring:
   profiles:
@@ -16,6 +14,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 management:
   endpoints:
