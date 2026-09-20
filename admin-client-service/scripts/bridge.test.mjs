@@ -7,6 +7,7 @@ const code = await readFile(new URL('./bridge.js', import.meta.url), 'utf8');
 
 test('기존 관리자 API를 서비스별 인그레스 경로로 보낸다', async () => {
   const calls = [];
+  const messages = [];
   const values = new Map([['admin.accessToken', 'admin-token']]);
   const localStorage = {
     getItem: key => values.get(key) || null,
@@ -15,7 +16,7 @@ test('기존 관리자 API를 서비스별 인그레스 경로로 보낸다', as
   };
   const window = {
     location: { origin: 'http://localhost' },
-    parent: { postMessage() {} },
+    parent: { postMessage: (message, origin) => messages.push({ message, origin }) },
     addEventListener() {},
   };
   const fetch = async (url, options) => {
@@ -46,6 +47,13 @@ test('기존 관리자 API를 서비스별 인그레스 경로로 보낸다', as
 
   await assert.rejects(() => window.Fetch('https://other.example/api/v1/user/select'), /외부 주소/);
   assert.equal(calls.length, cases.length);
+
+  window.openDashboardEmbedWindow('seatRedis');
+  window.openDashboardEmbedWindow('queueRedis');
+  assert.deepEqual(messages.map(({ message, origin }) => ({ type: message.type, menu: message.menu, origin })), [
+    { type: 'admin:open-embed', menu: 'seatRedis', origin: 'http://localhost' },
+    { type: 'admin:open-embed', menu: 'queueRedis', origin: 'http://localhost' },
+  ]);
 });
 
 test('관리 화면 조각의 정적 파일 경로가 모두 유효하다', async () => {
@@ -53,6 +61,10 @@ test('관리 화면 조각의 정적 파일 경로가 모두 유효하다', asyn
   const fragmentRoot = new URL('legacy/fragments/', publicRoot);
   const fragments = (await readdir(fragmentRoot)).filter(name => name.endsWith('.html'));
   assert.equal(fragments.length, 25);
+  for (const [name, script] of [['seatRedis', 'fragment-redis.js'], ['queueRedis', 'fragment-queue-redis.js']]) {
+    const html = await readFile(new URL(`${name}.html`, fragmentRoot), 'utf8');
+    assert.match(html, new RegExp(`/admin/legacy/js/redis/${script}`));
+  }
 
   for (const name of fragments) {
     const html = await readFile(new URL(name, fragmentRoot), 'utf8');

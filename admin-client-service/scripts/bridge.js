@@ -10,8 +10,11 @@ window.switchMenu = (menuName, _button, context) => {
 };
 window.switchMenuWithContext = (menuName, context) => window.switchMenu(menuName, null, context);
 window.openDashboardEmbedWindow = (menuName) => {
-  window.open(`/admin/legacy/fragments/${encodeURIComponent(menuName)}.html`, '_blank', 'noopener,noreferrer');
+  window.parent.postMessage({ type: 'admin:open-embed', menu: menuName }, window.location.origin);
 };
+window.addEventListener('pointerdown', () => {
+  window.parent.postMessage({ type: 'admin:focus-embed' }, window.location.origin);
+});
 window.addEventListener('DOMContentLoaded', () => {
   document.body.classList.toggle('dark-mode', localStorage.getItem('adminTheme') === 'dark');
 });
