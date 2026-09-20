@@ -1,7 +1,5 @@
 server:
   port: 8082
-  servlet:
-    context-path: /ticket
 
 spring:
   profiles:
@@ -23,9 +21,10 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6380
+      port: 6390
+      database: 1
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9094
     template:
       observation-enabled: true
     listener:
@@ -50,6 +49,10 @@ spring:
           default:
             connectTimeout: 3000
             readTimeout: 9000
+            loggerLevel: basic
+          payment-gateway-card-client:
+            connectTimeout: 3000
+            readTimeout: 120000
             loggerLevel: basic
           queue-service-client:
             connectTimeout: 1500
@@ -79,17 +82,17 @@ app:
     public-url-prefix: /ticket/uploads
   queue:
     enabled: true
-    base-url: http://localhost:8083/queue
+    base-url: http://localhost:8083
   checkout:
     reservation-fee-per-ticket: 4000
     delivery-fee: 3200
   payment-gateway:
-    base-url: http://localhost:8099/payment-gateway
+    base-url: http://localhost:8099
   kafka-dlt:
     slack:
       enabled: true
       webhook-url: ${SLACK_WEBHOOK_URL:}
-      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost:8999/admin/api/v1/view/embed/kafkaDlq}"
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost/admin/?menu=kafkaDlq}"
 
 management:
   endpoints:
@@ -103,6 +106,7 @@ management:
     tags:
       application: ${spring.application.name}
   tracing:
+    enabled: false
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
   otlp:

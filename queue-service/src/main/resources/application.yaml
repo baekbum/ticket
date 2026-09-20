@@ -1,7 +1,5 @@
 server:
   port: 8083
-  servlet:
-    context-path: /queue
 
 spring:
   profiles:
@@ -11,7 +9,8 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6381
+      port: 6390
+      database: 2
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
@@ -37,6 +36,7 @@ management:
     tags:
       application: ${spring.application.name}
   tracing:
+    enabled: false
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
   otlp:

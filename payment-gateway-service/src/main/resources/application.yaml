@@ -1,7 +1,5 @@
 server:
   port: 8099
-  servlet:
-    context-path: /payment-gateway
 
 spring:
   profiles:
@@ -24,7 +22,7 @@ spring:
     hibernate:
       ddl-auto: update
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_SERVER:localhost:9094}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -32,7 +30,7 @@ spring:
         spring.json.add.type.headers: false
 
 token:
-  secret: ticket-project-secret-value-is-made-by-random
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 app:
   card:
@@ -40,7 +38,7 @@ app:
       enabled: true
       fixed-delay-ms: 30000
   ticket:
-    base-url: http://localhost:8082/ticket
+    base-url: http://localhost:8082
     service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   virtual-account:
     expiration:
@@ -55,3 +53,7 @@ topic:
     virtual-account:
       expired:
         name: virtual-account-expired
+
+management:
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}

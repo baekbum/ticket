@@ -6,6 +6,8 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.EventCardResponse;
+import dev.bum.common.service.ticket.event.event.enums.EventSearchField;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.controller.event.EventController;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
@@ -49,6 +51,21 @@ class EventControllerTest {
     private EventService eventService;
 
     private final String baseUrl = "/api/v1/event";
+
+    @Test
+    void search_binds_default_and_selected_fields() throws Exception {
+        given(eventService.search("IU", EventSearchField.ALL, 0, 10))
+                .willReturn(CustomPageResponse.of(List.of(EventCardResponse.builder().title("IU Concert").build()), 10, 0, 1, 1));
+        mockMvc.perform(get(baseUrl + "/search").param("keyword", "IU"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].title").value("IU Concert"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+        mockMvc.perform(get(baseUrl + "/search").param("keyword", "Dome").param("field", "VENUE").param("page", "1").param("size", "5"))
+                .andExpect(status().isOk());
+        then(eventService).should().search("Dome", EventSearchField.VENUE, 1, 5);
+        mockMvc.perform(get(baseUrl + "/search").param("keyword", "IU").param("field", "UNKNOWN"))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     @DisplayName("인증 없이 이벤트 목록 조회를 요청하면 4xx 응답")

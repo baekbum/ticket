@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.jpa.coupon.userCoupon;
 
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,8 @@ public interface UserCouponRepository {
     UserCoupon selectById(Long userCouponId);
 
     List<UserCoupon> selectByUserId(String userId);
+
+    List<UserCoupon> selectByUserId(String userId, UserCouponFilter filter, LocalDateTime now);
 
     Page<UserCoupon> selectByCond(UserCouponCondRequest cond, Pageable pageable);
 

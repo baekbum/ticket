@@ -100,7 +100,7 @@ class ReservationManagementServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyBoolean(), any()))
+        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyInt(), anyBoolean(), any()))
                 .thenReturn(new PaymentRefundProcessGatewayAttempt(1L, true, false));
     }
 
@@ -249,7 +249,7 @@ class ReservationManagementServiceTest {
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should().findByReservation(reservation);
     }
 
     @Test
@@ -368,7 +368,7 @@ class ReservationManagementServiceTest {
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.USED);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should().findByReservation(reservation);
     }
 
     @Test
@@ -392,7 +392,7 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment);
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test
@@ -417,7 +417,7 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount());
-        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test
@@ -583,7 +583,7 @@ class ReservationManagementServiceTest {
                 .artistName("IU")
                 .title("IU Concert")
                 .venue("KSPO Dome")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2099, 9, 18, 18, 0))
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(4)
                 .build();

@@ -93,6 +93,19 @@ test('일반 403과 로그인 실패에는 refresh를 실행하지 않는다', a
   let count = 0;
   const request = createAuthenticatedRequest({ storage: storage(), fetch: async (url) => { count++; return json({}, url.includes('/login') ? 401 : 403); } });
   await assert.rejects(request('/checkout', {}), ApiRequestError);
-  await assert.rejects(request('/auth/login', {}), ApiRequestError);
+  await assert.rejects(request('/auth/api/v1/login', {}), ApiRequestError);
   assert.equal(count, 2);
+});
+
+test('인그레스의 공개 서비스 경로에는 저장된 토큰을 보내지 않는다', async () => {
+  const called = [];
+  const request = createAuthenticatedRequest({ storage: storage(), fetch: async (url, options) => {
+    called.push(url);
+    assert.equal(new Headers(options.headers).get('Authorization'), null);
+    return json({ ok: true });
+  } });
+  await request('/auth/api/v1/login', {});
+  await request('/user/api/v1/signup', {});
+  await request('/ticket/api/v1/event/cards/festival', {});
+  assert.equal(called.length, 3);
 });

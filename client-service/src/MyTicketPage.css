@@ -1,0 +1,110 @@
+.my-ticket-page .my-ticket-filter { display: flex; align-items: center; gap: 12px; margin: 16px 0 16px 24px; }
+.my-ticket-filter select, .my-ticket-reservation button, .my-ticket-state button, .my-ticket-pagination button, .my-ticket-seats button { padding: 9px 14px; border: 1px solid #d6ded4; border-radius: 8px; background: white; color: #237344; font: inherit; cursor: pointer; }
+.my-ticket-state { padding: 36px 12px; text-align: center; color: #68716b; }
+.my-ticket-reservation { border-bottom: 1px solid #e5e7eb; }
+.my-ticket-reservation:last-child { border-bottom: 0; }
+.my-ticket-seats { padding: 16px; margin-bottom: 20px; background: #f5f8f4; border-radius: 10px; }
+.my-ticket-seats ul { list-style: none; padding: 0; margin: 0; }
+.my-ticket-seats li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 0; }
+.my-ticket-pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+.my-ticket-pagination button:disabled { opacity: .45; cursor: not-allowed; }
+.my-ticket-reservation .ticket-history-card em { flex-shrink: 0; }
+
+.my-ticket-page .my-ticket-tabs { justify-content: flex-end; }
+.my-ticket-overview { display: grid; grid-template-columns: 2fr 1fr 1fr; border: 1px solid #dedede; margin: 32px 0 48px; background: #fafafa; }
+.my-ticket-member { display: flex; align-items: center; gap: 24px; padding: 32px; background: white; }
+.my-ticket-member h2 { margin: 8px 0; font-size: 28px; font-weight: 500; }
+.my-ticket-member p, .my-ticket-member small { color: #777; font-size: 13px; }
+.my-ticket-avatar { display: grid; place-items: center; width: 90px; height: 90px; flex-shrink: 0; border-radius: 50%; background: #f1f1f1; color: #aaa; font-size: 64px; }
+.my-ticket-overview > button { display: grid; align-content: center; gap: 12px; border: 0; background: transparent; color: #666; font: inherit; cursor: pointer; }
+.my-ticket-overview > button strong { color: #237344; font-size: 32px; font-weight: 500; }
+.my-ticket-history-heading, .my-ticket-history-row { display: grid; grid-template-columns: 120px minmax(240px, 1.4fr) minmax(220px, 1fr) 130px; gap: 20px; align-items: center; }
+.my-ticket-history-heading { padding: 16px 0; text-align: center; border-bottom: 1px solid #e5e5e5; color: #777; font-size: 13px; }
+.my-ticket-history-row { padding: 26px 0; border-bottom: 1px solid #e5e5e5; font-size: 13px; line-height: 1.7; }
+.my-ticket-reserved-date { text-align: center; color: #777; }
+.my-ticket-performance { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.my-ticket-performance img, .my-ticket-poster-placeholder { width: 90px; height: 126px; flex-shrink: 0; object-fit: cover; background: #edf4ef; }
+.my-ticket-poster-placeholder { display: grid; place-items: center; color: #237344; font-size: 12px; letter-spacing: 2px; }
+.my-ticket-performance strong { font-size: 15px; }
+.my-ticket-performance p { margin: 18px 0 0; color: #777; }
+.my-ticket-performance span { color: #777; }
+.my-ticket-booking-info { margin: 0; }
+.my-ticket-booking-info > div { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 3px 0; }
+.my-ticket-booking-info dt { color: #888; }
+.my-ticket-booking-info dd { margin: 0; overflow-wrap: anywhere; }
+.my-ticket-booking-info > div:first-child dd, .my-ticket-row-status .confirmed { color: #237344; }
+.my-ticket-row-status { display: grid; justify-items: center; gap: 12px; }
+.my-ticket-row-status button, .my-ticket-detail-dialog button { padding: 8px 16px; border: 1px solid #d5d5d5; background: white; font: inherit; cursor: pointer; color: #444; }
+.my-ticket-detail-dialog { box-sizing: border-box; width: min(1000px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #ddd; border-radius: 14px; color: #242424; background: white; }
+.my-ticket-detail-dialog::backdrop { background: #16221ccc; }
+.my-ticket-detail-dialog > header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 16px; }
+.my-ticket-detail-dialog > header h2 { margin: 8px 0 0; }
+.my-ticket-detail-dialog > header small { color: #237344; }
+.my-ticket-detail-dialog > header button { font-size: 28px; border: 0; }
+.my-ticket-detail-dialog section { margin-top: 32px; }
+.my-ticket-detail-dialog h3 { font-size: 20px; margin: 0 0 16px; }
+.my-ticket-detail-event { padding: 24px 0; }
+.my-ticket-detail-event p { color: #777; }
+.my-ticket-detail-facts { border: 1px solid #e5e5e5; margin: 0; font-size: 14px; }
+.my-ticket-detail-facts > div { display: grid; grid-template-columns: 150px 1fr; }
+.my-ticket-detail-facts dt { background: #fafafa; color: #777; padding: 14px 20px; }
+.my-ticket-detail-facts dd { padding: 14px 20px; margin: 0; overflow-wrap: anywhere; }
+.my-ticket-purchase { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #e5e5e5; }
+.my-ticket-purchase > div { padding: 26px; display: grid; align-content: start; gap: 14px; }
+.my-ticket-purchase > div:first-child { background: #fafafa; }
+.my-ticket-purchase strong { font-size: 25px; font-weight: 500; }
+.my-ticket-purchase p, .my-ticket-purchase span { margin: 0; font-size: 13px; color: #777; }
+.my-ticket-purchase-total strong, .my-ticket-purchase-total span { color: #237344; }
+.my-ticket-table-scroll { overflow-x: auto; }
+.my-ticket-seat-table { border-collapse: collapse; width: 100%; min-width: 450px; border: 1px solid #e5e5e5; font-size: 14px; }
+.my-ticket-seat-table th, .my-ticket-seat-table td { text-align: center; padding: 18px 12px; border-bottom: 1px solid #eee; }
+.my-ticket-seat-table th { font-weight: 500; background: #fafafa; color: #777; }
+.my-ticket-seat-table .my-ticket-refund-button { padding: 7px 14px; border-color: #237344; border-radius: 6px; color: #237344; white-space: nowrap; }
+.my-ticket-seat-table .my-ticket-refund-button:hover:not(:disabled) { background: #237344; color: white; }
+.my-ticket-seat-table .my-ticket-refund-button:disabled { cursor: not-allowed; opacity: .45; }
+.my-ticket-refund-unavailable { color: #aaa; }
+.my-ticket-refund-form { display: grid; grid-template-columns: 1fr repeat(3, minmax(140px, 1fr)) auto; align-items: end; gap: 12px; margin-top: 16px; padding: 18px; border: 1px solid #d8e5dc; border-radius: 10px; background: #f5f8f4; }
+.my-ticket-refund-form > div:first-child { display: grid; gap: 6px; }
+.my-ticket-refund-form > div:first-child span, .my-ticket-refund-form label { color: #68716b; font-size: 13px; }
+.my-ticket-refund-form label { display: grid; gap: 6px; }
+.my-ticket-refund-form input, .my-ticket-refund-form select { box-sizing: border-box; width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #cfd8d1; border-radius: 6px; background: white; font: inherit; }
+.my-ticket-refund-actions { display: flex; gap: 8px; }
+.my-ticket-refund-actions button:last-child { border-color: #237344; background: #237344; color: white; white-space: nowrap; }
+.my-ticket-refund-confirm-backdrop { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; padding: 24px; background: #12201980; backdrop-filter: blur(8px); }
+.my-ticket-refund-confirm { width: min(420px, 100%); padding: 30px 28px 24px; border: 1px solid #e2e8f0e6; border-radius: 22px; background: white; box-shadow: 0 28px 80px #0f172a42; text-align: center; animation: customAlertIn .18s ease-out; }
+.my-ticket-refund-confirm-icon { display: inline-grid; place-items: center; width: 48px; height: 48px; margin-bottom: 14px; border-radius: 50%; background: #fff3f1; color: #b42318; font-size: 26px; font-weight: 900; }
+.my-ticket-refund-confirm-icon.success { background: #eff8dc; color: #237344; }
+.my-ticket-refund-confirm h2 { margin: 0 0 10px; color: #111827; font-size: 20px; }
+.my-ticket-refund-confirm p { margin: 0; color: #4b5563; font-size: 15px; font-weight: 600; line-height: 1.7; word-break: keep-all; }
+.my-ticket-refund-confirm p strong { color: #237344; }
+.my-ticket-refund-confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 24px; }
+.my-ticket-refund-confirm-actions button { min-width: 112px; height: 44px; padding: 0 20px; border-radius: 999px; font-weight: 800; }
+.my-ticket-refund-confirm-actions button:first-child { border-color: #d5d5d5; background: white; color: #4b5563; }
+.my-ticket-refund-confirm-actions button:last-child { border-color: #237344; background: #237344; color: white; box-shadow: 0 10px 24px #23734442; }
+.my-ticket-refund-confirm-actions button:last-child:hover { background: #1b5d36; }
+.my-ticket-refund-confirm-actions.single button { border-color: #237344; background: #237344; color: white; box-shadow: 0 10px 24px #23734442; }
+.my-ticket-deadline { padding: 16px; text-align: center; color: #237344; font-size: 14px; }
+.my-ticket-detail-dialog footer { display: flex; justify-content: center; margin-top: 24px; }
+@media (max-width: 1000px) {
+  .my-ticket-history-heading { display: none; }
+  .my-ticket-history-row { grid-template-columns: 1fr 1fr; }
+  .my-ticket-reserved-date { grid-column: 1 / -1; text-align: left; }
+  .my-ticket-row-status { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+  .my-ticket-overview { grid-template-columns: 1fr 1fr; }
+  .my-ticket-member { grid-column: 1 / -1; }
+  .my-ticket-overview > button { padding: 24px; }
+  .my-ticket-refund-form { grid-template-columns: 1fr 1fr; }
+  .my-ticket-refund-actions { justify-content: flex-end; }
+}
+@media (max-width: 600px) {
+  .my-ticket-history-row { grid-template-columns: 1fr; }
+  .my-ticket-member { padding: 20px; gap: 16px; }
+  .my-ticket-avatar { width: 60px; height: 60px; font-size: 40px; }
+  .my-ticket-member h2 { font-size: 22px; }
+  .my-ticket-detail-dialog { padding: 18px; }
+  .my-ticket-detail-facts > div { grid-template-columns: 95px 1fr; }
+  .my-ticket-detail-facts dt, .my-ticket-detail-facts dd { padding: 12px; }
+  .my-ticket-purchase { grid-template-columns: 1fr; }
+  .my-ticket-purchase > div { padding: 18px; }
+  .my-ticket-refund-form { grid-template-columns: 1fr; }
+}

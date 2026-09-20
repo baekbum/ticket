@@ -9,7 +9,7 @@
 - `infra-ticket`: ticket-service용 DB/Redis
 - `infra-queue`: queue-service용 Redis
 - `infra-kafka`: Kafka/Zookeeper
-- `infra-ingress`: Nginx ingress
+- `infra-ingress`: 로컬/운영 Nginx ingress (`infra-ingress/README.md`)
 - `infra-monitoring`: Prometheus/Grafana 통합 모니터링
 
 ## 공통 네트워크

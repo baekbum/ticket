@@ -84,6 +84,21 @@ public class Payment {
     @Column(name = "refunded_amount", nullable = false)
     private Integer refundedAmount = 0;
 
+    // 취소 과정에서 환불하지 않고 확정한 누적 취소 수수료.
+    @Builder.Default
+    @Column(name = "cancellation_fee_amount", nullable = false)
+    private Integer cancellationFeeAmount = 0;
+
+    // 결제 당시 확정된 장당 예매 수수료 합계. 취소 시 환불하지 않는다.
+    @Builder.Default
+    @Column(name = "reservation_fee_amount", nullable = false)
+    private Integer reservationFeeAmount = 0;
+
+    // 결제 당시 확정된 배송비. 남은 티켓을 모두 취소할 때만 환불한다.
+    @Builder.Default
+    @Column(name = "delivery_fee_amount", nullable = false)
+    private Integer deliveryFeeAmount = 0;
+
     // 같은 결제 요청이 중복 처리되지 않도록 클라이언트나 서버가 발급하는 멱등성 키.
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
@@ -193,21 +208,44 @@ public class Payment {
     }
 
     public void refund() {
-        this.refundedAmount = this.amount;
+        this.refundedAmount = getRefundedAmount() + getRefundableAmount();
         this.status = PaymentStatus.REFUNDED;
     }
 
     public void partialRefund(Integer refundAmount) {
         validateRefundAmount(refundAmount);
         this.refundedAmount = getRefundedAmount() + refundAmount;
-        this.status = getRefundableAmount() == 0
-                ? PaymentStatus.REFUNDED
-                : PaymentStatus.PARTIALLY_REFUNDED;
+        updateRefundStatus();
+    }
+
+    public void applyCancellationFee(Integer cancellationFeeAmount) {
+        if (cancellationFeeAmount == null || cancellationFeeAmount < 0) {
+            throw new IllegalArgumentException("취소 수수료는 0 이상이어야 합니다.");
+        }
+        if (cancellationFeeAmount > getRefundableAmount()) {
+            throw new IllegalArgumentException("취소 수수료가 남은 결제 금액을 초과했습니다.");
+        }
+        this.cancellationFeeAmount = getCancellationFeeAmount() + cancellationFeeAmount;
+        updateRefundStatus();
+    }
+
+    public void applyCancellation(Integer refundAmount, Integer cancellationFeeAmount) {
+        int fee = cancellationFeeAmount != null ? cancellationFeeAmount : 0;
+        if (refundAmount == null || refundAmount < 0 || refundAmount + fee <= 0) {
+            throw new IllegalArgumentException("환불 금액과 취소 수수료의 합은 0보다 커야 합니다.");
+        }
+        if (refundAmount + fee > getRefundableAmount()) {
+            throw new IllegalArgumentException("환불 금액과 취소 수수료가 남은 결제 금액을 초과했습니다.");
+        }
+        this.refundedAmount = getRefundedAmount() + refundAmount;
+        this.cancellationFeeAmount = getCancellationFeeAmount() + fee;
+        updateRefundStatus();
     }
 
     public void ready() {
         this.status = PaymentStatus.READY;
         this.refundedAmount = 0;
+        this.cancellationFeeAmount = 0;
         this.paidAt = null;
         this.expiresAt = null;
     }
@@ -245,7 +283,25 @@ public class Payment {
     }
 
     public Integer getRefundableAmount() {
-        return this.amount - getRefundedAmount();
+        return this.amount - getRefundedAmount() - getCancellationFeeAmount() - getReservationFeeAmount();
+    }
+
+    public Integer getCancellationFeeAmount() {
+        return cancellationFeeAmount != null ? cancellationFeeAmount : 0;
+    }
+
+    public Integer getReservationFeeAmount() {
+        return reservationFeeAmount != null ? reservationFeeAmount : 0;
+    }
+
+    public Integer getDeliveryFeeAmount() {
+        return deliveryFeeAmount != null ? deliveryFeeAmount : 0;
+    }
+
+    private void updateRefundStatus() {
+        this.status = getRefundableAmount() == 0
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.PARTIALLY_REFUNDED;
     }
 
     private void validateRefundAmount(Integer refundAmount) {

@@ -4,7 +4,7 @@ import { getApiErrorMessage } from '../src/apiErrorMessage.ts';
 
 test('빈 응답, 표준 오류, 기존 HTTP 코드 문구를 사용자 안내로 변환한다', () => {
   for (const body of ['', 'Forbidden', '{"error":"Forbidden"}', '요청 실패: 403', 'null', '[]']) {
-    assert.equal(getApiErrorMessage(403, body), '요청을 진행할 수 없습니다. 로그인 상태를 확인한 후 다시 시도해주세요.');
+    assert.equal(getApiErrorMessage(403, body), '처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
   }
 });
 

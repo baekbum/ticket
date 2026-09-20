@@ -1,7 +1,5 @@
 server:
   port: 8080
-  servlet:
-    context-path: /
 
 spring:
   application:
@@ -10,6 +8,7 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
 
 token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
@@ -35,6 +34,7 @@ management:
     tags:
       application: ${spring.application.name}
   tracing:
+    enabled: true
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.1}
   otlp:

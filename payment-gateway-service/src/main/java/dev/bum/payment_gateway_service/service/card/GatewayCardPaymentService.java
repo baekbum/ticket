@@ -16,8 +16,8 @@ public class GatewayCardPaymentService {
     private final GatewayCardSettlementService settlementService;
 
     public GatewayCardPaymentApproveResponse approve(String userId, GatewayCardPaymentApproveRequest request) {
-        GatewayCardPaymentApproveResponse approval = approvalService.approve(userId, request);
-        CardPaymentHistoryStatus status = settle(request.getPaymentNo());
+        GatewayCardPaymentApproveResponse approval = approvalService.approve(userId, request); // pg 서비스 내부의 결제 상태를 바꿈
+        CardPaymentHistoryStatus status = settle(request.getPaymentNo()); // ticket 서비스 내부의 결제 상태를 바꿈
 
         if (status != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED) {
             throw new IllegalArgumentException("예매를 완료할 수 없거나 이미 취소/환불된 결제입니다.");

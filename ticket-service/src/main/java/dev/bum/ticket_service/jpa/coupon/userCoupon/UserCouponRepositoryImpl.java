@@ -7,6 +7,8 @@ import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UserCouponCondRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
+import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.QCoupon;
@@ -49,6 +51,22 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     @Override
     public List<UserCoupon> selectByUserId(String userId) {
         return jpaRepository.findByUserId(userId);
+    }
+
+    @Override
+    public List<UserCoupon> selectByUserId(String userId, UserCouponFilter filter, LocalDateTime now) {
+        QUserCoupon userCoupon = QUserCoupon.userCoupon;
+        QCoupon coupon = QCoupon.coupon;
+
+        return queryFactory
+                .selectFrom(userCoupon)
+                .join(userCoupon.coupon, coupon).fetchJoin()
+                .where(
+                        userCoupon.userId.eq(userId),
+                        myCouponFilter(filter, now)
+                )
+                .orderBy(userCoupon.userCouponId.desc())
+                .fetch();
     }
 
     @Override
@@ -160,5 +178,25 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
         return usedAt != null
                 ? QUserCoupon.userCoupon.usedAt.between(usedAt.atStartOfDay(), usedAt.atTime(LocalTime.MAX))
                 : null;
+    }
+
+    private BooleanExpression myCouponFilter(UserCouponFilter filter, LocalDateTime now) {
+        QUserCoupon userCoupon = QUserCoupon.userCoupon;
+        QCoupon coupon = QCoupon.coupon;
+
+        return switch (filter) {
+            case ALL -> null;
+            case AVAILABLE -> userCoupon.status.eq(UserCouponStatus.ISSUED)
+                    .and(userCoupon.expiresAt.isNull().or(userCoupon.expiresAt.goe(now)))
+                    .and(coupon.status.eq(CouponStatus.ACTIVE))
+                    .and(coupon.validFrom.isNull().or(coupon.validFrom.loe(now)))
+                    .and(coupon.validUntil.isNull().or(coupon.validUntil.goe(now)));
+            case USED -> userCoupon.status.eq(UserCouponStatus.USED);
+            case EXPIRED -> userCoupon.status.eq(UserCouponStatus.EXPIRED)
+                    .or(userCoupon.status.eq(UserCouponStatus.ISSUED)
+                            .and(userCoupon.expiresAt.isNotNull().and(userCoupon.expiresAt.lt(now))
+                                    .or(coupon.validUntil.isNotNull().and(coupon.validUntil.lt(now)))
+                                    .or(coupon.status.eq(CouponStatus.EXPIRED))));
+        };
     }
 }

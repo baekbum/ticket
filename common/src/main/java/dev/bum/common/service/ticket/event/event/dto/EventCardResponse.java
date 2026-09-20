@@ -17,6 +17,7 @@ public class EventCardResponse {
     private String artistName;
     private String title;
     private String posterUrl;
+    private String venue;
     private LocalDate eventStartDate;
     private LocalDate eventEndDate;
 }

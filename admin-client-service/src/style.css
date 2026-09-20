@@ -1,0 +1,106 @@
+:root { font-family: Inter, 'Noto Sans KR', sans-serif; color: #202638; background: #f5f6fa; }
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; width: 100%; min-height: 100%; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 800; white-space: nowrap; }
+.brand small { font-size: 11px; font-weight: 700; color: #6d55c9; background: #eee8ff; border-radius: 6px; padding: 5px 7px; }
+.brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; color: white; background: #714fd5; }
+.login-page { position: relative; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 15% 15%, #e8dfff, transparent 32%), #f6f7fb; }
+.login-theme-toggle { position: absolute; top: 24px; right: 24px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #d9dce5; border-radius: 8px; padding: 9px 12px; background: white; color: #42495d; font-size: 13px; font-weight: 700; }
+.login-theme-toggle:hover, .login-theme-toggle:focus-visible { border-color: #7352d5; background: #f2effc; }
+.login-card { width: min(420px, 100%); padding: 36px; border: 1px solid #e7e7ee; border-radius: 17px; background: white; box-shadow: 0 20px 60px #28274812; }
+.login-card .brand { margin-bottom: 42px; }
+.eyebrow { color: #7352d5; letter-spacing: .14em; font-weight: 800; font-size: 11px; }
+.login-card h1 { font-size: 26px; margin: 8px 0; }
+.muted { color: #747b8e; font-size: 13px; }
+.login-card .field-label, .profile-dialog label { display: grid; gap: 8px; margin-top: 20px; font-size: 13px; font-weight: 700; }
+.login-card input, .profile-dialog input { width: 100%; border: 1px solid #d9dce5; border-radius: 8px; padding: 12px 13px; outline-color: #7352d5; background: white; color: inherit; }
+.login-card .field-label { margin-bottom: 8px; }
+.password-field { position: relative; }
+.password-field input { padding-right: 75px; }
+.password-field button { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); border: 0; border-radius: 6px; padding: 7px 9px; background: transparent; color: #5f6677; font-size: 12px; font-weight: 700; }
+.password-field button:hover, .password-field button:focus-visible { background: #f2effc; color: #5934bd; }
+.login-card .remember-id { display: flex; align-items: center; gap: 8px; width: fit-content; margin-top: 14px; color: #454d60; font-size: 13px; cursor: pointer; }
+.login-card .remember-id input { width: auto; margin: 0; accent-color: #7251d5; }
+.profile-dialog input:disabled { background: #f3f4f8; color: #5e6574; }
+.primary-button { width: 100%; margin-top: 25px; padding: 13px; border: 0; border-radius: 9px; background: #7251d5; color: white; font-weight: 700; }
+.primary-button:disabled { opacity: .55; }
+.form-error { color: #b92f39; font-size: 13px; }
+.admin-shell { height: 100vh; display: flex; flex-direction: column; }
+.admin-header { min-height: 65px; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; border-bottom: 1px solid #e7e7ee; background: white; }
+.header-actions { display: flex; gap: 12px; align-items: center; }
+.header-actions button { border: 0; background: none; padding: 8px 10px; border-radius: 7px; color: #42495d; }
+.header-actions button:hover { background: #f2effc; }
+.admin-layout { display: flex; min-height: 0; flex: 1; }
+.admin-sidebar { width: 235px; flex: none; overflow: auto; padding: 18px 11px; background: white; border-right: 1px solid #e7e7ee; }
+.admin-sidebar section { margin-bottom: 6px; }
+.admin-sidebar button { display: block; width: 100%; margin: 3px 0; padding: 10px 12px; text-align: left; border: 0; border-radius: 8px; background: none; color: #454d60; font-size: 13px; }
+.admin-sidebar button .ti { margin-right: 6px; }
+.admin-sidebar button:hover { background: #f4f1fb; }
+.admin-sidebar .group-toggle { display: flex; align-items: center; justify-content: space-between; font-weight: 800; }
+.admin-sidebar .group-toggle > .ti { margin-right: 0; transition: transform .2s ease; }
+.admin-sidebar .group-toggle[aria-expanded="false"] > .ti { transform: rotate(-90deg); }
+.admin-sidebar .group-items { padding-left: 10px; }
+.admin-sidebar .menu-item { font-weight: 400; }
+.admin-sidebar button.selected { background: #eee8ff; color: #5934bd; font-weight: 800; }
+.admin-main { position: relative; min-width: 0; min-height: 0; flex: 1; background: #f5f6fa; }
+.admin-main > iframe { width: 100%; height: 100%; border: 0; background: white; }
+.embed-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+.embed-window { position: absolute; top: var(--embed-top, var(--embed-start-top, 12px)); left: var(--embed-left, var(--embed-start-left, 12px)); display: flex; flex-direction: column; width: var(--embed-width, min(700px, max(50%, 480px), calc(100% - var(--embed-start-left, 12px) - 12px))); max-width: 100%; height: var(--embed-height, var(--embed-start-height, calc(100% - 24px))); overflow: hidden; border: 1px solid #d9dce5; border-radius: 9px; background: white; box-shadow: 0 18px 58px #16142a38; pointer-events: auto; }
+.embed-window.maximized { top: 12px; left: 12px; width: calc(100% - 24px); height: calc(100% - 24px); }
+.embed-window.minimized { display: none; }
+.embed-window.maximized .embed-resize-handle { display: none; }
+.embed-window.dragging iframe, .embed-window.resizing iframe { pointer-events: none; }
+.embed-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 12px 0 18px; border-bottom: 1px solid #e7e7ee; cursor: move; user-select: none; touch-action: none; }
+.embed-toolbar strong { font-size: 14px; }
+.embed-toolbar > div { display: flex; gap: 4px; }
+.embed-toolbar button { border: 0; border-radius: 7px; padding: 8px; background: transparent; color: #454d60; cursor: pointer; }
+.embed-toolbar button:hover { background: #f2effc; }
+.embed-window iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: white; }
+.embed-resize-handle { position: absolute; z-index: 2; touch-action: none; }
+.embed-resize-handle.n { top: 0; left: 12px; right: 12px; height: 8px; cursor: n-resize; }
+.embed-resize-handle.s { bottom: 0; left: 12px; right: 12px; height: 8px; cursor: s-resize; }
+.embed-resize-handle.e { right: 0; top: 12px; bottom: 12px; width: 8px; cursor: e-resize; }
+.embed-resize-handle.w { left: 0; top: 12px; bottom: 12px; width: 8px; cursor: w-resize; }
+.embed-resize-handle.ne, .embed-resize-handle.se, .embed-resize-handle.sw, .embed-resize-handle.nw { width: 14px; height: 14px; }
+.embed-resize-handle.ne { top: 0; right: 0; cursor: ne-resize; }
+.embed-resize-handle.se { bottom: 0; right: 0; cursor: se-resize; }
+.embed-resize-handle.sw { bottom: 0; left: 0; cursor: sw-resize; }
+.embed-resize-handle.nw { top: 0; left: 0; cursor: nw-resize; }
+.embed-resize-handle.se::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; border-right: 2px solid #8a90a0; border-bottom: 2px solid #8a90a0; }
+.embed-switcher { position: absolute; right: 12px; bottom: 12px; z-index: 11; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 24px); padding: 6px; border: 1px solid #d9dce5; border-radius: 8px; background: #fff; box-shadow: 0 6px 24px #0003; }
+.embed-switcher button { border: 0; border-radius: 6px; padding: 7px 10px; background: transparent; color: #454d60; font-size: 12px; }
+.embed-switcher button[aria-pressed="true"] { background: #eee8ff; color: #5934bd; font-weight: 800; }
+.embed-switcher button.minimized { opacity: .7; }
+.dialog-backdrop { position: fixed; inset: 0; display: grid; place-items: center; background: #11182788; z-index: 100; padding: 20px; }
+.profile-dialog { width: min(520px, 100%); max-height: 90vh; overflow: auto; padding: 25px; border-radius: 12px; background: white; box-shadow: 0 25px 60px #0003; }
+.dialog-heading, .dialog-actions, .verify-row { display: flex; align-items: center; gap: 10px; }
+.dialog-heading { justify-content: space-between; }
+.dialog-heading h2 { margin: 0; }
+.dialog-heading button { border: 0; background: none; font-size: 20px; }
+.verify-row { margin-top: 22px; }
+.verify-row button, .dialog-actions button { white-space: nowrap; padding: 11px; border: 1px solid #d9dce5; border-radius: 8px; background: #f4f1fb; }
+.dialog-actions { justify-content: flex-end; margin-top: 25px; }
+.loading-page { min-height: 100vh; display: grid; place-items: center; }
+.dark-mode { color: #e9eaf0; background: #171a25; }
+.dark-mode .admin-header, .dark-mode .admin-sidebar, .dark-mode .profile-dialog { background: #202332; border-color: #343849; }
+.dark-mode .admin-main, .dark-mode .login-page { background: #171a25; }
+.dark-mode .admin-sidebar button, .dark-mode .header-actions button { color: #d6d8e1; }
+.dark-mode .admin-sidebar button.selected { background: #49378a; color: #fff; }
+.dark-mode .embed-switcher { background: #202332; border-color: #454a5e; }
+.dark-mode .embed-switcher button { color: #d6d8e1; }
+.dark-mode .embed-switcher button[aria-pressed="true"] { background: #49378a; color: #fff; }
+.dark-mode .profile-dialog input { background: #292d3d; color: white; border-color: #454a5e; }
+.dark-mode .login-page { background: radial-gradient(circle at 15% 15%, #292344, transparent 36%), #171a25; }
+.dark-mode .login-card, .dark-mode .login-theme-toggle { background: #202332; border-color: #343849; color: #e9eaf0; }
+.dark-mode .login-card .eyebrow { color: #ad97ff; }
+.dark-mode .login-card .muted { color: #adb5c7; }
+.dark-mode .login-card .field-label, .dark-mode .login-card .remember-id { color: #d6d8e1; }
+.dark-mode .login-card input { background: #292d3d; border-color: #454a5e; color: #f1f2f7; }
+.dark-mode .login-card input::placeholder { color: #a5adbf; }
+.dark-mode .login-card input:-webkit-autofill { -webkit-text-fill-color: #f1f2f7; box-shadow: 0 0 0 1000px #292d3d inset; }
+.dark-mode .password-field button { color: #c4c9d7; }
+.dark-mode .password-field button:hover, .dark-mode .password-field button:focus-visible, .dark-mode .login-theme-toggle:hover, .dark-mode .login-theme-toggle:focus-visible { background: #343849; color: #fff; }
+.dark-mode .login-card .form-error { color: #ff9ca6; }
+@media (max-width: 850px) { .admin-sidebar { width: 180px; } .admin-header { padding: 0 12px; } .header-actions button { font-size: 11px; } }

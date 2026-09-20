@@ -4,6 +4,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReservationController {
 
     private final ReservationService reservationService;
+
+    @GetMapping("/select/detail/{reservationId}")
+    public ResponseEntity<ReservationDetailResponse> selectDetail(
+            @AuthenticationPrincipal String currentUserId,
+            @PathVariable("reservationId") long id
+    ) {
+        return ResponseEntity.ok(reservationService.selectMyReservationDetail(currentUserId, id));
+    }
 
     @GetMapping("/select/id/{reservationId}")
     public ResponseEntity<ReservationResponse> selectById(

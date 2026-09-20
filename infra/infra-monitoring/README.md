@@ -19,13 +19,13 @@ Prometheus는 Docker 컨테이너로 실행되지만, 수집 대상은 호스트
 
 로컬 수집 경로:
 
-- `auth-service`: `host.docker.internal:8080/auth/actuator/prometheus`
-- `user-service`: `host.docker.internal:8081/user/actuator/prometheus`
-- `ticket-service`: `host.docker.internal:8082/ticket/actuator/prometheus`
-- `queue-service`: `host.docker.internal:8083/queue/actuator/prometheus`
-- `audit-service`: `host.docker.internal:8084/audit/actuator/prometheus`
-- `admin-service`: `host.docker.internal:8999/admin/actuator/prometheus`
-- `client-service`: `host.docker.internal:3000/health`
+- `auth-service`: `host.docker.internal:8080/actuator/prometheus`
+- `user-service`: `host.docker.internal:8081/actuator/prometheus`
+- `ticket-service`: `host.docker.internal:8082/actuator/prometheus`
+- `queue-service`: `host.docker.internal:8083/actuator/prometheus`
+- `audit-service`: `host.docker.internal:8084/actuator/prometheus`
+- `admin-service`: `host.docker.internal:8998/actuator/prometheus`
+- `ingress-nginx`: `host.docker.internal:80/health`
 - `local-postgres`: `host.docker.internal:5432` 대상 `local-postgres-exporter`
 - `refresh-redis`: `host.docker.internal:6379` 대상 `refresh-redis-exporter`
 - `seat-redis`: `host.docker.internal:6380` 대상 `seat-redis-exporter`
@@ -74,8 +74,8 @@ Prometheus는 `ticket-network` 내부 서비스명으로 수집합니다.
 - `ticket-service:8080/actuator/prometheus`
 - `queue-service:8080/actuator/prometheus`
 - `audit-service:8080/actuator/prometheus`
-- `admin-service:8999/admin/actuator/prometheus`
-- `client-service:3000/health`
+- `admin-service:8998/actuator/prometheus`
+- `ingress-nginx:80/health`
 - `auth-db:5432` 대상 `auth-postgres-exporter`
 - `user-db:5432` 대상 `user-postgres-exporter`
 - `ticket-db:5432` 대상 `ticket-postgres-exporter`
@@ -158,7 +158,7 @@ Grafana를 새 창으로 열 수 있도록 compose에 아래 설정을 넣어두
 - `GF_AUTH_ANONYMOUS_ENABLED=true`
 - `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer`
 
-`admin-service`의 모니터링 메뉴는 카드형 허브 화면을 표시합니다.
+`admin-client-service`의 모니터링 메뉴는 카드형 허브 화면을 표시합니다.
 
 카드를 클릭하면 각 Grafana 대시보드 URL이 새 창으로 열립니다. Spring Boot / JVM은 현재 기본 대시보드인 `Ticket Spring Services Overview`로 연결됩니다.
 

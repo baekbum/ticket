@@ -1,7 +1,5 @@
 server:
   port: 8084
-  servlet:
-    context-path: /audit
 
 spring:
   profiles:
@@ -18,7 +16,7 @@ spring:
     hibernate:
       ddl-auto: update
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9094
     consumer:
       group-id: audit-service-group
       auto-offset-reset: earliest
@@ -57,4 +55,4 @@ app:
     slack:
       enabled: true
       webhook-url: ${SLACK_WEBHOOK_URL:}
-      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost:8999/admin/api/v1/view/embed/kafkaDlq}"
+      admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost/admin/?menu=kafkaDlq}"

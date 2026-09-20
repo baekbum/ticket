@@ -22,10 +22,16 @@ public class PaymentService {
     private final CardPaymentService cardPaymentService;
     private final VirtualAccountPaymentService virtualAccountPaymentService;
 
+    /**
+     * payment-gateway가 카드 승인을 요청하기 전에 결제 소유자, 결제수단, 상태 및 만료 여부를 검증한다.
+     */
     public PaymentResponse validateCardBeforeApproval(CardPaymentValidationRequest request) {
         return cardPaymentService.validateBeforeApproval(request);
     }
 
+    /**
+     * payment-gateway의 카드 승인 결과를 검증하고 결제 완료 또는 승인 거절 상태로 정산한다.
+     */
     public CardPaymentSettlementResponse settleCardFromGateway(CardPaymentCompleteRequest request) {
         return cardPaymentService.settleFromGateway(request);
     }

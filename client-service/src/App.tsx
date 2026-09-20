@@ -1,3 +1,6 @@
+import MyTicketPage from './MyTicketPage';
+import SearchResultsPage from './SearchResultsPage';
+import { readSearch, type SearchQuery } from './searchQuery';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
@@ -6,8 +9,12 @@ import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAu
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
+import CustomerServicePage from './CustomerServicePage';
+import type { CustomerServiceTab, GuideTab } from './CustomerServicePage';
+import { ticketAssetUrl } from './ticketAssetUrl';
 
 type Page =
+  | 'search'
   | 'home'
   | 'login'
   | 'signup'
@@ -20,12 +27,13 @@ type Page =
   | 'classicList'
   | 'exhibitionEventList'
   | 'myTicket'
+  | 'customerService'
   | 'bookingWindow';
 type FindIdMethod = 'phone' | 'email';
 type HomeEventTab = 'festival' | 'openSoon' | 'weekly';
 type ConcertSort = 'soonest' | 'latest';
 type EventGenre = 'CONCERT' | 'MUSICAL_PLAY' | 'FANCLUB_FANMEETING' | 'CLASSIC' | 'EXHIBITION_EVENT';
-type MyTicketTab = 'home' | 'reservation' | 'coupon';
+
 
 type LoginForm = {
   userId: string;
@@ -40,12 +48,9 @@ type SignupForm = LoginForm & {
   birthDate: string;
 };
 
-type LoginResponse = {
-  success: boolean;
-  message: string;
-  name?: string;
-  accessToken?: string;
-  refreshToken?: string;
+type TokenResponse = {
+  accessToken: string;
+  refreshToken: string;
 };
 
 type QueueEntryResponse = {
@@ -334,43 +339,6 @@ const initialFindPasswordForm = {
 const savedLoginIdCookieName = 'ticksy.savedLoginId';
 const categories = ['콘서트', '뮤지컬/연극', '팬클럽/팬미팅', '클래식', '전시/행사'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
-const recentTicketHistories = [
-  {
-    id: 1,
-    title: '2026 IU CONCERT - HEREH WORLD TOUR ENCORE',
-    date: '2026.09.12 18:00',
-    venue: 'KSPO DOME',
-    status: '예매완료',
-  },
-  {
-    id: 2,
-    title: 'Ticksy Live Festa',
-    date: '2026.09.05 19:00',
-    venue: '서울월드컵공원 평화광장',
-    status: '예매완료',
-  },
-  {
-    id: 3,
-    title: '한강 재즈 브리즈',
-    date: '2026.09.13 18:30',
-    venue: '노들섬 라이브하우스',
-    status: '취소완료',
-  },
-];
-const recentInquiries = [
-  {
-    id: 1,
-    title: '예매 취소 수수료가 궁금합니다.',
-    date: '2026.08.29',
-    status: '답변완료',
-  },
-  {
-    id: 2,
-    title: '모바일 티켓 입장 가능 여부 문의',
-    date: '2026.08.27',
-    status: '접수완료',
-  },
-];
 const categoryPageConfigs: Record<
   'concertList' | 'musicalPlayList' | 'fanclubFanmeetingList' | 'classicList' | 'exhibitionEventList',
   {
@@ -409,19 +377,19 @@ const homeEventTabs: Array<{ key: HomeEventTab; label: string; endpoint: string;
   {
     key: 'festival',
     label: '페스티벌',
-    endpoint: '/client-api/api/v1/event/cards/festival',
+    endpoint: '/ticket/api/v1/event/cards/festival',
     emptyMessage: '판매 중인 페스티벌 공연이 없습니다.',
   },
   {
     key: 'openSoon',
     label: '오픈 예정 공연',
-    endpoint: '/client-api/api/v1/event/cards/open-soon',
+    endpoint: '/ticket/api/v1/event/cards/open-soon',
     emptyMessage: '10일 안에 오픈 예정인 공연이 없습니다.',
   },
   {
     key: 'weekly',
     label: '이 주의 추천공연',
-    endpoint: '/client-api/api/v1/event/cards/weekly',
+    endpoint: '/ticket/api/v1/event/cards/weekly',
     emptyMessage: '2주 안에 진행되는 추천 공연이 없습니다.',
   },
 ];
@@ -430,6 +398,7 @@ function getPageFromLocation(): Page {
   const page = new URLSearchParams(window.location.search).get('page');
 
   if (
+    page === 'search' ||
     page === 'login' ||
     page === 'signup' ||
     page === 'findId' ||
@@ -441,6 +410,7 @@ function getPageFromLocation(): Page {
     page === 'classicList' ||
     page === 'exhibitionEventList' ||
     page === 'myTicket' ||
+    page === 'customerService' ||
     page === 'bookingWindow'
   ) {
     return page;
@@ -451,6 +421,18 @@ function getPageFromLocation(): Page {
 
 function getUrlForPage(page: Page) {
   const url = new URL(window.location.href);
+
+  if (page !== 'search') {
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
+  }
+
+  if (page !== 'customerService') {
+    url.searchParams.delete('serviceTab');
+    url.searchParams.delete('guideTab');
+    url.searchParams.delete('noticeId');
+  }
 
   if (page === 'home') {
     url.searchParams.delete('page');
@@ -712,7 +694,7 @@ function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' 
     return;
   }
 
-  fetch(`/client-api/api/v1/queue/events/${eventId}/leave`, {
+  fetch(`/queue/api/v1/queue/events/${eventId}/leave`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -862,7 +844,16 @@ function deleteCookie(name: string) {
 }
 
 function App() {
+  const [searchQuery, setSearchQuery] = useState(readSearch);
   const [page, setPage] = useState<Page>(() => getPageFromLocation());
+  const [customerServiceTab, setCustomerServiceTab] = useState<CustomerServiceTab>(() => {
+    const tab = new URLSearchParams(window.location.search).get('serviceTab');
+    return tab === 'guide' || tab === 'faq' || tab === 'inquiry' ? tab : 'notice';
+  });
+  const [guideTab, setGuideTab] = useState<GuideTab>(() => {
+    const tab = new URLSearchParams(window.location.search).get('guideTab');
+    return tab === 'cancel' || tab === 'delivery' ? tab : 'booking';
+  });
   const [selectedEventGroupCode, setSelectedEventGroupCode] = useState(
     () => new URLSearchParams(window.location.search).get('eventGroupCode') || '',
   );
@@ -881,8 +872,18 @@ function App() {
     window.history.replaceState({ page: getPageFromLocation() }, '', window.location.href);
 
     function handlePopState() {
+      const searchParams = new URLSearchParams(window.location.search);
+      const nextServiceTab = searchParams.get('serviceTab');
+      const nextGuideTab = searchParams.get('guideTab');
+      setSearchQuery(readSearch());
       setPage(getPageFromLocation());
-      setSelectedEventGroupCode(new URLSearchParams(window.location.search).get('eventGroupCode') || '');
+      setSelectedEventGroupCode(searchParams.get('eventGroupCode') || '');
+      setCustomerServiceTab(
+        nextServiceTab === 'guide' || nextServiceTab === 'faq' || nextServiceTab === 'inquiry'
+          ? nextServiceTab
+          : 'notice',
+      );
+      setGuideTab(nextGuideTab === 'cancel' || nextGuideTab === 'delivery' ? nextGuideTab : 'booking');
     }
 
     window.addEventListener('popstate', handlePopState);
@@ -925,6 +926,9 @@ function App() {
   }, [customAlert]);
 
   function navigateToPage(nextPage: Page) {
+    if (nextPage !== 'search') {
+      setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
+    }
     setPage(nextPage);
 
     const nextUrl = getUrlForPage(nextPage);
@@ -946,7 +950,11 @@ function App() {
     const url = new URL(window.location.href);
     url.searchParams.set('page', 'eventDetail');
     url.searchParams.set('eventGroupCode', eventGroupCode);
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
 
+    setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
     setPage('eventDetail');
     setSelectedEventGroupCode(eventGroupCode);
     window.history.pushState(
@@ -956,12 +964,54 @@ function App() {
     );
   }
 
+  function navigateToCustomerService(tab: CustomerServiceTab, nextGuideTab: GuideTab = 'booking') {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'customerService');
+    url.searchParams.set('serviceTab', tab);
+    if (tab === 'guide') {
+      url.searchParams.set('guideTab', nextGuideTab);
+    } else {
+      url.searchParams.delete('guideTab');
+    }
+    url.searchParams.delete('noticeId');
+    url.searchParams.delete('keyword');
+    url.searchParams.delete('field');
+    url.searchParams.delete('searchPage');
+    url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
+
+    setSearchQuery((current) => ({ ...current, keyword: '', page: 0 }));
+    setPage('customerService');
+    setCustomerServiceTab(tab);
+    setGuideTab(nextGuideTab);
+    window.history.pushState(
+      { page: 'customerService', serviceTab: tab, guideTab: nextGuideTab },
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    window.scrollTo(0, 0);
+  }
+
+  function navigateToSearch(query: SearchQuery) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'search');
+    url.searchParams.set('keyword', query.keyword);
+    url.searchParams.set('field', query.field);
+    url.searchParams.set('searchPage', String(query.page));
+    url.searchParams.delete('eventGroupCode');
+    url.searchParams.delete('eventId');
+    window.history.pushState({}, '', url);
+    setSearchQuery(query);
+    setPage('search');
+    window.scrollTo(0, 0);
+  }
+
   async function logout() {
     const refreshToken = sessionStorage.getItem('ticksy.refreshToken');
 
     try {
       if (refreshToken) {
-        await request<void>('/client-api/api/v1/auth/logout', {
+        await request<void>('/auth/api/v1/logout', {
           method: 'POST',
           headers: {
             'Authorization-Refresh': `Bearer ${refreshToken}`,
@@ -979,13 +1029,19 @@ function App() {
     <main className="app-shell">
       {!isFullAuthPage && (
         <Header
+          key={searchQuery.keyword + searchQuery.field}
+          searchQuery={searchQuery}
+          onSearch={navigateToSearch}
           currentPage={page}
+          customerServiceTab={customerServiceTab}
           loginUserName={loginUserName}
           onLogout={logout}
           onNavigate={navigateToPage}
+          onNavigateToCustomerService={navigateToCustomerService}
         />
       )}
       {page === 'home' && <HomePage onSelectEvent={navigateToEventDetail} />}
+      {page === 'search' && <SearchResultsPage query={searchQuery} onSearch={navigateToSearch} onSelectEvent={navigateToEventDetail} />}
       {(page === 'concertList' ||
         page === 'musicalPlayList' ||
         page === 'fanclubFanmeetingList' ||
@@ -1004,13 +1060,21 @@ function App() {
           onNavigate={navigateToPage}
         />
       )}
-      {page === 'myTicket' && <MyTicketPage />}
+      {page === 'myTicket' && <MyTicketPage request={request} />}
+      {page === 'customerService' && (
+        <CustomerServicePage
+          activeTab={customerServiceTab}
+          activeGuideTab={guideTab}
+          onTabChange={(tab) => navigateToCustomerService(tab, guideTab)}
+          onGuideTabChange={(tab) => navigateToCustomerService('guide', tab)}
+        />
+      )}
       {page === 'bookingWindow' && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
       {page === 'findPassword' && <FindPasswordPage onNavigate={navigateToPage} />}
-      {!isFullAuthPage && <SiteFooter />}
+      {!isFullAuthPage && <SiteFooter onNavigateToCustomerService={navigateToCustomerService} />}
       {!isFullAuthPage && <TopButton />}
       <CustomAlertModal
         alert={customAlert}
@@ -1062,16 +1126,59 @@ function CustomAlertModal({
 }
 
 function Header({
+  searchQuery,
+  onSearch,
   currentPage,
+  customerServiceTab,
   loginUserName,
   onLogout,
   onNavigate,
+  onNavigateToCustomerService,
 }: {
+  searchQuery: SearchQuery;
+  onSearch: (query: SearchQuery) => void;
   currentPage: Page;
+  customerServiceTab: CustomerServiceTab;
   loginUserName: string;
   onLogout: () => void;
   onNavigate: (page: Page) => void;
+  onNavigateToCustomerService: (tab: CustomerServiceTab, guideTab?: GuideTab) => void;
 }) {
+  const [keyword, setKeyword] = useState(searchQuery.keyword);
+  const [field, setField] = useState(searchQuery.field);
+  const [isSearchFieldOpen, setIsSearchFieldOpen] = useState(false);
+  const searchFieldRef = useRef<HTMLDivElement>(null);
+
+  const searchFields: Array<{ value: SearchQuery['field']; label: string }> = [
+    { value: 'ALL', label: '전체' },
+    { value: 'TITLE', label: '공연' },
+    { value: 'ARTIST', label: '아티스트' },
+    { value: 'VENUE', label: '장소' },
+  ];
+  const selectedSearchFieldLabel = searchFields.find((item) => item.value === field)?.label ?? '전체';
+
+  useEffect(() => {
+    function closeSearchField(event: MouseEvent) {
+      if (!searchFieldRef.current?.contains(event.target as Node)) {
+        setIsSearchFieldOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', closeSearchField);
+    return () => document.removeEventListener('mousedown', closeSearchField);
+  }, []);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (keyword.trim()) onSearch({ keyword: keyword.trim(), field, page: 0 });
+  }
+
+  function navigateFromHeader(nextPage: Page) {
+    setKeyword('');
+    setIsSearchFieldOpen(false);
+    onNavigate(nextPage);
+  }
+
   return (
     <header className="site-header">
       <div className="top-menu">
@@ -1083,42 +1190,94 @@ function Header({
           <button
             className={currentPage === 'login' ? 'active-link' : ''}
             type="button"
-            onClick={() => onNavigate('login')}
+            onClick={() => navigateFromHeader('login')}
           >
             로그인
           </button>
         )}
         <span aria-hidden="true">|</span>
         {loginUserName ? (
-          <button type="button" onClick={onLogout}>
+          <button type="button" onClick={() => { setKeyword(''); onLogout(); }}>
             로그아웃
           </button>
         ) : (
           <button
             className={currentPage === 'signup' ? 'active-link' : ''}
             type="button"
-            onClick={() => onNavigate('signup')}
+            onClick={() => navigateFromHeader('signup')}
           >
             회원가입
           </button>
         )}
         <span aria-hidden="true">|</span>
-        <button type="button">고객센터</button>
+        <button
+          className={currentPage === 'customerService' && customerServiceTab !== 'guide' ? 'active-link' : ''}
+          type="button"
+          onClick={() => onNavigateToCustomerService('notice')}
+        >
+          고객센터
+        </button>
         <span aria-hidden="true">|</span>
-        <button type="button">이용안내</button>
+        <button
+          className={currentPage === 'customerService' && customerServiceTab === 'guide' ? 'active-link' : ''}
+          type="button"
+          onClick={() => onNavigateToCustomerService('guide')}
+        >
+          이용안내
+        </button>
       </div>
 
       <div className="brand-row">
-        <button className="brand" type="button" onClick={() => onNavigate('home')}>
+        <button className="brand" type="button" onClick={() => navigateFromHeader('home')}>
           <span className="brand-dot" aria-hidden="true" />
           <span>Ticksy</span>
         </button>
-        <div className="search-bar">
-          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" />
-          <button type="button" aria-label="검색">
+        <form className="search-bar" role="search" onSubmit={submitSearch}>
+          <div className="search-field-select" ref={searchFieldRef}>
+            <button
+              className="search-field-trigger"
+              type="button"
+              aria-label="검색 조건"
+              aria-haspopup="listbox"
+              aria-expanded={isSearchFieldOpen}
+              onClick={() => setIsSearchFieldOpen((current) => !current)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setIsSearchFieldOpen(false);
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setIsSearchFieldOpen(true);
+                }
+              }}
+            >
+              <span>{selectedSearchFieldLabel}</span>
+              <span className="search-field-chevron" aria-hidden="true">⌄</span>
+            </button>
+            {isSearchFieldOpen && (
+              <div className="search-field-menu" role="listbox" aria-label="검색 조건 목록">
+                {searchFields.map((item) => (
+                  <button
+                    className={item.value === field ? 'selected' : ''}
+                    type="button"
+                    role="option"
+                    aria-selected={item.value === field}
+                    key={item.value}
+                    onClick={() => {
+                      setField(item.value);
+                      setIsSearchFieldOpen(false);
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    {item.value === field && <span aria-hidden="true">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
+          <button className="search-submit" type="submit" aria-label="검색">
             ⌕
           </button>
-        </div>
+        </form>
         <span className="brand-note">일상을 넘어, 라이브 속으로 <span aria-hidden="true">↗</span></span>
       </div>
 
@@ -1138,15 +1297,15 @@ function Header({
             key={category}
             onClick={() => {
               if (category === '콘서트') {
-                onNavigate('concertList');
+                navigateFromHeader('concertList');
               } else if (category === '뮤지컬/연극') {
-                onNavigate('musicalPlayList');
+                navigateFromHeader('musicalPlayList');
               } else if (category === '팬클럽/팬미팅') {
-                onNavigate('fanclubFanmeetingList');
+                navigateFromHeader('fanclubFanmeetingList');
               } else if (category === '클래식') {
-                onNavigate('classicList');
+                navigateFromHeader('classicList');
               } else if (category === '전시/행사') {
-                onNavigate('exhibitionEventList');
+                navigateFromHeader('exhibitionEventList');
               }
             }}
           >
@@ -1156,7 +1315,7 @@ function Header({
         <button
           className={currentPage === 'myTicket' ? 'my-ticket active-category' : 'my-ticket'}
           type="button"
-          onClick={() => onNavigate(loginUserName ? 'myTicket' : 'login')}
+          onClick={() => navigateFromHeader(loginUserName ? 'myTicket' : 'login')}
         >
           마이티켓
         </button>
@@ -1189,7 +1348,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   useEffect(() => {
     async function loadSoonestOnSaleEvents() {
       try {
-        const events = await request<TicketingEvent[]>('/client-api/api/v1/event/on-sale/soonest', {
+        const events = await request<TicketingEvent[]>('/ticket/api/v1/event/on-sale/soonest', {
           method: 'GET',
         });
         setSoonestOnSaleEvents(events);
@@ -1357,7 +1516,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
               aria-label={`${event.title} 공연 상세 보기`}
             >
               <div className="poster-art">
-                <img src={event.posterUrl} alt={`${event.title} 포스터`} />
+                <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
               </div>
               <strong>{event.title}</strong>
               <p>{event.artistName}</p>
@@ -1403,7 +1562,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
                   onClick={() => handlePosterClick(event)}
                   aria-label={`${event.title} 공연 상세 보기`}
                 >
-                  <img src={event.posterUrl} alt="" />
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" />
                   <span className="mini-poster-rank">{index + 1}</span>
                 </button>
                 <strong>{event.title}</strong>
@@ -1465,7 +1624,7 @@ function CategoryEventListPage({
 
       try {
         const nextEvents = await request<TicketingEvent[]>(
-          `/client-api/api/v1/event/cards/genre/${config.genre}?sort=${eventSort}&page=${eventPage}&size=${eventPageSize}`,
+          `/ticket/api/v1/event/cards/genre/${config.genre}?sort=${eventSort}&page=${eventPage}&size=${eventPageSize}`,
           {
             method: 'GET',
           },
@@ -1550,7 +1709,7 @@ function CategoryEventListPage({
             onClick={() => onSelectEvent(event.eventGroupCode)}
           >
             <span className="concert-list-poster">
-              <img src={event.posterUrl} alt={`${event.title} 포스터`} />
+              <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
             </span>
             <span className="concert-list-info">
               <strong>{event.title}</strong>
@@ -1563,75 +1722,6 @@ function CategoryEventListPage({
           {isLoading && events.length > 0 && `${config.label} 공연을 더 불러오는 중입니다.`}
         </div>
       </div>
-    </section>
-  );
-}
-
-function MyTicketPage() {
-  const [activeMyTicketTab, setActiveMyTicketTab] = useState<MyTicketTab>('home');
-  const myTicketTabs: Array<{ key: MyTicketTab; label: string }> = [
-    { key: 'home', label: '마이티켓 홈' },
-    { key: 'reservation', label: '예매 확인/취소' },
-    { key: 'coupon', label: '할인 쿠폰' },
-  ];
-
-  return (
-    <section className="my-ticket-page">
-      <div className="my-ticket-title">
-        <h1>마이티켓</h1>
-      </div>
-
-      <nav className="my-ticket-tabs" aria-label="마이티켓 메뉴">
-        {myTicketTabs.map((tab) => (
-          <button
-            className={activeMyTicketTab === tab.key ? 'active-my-ticket-tab' : ''}
-            type="button"
-            key={tab.key}
-            onClick={() => setActiveMyTicketTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      <section className="my-ticket-section">
-        <div className="my-ticket-section-header">
-          <h2>최근 예매/취소 내역</h2>
-          <button type="button">더보기</button>
-        </div>
-        <div className="ticket-history-list">
-          {recentTicketHistories.slice(0, 3).map((history) => (
-            <article className="ticket-history-card" key={history.id}>
-              <div>
-                <strong>{history.title}</strong>
-                <p>{history.date}</p>
-                <span>{history.venue}</span>
-              </div>
-              <em className={history.status === '예매완료' ? 'confirmed' : 'cancelled'}>
-                {history.status}
-              </em>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="my-ticket-section">
-        <div className="my-ticket-section-header">
-          <h2>최근 1:1 문의</h2>
-          <button type="button">더보기</button>
-        </div>
-        <div className="inquiry-list">
-          {recentInquiries.map((inquiry) => (
-            <article className="inquiry-card" key={inquiry.id}>
-              <div>
-                <strong>{inquiry.title}</strong>
-                <p>{inquiry.date}</p>
-              </div>
-              <em>{inquiry.status}</em>
-            </article>
-          ))}
-        </div>
-      </section>
     </section>
   );
 }
@@ -1666,7 +1756,7 @@ function EventDetailPage({
 
       try {
         const detail = await request<EventDetail>(
-          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          `/ticket/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
           {
             method: 'GET',
           },
@@ -1847,7 +1937,7 @@ function EventDetailPage({
     }
 
     return request<QueueEntryResponse>(
-      `/client-api/api/v1/queue/events/${eventId}/enter`,
+      `/queue/api/v1/queue/events/${eventId}/enter`,
       {
         method: 'POST',
         headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -1857,7 +1947,7 @@ function EventDetailPage({
 
   async function fetchBookingQueueStatus(eventId: number, token: string) {
     return request<QueueEntryResponse>(
-      `/client-api/api/v1/queue/events/${eventId}/status`,
+      `/queue/api/v1/queue/events/${eventId}/status`,
       {
         method: 'GET',
         headers: { 'X-Waiting-Token': token },
@@ -1875,7 +1965,7 @@ function EventDetailPage({
       <article className="event-booking-panel">
         <div className="event-booking-top">
           <div className="event-detail-poster">
-            <img src={eventDetail.posterUrl} alt={`${eventDetail.title} 포스터`} />
+            <img src={ticketAssetUrl(eventDetail.posterUrl)} alt={`${eventDetail.title} 포스터`} />
           </div>
 
           <div className="event-detail-info">
@@ -2049,6 +2139,8 @@ function BookingWindowPage() {
   const [activeToken] = useState(() => getBookingActiveTokenFromLocation());
   const [activeTokenExpiresAt] = useState(() => getBookingActiveTokenExpiresAtFromLocation());
   const [activeTokenRemainingSeconds, setActiveTokenRemainingSeconds] = useState<number | null>(null);
+  const [seatHoldExpiresAt, setSeatHoldExpiresAt] = useState<string | null>(null);
+  const [checkoutRemainingSeconds, setCheckoutRemainingSeconds] = useState<number | null>(null);
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [layoutSvgText, setLayoutSvgText] = useState('');
@@ -2074,6 +2166,9 @@ function BookingWindowPage() {
     const saved = savedCardCheckout(activeToken);
     return saved;
   });
+  const [paymentExpiresAt, setPaymentExpiresAt] = useState<string | null>(() =>
+    savedCardCheckout(activeToken)?.expiresAt ?? null,
+  );
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const paymentSubmittingRef = useRef(false);
   const [ordererInfo, setOrdererInfo] = useState<BookingOrdererInfo>({
@@ -2117,6 +2212,10 @@ function BookingWindowPage() {
     '--layout-x': `${sideLayoutPan.x}px`,
     '--layout-y': `${sideLayoutPan.y}px`,
   } as CSSProperties;
+  const checkoutExpiresAt = paymentExpiresAt || seatHoldExpiresAt;
+  const displayedRemainingSeconds = checkoutStep === 'SEAT'
+    ? activeTokenRemainingSeconds
+    : checkoutRemainingSeconds;
 
   useEffect(() => {
     if (selectedScheduleId && activeToken) {
@@ -2125,7 +2224,7 @@ function BookingWindowPage() {
   }, [activeToken, activeTokenExpiresAt, selectedScheduleId]);
 
   useEffect(() => {
-    if (!activeTokenExpiresAt || completedPayment || cardPayment) {
+    if (!activeTokenExpiresAt || completedPayment) {
       setActiveTokenRemainingSeconds(null);
       return undefined;
     }
@@ -2143,7 +2242,28 @@ function BookingWindowPage() {
     syncRemainingSeconds();
     const timer = window.setInterval(syncRemainingSeconds, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTokenExpiresAt, completedPayment, cardPayment]);
+  }, [activeTokenExpiresAt, completedPayment]);
+
+  useEffect(() => {
+    if (!checkoutExpiresAt || completedPayment) {
+      setCheckoutRemainingSeconds(null);
+      return undefined;
+    }
+
+    const expiresAtMillis = Date.parse(checkoutExpiresAt.replace(' ', 'T'));
+    if (Number.isNaN(expiresAtMillis)) {
+      setCheckoutRemainingSeconds(null);
+      return undefined;
+    }
+
+    function syncRemainingSeconds() {
+      setCheckoutRemainingSeconds(Math.max(0, Math.ceil((expiresAtMillis - Date.now()) / 1000)));
+    }
+
+    syncRemainingSeconds();
+    const timer = window.setInterval(syncRemainingSeconds, 1000);
+    return () => window.clearInterval(timer);
+  }, [checkoutExpiresAt, completedPayment]);
 
   // 새로고침도 unload를 발생시키므로 여기서 active-token을 반환하지 않는다.
   // 예매 완료 시 반환하며, 그 외에는 서버 TTL로 정리한다.
@@ -2168,7 +2288,7 @@ function BookingWindowPage() {
 
       try {
         const detail = await request<EventDetail>(
-          `/client-api/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
+          `/ticket/api/v1/event/select/group/${encodeURIComponent(eventGroupCode)}`,
           { method: 'GET' },
         );
 
@@ -2204,14 +2324,14 @@ function BookingWindowPage() {
       try {
         const [areaResponse, layoutResponse] = await Promise.all([
           request<PageResponse<AreaResponse>>(
-            `/client-api/api/v1/area/select?eventId=${selectedScheduleId}`,
+            `/ticket/api/v1/area/select?eventId=${selectedScheduleId}&page=0&size=500&sort=areaId-asc`,
             {
               method: 'GET',
               headers: { 'X-Active-Token': activeToken },
             },
           ),
           request<EventLayoutResponse | undefined>(
-            `/client-api/api/v1/area/layout/event/${selectedScheduleId}`,
+            `/ticket/api/v1/area/layout/event/${selectedScheduleId}`,
             {
               method: 'GET',
               headers: { 'X-Active-Token': activeToken },
@@ -2344,7 +2464,7 @@ function BookingWindowPage() {
 
     try {
       const seatResponse = await request<PageResponse<SeatResponse>>(
-        `/client-api/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}`,
+        `/ticket/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}&page=0&size=10000&sort=seatRow-asc&sort=seatCol-asc`,
         {
           method: 'GET',
           headers: { 'X-Active-Token': activeToken },
@@ -2408,12 +2528,18 @@ function BookingWindowPage() {
   }
 
   useEffect(() => {
-    if (activeTokenRemainingSeconds !== 0 || completedPayment || cardPayment || isPaymentSubmitting) {
+    if (
+      checkoutStep !== 'SEAT'
+      || activeTokenRemainingSeconds !== 0
+      || completedPayment
+      || cardPayment
+      || isPaymentSubmitting
+    ) {
       return;
     }
 
     alertSessionExpiredAndClose(new ActiveTokenExpiredError());
-  }, [activeTokenRemainingSeconds, completedPayment, cardPayment, isPaymentSubmitting]);
+  }, [activeTokenRemainingSeconds, checkoutStep, completedPayment, cardPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
     return selectedSeats.map((seat) => ({
@@ -2440,7 +2566,7 @@ function BookingWindowPage() {
         && previousOccupation.seats.length === seatInfoList.length
         && previousOccupation.seats.every((seat) => seatInfoList.some((selected) => selected.id === seat.id));
       // prepare 통신 실패 후에는 확보한 좌석을 중복 선점하지 않고 같은 주문으로 재시도한다.
-      const occupyResult = canReuseOccupation ? previousOccupation : await request<SeatOccupyResponse>('/client-api/api/v1/seat/occupy', {
+      const occupyResult = canReuseOccupation ? previousOccupation : await request<SeatOccupyResponse>('/ticket/api/v1/seat/occupy', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2453,8 +2579,12 @@ function BookingWindowPage() {
       });
 
       occupiedSeatsRef.current = occupyResult;
+      // 새 좌석 선점으로 체크아웃을 시작하면 이전 결제 건의 제한시간 대신
+      // 이번 선점 응답의 expiresAt부터 다시 카운트다운한다.
+      setPaymentExpiresAt(null);
+      setSeatHoldExpiresAt(occupyResult.expiresAt);
 
-      const prepareResult = await request<CheckoutPrepareResponse>('/client-api/api/v1/checkout/prepare', {
+      const prepareResult = await request<CheckoutPrepareResponse>('/ticket/api/v1/checkout/prepare', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2466,7 +2596,7 @@ function BookingWindowPage() {
 
       let coupons: UserCouponResponse[] = [];
       try {
-        coupons = await request<UserCouponResponse[]>('/client-api/api/v1/coupon/me', { method: 'GET' });
+        coupons = await request<UserCouponResponse[]>('/ticket/api/v1/coupon/me', { method: 'GET' });
       } catch {
         coupons = [];
       }
@@ -2500,7 +2630,7 @@ function BookingWindowPage() {
     }
 
     try {
-      const availability = await request<CouponAvailabilityResponse>('/client-api/api/v1/coupon/available', {
+      const availability = await request<CouponAvailabilityResponse>('/ticket/api/v1/coupon/available', {
         method: 'POST',
         body: JSON.stringify({
           userCouponId,
@@ -2567,7 +2697,7 @@ function BookingWindowPage() {
     setIsPaymentSubmitting(true);
     try {
       // 카드 결제는 READY 응답 후 카드 입력창에서 승인하고, 무통장은 계좌 발급까지 진행한다.
-      const payment = await request<BookingPaymentResponse>('/client-api/api/v1/checkout/confirm', {
+      const payment = await request<BookingPaymentResponse>('/ticket/api/v1/checkout/confirm', {
         method: 'POST',
         headers: { 'X-Active-Token': activeToken },
         body: JSON.stringify({
@@ -2585,6 +2715,7 @@ function BookingWindowPage() {
         ...payment,
         selectedSeats: selectedSeats.map((seat) => ({ ...seat })),
       };
+      setPaymentExpiresAt(payment.expiresAt);
       if (payment.method === 'CREDIT_CARD') {
         if (payment.status === 'PAID') {
           setCompletedPayment(paymentWithSelectedSeats);
@@ -2635,9 +2766,9 @@ function BookingWindowPage() {
 
     try {
       const [feeResponse, userResponse, addressResponse] = await Promise.all([
-        request<CheckoutFeeResponse>('/client-api/api/v1/checkout/fees', { method: 'GET' }),
-        request<UserInfoResponse>('/client-api/api/v1/user/me', { method: 'GET' }),
-        request<PageResponse<UserAddressResponse>>('/client-api/api/v1/address/select/me', {
+        request<CheckoutFeeResponse>('/ticket/api/v1/checkout/fees', { method: 'GET' }),
+        request<UserInfoResponse>('/user/api/v1/select/me', { method: 'GET' }),
+        request<PageResponse<UserAddressResponse>>('/user/api/v1/address/select/me', {
           method: 'POST',
           body: JSON.stringify({
             page: 0,
@@ -2785,11 +2916,11 @@ function BookingWindowPage() {
           <span>{eventDetail?.title || '좌석 선택'}</span>
           <em
             className={[
-              activeTokenRemainingSeconds !== null && activeTokenRemainingSeconds <= 300 ? 'warning' : '',
-              activeTokenRemainingSeconds === 0 ? 'expired' : '',
+              displayedRemainingSeconds !== null && displayedRemainingSeconds <= 300 ? 'warning' : '',
+              displayedRemainingSeconds === 0 ? 'expired' : '',
             ].filter(Boolean).join(' ')}
           >
-            남은 시간 {formatRemainingTime(activeTokenRemainingSeconds)}
+            남은 시간 {formatRemainingTime(displayedRemainingSeconds)}
           </em>
         </div>
       </header>
@@ -3636,19 +3767,25 @@ function LoginPage({
     setIsSubmitting(true);
 
     try {
-      const loginResponse = await request<LoginResponse>('/client-api/api/v1/auth/login', {
+      const tokens = await request<TokenResponse>('/auth/api/v1/login', {
         method: 'POST',
         body: JSON.stringify(loginForm),
       });
 
-      if (!loginResponse.success || !loginResponse.accessToken || !loginResponse.refreshToken) {
-        alert(loginResponse.message || '정보가 올바르지 않습니다.');
-        return;
-      }
+      if (!tokens.accessToken || !tokens.refreshToken) throw new Error('로그인 정보를 받지 못했습니다.');
+      sessionStorage.setItem('ticksy.accessToken', tokens.accessToken);
+      sessionStorage.setItem('ticksy.refreshToken', tokens.refreshToken);
 
-      sessionStorage.setItem('ticksy.accessToken', loginResponse.accessToken);
-      sessionStorage.setItem('ticksy.refreshToken', loginResponse.refreshToken);
-      sessionStorage.setItem('ticksy.userName', loginResponse.name || loginForm.userId);
+      // 로그인 응답에는 이름이 없으므로 사용자 서비스에서 직접 조회한다.
+      let userName = loginForm.userId;
+      try {
+        const user = await request<UserInfoResponse>('/user/api/v1/select/me', { method: 'GET' });
+        userName = user.name || userName;
+      } catch (error) {
+        if (error instanceof SessionExpiredError) throw error;
+        // 사용자 정보 조회가 지연되어도 발급된 로그인 토큰은 유지한다.
+      }
+      sessionStorage.setItem('ticksy.userName', userName);
 
       if (isLoginIdSaved) {
         setCookie(savedLoginIdCookieName, loginForm.userId, 60 * 60 * 24 * 365);
@@ -3656,7 +3793,7 @@ function LoginPage({
         deleteCookie(savedLoginIdCookieName);
       }
 
-      onLoginSuccess(loginResponse.name || loginForm.userId);
+      onLoginSuccess(userName);
       onNavigate('home');
     } catch (error) {
       alert(error instanceof Error ? error.message : '로그인에 실패했습니다.');
@@ -3746,7 +3883,7 @@ function FindIdPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
     try {
       const response = await request<FindUserIdResponse>(
-        `/client-api/api/v1/user/find/id/${findIdMethod}`,
+        `/user/api/v1/find/id/${findIdMethod}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -3891,7 +4028,7 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
 
     try {
       const response = await request<FindPasswordResponse>(
-        `/client-api/api/v1/user/find/password/${findPasswordMethod}`,
+        `/user/api/v1/find/password/${findPasswordMethod}`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -3923,7 +4060,7 @@ function FindPasswordPage({ onNavigate }: { onNavigate: (page: Page) => void }) 
     setIsResetting(true);
 
     try {
-      await request('/client-api/api/v1/user/reset/password', {
+      await request('/user/api/v1/reset/password', {
         method: 'POST',
         body: JSON.stringify({
           resetToken,
@@ -4186,7 +4323,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     setUserIdCheckMessage('');
 
     try {
-      await request(`/client-api/api/v1/user/check/duplication/${encodeURIComponent(signupForm.userId)}`, {
+      await request(`/user/api/v1/check/duplication/${encodeURIComponent(signupForm.userId)}`, {
         method: 'GET',
       });
 
@@ -4235,7 +4372,7 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
     try {
       const { passwordConfirm, ...requestBody } = signupForm;
 
-      await request('/client-api/api/v1/user/signup', {
+      await request('/user/api/v1/signup', {
         method: 'POST',
         body: JSON.stringify({
           ...requestBody,
@@ -4467,7 +4604,11 @@ function SignupPage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   );
 }
 
-function SiteFooter() {
+function SiteFooter({
+  onNavigateToCustomerService,
+}: {
+  onNavigateToCustomerService: (tab: CustomerServiceTab, guideTab?: GuideTab) => void;
+}) {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -4477,7 +4618,7 @@ function SiteFooter() {
           <button type="button">개인정보처리방침</button>
           <button type="button">청소년보호정책</button>
           <button type="button">티켓판매안내</button>
-          <button type="button">고객센터</button>
+          <button type="button" onClick={() => onNavigateToCustomerService('notice')}>고객센터</button>
         </nav>
 
         <div className="footer-content">

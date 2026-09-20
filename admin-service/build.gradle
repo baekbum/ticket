@@ -17,16 +17,11 @@ repositories {
 	mavenCentral()
 }
 
-ext {
-	set('springCloudVersion', "2024.0.0")
-}
-
 dependencies {
 	// 공통 모듈
 	implementation project(':common')
 
 	// 웹 및 보안 핵심 스택
-	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -41,9 +36,6 @@ dependencies {
 	// PageModel을 사용하기 위해 추가
 	implementation 'org.springframework.data:spring-data-commons'
 
-	// 🌟 내부 MSA 통신을 위한 FeignClient 추가
-	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
-
 	// Kafka DLQ 운영 도구
 	implementation 'org.springframework.kafka:spring-kafka'
 
@@ -56,13 +48,8 @@ dependencies {
 	// 테스트 스택
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'com.h2database:h2'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-dependencyManagement {
-	imports {
-		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-	}
 }
 
 tasks.named('test') {

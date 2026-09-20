@@ -59,6 +59,20 @@ class PaymentTest {
                 .hasMessage("환불 금액이 남은 결제 금액을 초과했습니다.");
     }
 
+    @Test
+    @DisplayName("여러 번 취소해도 이미 확정한 취소 수수료는 다시 환불 가능 금액에 포함되지 않는다")
+    void accumulate_cancellation_fee_separately_from_refund() {
+        Payment payment = payment(250000);
+
+        payment.applyCancellation(95000, 30000);
+        payment.applyCancellation(95000, 30000);
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(190000);
+        assertThat(payment.getCancellationFeeAmount()).isEqualTo(60000);
+        assertThat(payment.getRefundableAmount()).isZero();
+    }
+
     private Payment payment(int amount) {
         return Payment.builder()
                 .paymentNo("PAY-1")

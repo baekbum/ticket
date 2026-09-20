@@ -32,7 +32,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .brand-note { justify-self: end; color: #667061; font-size: 12px; font-weight: 700; }
 .brand-note span { color: var(--live-green); margin-left: 12px; font-size: 22px; }
 .search-bar { height: 48px; border: 1px solid #dce2d5; background: #f6f8f2; }
-.search-bar:focus-within { border-color: var(--live-green); box-shadow: 0 0 0 4px #e9f4df; }
+.search-bar:focus-within { border-color: #dce2d5; box-shadow: none; }
 .search-bar input, .search-bar button { background: transparent; }
 .search-bar input { min-width: 0; font-size: 13px; }
 .search-bar input::placeholder { color: #7a8375; }

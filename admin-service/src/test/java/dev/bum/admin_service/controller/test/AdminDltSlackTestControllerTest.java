@@ -53,13 +53,13 @@ class AdminDltSlackTestControllerTest {
     void config() throws Exception {
         given(kafkaDltSlackProperties.isEnabled()).willReturn(true);
         given(kafkaDltSlackProperties.getWebhookUrl()).willReturn("https://hooks.slack.test");
-        given(kafkaDltSlackProperties.getAdminDlqUrl()).willReturn("http://admin.test/admin/api/v1/view/embed/kafkaDlq");
+        given(kafkaDltSlackProperties.getAdminDlqUrl()).willReturn("http://admin.test/admin/?menu=kafkaDlq");
 
         mockMvc.perform(get("/api/v1/manage/test/dlt/slack/config"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true))
                 .andExpect(jsonPath("$.webhookConfigured").value(true))
-                .andExpect(jsonPath("$.adminDlqUrl").value("http://admin.test/admin/api/v1/view/embed/kafkaDlq"));
+                .andExpect(jsonPath("$.adminDlqUrl").value("http://admin.test/admin/?menu=kafkaDlq"));
     }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
@@ -68,7 +68,7 @@ class AdminDltSlackTestControllerTest {
     void send() throws Exception {
         given(kafkaDltSlackProperties.isEnabled()).willReturn(true);
         given(kafkaDltSlackProperties.getWebhookUrl()).willReturn("https://hooks.slack.test");
-        given(kafkaDltSlackProperties.getAdminDlqUrl()).willReturn("http://admin.test/admin/api/v1/view/embed/kafkaDlq");
+        given(kafkaDltSlackProperties.getAdminDlqUrl()).willReturn("http://admin.test/admin/?menu=kafkaDlq");
         given(kafkaDltSlackNotifier.notifyDlt(anyConsumerRecord(), any(Exception.class), any(TopicPartition.class)))
                 .willReturn(true);
 
@@ -90,7 +90,7 @@ class AdminDltSlackTestControllerTest {
                 .andExpect(jsonPath("$.sent").value(true))
                 .andExpect(jsonPath("$.originTopic").value("user-event"))
                 .andExpect(jsonPath("$.dltTopic").value("user-event.DLT"))
-                .andExpect(jsonPath("$.adminDlqUrl").value("http://admin.test/admin/api/v1/view/embed/kafkaDlq"));
+                .andExpect(jsonPath("$.adminDlqUrl").value("http://admin.test/admin/?menu=kafkaDlq"));
 
         then(kafkaDltSlackNotifier).should()
                 .notifyDlt(anyConsumerRecord(), any(Exception.class), any(TopicPartition.class));
