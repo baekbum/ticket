@@ -195,7 +195,7 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
       if (event.source !== mainFrameRef.current?.contentWindow && sourceEmbedId === undefined) return;
       if (event.data?.type === 'admin:open-embed') {
         const title = embedMenus.get(event.data.menu);
-        if (title) setEmbeds(previous => [...previous, { id: nextEmbedId.current++, menu: event.data.menu, title, version: 0, maximized: false, minimized: false, zIndex: nextEmbedZIndex.current++ }]);
+        if (title) setEmbeds(previous => [...previous, { id: nextEmbedId.current++, menu: event.data.menu, title, version: 0, maximized: true, minimized: false, zIndex: nextEmbedZIndex.current++ }]);
       } else if (event.data?.type === 'admin:focus-embed' && sourceEmbedId !== undefined) {
         focusEmbed(sourceEmbedId);
       } else if (event.data?.type === 'admin:switch-menu' && allowedMenus.has(event.data.menu)) {
