@@ -38,10 +38,10 @@ scrape_configs:
           group: application
 
   - job_name: admin-service
-    metrics_path: /admin/actuator/prometheus
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - admin-service:8999
+          - admin-service:8998
         labels:
           application: admin-service
           group: application

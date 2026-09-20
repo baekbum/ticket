@@ -31,9 +31,6 @@ public class JwtTokenProvider {
             @Value("${token.accessTokenValidityInMilliseconds:1800000}") long accessValidity,
             @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity) {
 
-        log.info("token.secret : {}", secret);
-        log.info("token.validity : {}", accessValidity);
-
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessValidity;
         this.refreshTokenValidityInMilliseconds = refreshValidity;
@@ -66,9 +63,6 @@ public class JwtTokenProvider {
                 .setExpiration(refreshValidity)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
-
-        log.info("accessToken : {}", accessToken);
-        log.info("refreshToken : {}", refreshToken);
 
         return new TokenResponse(accessToken, refreshToken);
     }

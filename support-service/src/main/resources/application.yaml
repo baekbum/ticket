@@ -15,6 +15,9 @@ spring:
     hibernate:
       ddl-auto: update
 
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+
 management:
   endpoints:
     web:

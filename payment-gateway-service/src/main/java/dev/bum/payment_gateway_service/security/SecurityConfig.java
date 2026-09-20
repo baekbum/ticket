@@ -2,11 +2,8 @@ package dev.bum.payment_gateway_service.security;
 
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.security.HeaderAuthenticationFilter;
 import dev.bum.common.security.JwtAuthenticationFilter;
-import jakarta.servlet.Filter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,9 +27,6 @@ public class SecurityConfig {
     private static final String ROLE_INTERNAL = "INTERNAL_SERVICE";
     private static final String[] ROLE_ADMIN_USER_OR_INTERNAL = {"ADMIN", "USER", ROLE_INTERNAL};
 
-    @Value("${spring.profiles.default:local}")
-    private String activeProfile;
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -52,9 +46,7 @@ public class SecurityConfig {
     }
 
     private void configureAuthenticationFilters(HttpSecurity http) {
-        Filter clientAuthenticationFilter = "local".equals(activeProfile)
-                ? new JwtAuthenticationFilter(jwtTokenProvider)
-                : new HeaderAuthenticationFilter();
+        JwtAuthenticationFilter clientAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider);
 
         // 일반 인증 필터를 기준점으로 등록한 뒤 내부 서비스 필터가 먼저 실행되도록 순서를 고정한다.
         http.addFilterBefore(clientAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

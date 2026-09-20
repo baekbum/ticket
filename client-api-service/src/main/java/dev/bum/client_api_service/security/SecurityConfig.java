@@ -2,10 +2,8 @@ package dev.bum.client_api_service.security;
 
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.security.HeaderAuthenticationFilter;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -26,9 +24,6 @@ public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
-
-    @Value("${spring.profiles.default:local}")
-    private String activeProfile;
 
     @Bean
     @Order(1)
@@ -94,17 +89,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
-        configureAuthenticationFilter(http);
+        http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    private void configureAuthenticationFilter(HttpSecurity http) {
-        if ("local".equals(activeProfile)) {
-            http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
-        } else {
-            http.addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        }
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {

@@ -30,7 +30,7 @@ spring:
         spring.json.add.type.headers: false
 
 token:
-  secret: ticket-project-secret-value-is-made-by-random
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 app:
   card:
