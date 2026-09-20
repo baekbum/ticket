@@ -288,7 +288,7 @@ export default function CustomerServicePage({
     setNoticeLoading(true);
     setNoticeError('');
 
-    fetch('/client-api/api/v1/notice/select?page=0&size=100', { signal: controller.signal })
+    fetch('/support/api/v1/notice/select?page=0&size=100', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('공지사항을 불러오지 못했습니다.');
         return response.json() as Promise<NoticePageResponse>;
@@ -325,7 +325,7 @@ export default function CustomerServicePage({
     setNoticeDetailLoading(true);
     setNoticeDetailError('');
 
-    fetch(`/client-api/api/v1/notice/select/id/${selectedNoticeId}`, { signal: controller.signal })
+    fetch(`/support/api/v1/notice/select/id/${selectedNoticeId}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('공지사항 상세 내용을 불러오지 못했습니다.');
         return response.json() as Promise<NoticeDetail>;
@@ -378,7 +378,7 @@ export default function CustomerServicePage({
     setFaqLoading(true);
     setFaqError('');
 
-    fetch(`/client-api/api/v1/faq/select?${params.toString()}`, { signal: controller.signal })
+    fetch(`/support/api/v1/faq/select?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('FAQ를 불러오지 못했습니다.');
         return response.json() as Promise<FaqPageResponse>;

@@ -149,14 +149,9 @@
             "selected": false,
             "text": "queue-service",
             "value": "queue-service"
-          },
-          {
-            "selected": false,
-            "text": "client-api-service",
-            "value": "client-api-service"
           }
         ],
-        "query": "ticket-service,queue-service,client-api-service",
+        "query": "ticket-service,queue-service",
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"

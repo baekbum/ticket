@@ -62,9 +62,9 @@ export default function MyTicketPage({ request }: { request: Request }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void request<{ name: string; userId: string }>('/client-api/api/v1/user/me', { method: 'GET', signal: controller.signal })
+    void request<{ name: string; userId: string }>('/user/api/v1/select/me', { method: 'GET', signal: controller.signal })
       .then((data) => { if (!controller.signal.aborted) setProfile(data); }).catch(() => {});
-    void request<Coupon[]>('/client-api/api/v1/coupon/me?filter=AVAILABLE', { method: 'GET', signal: controller.signal })
+    void request<Coupon[]>('/ticket/api/v1/coupon/me?filter=AVAILABLE', { method: 'GET', signal: controller.signal })
       .then((data) => { if (!controller.signal.aborted) setCouponCount(data.length); }).catch(() => {});
     return () => controller.abort();
   }, [request]);
@@ -76,12 +76,12 @@ export default function MyTicketPage({ request }: { request: Request }) {
     async function load() {
       try {
         if (tab === 'coupon') {
-          const data = await request<Coupon[]>(`/client-api/api/v1/coupon/me?filter=${couponFilter}`, { method: 'GET', signal: controller.signal });
+          const data = await request<Coupon[]>(`/ticket/api/v1/coupon/me?filter=${couponFilter}`, { method: 'GET', signal: controller.signal });
           if (!controller.signal.aborted) setCoupons(data);
         } else {
           const params = new URLSearchParams({ page: String(tab === 'home' ? 0 : page), size: tab === 'home' ? '3' : '10', sort: 'reservedAt-desc' });
           if (tab === 'reservation' && status) params.set('status', status);
-          const data = await request<ReservationPage>(`/client-api/api/v1/reservation/select?${params}`, { method: 'GET', signal: controller.signal });
+          const data = await request<ReservationPage>(`/ticket/api/v1/reservation/select?${params}`, { method: 'GET', signal: controller.signal });
           if (!controller.signal.aborted) setReservations(data);
         }
       } catch (failure) {

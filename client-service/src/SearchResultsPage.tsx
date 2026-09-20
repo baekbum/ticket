@@ -34,7 +34,7 @@ export default function SearchResultsPage({ query, onSearch, onSelectEvent }: {
     const params = new URLSearchParams({
       keyword: query.keyword, field: query.field, page: String(query.page), size: '10',
     });
-    fetch('/client-api/api/v1/event/search?' + params, { signal: controller.signal })
+    fetch('/ticket/api/v1/event/search?' + params, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('검색 결과를 불러오지 못했습니다. 다시 시도해 주세요.');
         return response.json() as Promise<Results>;

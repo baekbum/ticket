@@ -6,15 +6,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    proxy: {
-      '/payment-gateway': {
-        target: 'http://localhost:80',
-        changeOrigin: true,
-      },
-      '/client-api': {
-        target: 'http://localhost:80',
-        changeOrigin: true,
-      },
-    },
+    proxy: Object.fromEntries([
+      '/auth', '/user', '/ticket', '/queue', '/support', '/payment-gateway',
+    ].map(path => [path, {
+      target: 'http://localhost:80',
+      changeOrigin: true,
+    }])),
   },
 });

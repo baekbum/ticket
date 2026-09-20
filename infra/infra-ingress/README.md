@@ -17,9 +17,7 @@
 docker compose -f infra/infra-ingress/docker-compose-local.yml up -d
 ```
 
-`http://localhost/`는 사용자 Vite 서버로, `http://localhost/admin/`은 관리자 Vite 서버로 전달됩니다. `/auth/`, `/user/`, `/ticket/`, `/queue/`, `/audit/`, `/support/`, `/payment-gateway/`는 호스트의 Spring Boot 서비스로 전달됩니다. `/admin-api/`는 DLQ와 모니터링을 처리하는 admin-service로 전달됩니다. `host.docker.internal`은 컨테이너에서 호스트 PC를 가리킵니다. `/client-api/`는 로컬 client-api-service(8090)로 전달됩니다.
-
-현재 client-service 화면은 아직 `/client-api/`를 호출하므로 화면 전체를 사용하려면 기존 client-api-service(8090)도 호스트에서 실행해야 합니다.
+`http://localhost/`는 사용자 Vite 서버로, `http://localhost/admin/`은 관리자 Vite 서버로 전달됩니다. `/auth/`, `/user/`, `/ticket/`, `/queue/`, `/audit/`, `/support/`, `/payment-gateway/`는 호스트의 Spring Boot 서비스로 전달됩니다. `/admin-api/`는 DLQ와 모니터링을 처리하는 admin-service로 전달됩니다. `host.docker.internal`은 컨테이너에서 호스트 PC를 가리킵니다.
 
 ## 운영
 
@@ -36,7 +34,7 @@ docker compose -f infra/infra-ingress/docker-compose.yml up -d --build
 
 관리자 화면은 `/admin/`에서 제공됩니다. 관리자 화면의 일반 API 요청은 서비스별 경로로 전달되며, Kafka DLQ와 장애 지표처럼 admin-service가 직접 처리하는 요청만 `/admin-api/`로 전달됩니다.
 
-운영 화면의 기존 `/client-api/` 요청은 ingress에서 client-api-service로 전달됩니다. client-api-service 제거와 화면의 API 경로 전환은 별도 작업입니다.
+사용자 화면은 서비스별 API 경로를 사용합니다.
 
 두 Compose 파일은 같은 호스트 80번 포트와 컨테이너 이름을 사용하므로 한 번에 하나만 실행합니다. 환경을 바꿀 때는 현재 환경의 Compose 파일로 `down`을 실행한 뒤 다른 환경을 시작합니다.
 
