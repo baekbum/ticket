@@ -3,6 +3,7 @@ import type { createAuthenticatedRequest } from './authenticatedRequest';
 import './MyTicketPage.css';
 import MyTicketDetailDialog from './MyTicketDetailDialog';
 import { ticketAssetUrl } from './ticketAssetUrl';
+import AccountManagement from './AccountManagement';
 
 type Request = ReturnType<typeof createAuthenticatedRequest>;
 type CouponFilter = 'ALL' | 'AVAILABLE' | 'USED' | 'EXPIRED';
@@ -59,6 +60,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
   const [retry, setRetry] = useState(0);
   const [profile, setProfile] = useState<{ name: string; userId: string } | null>(null);
   const [couponCount, setCouponCount] = useState<number | null>(null);
+  const [management, setManagement] = useState<'profile' | 'address' | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -109,10 +111,19 @@ export default function MyTicketPage({ request }: { request: Request }) {
           aria-current={tab === item.key ? 'page' : undefined} onClick={() => changeTab(item.key)}>{item.label}</button>)}
     </nav>
     {tab === 'home' && <div className="my-ticket-overview">
-      <div className="my-ticket-member"><div className="my-ticket-avatar" aria-hidden="true">◎</div><div><small>MY TICKET</small><h2>{profile?.name || profile?.userId || '나의 예매 내역'}</h2><p>예매한 공연과 티켓을 한눈에 확인하세요.</p></div></div>
+      <div className="my-ticket-member">
+        <div className="my-ticket-member-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M8 14h32v24H8zM8 14l16 17 16-17M15 8h18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+        <div className="my-ticket-member-content"><small>MY TICKET</small><h2>{profile?.name || profile?.userId || '나의 예매 내역'}</h2><p>예매한 공연과 티켓을 한눈에 확인하세요.</p>
+          <div className="my-ticket-member-actions">
+            <button type="button" onClick={() => setManagement(management === 'profile' ? null : 'profile')} aria-expanded={management === 'profile'}>기본정보 관리</button>
+            <button type="button" onClick={() => setManagement(management === 'address' ? null : 'address')} aria-expanded={management === 'address'}>배송지 관리</button>
+          </div>
+        </div>
+      </div>
       <button type="button" onClick={() => changeTab('reservation')}><strong>{loading || error ? '—' : reservations?.page.totalElements ?? 0}</strong><span>예매/취소 내역</span></button>
       <button type="button" onClick={() => changeTab('coupon')}><strong>{couponCount ?? '—'}</strong><span>보유 할인 쿠폰</span></button>
     </div>}
+    {tab === 'home' && management && <AccountManagement key={management} mode={management} request={request} onClose={() => setManagement(null)} />}
     <section className="my-ticket-section">
       <div className="my-ticket-section-header">
         <h2>{tab === 'coupon' ? '보유 할인 쿠폰' : tab === 'home' ? '최근 예매/취소 내역' : '예매/취소 내역'}</h2>

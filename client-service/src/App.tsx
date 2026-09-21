@@ -1,7 +1,7 @@
 import MyTicketPage from './MyTicketPage';
 import SearchResultsPage from './SearchResultsPage';
 import { readSearch, type SearchQuery } from './searchQuery';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
@@ -1404,19 +1404,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
     return () => window.removeEventListener('resize', syncVisiblePosterCount);
   }, []);
 
-  useEffect(() => {
-    if (soonestOnSaleEvents.length <= activePosterCount || isPosterSliding) {
-      return;
-    }
-
-    const rotationTimer = window.setInterval(() => {
-      movePosters('next');
-    }, 5000);
-
-    return () => window.clearInterval(rotationTimer);
-  }, [activePosterCount, isPosterSliding, soonestOnSaleEvents.length]);
-
-  function movePosters(direction: 'prev' | 'next') {
+  const movePosters = useCallback((direction: 'prev' | 'next') => {
     if (soonestOnSaleEvents.length <= 1 || isPosterSliding) {
       return;
     }
@@ -1448,7 +1436,19 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
       });
       setIsPosterSliding(false);
     }, 420);
-  }
+  }, [activePosterCount, isPosterSliding, soonestOnSaleEvents.length]);
+
+  useEffect(() => {
+    if (soonestOnSaleEvents.length <= activePosterCount || isPosterSliding) {
+      return;
+    }
+
+    const rotationTimer = window.setInterval(() => {
+      movePosters('next');
+    }, 5000);
+
+    return () => window.clearInterval(rotationTimer);
+  }, [activePosterCount, isPosterSliding, movePosters, soonestOnSaleEvents.length]);
 
   function formatEventDateRange(event: TicketingEvent) {
     if (!event.eventStartDate) {
