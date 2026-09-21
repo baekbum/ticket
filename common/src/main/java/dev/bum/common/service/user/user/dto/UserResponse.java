@@ -2,6 +2,7 @@ package dev.bum.common.service.user.user.dto;
 
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,6 +27,9 @@ public class UserResponse {
     private LocalDate birthDate;
     private String address;
     private Boolean isBlacklisted;
+    private LocalDateTime blacklistedUntil;
+    private UserStatus status;
+    private LocalDateTime withdrawAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

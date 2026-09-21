@@ -23,6 +23,8 @@ public class QUser extends EntityPathBase<User> {
 
     public final DatePath<java.time.LocalDate> birthDate = createDate("birthDate", java.time.LocalDate.class);
 
+    public final DateTimePath<java.time.LocalDateTime> blacklistedUntil = createDateTime("blacklistedUntil", java.time.LocalDateTime.class);
+
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
     public final StringPath email = createString("email");
@@ -41,9 +43,13 @@ public class QUser extends EntityPathBase<User> {
 
     public final EnumPath<dev.bum.common.service.user.user.enums.UserRole> role = createEnum("role", dev.bum.common.service.user.user.enums.UserRole.class);
 
+    public final EnumPath<dev.bum.common.service.user.user.enums.UserStatus> status = createEnum("status", dev.bum.common.service.user.user.enums.UserStatus.class);
+
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
 
     public final StringPath userId = createString("userId");
+
+    public final DateTimePath<java.time.LocalDateTime> withdrawAt = createDateTime("withdrawAt", java.time.LocalDateTime.class);
 
     public QUser(String variable) {
         super(User.class, forVariable(variable));

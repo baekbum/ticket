@@ -16,4 +16,5 @@ public class UserDtoForEvent {
     private String userId;
     private String password;
     private String role;
+    private String status;
 }

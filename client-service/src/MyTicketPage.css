@@ -32,7 +32,7 @@
 .my-ticket-management-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .my-ticket-management-form label { display: grid; gap: 7px; color: #555; font-size: 13px; font-weight: 700; }
 .my-ticket-management-form input:not([type='checkbox']) { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded3; border-radius: 7px; background: white; font: inherit; }
-.my-ticket-management-form input[readonly] { background: #f5f6f5; color: #777; }
+.my-ticket-management-form input[readonly], .my-ticket-management-form input:disabled { background: #f5f6f5; color: #777; opacity: 1; }
 .my-ticket-management-form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 .my-ticket-management-form-actions button, .my-ticket-address-toolbar button, .my-ticket-address-actions button { padding: 9px 16px; border: 1px solid #237344; border-radius: 7px; background: white; color: #237344; font: inherit; cursor: pointer; }
 .my-ticket-management-form-actions button:last-child, .my-ticket-address-toolbar button { background: #237344; color: white; }
@@ -46,6 +46,17 @@
 .my-ticket-address-form { margin-top: 24px; padding-top: 24px; border-top: 1px solid #ddd; }
 .my-ticket-address-form h3 { grid-column: 1 / -1; margin: 0; font-size: 18px; }
 .my-ticket-management-form .my-ticket-default-check { display: flex; align-items: center; gap: 8px; }
+.my-ticket-withdraw-action { margin-top: 26px; padding-top: 18px; border-top: 1px solid #eee; text-align: right; }
+.my-ticket-withdraw-action button { border: 0; background: transparent; color: #a82419; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.my-ticket-withdraw-dialog { box-sizing: border-box; width: min(430px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; overflow-y: auto; border: 1px solid #dedede; border-radius: 14px; background: white; color: #242424; box-shadow: 0 24px 72px #0d1b1499; }
+.my-ticket-withdraw-dialog::backdrop { background: #16221ccc; }
+.my-ticket-withdraw-dialog h2 { margin: 0 0 12px; font-size: 22px; }
+.my-ticket-withdraw-dialog p { color: #666; font-size: 14px; line-height: 1.6; }
+.my-ticket-withdraw-dialog form { display: grid; gap: 22px; margin-top: 22px; }
+.my-ticket-withdraw-dialog label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
+.my-ticket-withdraw-dialog input { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded3; border-radius: 7px; font: inherit; }
+.my-ticket-withdraw-dialog .my-ticket-management-form-actions button:last-child { border-color: #a82419; background: #a82419; }
+.my-ticket-withdraw-dialog button:disabled { opacity: .5; cursor: not-allowed; }
 .my-ticket-overview > button { display: grid; align-content: center; gap: 12px; border: 0; background: transparent; color: #666; font: inherit; cursor: pointer; }
 .my-ticket-overview > button strong { color: #237344; font-size: 32px; font-weight: 500; }
 .my-ticket-history-heading, .my-ticket-history-row { display: grid; grid-template-columns: 120px minmax(240px, 1.4fr) minmax(220px, 1fr) 130px; gap: 20px; align-items: center; }

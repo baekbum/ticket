@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
@@ -25,6 +26,7 @@ public class UpdateUserRequest {
     private String address;
 
     private Boolean isBlacklisted;
+    private LocalDateTime blacklistedUntil;
 
     private String role;
 

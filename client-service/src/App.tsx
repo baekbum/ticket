@@ -1060,7 +1060,11 @@ function App() {
           onNavigate={navigateToPage}
         />
       )}
-      {page === 'myTicket' && <MyTicketPage request={request} />}
+      {page === 'myTicket' && <MyTicketPage request={request} onWithdrawn={() => {
+        clearLoginStorage();
+        setLoginUserName('');
+        navigateToPage('home');
+      }} />}
       {page === 'customerService' && (
         <CustomerServicePage
           activeTab={customerServiceTab}

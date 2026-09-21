@@ -69,6 +69,7 @@ public class SecurityConfig {
                         // 3. 관리자(ADMIN) 및 유저(USER) 모두 접근 가능 (내 정보 조회 / 내 정보 수정)
                         .requestMatchers("/api/*/select/me").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/update/me").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/withdraw/me").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/validate/info").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/address/insert/me").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/address/select/me").hasAnyRole(ROLE_ADMIN_OR_USER)

@@ -14,7 +14,48 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 }
 
-export default function AccountManagement({ mode, request, onClose }: { mode: Mode; request: Request; onClose: () => void }) {
+function WithdrawDialog({ request, onClose, onWithdrawn }: { request: Request; onClose: () => void; onWithdrawn: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, []);
+
+  async function withdraw(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await request('/user/api/v1/withdraw/me', { method: 'POST', body: JSON.stringify({ password }) });
+      onWithdrawn();
+    } catch (failure) {
+      setError(errorMessage(failure));
+      setSubmitting(false);
+    }
+  }
+
+  return <dialog ref={dialogRef} className="my-ticket-withdraw-dialog" aria-labelledby="my-ticket-withdraw-title"
+    onCancel={(event) => { event.preventDefault(); if (!submitting) onClose(); }}>
+    <h2 id="my-ticket-withdraw-title">회원 탈퇴</h2>
+    <p>탈퇴하면 계정에 다시 로그인할 수 없습니다. 계속하려면 비밀번호를 입력해 주세요.</p>
+    {error && <p className="my-ticket-management-error" role="alert">{error}</p>}
+    <form onSubmit={withdraw}>
+      <label>비밀번호<input autoFocus required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+      <div className="my-ticket-management-form-actions"><button type="button" disabled={submitting} onClick={onClose}>취소</button><button type="submit" disabled={submitting}>{submitting ? '확인 중…' : '탈퇴하기'}</button></div>
+    </form>
+  </dialog>;
+}
+
+export default function AccountManagement({ mode, request, onClose, onWithdrawn }: { mode: Mode; request: Request; onClose: () => void; onWithdrawn: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -28,6 +69,7 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -70,7 +112,7 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
     if (!profile) return;
     setSaving(true); setError(''); setNotice('');
     try {
-      const updated = await request<Profile>('/user/api/v1/update/me', { method: 'PUT', body: JSON.stringify({ phoneNumber: profile.phoneNumber.trim(), email: profile.email.trim(), birthDate: profile.birthDate || null }) });
+      const updated = await request<Profile>('/user/api/v1/update/me', { method: 'PUT', body: JSON.stringify({ phoneNumber: profile.phoneNumber.trim(), email: profile.email.trim() }) });
       setProfile(updated);
       setNotice('기본정보를 저장했습니다.');
     } catch (failure) { setError(errorMessage(failure)); }
@@ -102,20 +144,23 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
     finally { setSaving(false); }
   }
 
-  return <dialog ref={dialogRef} className="my-ticket-management" aria-labelledby="my-ticket-management-title"
+  return <>{withdrawOpen && <WithdrawDialog request={request} onClose={() => setWithdrawOpen(false)} onWithdrawn={onWithdrawn} />}
+    <dialog ref={dialogRef} className="my-ticket-management" aria-labelledby="my-ticket-management-title"
     onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }}>
     <div className="my-ticket-management-heading"><h2 id="my-ticket-management-title">{mode === 'profile' ? '기본정보 관리' : '배송지 관리'}</h2><button type="button" onClick={onClose} disabled={saving} aria-label="관리 화면 닫기">×</button></div>
     {error && <p className="my-ticket-management-error" role="alert">{error}</p>}
     {notice && <p className="my-ticket-management-notice" role="status">{notice}</p>}
-    {loading ? <p className="my-ticket-state" role="status">정보를 불러오는 중입니다.</p> : mode === 'profile' ? profile &&
+    {loading ? <p className="my-ticket-state" role="status">정보를 불러오는 중입니다.</p> : mode === 'profile' ? profile && <>
       <form className="my-ticket-management-form" onSubmit={saveProfile}>
         <label>아이디<input value={profile.userId} readOnly /></label>
         <label>이름<input value={profile.name} readOnly /></label>
         <label>휴대전화<input type="tel" value={profile.phoneNumber || ''} onChange={(event) => setProfile({ ...profile, phoneNumber: event.target.value })} /></label>
         <label>이메일<input type="email" value={profile.email || ''} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /></label>
-        <label>생년월일<input type="date" value={profile.birthDate || ''} onChange={(event) => setProfile({ ...profile, birthDate: event.target.value })} /></label>
+        <label>생년월일<input type="date" value={profile.birthDate || ''} disabled /></label>
         <div className="my-ticket-management-form-actions"><button type="submit" disabled={saving}>{saving ? '저장 중…' : '저장'}</button></div>
-      </form> : <>
+      </form>
+      <div className="my-ticket-withdraw-action"><button type="button" onClick={() => setWithdrawOpen(true)}>회원 탈퇴</button></div>
+      </> : <>
         <div className="my-ticket-address-toolbar"><button type="button" onClick={() => { setEditingId(null); setAddressForm(emptyAddress); setShowAddressForm(true); setError(''); }}>+ 배송지 추가</button></div>
         {addresses.length === 0 && <p className="my-ticket-state">등록된 배송지가 없습니다.</p>}
         <div className="my-ticket-address-list">{addresses.map((item) => <article key={item.addressId}>
@@ -135,5 +180,5 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
           <div className="my-ticket-management-form-actions"><button type="button" onClick={() => setShowAddressForm(false)}>취소</button><button type="submit" disabled={saving}>{saving ? '저장 중…' : '저장'}</button></div>
         </form>}
       </>}
-  </dialog>;
+  </dialog></>;
 }

@@ -47,7 +47,7 @@ function ReservationRow({ item, onOpen }: { item: Reservation; onOpen: () => voi
   </article>;
 }
 
-export default function MyTicketPage({ request }: { request: Request }) {
+export default function MyTicketPage({ request, onWithdrawn }: { request: Request; onWithdrawn: () => void }) {
   const [tab, setTab] = useState<'home' | 'reservation' | 'coupon'>('home');
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState('');
@@ -123,7 +123,7 @@ export default function MyTicketPage({ request }: { request: Request }) {
       <button type="button" onClick={() => changeTab('reservation')}><strong>{loading || error ? '—' : reservations?.page.totalElements ?? 0}</strong><span>예매/취소 내역</span></button>
       <button type="button" onClick={() => changeTab('coupon')}><strong>{couponCount ?? '—'}</strong><span>보유 할인 쿠폰</span></button>
     </div>}
-    {tab === 'home' && management && <AccountManagement key={management} mode={management} request={request} onClose={() => setManagement(null)} />}
+    {tab === 'home' && management && <AccountManagement key={management} mode={management} request={request} onClose={() => setManagement(null)} onWithdrawn={onWithdrawn} />}
     <section className="my-ticket-section">
       <div className="my-ticket-section-header">
         <h2>{tab === 'coupon' ? '보유 할인 쿠폰' : tab === 'home' ? '최근 예매/취소 내역' : '예매/취소 내역'}</h2>
