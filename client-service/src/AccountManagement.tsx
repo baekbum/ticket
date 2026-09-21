@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { createAuthenticatedRequest } from './authenticatedRequest';
 
@@ -15,6 +15,7 @@ function errorMessage(error: unknown) {
 }
 
 export default function AccountManagement({ mode, request, onClose }: { mode: Mode; request: Request; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [page, setPage] = useState(0);
@@ -27,6 +28,19 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -88,8 +102,9 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
     finally { setSaving(false); }
   }
 
-  return <section className="my-ticket-management" aria-label={mode === 'profile' ? '기본정보 관리' : '배송지 관리'}>
-    <div className="my-ticket-management-heading"><h2>{mode === 'profile' ? '기본정보 관리' : '배송지 관리'}</h2><button type="button" onClick={onClose} aria-label="관리 화면 닫기">×</button></div>
+  return <dialog ref={dialogRef} className="my-ticket-management" aria-labelledby="my-ticket-management-title"
+    onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }}>
+    <div className="my-ticket-management-heading"><h2 id="my-ticket-management-title">{mode === 'profile' ? '기본정보 관리' : '배송지 관리'}</h2><button type="button" onClick={onClose} disabled={saving} aria-label="관리 화면 닫기">×</button></div>
     {error && <p className="my-ticket-management-error" role="alert">{error}</p>}
     {notice && <p className="my-ticket-management-notice" role="status">{notice}</p>}
     {loading ? <p className="my-ticket-state" role="status">정보를 불러오는 중입니다.</p> : mode === 'profile' ? profile &&
@@ -120,5 +135,5 @@ export default function AccountManagement({ mode, request, onClose }: { mode: Mo
           <div className="my-ticket-management-form-actions"><button type="button" onClick={() => setShowAddressForm(false)}>취소</button><button type="submit" disabled={saving}>{saving ? '저장 중…' : '저장'}</button></div>
         </form>}
       </>}
-  </section>;
+  </dialog>;
 }

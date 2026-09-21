@@ -21,7 +21,8 @@
 .my-ticket-member-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .my-ticket-member-actions button { padding: 9px 14px; border: 1px solid #b9d5bc; border-radius: 8px; background: white; color: #237344; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .my-ticket-member-actions button:hover, .my-ticket-member-actions button[aria-expanded='true'] { background: #237344; color: white; }
-.my-ticket-management { margin: -24px 0 48px; padding: 24px 30px 30px; border: 1px solid #dedede; background: white; }
+.my-ticket-management { box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px 30px 30px; overflow-y: auto; border: 1px solid #dedede; border-radius: 14px; background: white; color: #242424; box-shadow: 0 24px 72px #0d1b1499; }
+.my-ticket-management::backdrop { background: #16221ccc; }
 .my-ticket-management-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .my-ticket-management-heading h2 { margin: 0; font-size: 21px; }
 .my-ticket-management-heading button { border: 0; background: transparent; color: #666; font-size: 28px; cursor: pointer; }
