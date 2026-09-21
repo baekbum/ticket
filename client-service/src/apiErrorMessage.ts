@@ -14,6 +14,7 @@ const STATUS_MESSAGES: Record<number, string> = {
 const SERVER_ERROR_MESSAGE = '일시적인 서비스 오류로 요청을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const CODE_MESSAGES: Record<string, string> = {
   LOGIN_FAILED: '아이디 또는 비밀번호가 일치하지 않습니다.',
+  USER_WITHDRAWN: '이미 탈퇴한 사용자입니다.',
   TOKEN_EXPIRED: STATUS_MESSAGES[401],
   INVALID_TOKEN: STATUS_MESSAGES[401],
   REFRESH_TOKEN_REQUIRED: STATUS_MESSAGES[401],

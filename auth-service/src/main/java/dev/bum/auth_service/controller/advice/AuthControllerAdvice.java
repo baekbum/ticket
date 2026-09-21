@@ -3,6 +3,7 @@ package dev.bum.auth_service.controller.advice;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,12 @@ public class AuthControllerAdvice {
     public ResponseEntity<ErrorResponse> PasswordIncorrectException(PasswordIncorrectException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.LOGIN_FAILED, ex.getMessage()));
+    }
+
+    @ExceptionHandler(WithdrawnUserException.class)
+    public ResponseEntity<ErrorResponse> withdrawnUser(WithdrawnUserException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.USER_WITHDRAWN, ex.getMessage()));
     }
 
     @ExceptionHandler(UserNotExistException.class)

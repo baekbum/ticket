@@ -5,6 +5,7 @@ import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.common.error.ErrorCode;
@@ -56,7 +57,7 @@ public class AuthService {
         // 비밀번호 검증
         comparePassword(info, auth);
         if (auth.getStatus() != UserStatus.ACTIVE) {
-            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
+            throw new WithdrawnUserException();
         }
 
         TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());

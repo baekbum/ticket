@@ -3,6 +3,7 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -245,7 +246,8 @@ class AuthServiceTest {
         given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
 
         assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest("user01", "plain-password")))
-                .isInstanceOf(PasswordIncorrectException.class);
+                .isInstanceOf(WithdrawnUserException.class)
+                .hasMessage("이미 탈퇴한 사용자입니다.");
         then(tokenProvider).should(never()).createToken(anyString(), anyString());
     }
 
