@@ -13,6 +13,7 @@ npm run dev
 ```
 
 관리자 화면: `http://localhost/admin/` (Vite 직접 접속: `http://localhost:8999/admin/`). 기존 admin-service 운영 API는 8998번 포트에서 실행됩니다.
+개발 서버는 `legacy-source` 변경 시 관리자 화면 조각을 자동 동기화하고 페이지를 새로고침합니다.
 
 `/auth/`, `/user/`, `/ticket/`, `/queue/`, `/audit/`, `/support/`는 각 서비스에 연결됩니다. `/admin-api/`만 admin-service의 DLQ·모니터링 API에 연결됩니다.
 

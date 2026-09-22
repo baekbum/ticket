@@ -81,6 +81,9 @@ public class UserManagementController {
     public ResponseEntity<UserResponse> updateMyInfo(
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody UpdateUserRequest info) {
+        if (info.getStatus() != null || info.getWithdrawAt() != null) {
+            throw new IllegalArgumentException("계정 상태는 관리자만 변경할 수 있습니다.");
+        }
         // 내 아이디로만 업데이트를 수행
         return ResponseEntity.ok(userService.update(currentUserId, info));
     }

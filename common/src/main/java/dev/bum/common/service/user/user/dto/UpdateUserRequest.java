@@ -2,6 +2,7 @@ package dev.bum.common.service.user.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -27,6 +28,9 @@ public class UpdateUserRequest {
 
     private Boolean isBlacklisted;
     private LocalDateTime blacklistedUntil;
+
+    private UserStatus status;
+    private LocalDateTime withdrawAt;
 
     private String role;
 
