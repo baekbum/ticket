@@ -10,7 +10,7 @@ import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.PasswordIncorrectException;
-import dev.bum.user_service.exception.UserNotExistException;
+import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -423,6 +423,73 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("현재 비밀번호 확인 후 변경할 수 있음")
+    void change_my_password_success() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        User updated = User.builder().id(1L).userId("user01").password("new-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
+        given(userRepository.update(eq("user01"), any())).willReturn(updated);
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
+
+        userService.changeMyPassword("user01", "old-password", "new-password", "new-password");
+
+        then(userRepository).should().update(eq("user01"), argThat(info -> "new-password".equals(info.getPassword())));
+        then(kafkaTemplate).should().send(any(), eq("user01"), argThat(event ->
+                event.getEventType() == TopicEventType.UPDATE && "new-hash".equals(event.getPassword())));
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 다르면 변경하지 않음")
+    void change_my_password_wrong_current_password() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        given(passwordEncoder.matches("wrong-password", "old-hash")).willReturn(false);
+
+        assertThatThrownBy(() -> userService.changeMyPassword("user01", "wrong-password", "new-password", "new-password"))
+                .isInstanceOf(PasswordIncorrectException.class);
+        then(userRepository).should(never()).update(any(), any());
+        then(kafkaTemplate).should(never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 틀리면 변경 화면 진입 검증 실패")
+    void validate_my_password_wrong_password() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        given(passwordEncoder.matches("wrong-password", "old-hash")).willReturn(false);
+
+        assertThatThrownBy(() -> userService.validateMyPassword("user01", "wrong-password"))
+                .isInstanceOf(PasswordIncorrectException.class);
+    }
+
+    @Test
+    @DisplayName("새 비밀번호 확인이 다르면 변경하지 않음")
+    void change_my_password_confirmation_mismatch() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
+
+        assertThatThrownBy(() -> userService.changeMyPassword("user01", "old-password", "new-password", "different-password"))
+                .isInstanceOf(IllegalArgumentException.class);
+        then(userRepository).should(never()).update(any(), any());
+    }
+
+    @Test
+    @DisplayName("새 비밀번호가 현재 비밀번호와 같으면 변경하지 않음")
+    void change_my_password_same_as_current_password() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
+
+        assertThatThrownBy(() -> userService.changeMyPassword("user01", "old-password", "old-password", "old-password"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("새로운 비밀번호는 이전 비밀번호와 같을 수 없습니다.");
+        then(userRepository).should(never()).update(any(), any());
+        then(kafkaTemplate).should(never()).send(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("비밀번호가 일치하면 계정을 탈퇴 처리하고 상태 변경 이벤트를 발행")
     void withdraw_success() {
         User user = User.builder().id(1L).userId("user01").password("encoded-password").build();
@@ -458,7 +525,7 @@ class UserServiceTest {
         given(userRepository.selectById("user01")).willReturn(user);
 
         assertThatThrownBy(() -> userService.selectMyInfo("user01"))
-                .isInstanceOf(UserNotExistException.class);
+                .isInstanceOf(WithdrawnUserException.class);
     }
 
     @Test

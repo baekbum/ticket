@@ -1064,7 +1064,7 @@ function App() {
         clearLoginStorage();
         setLoginUserName('');
         navigateToPage('home');
-      }} />}
+      }} onPasswordChanged={() => { void logout().catch(() => {}); }} />}
       {page === 'customerService' && (
         <CustomerServicePage
           activeTab={customerServiceTab}

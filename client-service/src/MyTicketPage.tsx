@@ -4,6 +4,7 @@ import './MyTicketPage.css';
 import MyTicketDetailDialog from './MyTicketDetailDialog';
 import { ticketAssetUrl } from './ticketAssetUrl';
 import AccountManagement from './AccountManagement';
+import ChangePasswordDialog from './ChangePasswordDialog';
 
 type Request = ReturnType<typeof createAuthenticatedRequest>;
 type CouponFilter = 'ALL' | 'AVAILABLE' | 'USED' | 'EXPIRED';
@@ -47,7 +48,7 @@ function ReservationRow({ item, onOpen }: { item: Reservation; onOpen: () => voi
   </article>;
 }
 
-export default function MyTicketPage({ request, onWithdrawn }: { request: Request; onWithdrawn: () => void }) {
+export default function MyTicketPage({ request, onWithdrawn, onPasswordChanged }: { request: Request; onWithdrawn: () => void; onPasswordChanged: () => void }) {
   const [tab, setTab] = useState<'home' | 'reservation' | 'coupon'>('home');
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState('');
@@ -61,6 +62,7 @@ export default function MyTicketPage({ request, onWithdrawn }: { request: Reques
   const [profile, setProfile] = useState<{ name: string; userId: string } | null>(null);
   const [couponCount, setCouponCount] = useState<number | null>(null);
   const [management, setManagement] = useState<'profile' | 'address' | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -104,6 +106,7 @@ export default function MyTicketPage({ request, onWithdrawn }: { request: Reques
 
   return <section className="my-ticket-page">
     {expandedId != null && <MyTicketDetailDialog reservationId={expandedId} request={request} onClose={() => setExpandedId(null)} onRefunded={() => setRetry((n) => n + 1)} />}
+    {passwordOpen && <ChangePasswordDialog request={request} onClose={() => setPasswordOpen(false)} onPasswordChanged={onPasswordChanged} />}
     <div className="my-ticket-title"><h1>마이티켓</h1></div>
     <nav className="my-ticket-tabs" aria-label="마이티켓 메뉴">
       {([{ key: 'home', label: '마이티켓 홈' }, { key: 'reservation', label: '예매/취소 내역' }, { key: 'coupon', label: '할인 쿠폰' }] as const).map((item) =>
@@ -116,6 +119,7 @@ export default function MyTicketPage({ request, onWithdrawn }: { request: Reques
         <div className="my-ticket-member-content"><small>MY TICKET</small><h2>{profile?.name || profile?.userId || '나의 예매 내역'}</h2><p>예매한 공연과 티켓을 한눈에 확인하세요.</p>
           <div className="my-ticket-member-actions">
             <button type="button" onClick={() => setManagement(management === 'profile' ? null : 'profile')} aria-expanded={management === 'profile'}>기본정보 관리</button>
+            <button type="button" onClick={() => setPasswordOpen(true)}>비밀번호 변경</button>
             <button type="button" onClick={() => setManagement(management === 'address' ? null : 'address')} aria-expanded={management === 'address'}>배송지 관리</button>
           </div>
         </div>

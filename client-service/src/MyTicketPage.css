@@ -57,6 +57,9 @@
 .my-ticket-withdraw-dialog input { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded3; border-radius: 7px; font: inherit; }
 .my-ticket-withdraw-dialog .my-ticket-management-form-actions button:last-child { border-color: #a82419; background: #a82419; }
 .my-ticket-withdraw-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+.my-ticket-password-dialog .my-ticket-management-form-actions button:last-child { border-color: #237344; background: #237344; }
+.my-ticket-password-dialog .my-ticket-management-error { margin: 16px 0 0; padding: 11px 13px; border: 1px solid #f3c9c4; border-radius: 8px; background: #fff2f0; color: #a82419; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.my-ticket-password-dialog .my-ticket-password-success { color: #237344; font-weight: 700; }
 .my-ticket-overview > button { display: grid; align-content: center; gap: 12px; border: 0; background: transparent; color: #666; font: inherit; cursor: pointer; }
 .my-ticket-overview > button strong { color: #237344; font-size: 32px; font-weight: 500; }
 .my-ticket-history-heading, .my-ticket-history-row { display: grid; grid-template-columns: 120px minmax(240px, 1.4fr) minmax(220px, 1fr) 130px; gap: 20px; align-items: center; }

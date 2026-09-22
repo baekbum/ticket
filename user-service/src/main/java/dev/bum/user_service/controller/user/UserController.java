@@ -10,6 +10,8 @@ import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.dto.WithdrawUserRequest;
+import dev.bum.common.service.user.user.dto.VerifyMyPasswordRequest;
+import dev.bum.common.service.user.user.dto.ChangeMyPasswordRequest;
 import dev.bum.user_service.service.user.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -81,12 +83,30 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequest info
     ) {
         UpdateUserRequest allowed = UpdateUserRequest.builder()
-                .password(info.getPassword())
                 .phoneNumber(info.getPhoneNumber())
                 .email(info.getEmail())
                 .address(info.getAddress())
                 .build();
         return ResponseEntity.ok(userService.update(currentUserId, allowed));
+    }
+
+    @PostMapping("/password/validate/me")
+    public ResponseEntity<Void> validateMyPassword(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody VerifyMyPasswordRequest request
+    ) {
+        userService.validateMyPassword(currentUserId, request.getPassword());
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/password/change/me")
+    public ResponseEntity<Void> changeMyPassword(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody ChangeMyPasswordRequest request
+    ) {
+        userService.changeMyPassword(currentUserId, request.getCurrentPassword(),
+                request.getNewPassword(), request.getNewPasswordConfirm());
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/withdraw/me")

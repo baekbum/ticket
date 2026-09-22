@@ -16,6 +16,7 @@ import dev.bum.user_service.audit.AuditContext;
 import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.UserNotExistException;
+import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -106,7 +107,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse selectMyInfo(String userId) {
         User user = repository.selectById(userId);
-        requireActive(user);
+        validateIsUserStatusActive(user);
         return user.toResponse();
     }
 
@@ -118,7 +119,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndPhoneNumber(request.getName(), request.getPhoneNumber());
-        requireActive(user);
+        validateIsUserStatusActive(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -133,7 +134,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndEmail(request.getName(), request.getEmail());
-        requireActive(user);
+        validateIsUserStatusActive(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -152,7 +153,7 @@ public class UserService {
                 request.getName(),
                 request.getPhoneNumber()
         );
-        requireActive(user);
+        validateIsUserStatusActive(user);
 
         return createPasswordResetToken(user);
     }
@@ -169,7 +170,7 @@ public class UserService {
                 request.getName(),
                 request.getEmail()
         );
-        requireActive(user);
+        validateIsUserStatusActive(user);
 
         return createPasswordResetToken(user);
     }
@@ -180,7 +181,7 @@ public class UserService {
         if (resetToken == null || resetToken.isExpired()) {
             throw new UserNotExistException("비밀번호 재설정 요청이 만료되었습니다.");
         }
-        requireActive(repository.selectById(resetToken.userId()));
+        validateIsUserStatusActive(repository.selectById(resetToken.userId()));
 
         User updatedUser = repository.update(
                 resetToken.userId(),
@@ -283,7 +284,7 @@ public class UserService {
     public void validateInfo(ValidatePasswordRequest info) {
         log.info("[VALIDATE] : {}", info);
         User user = repository.selectById(info.getUserId());
-        requireActive(user);
+        validateIsUserStatusActive(user);
 
         if (!passwordEncoder.matches(info.getPassword(), user.getPassword())) {
             throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
@@ -362,10 +363,53 @@ public class UserService {
         return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
-    private void requireActive(User user) {
+    private void validateIsUserStatusActive(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+            throw new WithdrawnUserException();
         }
+    }
+
+    @Transactional(readOnly = true)
+    @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
+    public void validateMyPassword(String userId, String password) {
+        User user = repository.selectById(userId);
+
+        validateIsUserStatusActive(user);
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");
+        }
+    }
+
+    @AuditLog(action = "USER_PASSWORD_CHANGE", targetType = "USER")
+    public void changeMyPassword(String userId, String currentPassword, String newPassword, String newPasswordConfirm) {
+        User user = repository.selectById(userId);
+
+        validateIsUserStatusActive(user);
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new IllegalArgumentException("새로운 비밀번호는 이전 비밀번호와 같을 수 없습니다.");
+        }
+
+        if (!newPassword.equals(newPasswordConfirm)) {
+            throw new IllegalArgumentException("새 비밀번호 확인이 일치하지 않습니다.");
+        }
+
+        User updatedUser = repository.update(userId, UpdateUserRequest.builder().password(newPassword).build());
+
+        AuditContext.setBeforeData(Map.of("password", "UNCHANGED"));
+        AuditContext.setAfterData(Map.of("password", "CHANGED"));
+
+        sendTopicToKafka(UserDtoForEvent.builder()
+                .eventType(TopicEventType.UPDATE)
+                .id(updatedUser.getId())
+                .userId(updatedUser.getUserId())
+                .password(updatedUser.getPassword())
+                .build());
     }
 
     private void putUserUpdateAuditData(
