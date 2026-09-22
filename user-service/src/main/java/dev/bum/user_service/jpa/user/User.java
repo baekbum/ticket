@@ -133,9 +133,7 @@ public class User {
 
         if (info.getIsBlacklisted() != null) {
             this.isBlacklisted = info.getIsBlacklisted();
-            if (!info.getIsBlacklisted()) {
-                this.blacklistedUntil = null;
-            }
+            this.blacklistedUntil = info.getIsBlacklisted() ? info.getBlacklistedUntil() : null;
         }
 
         if (info.getBlacklistedUntil() != null && !Boolean.FALSE.equals(info.getIsBlacklisted())) {
@@ -149,6 +147,15 @@ public class User {
 
         if (StringUtils.hasText(info.getGrade())) {
             this.grade = UserGrade.valueOf(info.getGrade());
+        }
+
+        if (info.getStatus() == UserStatus.WITHDRAWN) {
+            this.status = UserStatus.WITHDRAWN;
+            this.withdrawAt = info.getWithdrawAt() != null ? info.getWithdrawAt()
+                    : this.withdrawAt != null ? this.withdrawAt : LocalDateTime.now();
+        } else if (info.getStatus() == UserStatus.ACTIVE) {
+            this.status = UserStatus.ACTIVE;
+            this.withdrawAt = null;
         }
     }
 

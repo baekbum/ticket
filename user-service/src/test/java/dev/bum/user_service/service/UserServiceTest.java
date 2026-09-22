@@ -32,6 +32,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -275,6 +276,71 @@ class UserServiceTest {
 
         then(userRepository).should().update(userId, info);
         then(kafkaTemplate).should(never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("관리자 상태 변경 시 탈퇴 시각을 저장하고 인증 서비스에 전파")
+    void admin_update_withdrawn_status() {
+        LocalDateTime withdrawnAt = LocalDateTime.of(2026, 9, 22, 10, 30);
+        User user = User.builder().id(1L).userId("user").role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE).build();
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .status(UserStatus.WITHDRAWN).withdrawAt(withdrawnAt).build();
+        given(userRepository.selectById("user")).willReturn(user);
+        given(userRepository.update("user", info)).willAnswer(invocation -> {
+            user.updateInfo(info);
+            return user;
+        });
+        given(kafkaTemplate.send(any(), any(), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        UserResponse response = userService.update("user", info);
+
+        assertThat(response.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
+        assertThat(response.getWithdrawAt()).isEqualTo(withdrawnAt);
+        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+                "WITHDRAWN".equals(event.getStatus()) && "user".equals(event.getUserId())));
+    }
+
+    @Test
+    @DisplayName("관리자가 탈퇴 계정을 다시 활성화하면 탈퇴 시각을 지움")
+    void admin_update_reactivate() {
+        User user = User.builder().id(1L).userId("user").role(UserRole.ROLE_USER)
+                .status(UserStatus.WITHDRAWN).withdrawAt(LocalDateTime.now()).build();
+        UpdateUserRequest info = UpdateUserRequest.builder().status(UserStatus.ACTIVE).build();
+        given(userRepository.selectById("user")).willReturn(user);
+        given(userRepository.update("user", info)).willAnswer(invocation -> {
+            user.updateInfo(info);
+            return user;
+        });
+        given(kafkaTemplate.send(any(), any(), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        UserResponse response = userService.update("user", info);
+
+        assertThat(response.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(response.getWithdrawAt()).isNull();
+        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+                "ACTIVE".equals(event.getStatus())));
+    }
+
+    @Test
+    @DisplayName("블랙리스트 종료 일시를 변경하거나 기간 제한 없이 설정할 수 있음")
+    void blacklist_period_can_be_changed_or_cleared() {
+        User user = User.builder().status(UserStatus.ACTIVE).isBlacklisted(false).build();
+        LocalDateTime until = LocalDateTime.of(2026, 12, 31, 23, 59);
+
+        user.updateInfo(UpdateUserRequest.builder()
+                .isBlacklisted(true).blacklistedUntil(until).build());
+        assertThat(user.getBlacklistedUntil()).isEqualTo(until);
+
+        user.updateInfo(UpdateUserRequest.builder().isBlacklisted(true).build());
+        assertThat(user.getIsBlacklisted()).isTrue();
+        assertThat(user.getBlacklistedUntil()).isNull();
+
+        user.updateInfo(UpdateUserRequest.builder().isBlacklisted(false).build());
+        assertThat(user.getIsBlacklisted()).isFalse();
+        assertThat(user.getBlacklistedUntil()).isNull();
     }
 
     @Test

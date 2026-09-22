@@ -231,24 +231,39 @@ public class UserService {
         log.info("[UPDATE] updateUserInfo : {}", info.toString());
 
         User beforeUser = repository.selectById(userId);
-        if (beforeUser.getStatus() != UserStatus.ACTIVE) {
+        if (beforeUser.getStatus() != UserStatus.ACTIVE && info.getStatus() == null) {
             throw new IllegalArgumentException("탈퇴한 계정은 수정할 수 없습니다.");
         }
+        if (info.getWithdrawAt() != null && info.getStatus() != UserStatus.WITHDRAWN) {
+            throw new IllegalArgumentException("탈퇴 일시는 탈퇴 상태에서만 설정할 수 있습니다.");
+        }
         UserRole originalRole = beforeUser.getRole();
+        UserStatus originalStatus = beforeUser.getStatus();
+        LocalDateTime originalWithdrawAt = beforeUser.getWithdrawAt();
         Map<String, Object> beforeData = new LinkedHashMap<>();
         Map<String, Object> afterData = new LinkedHashMap<>();
         putUserUpdateAuditData(beforeData, afterData, beforeUser, info);
 
         UserResponse updatedUser = repository.update(userId, info).toResponse();
+        if (info.getStatus() != null && (originalStatus != updatedUser.getStatus()
+                || !Objects.equals(originalWithdrawAt, updatedUser.getWithdrawAt()))) {
+            beforeData.put("status", originalStatus);
+            afterData.put("status", updatedUser.getStatus());
+            beforeData.put("withdrawAt", originalWithdrawAt);
+            afterData.put("withdrawAt", updatedUser.getWithdrawAt());
+        }
         AuditContext.setBeforeData(beforeData);
         AuditContext.setAfterData(afterData);
 
         // ROLE이 변경됐을 때 AUTH DB에 적용
-        if (StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole())) {
+        if ((StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole()))
+                || originalStatus != updatedUser.getStatus()) {
             UserDtoForEvent event = UserDtoForEvent.builder()
                     .eventType(TopicEventType.UPDATE)
                     .id(updatedUser.getId())
                     .userId(updatedUser.getUserId())
+                    .role(updatedUser.getRole().name())
+                    .status(updatedUser.getStatus().name())
                     .build();
 
             sendTopicToKafka(event);
