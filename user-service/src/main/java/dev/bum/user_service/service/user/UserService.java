@@ -11,10 +11,12 @@ import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.audit.AuditContext;
 import dev.bum.user_service.audit.AuditLog;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.UserNotExistException;
+import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -83,6 +85,7 @@ public class UserService {
                 .userId(savedUser.getUserId())
                 .password(savedUser.getPassword())
                 .role(savedUser.getRole().name())
+                .status(savedUser.getStatus().name())
                 .build();
 
         sendTopicToKafka(event);
@@ -102,6 +105,13 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    public UserResponse selectMyInfo(String userId) {
+        User user = repository.selectById(userId);
+        validateIsUserStatusActive(user);
+        return user.toResponse();
+    }
+
+    @Transactional(readOnly = true)
     public FindUserIdResponse findUserIdByPhoneNumber(FindUserIdRequest request) {
         log.info("[FIND USER ID BY PHONE] name : {}", request.getName());
         if (!StringUtils.hasText(request.getPhoneNumber())) {
@@ -109,6 +119,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndPhoneNumber(request.getName(), request.getPhoneNumber());
+        validateIsUserStatusActive(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -123,6 +134,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndEmail(request.getName(), request.getEmail());
+        validateIsUserStatusActive(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -141,6 +153,7 @@ public class UserService {
                 request.getName(),
                 request.getPhoneNumber()
         );
+        validateIsUserStatusActive(user);
 
         return createPasswordResetToken(user);
     }
@@ -157,6 +170,7 @@ public class UserService {
                 request.getName(),
                 request.getEmail()
         );
+        validateIsUserStatusActive(user);
 
         return createPasswordResetToken(user);
     }
@@ -167,6 +181,7 @@ public class UserService {
         if (resetToken == null || resetToken.isExpired()) {
             throw new UserNotExistException("비밀번호 재설정 요청이 만료되었습니다.");
         }
+        validateIsUserStatusActive(repository.selectById(resetToken.userId()));
 
         User updatedUser = repository.update(
                 resetToken.userId(),
@@ -216,6 +231,9 @@ public class UserService {
         log.info("[UPDATE] updateUserInfo : {}", info.toString());
 
         User beforeUser = repository.selectById(userId);
+        if (beforeUser.getStatus() != UserStatus.ACTIVE) {
+            throw new IllegalArgumentException("탈퇴한 계정은 수정할 수 없습니다.");
+        }
         UserRole originalRole = beforeUser.getRole();
         Map<String, Object> beforeData = new LinkedHashMap<>();
         Map<String, Object> afterData = new LinkedHashMap<>();
@@ -239,11 +257,34 @@ public class UserService {
         return updatedUser;
     }
 
+    @AuditLog(action = "USER_WITHDRAW", targetType = "USER")
+    public UserResponse withdraw(String userId, String password) {
+        User user = repository.selectById(userId);
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new IllegalArgumentException("이미 탈퇴한 계정입니다.");
+        }
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");
+        }
+
+        user.withdraw(LocalDateTime.now());
+        AuditContext.setBeforeData(Map.of("status", UserStatus.ACTIVE.name()));
+        AuditContext.setAfterData(Map.of("status", UserStatus.WITHDRAWN.name(), "withdrawAt", user.getWithdrawAt().toString()));
+        sendTopicToKafka(UserDtoForEvent.builder()
+                .eventType(TopicEventType.UPDATE)
+                .id(user.getId())
+                .userId(user.getUserId())
+                .status(UserStatus.WITHDRAWN.name())
+                .build());
+        return user.toResponse();
+    }
+
     @Transactional(readOnly = true)
     @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
     public void validateInfo(ValidatePasswordRequest info) {
         log.info("[VALIDATE] : {}", info);
         User user = repository.selectById(info.getUserId());
+        validateIsUserStatusActive(user);
 
         if (!passwordEncoder.matches(info.getPassword(), user.getPassword())) {
             throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
@@ -322,6 +363,55 @@ public class UserService {
         return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
+    private void validateIsUserStatusActive(User user) {
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new WithdrawnUserException();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
+    public void validateMyPassword(String userId, String password) {
+        User user = repository.selectById(userId);
+
+        validateIsUserStatusActive(user);
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");
+        }
+    }
+
+    @AuditLog(action = "USER_PASSWORD_CHANGE", targetType = "USER")
+    public void changeMyPassword(String userId, String currentPassword, String newPassword, String newPasswordConfirm) {
+        User user = repository.selectById(userId);
+
+        validateIsUserStatusActive(user);
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new IllegalArgumentException("새로운 비밀번호는 이전 비밀번호와 같을 수 없습니다.");
+        }
+
+        if (!newPassword.equals(newPasswordConfirm)) {
+            throw new IllegalArgumentException("새 비밀번호 확인이 일치하지 않습니다.");
+        }
+
+        User updatedUser = repository.update(userId, UpdateUserRequest.builder().password(newPassword).build());
+
+        AuditContext.setBeforeData(Map.of("password", "UNCHANGED"));
+        AuditContext.setAfterData(Map.of("password", "CHANGED"));
+
+        sendTopicToKafka(UserDtoForEvent.builder()
+                .eventType(TopicEventType.UPDATE)
+                .id(updatedUser.getId())
+                .userId(updatedUser.getUserId())
+                .password(updatedUser.getPassword())
+                .build());
+    }
+
     private void putUserUpdateAuditData(
             Map<String, Object> beforeData,
             Map<String, Object> afterData,
@@ -337,8 +427,18 @@ public class UserService {
                 beforeUser.getBirthDate(), "MASKED", "CHANGED");
         putChangedText(beforeData, afterData, "address", info.getAddress(),
                 beforeUser.getAddress(), "MASKED", "CHANGED");
-        putChangedValue(beforeData, afterData, "isBlacklisted", info.getIsBlacklisted(),
-                beforeUser.getIsBlacklisted(), beforeUser.getIsBlacklisted(), info.getIsBlacklisted());
+        Boolean requestedBlacklist = info.getIsBlacklisted() != null
+                ? info.getIsBlacklisted()
+                : info.getBlacklistedUntil() != null ? true : null;
+        putChangedValue(beforeData, afterData, "isBlacklisted", requestedBlacklist,
+                beforeUser.getIsBlacklisted(), beforeUser.getIsBlacklisted(), requestedBlacklist);
+        if (Boolean.FALSE.equals(info.getIsBlacklisted()) && beforeUser.getBlacklistedUntil() != null) {
+            beforeData.put("blacklistedUntil", beforeUser.getBlacklistedUntil());
+            afterData.put("blacklistedUntil", null);
+        } else {
+            putChangedValue(beforeData, afterData, "blacklistedUntil", info.getBlacklistedUntil(),
+                    beforeUser.getBlacklistedUntil(), beforeUser.getBlacklistedUntil(), info.getBlacklistedUntil());
+        }
         putChangedText(beforeData, afterData, "role", info.getRole(),
                 beforeUser.getRole() != null ? beforeUser.getRole().name() : null,
                 beforeUser.getRole() != null ? beforeUser.getRole().name() : null, info.getRole());

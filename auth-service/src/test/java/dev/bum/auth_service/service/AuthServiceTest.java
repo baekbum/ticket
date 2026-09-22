@@ -3,6 +3,7 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -10,6 +11,7 @@ import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -169,6 +171,22 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 계정의 Refresh Token은 재발급 거부")
+    void reissue_fails_for_withdrawn_user() {
+        Auth auth = auth("user01");
+        auth.updateInfo(UserDtoForEvent.builder().status(UserStatus.WITHDRAWN.name()).build());
+        given(tokenProvider.validateToken("refresh-token")).willReturn(true);
+        given(tokenProvider.getUserId("refresh-token")).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn("refresh-token");
+        given(authRepository.findByUserId("user01")).willReturn(auth);
+
+        assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
+                .isInstanceOf(RedisException.class);
+        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("유효하지 않은 Refresh Token이면 예외 발생")
     void reissue_token_fail_with_invalid_refresh_token() {
         String refreshToken = "invalid-refresh-token";
@@ -217,6 +235,32 @@ class AuthServiceTest {
 
         then(authRepository).should().findByUserId("user01");
         then(tokenProvider).should(never()).createToken(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 계정은 비밀번호가 맞아도 로그인 불가")
+    void login_fails_for_withdrawn_user() {
+        Auth auth = auth("user01");
+        auth.updateInfo(UserDtoForEvent.builder().status(UserStatus.WITHDRAWN.name()).build());
+        given(authRepository.findByUserId("user01")).willReturn(auth);
+        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
+
+        assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest("user01", "plain-password")))
+                .isInstanceOf(WithdrawnUserException.class)
+                .hasMessage("이미 탈퇴한 사용자입니다.");
+        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("탈퇴 이벤트를 받으면 Refresh Token 삭제")
+    void withdrawal_event_revokes_refresh_token() {
+        UserDtoForEvent event = userEvent("user01");
+        event.setStatus(UserStatus.WITHDRAWN.name());
+
+        authService.updateUserTopic(event);
+
+        then(authRepository).should().update(event);
+        then(redisTemplate).should().delete("RT:user01");
     }
 
     @Test

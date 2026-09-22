@@ -3,6 +3,7 @@ package dev.bum.auth_service.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.security.SecurityConfig;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.common.error.ErrorCode;
@@ -185,6 +186,20 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("LOGIN_FAILED"))
                 .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 일치하지 않습니다."))
                 .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 계정 로그인 시 전용 오류 응답")
+    void login_withdrawn_user() throws Exception {
+        LoginRequest info = new LoginRequest("user01", "password");
+        given(authService.LoginAndCreateToken(any())).willThrow(new WithdrawnUserException());
+
+        mockMvc.perform(post("/api/" + apiVersion + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_WITHDRAWN"))
+                .andExpect(jsonPath("$.message").value("이미 탈퇴한 사용자입니다."));
     }
 
     @Test

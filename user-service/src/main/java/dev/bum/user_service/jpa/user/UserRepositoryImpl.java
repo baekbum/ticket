@@ -9,6 +9,7 @@ import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
 import lombok.RequiredArgsConstructor;
@@ -132,6 +133,7 @@ public class UserRepositoryImpl implements UserRepository {
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
                         isBlacklistedEq(cond.getIsBlacklisted()),
+                        statusEq(cond.getStatus()),
                         gradeEq(cond.getGrade())
                 )
                 .offset(pageable.getOffset()) // 오프셋 적용
@@ -150,6 +152,7 @@ public class UserRepositoryImpl implements UserRepository {
                         birthDateEq(cond.getBirthDate()),
                         addressLike(cond.getAddress()),
                         isBlacklistedEq(cond.getIsBlacklisted()),
+                        statusEq(cond.getStatus()),
                         gradeEq(cond.getGrade())
                 )
                 .fetchOne();
@@ -224,6 +227,10 @@ public class UserRepositoryImpl implements UserRepository {
 
     private BooleanExpression isBlacklistedEq(Boolean isBlacklisted) {
         return isBlacklisted != null ? user.isBlacklisted.eq(isBlacklisted) : null;
+    }
+
+    private BooleanExpression statusEq(UserStatus status) {
+        return status != null ? user.status.eq(status) : null;
     }
 
     private BooleanExpression gradeEq(String grade) {
