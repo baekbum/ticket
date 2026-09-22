@@ -254,9 +254,11 @@ class UserServiceTest {
     @DisplayName("유저 정보 수정")
     void user_update() throws Exception {
         String userId = "user";
+        LocalDate until = LocalDate.of(2026, 12, 31);
 
         UpdateUserRequest info = UpdateUserRequest.builder()
                 .isBlacklisted(true)
+                .blacklistedUntil(until)
                 .build();
 
         User result = User.builder()
@@ -264,10 +266,13 @@ class UserServiceTest {
                 .userId("user")
                 .role(UserRole.ROLE_USER)
                 .isBlacklisted(true)
+                .blacklistedUntil(until)
                 .build();
 
         given(userRepository.selectById(any())).willReturn(result);
         given(userRepository.update(any(), any())).willReturn(result);
+        given(kafkaTemplate.send(any(), any(), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         UserResponse response = userService.update(userId, info);
 
@@ -275,7 +280,9 @@ class UserServiceTest {
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
 
         then(userRepository).should().update(userId, info);
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+                Boolean.TRUE.equals(event.getIsBlacklisted())
+                        && until.equals(event.getBlacklistedUntil())));
     }
 
     @Test
@@ -328,7 +335,7 @@ class UserServiceTest {
     @DisplayName("블랙리스트 종료 일시를 변경하거나 기간 제한 없이 설정할 수 있음")
     void blacklist_period_can_be_changed_or_cleared() {
         User user = User.builder().status(UserStatus.ACTIVE).isBlacklisted(false).build();
-        LocalDateTime until = LocalDateTime.of(2026, 12, 31, 23, 59);
+        LocalDate until = LocalDate.of(2026, 12, 31);
 
         user.updateInfo(UpdateUserRequest.builder()
                 .isBlacklisted(true).blacklistedUntil(until).build());
@@ -341,6 +348,29 @@ class UserServiceTest {
         user.updateInfo(UpdateUserRequest.builder().isBlacklisted(false).build());
         assertThat(user.getIsBlacklisted()).isFalse();
         assertThat(user.getBlacklistedUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("블랙리스트 해제 시 인증 서비스에 상태 변경 이벤트 발행")
+    void blacklist_release_publishes_event() {
+        User user = User.builder().id(1L).userId("user01").role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE).isBlacklisted(true)
+                .blacklistedUntil(LocalDate.now().minusDays(1)).build();
+        UpdateUserRequest request = UpdateUserRequest.builder().isBlacklisted(false).build();
+        given(userRepository.selectById("user01")).willReturn(user);
+        given(userRepository.update("user01", request)).willAnswer(invocation -> {
+            user.updateInfo(request);
+            return user;
+        });
+        given(kafkaTemplate.send(any(), any(), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        userService.update("user01", request);
+
+        assertThat(user.getIsBlacklisted()).isFalse();
+        assertThat(user.getBlacklistedUntil()).isNull();
+        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+                "user01".equals(event.getUserId()) && Boolean.FALSE.equals(event.getIsBlacklisted())));
     }
 
     @Test

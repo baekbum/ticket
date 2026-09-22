@@ -30,6 +30,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -86,6 +88,8 @@ public class UserService {
                 .password(savedUser.getPassword())
                 .role(savedUser.getRole().name())
                 .status(savedUser.getStatus().name())
+                .isBlacklisted(savedUser.getIsBlacklisted())
+                .blacklistedUntil(savedUser.getBlacklistedUntil())
                 .build();
 
         sendTopicToKafka(event);
@@ -255,18 +259,25 @@ public class UserService {
         AuditContext.setBeforeData(beforeData);
         AuditContext.setAfterData(afterData);
 
-        // ROLE이 변경됐을 때 AUTH DB에 적용
+        // 인증에 필요한 정보가 변경됐을 때 AUTH DB에 적용
         if ((StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole()))
-                || originalStatus != updatedUser.getStatus()) {
+                || originalStatus != updatedUser.getStatus()
+                || info.getIsBlacklisted() != null
+                || info.getBlacklistedUntil() != null) {
             UserDtoForEvent event = UserDtoForEvent.builder()
                     .eventType(TopicEventType.UPDATE)
                     .id(updatedUser.getId())
                     .userId(updatedUser.getUserId())
                     .role(updatedUser.getRole().name())
                     .status(updatedUser.getStatus().name())
+                    .isBlacklisted(updatedUser.getIsBlacklisted())
+                    .blacklistedUntil(updatedUser.getBlacklistedUntil())
                     .build();
 
-            sendTopicToKafka(event);
+            CompletableFuture<SendResult<String, UserDtoForEvent>> sent = sendTopicToKafka(event);
+            if (info.getIsBlacklisted() != null || info.getBlacklistedUntil() != null) {
+                sent.join();
+            }
         }
 
         return updatedUser;
@@ -573,9 +584,10 @@ public class UserService {
      * 토픽을 카프카 큐에 전달.
      * @param event
      */
-    private void sendTopicToKafka(UserDtoForEvent event) {
+    private CompletableFuture<SendResult<String, UserDtoForEvent>> sendTopicToKafka(UserDtoForEvent event) {
         // 주입받은 userTopic 변수 사용
-        kafkaTemplate.send(userTopic, event.getUserId(), event)
+        CompletableFuture<SendResult<String, UserDtoForEvent>> sent = kafkaTemplate.send(userTopic, event.getUserId(), event);
+        sent
                 .whenComplete((result, ex) -> {
                     if (ex == null) {
                         log.info("Kafka 전송 성공: [topic: {}, userId: {}]", userTopic, event.getUserId());
@@ -583,5 +595,6 @@ public class UserService {
                         log.error("Kafka 전송 실패: [userId: {}] 에러: {}", event.getUserId(), ex.getMessage());
                     }
                 });
+        return sent;
     }
 }

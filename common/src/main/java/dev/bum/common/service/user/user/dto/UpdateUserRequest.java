@@ -27,7 +27,7 @@ public class UpdateUserRequest {
     private String address;
 
     private Boolean isBlacklisted;
-    private LocalDateTime blacklistedUntil;
+    private LocalDate blacklistedUntil;
 
     private UserStatus status;
     private LocalDateTime withdrawAt;

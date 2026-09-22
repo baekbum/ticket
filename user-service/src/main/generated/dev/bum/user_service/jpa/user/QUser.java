@@ -23,7 +23,7 @@ public class QUser extends EntityPathBase<User> {
 
     public final DatePath<java.time.LocalDate> birthDate = createDate("birthDate", java.time.LocalDate.class);
 
-    public final DateTimePath<java.time.LocalDateTime> blacklistedUntil = createDateTime("blacklistedUntil", java.time.LocalDateTime.class);
+    public final DatePath<java.time.LocalDate> blacklistedUntil = createDate("blacklistedUntil", java.time.LocalDate.class);
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 

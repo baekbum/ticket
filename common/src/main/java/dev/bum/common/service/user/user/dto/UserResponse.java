@@ -27,7 +27,7 @@ public class UserResponse {
     private LocalDate birthDate;
     private String address;
     private Boolean isBlacklisted;
-    private LocalDateTime blacklistedUntil;
+    private LocalDate blacklistedUntil;
     private UserStatus status;
     private LocalDateTime withdrawAt;
     private LocalDateTime createdAt;

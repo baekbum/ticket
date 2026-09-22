@@ -65,7 +65,7 @@ public class User {
     private Boolean isBlacklisted;
 
     @Column(name = "blacklisted_until")
-    private LocalDateTime blacklistedUntil;
+    private LocalDate blacklistedUntil;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.Locale;
 
 @Getter
@@ -34,6 +35,12 @@ public class Auth {
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Column(name = "is_blacklisted", nullable = false)
+    private Boolean isBlacklisted = false;
+
+    @Column(name = "blacklisted_until")
+    private LocalDate blacklistedUntil;
+
     @Builder
     public Auth(Long id, String userId, String password, UserRole role) {
         this.id = id;
@@ -41,6 +48,7 @@ public class Auth {
         this.password = password;
         this.role = (role != null) ? role : UserRole.ROLE_USER;
         this.status = UserStatus.ACTIVE;
+        this.isBlacklisted = false;
     }
 
     @Builder
@@ -50,6 +58,8 @@ public class Auth {
         this.password = event.getPassword();
         this.role = UserRole.valueOf(event.getRole());
         this.status = event.getStatus() == null ? UserStatus.ACTIVE : UserStatus.valueOf(event.getStatus());
+        this.isBlacklisted = Boolean.TRUE.equals(event.getIsBlacklisted());
+        this.blacklistedUntil = this.isBlacklisted ? event.getBlacklistedUntil() : null;
     }
 
     public void updateInfo(UserDtoForEvent event) {
@@ -61,9 +71,18 @@ public class Auth {
             this.role = UserRole.valueOf(event.getRole());
         }
 
+        if (event.getIsBlacklisted() != null) {
+            this.isBlacklisted = event.getIsBlacklisted();
+            this.blacklistedUntil = this.isBlacklisted ? event.getBlacklistedUntil() : null;
+        }
+
         if (StringUtils.hasText(event.getStatus())) {
             this.status = UserStatus.valueOf(event.getStatus());
         }
+    }
+
+    public boolean isCurrentlyBlacklisted() {
+        return Boolean.TRUE.equals(isBlacklisted);
     }
 
     private String normalizeUserId(String userId) {
