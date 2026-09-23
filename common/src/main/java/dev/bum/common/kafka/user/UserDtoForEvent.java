@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,4 +19,6 @@ public class UserDtoForEvent {
     private String password;
     private String role;
     private String status;
+    private Boolean isBlacklisted;
+    private LocalDate blacklistedUntil;
 }

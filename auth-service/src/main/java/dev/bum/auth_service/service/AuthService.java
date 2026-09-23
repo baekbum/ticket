@@ -2,6 +2,7 @@ package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
+import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
@@ -58,6 +59,10 @@ public class AuthService {
         comparePassword(info, auth);
         if (auth.getStatus() != UserStatus.ACTIVE) {
             throw new WithdrawnUserException();
+        }
+
+        if (auth.isCurrentlyBlacklisted()) {
+            throw new BlacklistedUserException(auth.getBlacklistedUntil());
         }
 
         TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
@@ -175,6 +180,10 @@ public class AuthService {
         }
 
         // 6. 갱신된 Access Token과 새로운 Refresh Token 세트 생성 (RTR 보안 전략 적용)
+        if (auth.isCurrentlyBlacklisted()) {
+            throw new BlacklistedUserException(auth.getBlacklistedUntil());
+        }
+
         TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
         // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화

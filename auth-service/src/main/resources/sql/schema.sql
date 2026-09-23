@@ -5,7 +5,9 @@ CREATE TABLE auth (
     user_id VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'ROLE_USER',
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    is_blacklisted BOOLEAN NOT NULL DEFAULT FALSE,
+    blacklisted_until DATE
 );
 
 CREATE INDEX idx_auth_user_id ON auth(user_id);

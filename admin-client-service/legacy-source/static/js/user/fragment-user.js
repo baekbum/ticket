@@ -321,7 +321,7 @@
       _set('m-role',      user.role || 'ROLE_USER');
       _set('m-grade',     user.grade || 'GENERAL');
       _set('m-blacklist', user.isBlacklisted ? 'true' : 'false');
-      _set('m-blacklisted-until', user.blacklistedUntil?.slice(0, 16));
+      _set('m-blacklisted-until', user.blacklistedUntil);
       _set('m-status', user.status || 'ACTIVE');
       _set('m-withdraw-at', user.withdrawAt?.slice(0, 16));
     }
@@ -560,11 +560,12 @@
       if (mode === 'UPDATE') {
         const blacklistUntil = document.getElementById('m-blacklisted-until').value;
         const withdrawAt = document.getElementById('m-withdraw-at').value;
-        body.blacklistedUntil = body.isBlacklisted && blacklistUntil ? `${blacklistUntil}:00` : null;
+        body.blacklistedUntil = body.isBlacklisted && blacklistUntil ? blacklistUntil : null;
         body.status = document.getElementById('m-status').value;
         body.withdrawAt = body.status === 'WITHDRAWN' && withdrawAt ? `${withdrawAt}:00` : null;
-        if (body.blacklistedUntil && new Date(body.blacklistedUntil) <= new Date()) {
-          showToast('블랙리스트 종료 일시는 현재보다 이후여야 합니다.', true);
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        if (body.blacklistedUntil && body.blacklistedUntil < today) {
+          showToast('블랙리스트 종료일은 오늘 또는 이후여야 합니다.', true);
           return;
         }
       }
