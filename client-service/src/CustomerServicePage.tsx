@@ -336,7 +336,7 @@ export default function CustomerServicePage({
   const [inquirySubmitting, setInquirySubmitting] = useState(false);
   const [inquiryError, setInquiryError] = useState('');
   const [createdInquiry, setCreatedInquiry] = useState<InquiryResponse | null>(null);
-  const [inquiryView, setInquiryView] = useState<'list' | 'create' | 'detail'>('list');
+  const [inquiryView, setInquiryView] = useState<'list' | 'create' | 'detail' | 'edit'>('list');
   const [inquiries, setInquiries] = useState<InquirySummary[]>([]);
   const [inquiryListLoading, setInquiryListLoading] = useState(false);
   const [inquiryListError, setInquiryListError] = useState('');
@@ -346,6 +346,8 @@ export default function CustomerServicePage({
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryDetail | null>(null);
   const [inquiryDetailLoading, setInquiryDetailLoading] = useState(false);
   const [inquiryDetailError, setInquiryDetailError] = useState('');
+  const [inquiryActionError, setInquiryActionError] = useState('');
+  const [inquiryDeleting, setInquiryDeleting] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'notice' || selectedNoticeId !== null) return;
@@ -553,6 +555,9 @@ export default function CustomerServicePage({
   function writeAnotherInquiry() {
     setCreatedInquiry(null);
     setInquiryError('');
+    setInquiryCategory('BOOKING');
+    setInquiryTitle('');
+    setInquiryContent('');
     setInquiryView('create');
   }
 
@@ -583,6 +588,71 @@ export default function CustomerServicePage({
     setSelectedInquiryId(null);
     setSelectedInquiry(null);
     setInquiryDetailError('');
+    setInquiryActionError('');
+  }
+
+  function startInquiryEdit() {
+    if (!selectedInquiry || selectedInquiry.status !== 'WAITING') return;
+    setInquiryCategory(selectedInquiry.category);
+    setInquiryTitle(selectedInquiry.title);
+    setInquiryContent(selectedInquiry.content);
+    setInquiryError('');
+    setInquiryActionError('');
+    setInquiryView('edit');
+  }
+
+  async function submitInquiryUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedInquiry) return;
+
+    const title = inquiryTitle.trim();
+    const content = inquiryContent.trim();
+    if (!title || !content) {
+      setInquiryError('제목과 문의 내용을 모두 입력해 주세요.');
+      return;
+    }
+
+    setInquirySubmitting(true);
+    setInquiryError('');
+    try {
+      const response = await request<InquiryDetail>(
+        `/support/api/v1/inquiry/update/id/${selectedInquiry.inquiryId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ category: inquiryCategory, title, content }),
+        },
+      );
+      setSelectedInquiry(response);
+      setInquiryView('detail');
+      setInquiryReloadKey((current) => current + 1);
+    } catch (error) {
+      setInquiryError(error instanceof Error
+        ? error.message
+        : '문의를 수정하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquirySubmitting(false);
+    }
+  }
+
+  async function deleteInquiry() {
+    if (!selectedInquiry || selectedInquiry.status !== 'WAITING') return;
+    if (!window.confirm('이 문의를 삭제하시겠습니까? 삭제한 문의는 복구할 수 없습니다.')) return;
+
+    setInquiryDeleting(true);
+    setInquiryActionError('');
+    try {
+      await request<void>(`/support/api/v1/inquiry/delete/id/${selectedInquiry.inquiryId}`, {
+        method: 'DELETE',
+      });
+      closeInquiryDetail();
+      setInquiryReloadKey((current) => current + 1);
+    } catch (error) {
+      setInquiryActionError(error instanceof Error
+        ? error.message
+        : '문의를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquiryDeleting(false);
+    }
   }
 
   return (
@@ -745,12 +815,16 @@ export default function CustomerServicePage({
           <div className="service-panel-title">
             <h2>{inquiryView === 'list'
               ? '나의 문의 내역'
-              : inquiryView === 'create' ? '1:1 문의 등록' : '문의 상세'}</h2>
+              : inquiryView === 'create'
+                ? '1:1 문의 등록'
+                : inquiryView === 'edit' ? '문의 수정' : '문의 상세'}</h2>
             <p>{inquiryView === 'list'
               ? '등록한 문의와 답변 상태를 확인할 수 있습니다.'
               : inquiryView === 'create'
                 ? '문의 내용을 남겨주시면 확인 후 답변해 드립니다.'
-                : '문의 내용과 관리자 답변을 확인할 수 있습니다.'}</p>
+                : inquiryView === 'edit'
+                  ? '답변이 등록되기 전까지 문의 내용을 수정할 수 있습니다.'
+                  : '문의 내용과 관리자 답변을 확인할 수 있습니다.'}</p>
           </div>
 
           {!isLoggedIn && (
@@ -871,21 +945,43 @@ export default function CustomerServicePage({
                 </>
               )}
 
+              {inquiryActionError && <p className="inquiry-action-error" role="alert">{inquiryActionError}</p>}
+
               <div className="inquiry-detail-actions">
                 <button type="button" onClick={closeInquiryDetail}>목록</button>
+                {!inquiryDetailLoading && !inquiryDetailError && selectedInquiry?.status === 'WAITING' && (
+                  <>
+                    <button className="secondary" type="button" onClick={startInquiryEdit}>수정</button>
+                    <button className="danger" type="button" disabled={inquiryDeleting} onClick={() => void deleteInquiry()}>
+                      {inquiryDeleting ? '삭제 중...' : '삭제'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {isLoggedIn && inquiryView === 'create' && (
-            <form className="inquiry-form" onSubmit={submitInquiry}>
+          {isLoggedIn && (inquiryView === 'create' || inquiryView === 'edit') && (
+            <form
+              className="inquiry-form"
+              onSubmit={inquiryView === 'edit' ? submitInquiryUpdate : submitInquiry}
+            >
               <div className="inquiry-form-guide">
-                <strong>문의 작성 전 확인해 주세요.</strong>
-                <ul>
-                  <li>문의 한 건에는 관리자 답변 한 건이 등록됩니다.</li>
-                  <li>추가 문의가 필요하면 새로운 문의를 작성해 주세요.</li>
-                  <li>답변이 등록된 문의는 수정할 수 없습니다.</li>
-                </ul>
+                {inquiryView === 'edit' ? (
+                  <>
+                    <strong>문의 내용을 수정합니다.</strong>
+                    <ul><li>관리자 답변이 등록되면 더 이상 수정하거나 삭제할 수 없습니다.</li></ul>
+                  </>
+                ) : (
+                  <>
+                    <strong>문의 작성 전 확인해 주세요.</strong>
+                    <ul>
+                      <li>문의 한 건에는 관리자 답변 한 건이 등록됩니다.</li>
+                      <li>추가 문의가 필요하면 새로운 문의를 작성해 주세요.</li>
+                      <li>답변이 등록된 문의는 수정할 수 없습니다.</li>
+                    </ul>
+                  </>
+                )}
               </div>
 
               <div className="inquiry-form-row">
@@ -933,14 +1029,16 @@ export default function CustomerServicePage({
 
               <div className="inquiry-form-actions">
                 <button className="secondary" type="button" onClick={() => {
-                  setInquiryView('list');
+                  setInquiryView(inquiryView === 'edit' ? 'detail' : 'list');
                   setInquiryError('');
-                }}>목록</button>
+                }}>{inquiryView === 'edit' ? '취소' : '목록'}</button>
                 <button
                   type="submit"
                   disabled={inquirySubmitting || !inquiryTitle.trim() || !inquiryContent.trim()}
                 >
-                  {inquirySubmitting ? '등록 중...' : '문의 등록'}
+                  {inquirySubmitting
+                    ? inquiryView === 'edit' ? '수정 중...' : '등록 중...'
+                    : inquiryView === 'edit' ? '수정 완료' : '문의 등록'}
                 </button>
               </div>
             </form>

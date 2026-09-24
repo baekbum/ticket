@@ -82,9 +82,7 @@ public class Inquiry {
     }
 
     public void update(InquiryCategory category, String title, String content) {
-        if (status == InquiryStatus.ANSWERED) {
-            throw new InquiryStateConflictException("답변이 완료된 문의는 수정할 수 없습니다.");
-        }
+        ensureWaiting("답변이 완료된 문의는 수정할 수 없습니다.");
         this.category = Objects.requireNonNull(category, "문의 카테고리가 필요합니다.");
         this.title = requireText(title, "문의 제목이 필요합니다.");
         this.content = requireText(content, "문의 내용이 필요합니다.");
@@ -95,6 +93,16 @@ public class Inquiry {
             throw new InquiryStateConflictException("이미 답변이 등록된 문의입니다.");
         }
         status = InquiryStatus.ANSWERED;
+    }
+
+    public void ensureDeletable() {
+        ensureWaiting("답변이 완료된 문의는 삭제할 수 없습니다.");
+    }
+
+    private void ensureWaiting(String message) {
+        if (status != InquiryStatus.WAITING) {
+            throw new InquiryStateConflictException(message);
+        }
     }
 
     private static String requireText(String value, String message) {

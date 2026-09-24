@@ -62,6 +62,16 @@ public class InquiryService {
         return InquiryMapper.toResponse(inquiry, null);
     }
 
+    public void delete(Long inquiryId, String requesterId) {
+        Inquiry inquiry = inquiryRepository.findByIdAndRequesterIdForUpdate(
+                        inquiryId,
+                        normalizeUserId(requesterId)
+                )
+                .orElseThrow(() -> new InquiryNotFoundException("존재하지 않는 문의입니다."));
+        inquiry.ensureDeletable();
+        inquiryRepository.delete(inquiry);
+    }
+
     private Inquiry findMine(Long inquiryId, String requesterId) {
         return inquiryRepository.findByIdAndRequesterId(inquiryId, normalizeUserId(requesterId))
                 .orElseThrow(() -> new InquiryNotFoundException("존재하지 않는 문의입니다."));

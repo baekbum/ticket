@@ -20,4 +20,11 @@ public interface InquiryJpaRepository extends JpaRepository<Inquiry, Long>, JpaS
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select inquiry from Inquiry inquiry where inquiry.id = :inquiryId")
     Optional<Inquiry> findByIdForUpdate(@Param("inquiryId") Long inquiryId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select inquiry from Inquiry inquiry where inquiry.id = :inquiryId and inquiry.requesterId = :requesterId")
+    Optional<Inquiry> findByIdAndRequesterIdForUpdate(
+            @Param("inquiryId") Long inquiryId,
+            @Param("requesterId") String requesterId
+    );
 }

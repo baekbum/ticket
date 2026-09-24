@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class InquiryServiceTest {
@@ -78,5 +80,30 @@ class InquiryServiceTest {
 
         assertThatThrownBy(() -> inquiryService.selectById(1L, "user2"))
                 .isInstanceOf(InquiryNotFoundException.class);
+    }
+
+    @Test
+    void 답변_대기_문의는_삭제할_수_있다() {
+        Inquiry inquiry = Inquiry.create("user1", InquiryCategory.ETC, "문의", "문의 내용");
+        when(inquiryRepository.findByIdAndRequesterIdForUpdate(1L, "user1"))
+                .thenReturn(Optional.of(inquiry));
+
+        inquiryService.delete(1L, "user1");
+
+        verify(inquiryRepository).delete(inquiry);
+    }
+
+    @Test
+    void 답변이_완료된_문의는_삭제할_수_없다() {
+        Inquiry inquiry = Inquiry.create("user1", InquiryCategory.ETC, "문의", "문의 내용");
+        inquiry.markAnswered();
+        when(inquiryRepository.findByIdAndRequesterIdForUpdate(1L, "user1"))
+                .thenReturn(Optional.of(inquiry));
+
+        assertThatThrownBy(() -> inquiryService.delete(1L, "user1"))
+                .isInstanceOf(InquiryStateConflictException.class)
+                .hasMessage("답변이 완료된 문의는 삭제할 수 없습니다.");
+
+        verify(inquiryRepository, never()).delete(any(Inquiry.class));
     }
 }
