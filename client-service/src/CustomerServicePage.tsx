@@ -467,7 +467,14 @@ export default function CustomerServicePage({
   }, [activeTab, faqCategory, faqKeyword]);
 
   useEffect(() => {
-    if (activeTab !== 'inquiry') return;
+    if (activeTab !== 'inquiry') {
+      setInquiryView('list');
+      setSelectedInquiryId(null);
+      setSelectedInquiry(null);
+      setInquiryDetailError('');
+      setInquiryActionError('');
+      return;
+    }
     if (!isLoggedIn) {
       setInquiries([]);
       setInquiryTotalCount(0);
