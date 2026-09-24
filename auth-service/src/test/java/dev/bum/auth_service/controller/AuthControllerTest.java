@@ -1,8 +1,10 @@
 package dev.bum.auth_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.security.SecurityConfig;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.common.error.ErrorCode;
@@ -19,6 +21,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -185,6 +189,51 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("LOGIN_FAILED"))
                 .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 일치하지 않습니다."))
                 .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 계정 로그인 시 전용 오류 응답")
+    void login_withdrawn_user() throws Exception {
+        LoginRequest info = new LoginRequest("user01", "password");
+        given(authService.LoginAndCreateToken(any())).willThrow(new WithdrawnUserException());
+
+        mockMvc.perform(post("/api/" + apiVersion + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_WITHDRAWN"))
+                .andExpect(jsonPath("$.message").value("이미 탈퇴한 사용자입니다."));
+    }
+
+    @Test
+    @DisplayName("차단 계정 로그인 시 종료일을 응답")
+    void login_blacklisted_user_with_end_date() throws Exception {
+        LoginRequest info = new LoginRequest("user01", "password");
+        given(authService.LoginAndCreateToken(any()))
+                .willThrow(new BlacklistedUserException(LocalDate.of(2026, 12, 31)));
+
+        mockMvc.perform(post("/api/" + apiVersion + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_BLACKLISTED"))
+                .andExpect(jsonPath("$.details.blacklistedUntil").value("2026-12-31"));
+    }
+
+    @Test
+    @DisplayName("무기한 차단 계정 로그인 시 종료일이 없는 응답")
+    void login_blacklisted_user_without_end_date() throws Exception {
+        LoginRequest info = new LoginRequest("user01", "password");
+        given(authService.LoginAndCreateToken(any()))
+                .willThrow(new BlacklistedUserException(null));
+
+        mockMvc.perform(post("/api/" + apiVersion + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_BLACKLISTED"))
+                .andExpect(jsonPath("$.message").value("무기한 차단된 계정입니다."))
+                .andExpect(jsonPath("$.details.blacklistedUntil").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

@@ -15,7 +15,51 @@
 .my-ticket-member { display: flex; align-items: center; gap: 24px; padding: 32px; background: white; }
 .my-ticket-member h2 { margin: 8px 0; font-size: 28px; font-weight: 500; }
 .my-ticket-member p, .my-ticket-member small { color: #777; font-size: 13px; }
-.my-ticket-avatar { display: grid; place-items: center; width: 90px; height: 90px; flex-shrink: 0; border-radius: 50%; background: #f1f1f1; color: #aaa; font-size: 64px; }
+.my-ticket-member-icon { display: grid; place-items: center; width: 72px; height: 72px; flex-shrink: 0; border-radius: 16px; background: #eff6eb; color: #237344; }
+.my-ticket-member-icon svg { width: 42px; height: 42px; }
+.my-ticket-member-content { min-width: 0; }
+.my-ticket-member-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.my-ticket-member-actions button { padding: 9px 14px; border: 1px solid #b9d5bc; border-radius: 8px; background: white; color: #237344; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.my-ticket-member-actions button:hover, .my-ticket-member-actions button[aria-expanded='true'] { background: #237344; color: white; }
+.my-ticket-management { box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px 30px 30px; overflow-y: auto; border: 1px solid #dedede; border-radius: 14px; background: white; color: #242424; box-shadow: 0 24px 72px #0d1b1499; }
+.my-ticket-management::backdrop { background: #16221ccc; }
+.my-ticket-management-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.my-ticket-management-heading h2 { margin: 0; font-size: 21px; }
+.my-ticket-management-heading button { border: 0; background: transparent; color: #666; font-size: 28px; cursor: pointer; }
+.my-ticket-management-error, .my-ticket-management-notice { padding: 12px 16px; border-radius: 7px; font-size: 14px; }
+.my-ticket-management-error { background: #fff2f0; color: #a82419; }
+.my-ticket-management-notice { background: #eff8ed; color: #237344; }
+.my-ticket-management-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.my-ticket-management-form label { display: grid; gap: 7px; color: #555; font-size: 13px; font-weight: 700; }
+.my-ticket-management-form input:not([type='checkbox']) { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded3; border-radius: 7px; background: white; font: inherit; }
+.my-ticket-management-form input[readonly], .my-ticket-management-form input:disabled { background: #f5f6f5; color: #777; opacity: 1; }
+.my-ticket-management-form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.my-ticket-management-form-actions button, .my-ticket-address-toolbar button, .my-ticket-address-actions button { padding: 9px 16px; border: 1px solid #237344; border-radius: 7px; background: white; color: #237344; font: inherit; cursor: pointer; }
+.my-ticket-management-form-actions button:last-child, .my-ticket-address-toolbar button { background: #237344; color: white; }
+.my-ticket-management button:disabled { opacity: .5; cursor: not-allowed; }
+.my-ticket-address-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.my-ticket-address-list article { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid #e5e5e5; }
+.my-ticket-address-list article strong { font-size: 16px; }
+.my-ticket-address-list article em { margin-left: 5px; color: #237344; font-size: 12px; font-style: normal; }
+.my-ticket-address-list article p { margin: 7px 0 0; color: #666; font-size: 13px; }
+.my-ticket-address-actions { display: flex; flex-shrink: 0; gap: 7px; }
+.my-ticket-address-form { margin-top: 24px; padding-top: 24px; border-top: 1px solid #ddd; }
+.my-ticket-address-form h3 { grid-column: 1 / -1; margin: 0; font-size: 18px; }
+.my-ticket-management-form .my-ticket-default-check { display: flex; align-items: center; gap: 8px; }
+.my-ticket-withdraw-action { margin-top: 26px; padding-top: 18px; border-top: 1px solid #eee; text-align: right; }
+.my-ticket-withdraw-action button { border: 0; background: transparent; color: #a82419; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.my-ticket-withdraw-dialog { box-sizing: border-box; width: min(430px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; overflow-y: auto; border: 1px solid #dedede; border-radius: 14px; background: white; color: #242424; box-shadow: 0 24px 72px #0d1b1499; }
+.my-ticket-withdraw-dialog::backdrop { background: #16221ccc; }
+.my-ticket-withdraw-dialog h2 { margin: 0 0 12px; font-size: 22px; }
+.my-ticket-withdraw-dialog p { color: #666; font-size: 14px; line-height: 1.6; }
+.my-ticket-withdraw-dialog form { display: grid; gap: 22px; margin-top: 22px; }
+.my-ticket-withdraw-dialog label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
+.my-ticket-withdraw-dialog input { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded3; border-radius: 7px; font: inherit; }
+.my-ticket-withdraw-dialog .my-ticket-management-form-actions button:last-child { border-color: #a82419; background: #a82419; }
+.my-ticket-withdraw-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+.my-ticket-password-dialog .my-ticket-management-form-actions button:last-child { border-color: #237344; background: #237344; }
+.my-ticket-password-dialog .my-ticket-management-error { margin: 16px 0 0; padding: 11px 13px; border: 1px solid #f3c9c4; border-radius: 8px; background: #fff2f0; color: #a82419; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.my-ticket-password-dialog .my-ticket-password-success { color: #237344; font-weight: 700; }
 .my-ticket-overview > button { display: grid; align-content: center; gap: 12px; border: 0; background: transparent; color: #666; font: inherit; cursor: pointer; }
 .my-ticket-overview > button strong { color: #237344; font-size: 32px; font-weight: 500; }
 .my-ticket-history-heading, .my-ticket-history-row { display: grid; grid-template-columns: 120px minmax(240px, 1.4fr) minmax(220px, 1fr) 130px; gap: 20px; align-items: center; }
@@ -99,8 +143,12 @@
 @media (max-width: 600px) {
   .my-ticket-history-row { grid-template-columns: 1fr; }
   .my-ticket-member { padding: 20px; gap: 16px; }
-  .my-ticket-avatar { width: 60px; height: 60px; font-size: 40px; }
+  .my-ticket-member-icon { width: 48px; height: 48px; border-radius: 12px; }
+  .my-ticket-member-icon svg { width: 28px; height: 28px; }
   .my-ticket-member h2 { font-size: 22px; }
+  .my-ticket-management { padding: 20px; }
+  .my-ticket-management-form { grid-template-columns: 1fr; }
+  .my-ticket-address-list article { align-items: flex-start; flex-direction: column; }
   .my-ticket-detail-dialog { padding: 18px; }
   .my-ticket-detail-facts > div { grid-template-columns: 95px 1fr; }
   .my-ticket-detail-facts dt, .my-ticket-detail-facts dd { padding: 12px; }

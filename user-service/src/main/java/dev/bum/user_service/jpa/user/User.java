@@ -5,6 +5,7 @@ import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -63,6 +64,17 @@ public class User {
     @Column(name = "is_blacklisted")
     private Boolean isBlacklisted;
 
+    @Column(name = "blacklisted_until")
+    private LocalDate blacklistedUntil;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "withdraw_at")
+    private LocalDateTime withdrawAt;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -92,6 +104,7 @@ public class User {
         }
 
         this.isBlacklisted = false;
+        this.status = UserStatus.ACTIVE;
     }
 
     /**
@@ -120,6 +133,12 @@ public class User {
 
         if (info.getIsBlacklisted() != null) {
             this.isBlacklisted = info.getIsBlacklisted();
+            this.blacklistedUntil = info.getIsBlacklisted() ? info.getBlacklistedUntil() : null;
+        }
+
+        if (info.getBlacklistedUntil() != null && !Boolean.FALSE.equals(info.getIsBlacklisted())) {
+            this.blacklistedUntil = info.getBlacklistedUntil();
+            this.isBlacklisted = true;
         }
 
         if (StringUtils.hasText(info.getRole())) {
@@ -129,6 +148,20 @@ public class User {
         if (StringUtils.hasText(info.getGrade())) {
             this.grade = UserGrade.valueOf(info.getGrade());
         }
+
+        if (info.getStatus() == UserStatus.WITHDRAWN) {
+            this.status = UserStatus.WITHDRAWN;
+            this.withdrawAt = info.getWithdrawAt() != null ? info.getWithdrawAt()
+                    : this.withdrawAt != null ? this.withdrawAt : LocalDateTime.now();
+        } else if (info.getStatus() == UserStatus.ACTIVE) {
+            this.status = UserStatus.ACTIVE;
+            this.withdrawAt = null;
+        }
+    }
+
+    public void withdraw(LocalDateTime now) {
+        this.status = UserStatus.WITHDRAWN;
+        this.withdrawAt = now;
     }
 
     public UserResponse toResponse() {
@@ -143,6 +176,9 @@ public class User {
                 .birthDate(this.birthDate)
                 .address(this.address)
                 .isBlacklisted(this.isBlacklisted)
+                .blacklistedUntil(this.blacklistedUntil)
+                .status(this.status)
+                .withdrawAt(this.withdrawAt)
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
                 .build();

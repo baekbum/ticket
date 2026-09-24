@@ -101,21 +101,25 @@ class UserControllerTest {
     @Test
     @DisplayName("내 정보 조회")
     void select_my_info() throws Exception {
-        given(userService.selectById("IU")).willReturn(userResponse());
+        given(userService.selectMyInfo("IU")).willReturn(userResponse());
 
         mockMvc.perform(get(baseUrl + "/select/me")
                         .with(authentication(userAuthentication("IU"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value("IU"));
 
-        then(userService).should().selectById("IU");
+        then(userService).should().selectMyInfo("IU");
     }
 
     @Test
     @DisplayName("내 정보 수정")
     void update_my_info() throws Exception {
         UpdateUserRequest info = UpdateUserRequest.builder()
+                .password("not-allowed")
                 .email("update@test.com")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .isBlacklisted(false)
+                .role("ROLE_ADMIN")
                 .build();
         UserResponse updated = UserResponse.builder()
                 .id(99L)
@@ -138,7 +142,48 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.userId").value("IU"))
                 .andExpect(jsonPath("$.email").value("update@test.com"));
 
-        then(userService).should().update("IU", info);
+        then(userService).should().update(org.mockito.ArgumentMatchers.eq("IU"), org.mockito.ArgumentMatchers.argThat(allowed ->
+                "update@test.com".equals(allowed.getEmail())
+                        && allowed.getPassword() == null
+                        && allowed.getBirthDate() == null
+                        && allowed.getIsBlacklisted() == null
+                        && allowed.getRole() == null));
+    }
+
+    @Test
+    @DisplayName("본인 현재 비밀번호 확인")
+    void validate_my_password() throws Exception {
+        mockMvc.perform(post(baseUrl + "/password/validate/me")
+                        .with(authentication(userAuthentication("IU")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"current-password\"}"))
+                .andExpect(status().isOk());
+
+        then(userService).should().validateMyPassword("IU", "current-password");
+    }
+
+    @Test
+    @DisplayName("본인 비밀번호 변경")
+    void change_my_password() throws Exception {
+        mockMvc.perform(put(baseUrl + "/password/change/me")
+                        .with(authentication(userAuthentication("IU")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"current-password\",\"newPassword\":\"new-password-123\",\"newPasswordConfirm\":\"new-password-123\"}"))
+                .andExpect(status().isOk());
+
+        then(userService).should().changeMyPassword("IU", "current-password", "new-password-123", "new-password-123");
+    }
+
+    @Test
+    @DisplayName("본인 비밀번호로 회원 탈퇴")
+    void withdraw_my_account() throws Exception {
+        mockMvc.perform(post(baseUrl + "/withdraw/me")
+                        .with(authentication(userAuthentication("IU")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"plain-password\"}"))
+                .andExpect(status().isOk());
+
+        then(userService).should().withdraw("IU", "plain-password");
     }
 
     @Test

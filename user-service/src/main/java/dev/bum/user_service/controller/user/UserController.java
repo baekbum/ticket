@@ -9,6 +9,9 @@ import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.dto.WithdrawUserRequest;
+import dev.bum.common.service.user.user.dto.VerifyMyPasswordRequest;
+import dev.bum.common.service.user.user.dto.ChangeMyPasswordRequest;
 import dev.bum.user_service.service.user.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -71,7 +74,7 @@ public class UserController {
 
     @GetMapping("/select/me")
     public ResponseEntity<UserResponse> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
-        return ResponseEntity.ok(userService.selectById(currentUserId));
+        return ResponseEntity.ok(userService.selectMyInfo(currentUserId));
     }
 
     @PutMapping("/update/me")
@@ -79,7 +82,39 @@ public class UserController {
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody UpdateUserRequest info
     ) {
-        return ResponseEntity.ok(userService.update(currentUserId, info));
+        UpdateUserRequest allowed = UpdateUserRequest.builder()
+                .phoneNumber(info.getPhoneNumber())
+                .email(info.getEmail())
+                .address(info.getAddress())
+                .build();
+        return ResponseEntity.ok(userService.update(currentUserId, allowed));
+    }
+
+    @PostMapping("/password/validate/me")
+    public ResponseEntity<Void> validateMyPassword(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody VerifyMyPasswordRequest request
+    ) {
+        userService.validateMyPassword(currentUserId, request.getPassword());
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/password/change/me")
+    public ResponseEntity<Void> changeMyPassword(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody ChangeMyPasswordRequest request
+    ) {
+        userService.changeMyPassword(currentUserId, request.getCurrentPassword(),
+                request.getNewPassword(), request.getNewPasswordConfirm());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/withdraw/me")
+    public ResponseEntity<UserResponse> withdrawMyAccount(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody WithdrawUserRequest request
+    ) {
+        return ResponseEntity.ok(userService.withdraw(currentUserId, request.getPassword()));
     }
 
     @PostMapping("/validate/info")

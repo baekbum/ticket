@@ -2,10 +2,7 @@ package dev.bum.user_service.controller.advice;
 
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
-import dev.bum.user_service.exception.PasswordIncorrectException;
-import dev.bum.user_service.exception.UserAddressNotExistException;
-import dev.bum.user_service.exception.UserDuplicateException;
-import dev.bum.user_service.exception.UserNotExistException;
+import dev.bum.user_service.exception.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,6 +26,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> UserNotExistException(UserNotExistException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.USER_NOT_FOUND, ex.getMessage()));
+    }
+
+    @ExceptionHandler(WithdrawnUserException.class)
+    public ResponseEntity<ErrorResponse> withdrawnUser(WithdrawnUserException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.USER_WITHDRAWN, ex.getMessage()));
     }
 
     @ExceptionHandler(UserAddressNotExistException.class)

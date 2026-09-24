@@ -7,8 +7,11 @@ export type GuideTab = 'booking' | 'cancel' | 'delivery';
 type Props = {
   activeTab: CustomerServiceTab;
   activeGuideTab: GuideTab;
+  isLoggedIn: boolean;
+  request: <T = unknown>(url: string, options: RequestInit) => Promise<T>;
   onTabChange: (tab: CustomerServiceTab) => void;
   onGuideTabChange: (tab: GuideTab) => void;
+  onLogin: () => void;
 };
 
 const serviceTabs: Array<{ key: CustomerServiceTab; label: string }> = [
@@ -143,6 +146,50 @@ const faqCategories: Array<{ key: '' | FaqCategory; label: string }> = [
   { key: 'ETC', label: '기타' },
 ];
 
+type InquiryCategory = 'BOOKING' | 'PAYMENT' | 'REFUND' | 'TICKET' | 'ACCOUNT' | 'ETC';
+
+type InquiryResponse = {
+  inquiryId: number;
+  category: InquiryCategory;
+  title: string;
+  status: 'WAITING' | 'ANSWERED';
+};
+
+type InquirySummary = InquiryResponse & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+type InquiryPageResponse = {
+  content: InquirySummary[];
+  page?: {
+    totalElements?: number;
+  };
+};
+
+type InquiryAnswer = {
+  inquiryAnswerId: number;
+  responderId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type InquiryDetail = InquirySummary & {
+  requesterId: string;
+  content: string;
+  answer: InquiryAnswer | null;
+};
+
+const inquiryCategories: Array<{ value: InquiryCategory; label: string }> = [
+  { value: 'BOOKING', label: '예매' },
+  { value: 'PAYMENT', label: '결제' },
+  { value: 'REFUND', label: '취소/환불' },
+  { value: 'TICKET', label: '티켓' },
+  { value: 'ACCOUNT', label: '계정' },
+  { value: 'ETC', label: '기타' },
+];
+
 function GuideIcon({ name }: { name: string }) {
   const paths: Record<string, ReactNode> = {
     user: <><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.5-4.1 2.7-6 6.5-6s6 1.9 6.5 6" /></>,
@@ -262,8 +309,11 @@ function DeliveryGuide() {
 export default function CustomerServicePage({
   activeTab,
   activeGuideTab,
+  isLoggedIn,
+  request,
   onTabChange,
   onGuideTabChange,
+  onLogin,
 }: Props) {
   const noticeIdFromUrl = readNoticeId();
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -280,6 +330,24 @@ export default function CustomerServicePage({
   const [faqLoading, setFaqLoading] = useState(false);
   const [faqError, setFaqError] = useState('');
   const [faqTotalCount, setFaqTotalCount] = useState(0);
+  const [inquiryCategory, setInquiryCategory] = useState<InquiryCategory>('BOOKING');
+  const [inquiryTitle, setInquiryTitle] = useState('');
+  const [inquiryContent, setInquiryContent] = useState('');
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquiryError, setInquiryError] = useState('');
+  const [createdInquiry, setCreatedInquiry] = useState<InquiryResponse | null>(null);
+  const [inquiryView, setInquiryView] = useState<'list' | 'create' | 'detail' | 'edit'>('list');
+  const [inquiries, setInquiries] = useState<InquirySummary[]>([]);
+  const [inquiryListLoading, setInquiryListLoading] = useState(false);
+  const [inquiryListError, setInquiryListError] = useState('');
+  const [inquiryTotalCount, setInquiryTotalCount] = useState(0);
+  const [inquiryReloadKey, setInquiryReloadKey] = useState(0);
+  const [selectedInquiryId, setSelectedInquiryId] = useState<number | null>(null);
+  const [selectedInquiry, setSelectedInquiry] = useState<InquiryDetail | null>(null);
+  const [inquiryDetailLoading, setInquiryDetailLoading] = useState(false);
+  const [inquiryDetailError, setInquiryDetailError] = useState('');
+  const [inquiryActionError, setInquiryActionError] = useState('');
+  const [inquiryDeleting, setInquiryDeleting] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'notice' || selectedNoticeId !== null) return;
@@ -398,6 +466,52 @@ export default function CustomerServicePage({
     return () => controller.abort();
   }, [activeTab, faqCategory, faqKeyword]);
 
+  useEffect(() => {
+    if (activeTab !== 'inquiry') {
+      setInquiryView('list');
+      setSelectedInquiryId(null);
+      setSelectedInquiry(null);
+      setInquiryDetailError('');
+      setInquiryActionError('');
+      return;
+    }
+    if (!isLoggedIn) {
+      setInquiries([]);
+      setInquiryTotalCount(0);
+      setCreatedInquiry(null);
+      setInquiryView('list');
+      setSelectedInquiryId(null);
+      setSelectedInquiry(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setInquiries([]);
+    setInquiryTotalCount(0);
+    setInquiryListLoading(true);
+    setInquiryListError('');
+
+    request<InquiryPageResponse>('/support/api/v1/inquiry/select?page=0&size=100', {
+      method: 'GET',
+      signal: controller.signal,
+    })
+      .then((response) => {
+        setInquiries(response.content ?? []);
+        setInquiryTotalCount(Number(response.page?.totalElements ?? response.content?.length ?? 0));
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setInquiryListError(error instanceof Error
+          ? error.message
+          : '문의 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setInquiryListLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, inquiryReloadKey, isLoggedIn, request]);
+
   function submitFaqSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFaqKeyword(faqSearchInput.trim());
@@ -406,6 +520,146 @@ export default function CustomerServicePage({
   function resetFaqSearch() {
     setFaqSearchInput('');
     setFaqKeyword('');
+  }
+
+  async function submitInquiry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInquiryError('');
+
+    if (!isLoggedIn) {
+      onLogin();
+      return;
+    }
+
+    const title = inquiryTitle.trim();
+    const content = inquiryContent.trim();
+    if (!title || !content) {
+      setInquiryError('제목과 문의 내용을 모두 입력해 주세요.');
+      return;
+    }
+
+    setInquirySubmitting(true);
+    try {
+      const response = await request<InquiryResponse>('/support/api/v1/inquiry/insert', {
+        method: 'POST',
+        body: JSON.stringify({ category: inquiryCategory, title, content }),
+      });
+      setCreatedInquiry(response);
+      setInquiryCategory('BOOKING');
+      setInquiryTitle('');
+      setInquiryContent('');
+      setInquiryView('list');
+      setInquiryReloadKey((current) => current + 1);
+    } catch (error) {
+      setInquiryError(error instanceof Error
+        ? error.message
+        : '문의를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquirySubmitting(false);
+    }
+  }
+
+  function writeAnotherInquiry() {
+    setCreatedInquiry(null);
+    setInquiryError('');
+    setInquiryCategory('BOOKING');
+    setInquiryTitle('');
+    setInquiryContent('');
+    setInquiryView('create');
+  }
+
+  async function openInquiryDetail(inquiryId: number) {
+    setSelectedInquiryId(inquiryId);
+    setSelectedInquiry(null);
+    setInquiryDetailError('');
+    setInquiryDetailLoading(true);
+    setInquiryView('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    try {
+      const response = await request<InquiryDetail>(`/support/api/v1/inquiry/select/id/${inquiryId}`, {
+        method: 'GET',
+      });
+      setSelectedInquiry(response);
+    } catch (error) {
+      setInquiryDetailError(error instanceof Error
+        ? error.message
+        : '문의 내용을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquiryDetailLoading(false);
+    }
+  }
+
+  function closeInquiryDetail() {
+    setInquiryView('list');
+    setSelectedInquiryId(null);
+    setSelectedInquiry(null);
+    setInquiryDetailError('');
+    setInquiryActionError('');
+  }
+
+  function startInquiryEdit() {
+    if (!selectedInquiry || selectedInquiry.status !== 'WAITING') return;
+    setInquiryCategory(selectedInquiry.category);
+    setInquiryTitle(selectedInquiry.title);
+    setInquiryContent(selectedInquiry.content);
+    setInquiryError('');
+    setInquiryActionError('');
+    setInquiryView('edit');
+  }
+
+  async function submitInquiryUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedInquiry) return;
+
+    const title = inquiryTitle.trim();
+    const content = inquiryContent.trim();
+    if (!title || !content) {
+      setInquiryError('제목과 문의 내용을 모두 입력해 주세요.');
+      return;
+    }
+
+    setInquirySubmitting(true);
+    setInquiryError('');
+    try {
+      const response = await request<InquiryDetail>(
+        `/support/api/v1/inquiry/update/id/${selectedInquiry.inquiryId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ category: inquiryCategory, title, content }),
+        },
+      );
+      setSelectedInquiry(response);
+      setInquiryView('detail');
+      setInquiryReloadKey((current) => current + 1);
+    } catch (error) {
+      setInquiryError(error instanceof Error
+        ? error.message
+        : '문의를 수정하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquirySubmitting(false);
+    }
+  }
+
+  async function deleteInquiry() {
+    if (!selectedInquiry || selectedInquiry.status !== 'WAITING') return;
+    if (!window.confirm('이 문의를 삭제하시겠습니까? 삭제한 문의는 복구할 수 없습니다.')) return;
+
+    setInquiryDeleting(true);
+    setInquiryActionError('');
+    try {
+      await request<void>(`/support/api/v1/inquiry/delete/id/${selectedInquiry.inquiryId}`, {
+        method: 'DELETE',
+      });
+      closeInquiryDetail();
+      setInquiryReloadKey((current) => current + 1);
+    } catch (error) {
+      setInquiryActionError(error instanceof Error
+        ? error.message
+        : '문의를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setInquiryDeleting(false);
+    }
   }
 
   return (
@@ -564,11 +818,238 @@ export default function CustomerServicePage({
       )}
 
       {activeTab === 'inquiry' && (
-        <section className="service-simple-panel inquiry-empty">
-          <div className="inquiry-empty-icon" aria-hidden="true">?</div>
-          <h2>나의 문의 내역</h2>
-          <p>로그인 후 문의 내역과 답변 상태를 확인할 수 있습니다.</p>
-          <button type="button">1:1 문의 안내</button>
+        <section className="service-simple-panel inquiry-service-panel">
+          <div className="service-panel-title">
+            <h2>{inquiryView === 'list'
+              ? '나의 문의 내역'
+              : inquiryView === 'create'
+                ? '1:1 문의 등록'
+                : inquiryView === 'edit' ? '문의 수정' : '문의 상세'}</h2>
+            <p>{inquiryView === 'list'
+              ? '등록한 문의와 답변 상태를 확인할 수 있습니다.'
+              : inquiryView === 'create'
+                ? '문의 내용을 남겨주시면 확인 후 답변해 드립니다.'
+                : inquiryView === 'edit'
+                  ? '답변이 등록되기 전까지 문의 내용을 수정할 수 있습니다.'
+                  : '문의 내용과 관리자 답변을 확인할 수 있습니다.'}</p>
+          </div>
+
+          {!isLoggedIn && (
+            <div className="inquiry-login-gate">
+              <div className="inquiry-login-icon" aria-hidden="true">?</div>
+              <h3>로그인이 필요한 서비스입니다.</h3>
+              <p>로그인 후 문의를 등록하고 답변 상태를 확인할 수 있습니다.</p>
+              <button type="button" onClick={onLogin}>로그인</button>
+            </div>
+          )}
+
+          {isLoggedIn && inquiryView === 'list' && (
+            <div className="inquiry-history">
+              {createdInquiry && (
+                <div className="inquiry-created-notice" role="status">
+                  <span aria-hidden="true">✓</span>
+                  <p><strong>문의번호 {createdInquiry.inquiryId}</strong>이 등록되었습니다.</p>
+                  <button type="button" onClick={() => setCreatedInquiry(null)} aria-label="등록 안내 닫기">×</button>
+                </div>
+              )}
+
+              <div className="inquiry-history-heading">
+                <p>총 <strong>{inquiryTotalCount}</strong>건</p>
+                <button type="button" onClick={writeAnotherInquiry}>문의 작성</button>
+              </div>
+
+              <div className="inquiry-list" aria-busy={inquiryListLoading}>
+                <div className="inquiry-list-header" aria-hidden="true">
+                  <span>번호</span><span>유형</span><span>제목</span><span>상태</span><span>등록일</span>
+                </div>
+                {inquiryListLoading && <p className="inquiry-list-status">문의 내역을 불러오고 있습니다.</p>}
+                {!inquiryListLoading && inquiryListError && (
+                  <div className="inquiry-list-status error">
+                    <p>{inquiryListError}</p>
+                    <button type="button" onClick={() => setInquiryReloadKey((current) => current + 1)}>다시 시도</button>
+                  </div>
+                )}
+                {!inquiryListLoading && !inquiryListError && inquiries.length === 0 && (
+                  <div className="inquiry-list-status empty">
+                    <p>등록한 문의가 없습니다.</p>
+                    <button type="button" onClick={writeAnotherInquiry}>첫 문의 작성하기</button>
+                  </div>
+                )}
+                {!inquiryListLoading && !inquiryListError && inquiries.map((inquiry) => (
+                  <button
+                    className="inquiry-list-row"
+                    key={inquiry.inquiryId}
+                    type="button"
+                    onClick={() => void openInquiryDetail(inquiry.inquiryId)}
+                  >
+                    <span className="inquiry-list-number">{inquiry.inquiryId}</span>
+                    <span className="inquiry-list-category">
+                      {inquiryCategories.find((category) => category.value === inquiry.category)?.label ?? inquiry.category}
+                    </span>
+                    <h3>{inquiry.title}</h3>
+                    <span className={`inquiry-status ${inquiry.status.toLowerCase()}`}>
+                      {inquiry.status === 'ANSWERED' ? '답변 완료' : '답변 대기'}
+                    </span>
+                    <time>{formatNoticeDate(inquiry.createdAt)}</time>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isLoggedIn && inquiryView === 'detail' && (
+            <div className="inquiry-detail" aria-busy={inquiryDetailLoading}>
+              {inquiryDetailLoading && (
+                <p className="inquiry-detail-status">문의 내용을 불러오고 있습니다.</p>
+              )}
+
+              {!inquiryDetailLoading && inquiryDetailError && (
+                <div className="inquiry-detail-status error">
+                  <p>{inquiryDetailError}</p>
+                  <button
+                    type="button"
+                    onClick={() => selectedInquiryId && void openInquiryDetail(selectedInquiryId)}
+                  >다시 시도</button>
+                </div>
+              )}
+
+              {!inquiryDetailLoading && !inquiryDetailError && selectedInquiry && (
+                <>
+                  <header className="inquiry-detail-header">
+                    <div>
+                      <span className="inquiry-detail-category">
+                        {inquiryCategories.find((category) => category.value === selectedInquiry.category)?.label
+                          ?? selectedInquiry.category}
+                      </span>
+                      <span className={`inquiry-status ${selectedInquiry.status.toLowerCase()}`}>
+                        {selectedInquiry.status === 'ANSWERED' ? '답변 완료' : '답변 대기'}
+                      </span>
+                    </div>
+                    <h3>{selectedInquiry.title}</h3>
+                    <p>
+                      문의번호 {selectedInquiry.inquiryId}
+                      <span aria-hidden="true">·</span>
+                      등록일 {formatNoticeDate(selectedInquiry.createdAt)}
+                    </p>
+                  </header>
+
+                  <section className="inquiry-question" aria-labelledby="inquiry-question-title">
+                    <h4 id="inquiry-question-title"><span>Q</span> 문의 내용</h4>
+                    <p>{selectedInquiry.content}</p>
+                  </section>
+
+                  <section className={`inquiry-answer-detail ${selectedInquiry.answer ? '' : 'waiting'}`} aria-labelledby="inquiry-answer-title">
+                    <h4 id="inquiry-answer-title"><span>A</span> 관리자 답변</h4>
+                    {selectedInquiry.answer ? (
+                      <>
+                        <p>{selectedInquiry.answer.content}</p>
+                        <time>답변일 {formatNoticeDate(selectedInquiry.answer.createdAt)}</time>
+                      </>
+                    ) : (
+                      <p>담당자가 문의 내용을 확인하고 있습니다. 답변이 등록되면 이 화면에서 확인할 수 있습니다.</p>
+                    )}
+                  </section>
+                </>
+              )}
+
+              {inquiryActionError && <p className="inquiry-action-error" role="alert">{inquiryActionError}</p>}
+
+              <div className="inquiry-detail-actions">
+                <button type="button" onClick={closeInquiryDetail}>목록</button>
+                {!inquiryDetailLoading && !inquiryDetailError && selectedInquiry?.status === 'WAITING' && (
+                  <>
+                    <button className="secondary" type="button" onClick={startInquiryEdit}>수정</button>
+                    <button className="danger" type="button" disabled={inquiryDeleting} onClick={() => void deleteInquiry()}>
+                      {inquiryDeleting ? '삭제 중...' : '삭제'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isLoggedIn && (inquiryView === 'create' || inquiryView === 'edit') && (
+            <form
+              className="inquiry-form"
+              onSubmit={inquiryView === 'edit' ? submitInquiryUpdate : submitInquiry}
+            >
+              <div className="inquiry-form-guide">
+                {inquiryView === 'edit' ? (
+                  <>
+                    <strong>문의 내용을 수정합니다.</strong>
+                    <ul><li>관리자 답변이 등록되면 더 이상 수정하거나 삭제할 수 없습니다.</li></ul>
+                  </>
+                ) : (
+                  <>
+                    <strong>문의 작성 전 확인해 주세요.</strong>
+                    <ul>
+                      <li>문의 한 건에는 관리자 답변 한 건이 등록됩니다.</li>
+                      <li>추가 문의가 필요하면 새로운 문의를 작성해 주세요.</li>
+                      <li>답변이 등록된 문의는 수정할 수 없습니다.</li>
+                    </ul>
+                  </>
+                )}
+              </div>
+
+              <div className="inquiry-form-row">
+                <label htmlFor="inquiry-category">문의 유형 <em>필수</em></label>
+                <select
+                  id="inquiry-category"
+                  value={inquiryCategory}
+                  onChange={(event) => setInquiryCategory(event.target.value as InquiryCategory)}
+                >
+                  {inquiryCategories.map((category) => (
+                    <option key={category.value} value={category.value}>{category.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="inquiry-form-row">
+                <label htmlFor="inquiry-title">제목 <em>필수</em></label>
+                <div className="inquiry-field-with-count">
+                  <input
+                    id="inquiry-title"
+                    value={inquiryTitle}
+                    maxLength={200}
+                    placeholder="문의 제목을 입력해 주세요."
+                    onChange={(event) => setInquiryTitle(event.target.value)}
+                  />
+                  <span>{inquiryTitle.length}/200</span>
+                </div>
+              </div>
+
+              <div className="inquiry-form-row inquiry-content-row">
+                <label htmlFor="inquiry-content">문의 내용 <em>필수</em></label>
+                <div className="inquiry-field-with-count">
+                  <textarea
+                    id="inquiry-content"
+                    value={inquiryContent}
+                    maxLength={10000}
+                    placeholder="문의 내용을 자세히 입력해 주세요."
+                    onChange={(event) => setInquiryContent(event.target.value)}
+                  />
+                  <span>{inquiryContent.length}/10,000</span>
+                </div>
+              </div>
+
+              {inquiryError && <p className="inquiry-form-error" role="alert">{inquiryError}</p>}
+
+              <div className="inquiry-form-actions">
+                <button className="secondary" type="button" onClick={() => {
+                  setInquiryView(inquiryView === 'edit' ? 'detail' : 'list');
+                  setInquiryError('');
+                }}>{inquiryView === 'edit' ? '취소' : '목록'}</button>
+                <button
+                  type="submit"
+                  disabled={inquirySubmitting || !inquiryTitle.trim() || !inquiryContent.trim()}
+                >
+                  {inquirySubmitting
+                    ? inquiryView === 'edit' ? '수정 중...' : '등록 중...'
+                    : inquiryView === 'edit' ? '수정 완료' : '문의 등록'}
+                </button>
+              </div>
+            </form>
+          )}
         </section>
       )}
     </main>

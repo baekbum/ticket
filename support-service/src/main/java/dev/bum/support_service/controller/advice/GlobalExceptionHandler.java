@@ -3,6 +3,9 @@ package dev.bum.support_service.controller.advice;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import dev.bum.support_service.exception.FaqNotFoundException;
+import dev.bum.support_service.exception.InquiryAnswerNotFoundException;
+import dev.bum.support_service.exception.InquiryNotFoundException;
+import dev.bum.support_service.exception.InquiryStateConflictException;
 import dev.bum.support_service.exception.NoticeNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -32,6 +35,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("FAQ_NOT_FOUND")
+                        .message(exception.getMessage())
+                        .build());
+    }
+
+    @ExceptionHandler({InquiryNotFoundException.class, InquiryAnswerNotFoundException.class})
+    public ResponseEntity<ErrorResponse> handleInquiryNotFound(RuntimeException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.builder()
+                        .code("INQUIRY_NOT_FOUND")
+                        .message(exception.getMessage())
+                        .build());
+    }
+
+    @ExceptionHandler(InquiryStateConflictException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidInquiryState(InquiryStateConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.builder()
+                        .code("INQUIRY_STATE_CONFLICT")
                         .message(exception.getMessage())
                         .build());
     }

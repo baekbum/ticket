@@ -1,0 +1,102 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/inquiry.css}">
+
+<div class="inquiry-admin-page">
+  <div class="frag-header">
+    <h2>1:1 문의</h2>
+    <p class="sub-txt">고객 문의를 확인하고 답변 상태를 관리합니다.</p>
+  </div>
+
+  <div class="inquiry-toolbar">
+    <select id="inquiry-search-status" aria-label="답변 상태">
+      <option value="">전체 상태</option>
+      <option value="WAITING">답변 대기</option>
+      <option value="ANSWERED">답변 완료</option>
+    </select>
+    <select id="inquiry-search-category" aria-label="문의 유형">
+      <option value="">전체 유형</option>
+      <option value="BOOKING">예매</option>
+      <option value="PAYMENT">결제</option>
+      <option value="REFUND">취소/환불</option>
+      <option value="TICKET">티켓</option>
+      <option value="ACCOUNT">계정</option>
+      <option value="ETC">기타</option>
+    </select>
+    <input id="inquiry-search-keyword" type="search" placeholder="제목, 내용 또는 사용자 ID 검색"
+           onkeydown="if(event.key === 'Enter') triggerInquirySearch()">
+    <button class="inquiry-btn" type="button" onclick="triggerInquirySearch()">
+      <i class="ti ti-search"></i>검색
+    </button>
+    <button class="inquiry-btn outline" type="button" onclick="resetInquirySearch()">
+      <i class="ti ti-refresh"></i>초기화
+    </button>
+  </div>
+
+  <div class="inquiry-table-wrap">
+    <table class="inquiry-table">
+      <colgroup>
+        <col style="width:65px">
+        <col style="width:85px">
+        <col style="width:120px">
+        <col>
+        <col style="width:150px">
+        <col style="width:110px">
+        <col style="width:170px">
+        <col style="width:90px">
+      </colgroup>
+      <thead><tr>
+        <th>순서</th><th>ID</th><th>유형</th><th>제목</th><th>사용자</th><th>상태</th><th>등록 일시</th><th class="actions">관리</th>
+      </tr></thead>
+      <tbody id="inquiry-table-body"></tbody>
+    </table>
+  </div>
+
+  <div th:replace="~{common/pagination :: pagination}"></div>
+</div>
+
+<div class="inquiry-modal" id="inquiry-modal" role="dialog" aria-modal="true" aria-labelledby="inquiry-modal-title">
+  <div class="inquiry-modal-content">
+    <div class="inquiry-modal-header">
+      <div>
+        <p class="inquiry-modal-title" id="inquiry-modal-title">문의 상세</p>
+        <p class="inquiry-modal-subtitle">고객 문의 내용과 답변을 확인합니다.</p>
+      </div>
+      <button class="inquiry-icon-btn" type="button" onclick="closeInquiryModal()" aria-label="닫기"><i class="ti ti-x"></i></button>
+    </div>
+
+    <input type="hidden" id="inquiry-target-id">
+    <div class="inquiry-detail-meta">
+      <span>문의번호 <strong id="inquiry-detail-id">-</strong></span>
+      <span>사용자 <strong id="inquiry-detail-requester">-</strong></span>
+      <span>유형 <strong id="inquiry-detail-category">-</strong></span>
+      <span>상태 <strong id="inquiry-detail-status">-</strong></span>
+      <span>등록 <strong id="inquiry-detail-created">-</strong></span>
+    </div>
+
+    <section class="inquiry-detail-block">
+      <h3 id="inquiry-detail-title">-</h3>
+      <div id="inquiry-detail-content" class="inquiry-detail-content"></div>
+    </section>
+
+    <section class="inquiry-answer-block">
+      <div class="inquiry-answer-heading">
+        <h3>관리자 답변</h3>
+        <span id="inquiry-answer-meta"></span>
+      </div>
+      <textarea id="inquiry-answer-content" maxlength="10000" rows="10" placeholder="고객에게 전달할 답변을 입력하세요."></textarea>
+      <div class="inquiry-answer-count"><span id="inquiry-answer-length">0</span>/10,000</div>
+    </section>
+
+    <div class="inquiry-modal-actions">
+      <button class="inquiry-btn outline" type="button" onclick="closeInquiryModal()">닫기</button>
+      <button class="inquiry-btn" id="inquiry-answer-submit" type="button" onclick="submitInquiryAnswer()">
+        <i class="ti ti-send"></i><span>답변 등록</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/inquiry/fragment-inquiry.js}"></script>

@@ -36,6 +36,7 @@ function serviceUrl(rawUrl) {
   else if (rest.startsWith('queue/')) routed = `/queue/api/v1/manage/queue/${rest.slice(6)}`;
   else if (rest.startsWith('notice/')) routed = `/support/api/v1/manage/notice/${rest.slice(7)}`;
   else if (rest.startsWith('faq/')) routed = `/support/api/v1/manage/faq/${rest.slice(4)}`;
+  else if (rest.startsWith('inquiry/')) routed = `/support/api/v1/manage/inquiry/${rest.slice(8)}`;
   else if (rest.startsWith('audit-log/')) routed = `/audit/api/v1/audit-log/${rest.slice(10)}`;
   else if (rest.startsWith('manage/')) routed = `/admin-api/api/v1/${rest}`;
   else {

@@ -16,6 +16,9 @@ CREATE TABLE users (
     birth_date DATE,
     address TEXT,
     is_blacklisted BOOLEAN DEFAULT FALSE,
+    blacklisted_until DATE,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    withdraw_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

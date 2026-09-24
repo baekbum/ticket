@@ -154,21 +154,12 @@
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>블랙리스트 설정</label>
-        <select id="m-blacklist">
-          <option value="false">정상 이용 유저</option>
-          <option value="true">블랙리스트 차단</option>
-        </select>
-      </div>
-      <div class="form-group">
         <label>계정 권한</label>
         <select id="m-role">
           <option value="ROLE_USER">일반 사용자 (USER)</option>
           <option value="ROLE_ADMIN">관리자 (ADMIN)</option>
         </select>
       </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
         <label>등급</label>
         <select id="m-grade">
@@ -181,7 +172,34 @@
         </select>
       </div>
     </div>
-
+    <div class="form-row">
+      <div class="form-group">
+        <label>블랙리스트 설정</label>
+        <select id="m-blacklist">
+          <option value="false">정상 이용 유저</option>
+          <option value="true">블랙리스트 차단</option>
+        </select>
+      </div>
+      <div class="form-group" id="wrapper-blacklisted-until">
+        <label for="m-blacklisted-until">블랙리스트 종료일</label>
+        <input type="date" id="m-blacklisted-until">
+        <small>비워두면 기간 제한 없이 차단합니다.</small>
+      </div>
+    </div>
+    <div class="form-row" id="wrapper-account-status">
+      <div class="form-group">
+        <label for="m-status">회원 상태</label>
+        <select id="m-status">
+          <option value="ACTIVE">활성 (ACTIVE)</option>
+          <option value="WITHDRAWN">탈퇴 (WITHDRAWN)</option>
+        </select>
+      </div>
+      <div class="form-group" id="wrapper-withdraw-at">
+        <label for="m-withdraw-at">탈퇴 일시 (withdrawAt)</label>
+        <input type="datetime-local" id="m-withdraw-at">
+        <small>비워두면 상태 변경 시각으로 기록합니다.</small>
+      </div>
+    </div>
     <div class="form-group" id="wrapper-password-init" style="margin-top:0.25rem; display:none;">
       <label>비밀번호 계정 관리</label>
       <button class="btn btn-warning" style="width:100%; font-size:13px;" onclick="openPasswordInitConfirmModal()">

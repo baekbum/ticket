@@ -2,9 +2,11 @@ package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
+import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
 import dev.bum.common.error.ErrorCode;
@@ -12,6 +14,7 @@ import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -54,6 +57,13 @@ public class AuthService {
 
         // 비밀번호 검증
         comparePassword(info, auth);
+        if (auth.getStatus() != UserStatus.ACTIVE) {
+            throw new WithdrawnUserException();
+        }
+
+        if (auth.isCurrentlyBlacklisted()) {
+            throw new BlacklistedUserException(auth.getBlacklistedUntil());
+        }
 
         TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
@@ -111,6 +121,13 @@ public class AuthService {
         event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 수정] : {}", event.toString());
         repository.update(event);
+        if (UserStatus.WITHDRAWN.name().equals(event.getStatus())) {
+            try {
+                redisTemplate.delete(buildRefreshTokenKey(event.getUserId()));
+            } catch (DataAccessException e) {
+                throw new RedisException("탈퇴 계정의 Refresh Token 삭제에 실패했습니다.");
+            }
+        }
     }
 
     /**
@@ -158,8 +175,15 @@ public class AuthService {
         if (auth == null) {
             throw new UserNotExistException("존재하지 않는 유저입니다.");
         }
+        if (auth.getStatus() != UserStatus.ACTIVE) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "탈퇴한 계정입니다. 다시 로그인해 주세요.");
+        }
 
         // 6. 갱신된 Access Token과 새로운 Refresh Token 세트 생성 (RTR 보안 전략 적용)
+        if (auth.isCurrentlyBlacklisted()) {
+            throw new BlacklistedUserException(auth.getBlacklistedUntil());
+        }
+
         TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
         // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화

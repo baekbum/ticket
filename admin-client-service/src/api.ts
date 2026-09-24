@@ -61,7 +61,15 @@ export async function login(userId: string, password: string): Promise<AdminUser
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, password }),
   });
-  if (!response.ok) throw new Error('아이디 또는 비밀번호를 확인해주세요.');
+  if (!response.ok) {
+    if (response.status === 403) {
+      const error = await response.json().catch(() => null) as { code?: string; message?: string } | null;
+      if (error?.code === 'USER_BLACKLISTED' && error.message) {
+        throw new Error(error.message);
+      }
+    }
+    throw new Error('아이디 또는 비밀번호를 확인해주세요.');
+  }
   const tokens = await response.json() as Tokens;
   saveTokens(tokens);
   try {

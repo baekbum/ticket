@@ -1,8 +1,10 @@
 package dev.bum.auth_service.controller.advice;
 
+import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
+import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -13,15 +15,29 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
-public class AuthControllerAdvice {
+public class GlobalExceptionHandler {
 
     @ExceptionHandler(PasswordIncorrectException.class)
     public ResponseEntity<ErrorResponse> PasswordIncorrectException(PasswordIncorrectException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.LOGIN_FAILED, ex.getMessage()));
+    }
+
+    @ExceptionHandler(WithdrawnUserException.class)
+    public ResponseEntity<ErrorResponse> withdrawnUser(WithdrawnUserException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.USER_WITHDRAWN, ex.getMessage()));
+    }
+
+    @ExceptionHandler(BlacklistedUserException.class)
+    public ResponseEntity<ErrorResponse> blacklistedUser(BlacklistedUserException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.USER_BLACKLISTED, ex.getMessage(),
+                        Collections.singletonMap("blacklistedUntil", ex.getBlacklistedUntil())));
     }
 
     @ExceptionHandler(UserNotExistException.class)

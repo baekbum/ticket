@@ -129,9 +129,11 @@
           const roleHtml   = u.role === 'ROLE_ADMIN'
             ? `<span class="badge badge-admin">ADMIN</span>`
             : `<span class="badge badge-user">USER</span>`;
-          const statusHtml = u.isBlacklisted
-            ? `<span class="badge badge-black">블랙</span>`
-            : `<span class="badge badge-ok">정상</span>`;
+          const statusHtml = u.status === 'WITHDRAWN'
+            ? `<span class="badge badge-black">탈퇴</span>`
+            : u.isBlacklisted
+              ? `<span class="badge badge-black">블랙</span>`
+              : `<span class="badge badge-ok">정상</span>`;
 
           const grade = u.grade || 'GENERAL';
           const gradeHtml = `<span class="badge badge-grade badge-grade-${grade.toLowerCase()}">${escapeHtml(grade)}</span>`;
@@ -208,6 +210,7 @@
       });
 
       _bindUserToModal(user);
+      updateUserStateFields();
 
       document.getElementById('wrapper-password-init').style.display = 'none';
       document.getElementById('btn-modal-submit').style.display      = 'none';
@@ -243,6 +246,7 @@
       if (idInput) { idInput.disabled = true; idInput.style.background = 'var(--bg)'; idInput.style.color = 'var(--text-muted)'; idInput.style.cursor = 'not-allowed'; }
 
       _bindUserToModal(user);
+      updateUserStateFields();
 
       const actionRow = document.getElementById('modal-action-row');
       actionRow.style.display             = 'grid';
@@ -277,6 +281,8 @@
         document.getElementById('m-blacklist').value = 'false';
         document.getElementById('m-role').value = 'ROLE_USER';
         document.getElementById('m-grade').value = 'GENERAL';
+        document.getElementById('m-status').value = 'ACTIVE';
+        updateUserStateFields();
 
         // 버튼 영역
         const actionRow = document.getElementById('modal-action-row');
@@ -315,7 +321,24 @@
       _set('m-role',      user.role || 'ROLE_USER');
       _set('m-grade',     user.grade || 'GENERAL');
       _set('m-blacklist', user.isBlacklisted ? 'true' : 'false');
+      _set('m-blacklisted-until', user.blacklistedUntil);
+      _set('m-status', user.status || 'ACTIVE');
+      _set('m-withdraw-at', user.withdrawAt?.slice(0, 16));
     }
+
+    function updateUserStateFields() {
+      const mode = document.getElementById('m-modal-mode').value;
+      document.getElementById('wrapper-account-status').style.display = mode === 'CREATE' ? 'none' : '';
+      document.getElementById('wrapper-withdraw-at').style.display = mode === 'CREATE' || document.getElementById('m-status').value !== 'WITHDRAWN' ? 'none' : '';
+      const blacklistUntil = document.getElementById('m-blacklisted-until');
+      blacklistUntil.disabled = mode === 'VIEW' || document.getElementById('m-blacklist').value !== 'true';
+      blacklistUntil.style.background = blacklistUntil.disabled ? 'var(--bg)' : '#fafafa';
+      blacklistUntil.style.color = blacklistUntil.disabled ? 'var(--text-muted)' : 'var(--text-primary)';
+      blacklistUntil.style.cursor = blacklistUntil.disabled ? 'not-allowed' : 'text';
+    }
+
+    document.getElementById('m-blacklist').addEventListener('change', updateUserStateFields);
+    document.getElementById('m-status').addEventListener('change', updateUserStateFields);
 
     function _set(id, val) {
       const el = document.getElementById(id);
@@ -533,6 +556,19 @@
         role:          document.getElementById('m-role')?.value           || 'ROLE_USER',
         grade:         document.getElementById('m-grade')?.value          || 'GENERAL',
       };
+
+      if (mode === 'UPDATE') {
+        const blacklistUntil = document.getElementById('m-blacklisted-until').value;
+        const withdrawAt = document.getElementById('m-withdraw-at').value;
+        body.blacklistedUntil = body.isBlacklisted && blacklistUntil ? blacklistUntil : null;
+        body.status = document.getElementById('m-status').value;
+        body.withdrawAt = body.status === 'WITHDRAWN' && withdrawAt ? `${withdrawAt}:00` : null;
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        if (body.blacklistedUntil && body.blacklistedUntil < today) {
+          showToast('블랙리스트 종료일은 오늘 또는 이후여야 합니다.', true);
+          return;
+        }
+      }
 
       if (mode === 'CREATE') {
         if (!userIdVal || !body.name) { showToast('아이디와 이름은 필수 입력 항목입니다.', true); return; }

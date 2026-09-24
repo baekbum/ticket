@@ -1,6 +1,7 @@
 package dev.bum.common.service.user.user.dto;
 
 import lombok.*;
+import dev.bum.common.service.user.user.enums.UserStatus;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -19,6 +20,7 @@ public class UserCondRequest {
     private LocalDate birthDate;
     private String address;
     private Boolean isBlacklisted;
+    private UserStatus status;
     private String grade;
 
     @Builder.Default // 빌더 패턴을 사용해서 만들 때도 기본값을 유지
@@ -46,6 +48,7 @@ public class UserCondRequest {
         if (birthDate != null) sj.add("birthDate=" + birthDate);
         if (address != null) sj.add("address='" + address + "'");
         if (isBlacklisted != null) sj.add("isBlacklisted=" + isBlacklisted);
+        if (status != null) sj.add("status=" + status);
         if (grade != null) sj.add("grade='" + grade + "'");
 
         // 정렬 조건 필드 검증

@@ -33,6 +33,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -161,6 +162,22 @@ class UserManagementControllerTest {
                 .andExpect(jsonPath("$.userId").value("admin"));
 
         then(userService).should().update("admin", info);
+    }
+
+    @Test
+    @DisplayName("관리자 내 정보 수정에서는 계정 상태를 변경할 수 없음")
+    void update_my_info_rejects_status() throws Exception {
+        UpdateUserRequest info = UpdateUserRequest.builder()
+                .status(dev.bum.common.service.user.user.enums.UserStatus.WITHDRAWN)
+                .build();
+
+        mockMvc.perform(put(baseUrl + "/update/me")
+                        .with(authentication(adminAuthentication("admin")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isBadRequest());
+
+        then(userService).should(never()).update(any(), any());
     }
 
     @Test
