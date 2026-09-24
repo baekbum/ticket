@@ -20,6 +20,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '고객지원', icon: 'help-circle', items: [
     { key: 'notice', label: '공지사항', icon: 'speakerphone' },
     { key: 'faq', label: 'FAQ', icon: 'message-question' },
+    { key: 'inquiry', label: '1:1 문의', icon: 'messages' },
   ] },
   { label: '감사/운영', icon: 'shield-search', items: [
     { key: 'auditLog', label: '감사 로그', icon: 'history' },

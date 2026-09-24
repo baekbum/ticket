@@ -79,7 +79,7 @@ export function createAuthenticatedRequest(deps: Dependencies) {
     ];
     const publicPrefixes = [
       '/user/api/v1/find/', '/user/api/v1/check/duplication/',
-      '/ticket/api/v1/event/', '/support/api/v1/',
+      '/ticket/api/v1/event/', '/support/api/v1/notice/', '/support/api/v1/faq/',
     ];
     const useAuth = !publicPaths.includes(url) && !publicPrefixes.some((path) => url.startsWith(path));
     const sentToken = deps.storage.getItem('ticksy.accessToken');

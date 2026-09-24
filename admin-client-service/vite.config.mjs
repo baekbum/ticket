@@ -25,9 +25,11 @@ function syncLegacyDuringDev() {
     name: 'sync-legacy-during-dev',
     apply: 'serve',
     configureServer(server) {
-      server.watcher.on('unlink', (file) => {
-        if (isLegacySource(file)) void syncAndReload(server);
-      });
+      for (const eventName of ['add', 'unlink']) {
+        server.watcher.on(eventName, (file) => {
+          if (isLegacySource(file)) void syncAndReload(server);
+        });
+      }
     },
     async handleHotUpdate({ file, server }) {
       if (!isLegacySource(file)) return;

@@ -1069,8 +1069,11 @@ function App() {
         <CustomerServicePage
           activeTab={customerServiceTab}
           activeGuideTab={guideTab}
+          isLoggedIn={Boolean(loginUserName)}
+          request={request}
           onTabChange={(tab) => navigateToCustomerService(tab, guideTab)}
           onGuideTabChange={(tab) => navigateToCustomerService('guide', tab)}
+          onLogin={() => navigateToPage('login')}
         />
       )}
       {page === 'bookingWindow' && <BookingWindowPage />}

@@ -34,6 +34,7 @@ test('기존 관리자 API를 서비스별 인그레스 경로로 보낸다', as
     ['/admin/api/v1/queue/redis?status=ACTIVE', '/queue/api/v1/manage/queue/redis?status=ACTIVE'],
     ['/admin/api/v1/notice/select', '/support/api/v1/manage/notice/select'],
     ['/admin/api/v1/faq/select', '/support/api/v1/manage/faq/select'],
+    ['/admin/api/v1/inquiry/select', '/support/api/v1/manage/inquiry/select'],
     ['/admin/api/v1/audit-log/select', '/audit/api/v1/audit-log/select'],
     ['/admin/api/v1/manage/kafka-dlq/topics', '/admin-api/api/v1/manage/kafka-dlq/topics'],
   ];
@@ -60,7 +61,7 @@ test('관리 화면 조각의 정적 파일 경로가 모두 유효하다', asyn
   const publicRoot = new URL('../public/', import.meta.url);
   const fragmentRoot = new URL('legacy/fragments/', publicRoot);
   const fragments = (await readdir(fragmentRoot)).filter(name => name.endsWith('.html'));
-  assert.equal(fragments.length, 25);
+  assert.equal(fragments.length, 26);
   for (const [name, script] of [['seatRedis', 'fragment-redis.js'], ['queueRedis', 'fragment-queue-redis.js']]) {
     const html = await readFile(new URL(`${name}.html`, fragmentRoot), 'utf8');
     assert.match(html, new RegExp(`/admin/legacy/js/redis/${script}`));
