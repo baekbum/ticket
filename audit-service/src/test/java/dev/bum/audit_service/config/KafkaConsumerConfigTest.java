@@ -1,6 +1,7 @@
 package dev.bum.audit_service.config;
 
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
+import dev.bum.common.kafka.login.LoginLogEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -11,6 +12,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.support.serializer.JsonSerializer;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -80,6 +85,34 @@ class KafkaConsumerConfigTest {
             assertThat(dltTopic.name()).isEqualTo("login-log.DLT");
             assertThat(dltTopic.numPartitions()).isEqualTo(3);
             assertThat(dltTopic.replicationFactor()).isEqualTo((short) 1);
+        });
+    }
+
+    @Test
+    @DisplayName("로그인 로그 listener는 전역 감사 로그 타입 설정과 무관하게 LoginLogEvent로 역직렬화")
+    @SuppressWarnings("unchecked")
+    void loginLogListenerDeserializesLoginLogEvent() {
+        contextRunner.run(context -> {
+            ConcurrentKafkaListenerContainerFactory<String, LoginLogEvent> factory = context.getBean(
+                    "loginLogKafkaListenerContainerFactory",
+                    ConcurrentKafkaListenerContainerFactory.class
+            );
+            DefaultKafkaConsumerFactory<String, LoginLogEvent> consumerFactory =
+                    (DefaultKafkaConsumerFactory<String, LoginLogEvent>) factory.getConsumerFactory();
+            LoginLogEvent event = LoginLogEvent.builder()
+                    .eventId("event-1")
+                    .loginId("user01")
+                    .result("SUCCESS")
+                    .authMethod("PASSWORD")
+                    .occurredAt(LocalDateTime.of(2026, 9, 25, 22, 30))
+                    .build();
+
+            byte[] payload = new JsonSerializer<LoginLogEvent>().serialize("login-log", event);
+            LoginLogEvent deserialized = consumerFactory.getValueDeserializer().deserialize("login-log", payload);
+
+            assertThat(deserialized).isInstanceOf(LoginLogEvent.class);
+            assertThat(deserialized.getEventId()).isEqualTo("event-1");
+            assertThat(deserialized.getLoginId()).isEqualTo("user01");
         });
     }
 }

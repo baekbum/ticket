@@ -1,6 +1,7 @@
 package dev.bum.audit_service.login;
 
 import dev.bum.common.kafka.login.LoginLogEvent;
+import dev.bum.common.service.audit.dto.LoginLogResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -124,6 +125,25 @@ public class LoginLogEntity {
                 .requestId(event.getRequestId())
                 .traceId(event.getTraceId())
                 .occurredAt(event.getOccurredAt())
+                .build();
+    }
+
+    public LoginLogResponse toResponse() {
+        return LoginLogResponse.builder()
+                .id(id)
+                .eventId(eventId)
+                .authId(authId)
+                .loginId(loginId)
+                .result(result.name())
+                .authMethod(authMethod.name())
+                .failureReason(failureReason)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .sessionId(sessionId)
+                .requestId(requestId)
+                .traceId(traceId)
+                .occurredAt(occurredAt)
+                .createdAt(createdAt)
                 .build();
     }
 }

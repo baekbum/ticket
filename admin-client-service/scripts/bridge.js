@@ -38,6 +38,7 @@ function serviceUrl(rawUrl) {
   else if (rest.startsWith('faq/')) routed = `/support/api/v1/manage/faq/${rest.slice(4)}`;
   else if (rest.startsWith('inquiry/')) routed = `/support/api/v1/manage/inquiry/${rest.slice(8)}`;
   else if (rest.startsWith('audit-log/')) routed = `/audit/api/v1/audit-log/${rest.slice(10)}`;
+  else if (rest.startsWith('login-log/')) routed = `/audit/api/v1/login-log/${rest.slice(10)}`;
   else if (rest.startsWith('manage/')) routed = `/admin-api/api/v1/${rest}`;
   else {
     const ticketRoots = ['event', 'area', 'seat', 'reservation', 'ticket', 'coupon', 'payment'];

@@ -1,0 +1,92 @@
+<head>
+  <meta charset="UTF-8">
+</head>
+<link rel="stylesheet" th:href="@{/css/login/fragment-login-log.css}">
+
+<div class="frag-header">
+  <h2>로그인 로그</h2>
+  <p class="sub-txt">관리 대상 계정의 로그인 성공·실패 이력과 접속 정보를 조회합니다.</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <select class="search-input audit-period-input" id="login-search-period" onchange="applyLoginLogPeriodPreset()">
+      <option value="">기간 선택</option>
+      <option value="today">오늘</option>
+      <option value="7days">7일</option>
+      <option value="30days">30일</option>
+    </select>
+    <input type="date" class="search-input audit-date-input" id="login-search-from" aria-label="조회 시작일">
+    <input type="date" class="search-input audit-date-input" id="login-search-to" aria-label="조회 종료일">
+    <input type="text" class="search-input login-id-input" id="login-search-login-id" placeholder="로그인 ID">
+    <input type="text" class="search-input login-ip-input" id="login-search-ip" placeholder="IP 주소">
+    <select class="search-input audit-result-input" id="login-search-result">
+      <option value="">전체 결과</option>
+      <option value="SUCCESS">SUCCESS</option>
+      <option value="FAILURE">FAILURE</option>
+    </select>
+    <select class="search-input login-method-input" id="login-search-auth-method">
+      <option value="">전체 인증 방식</option>
+      <option value="PASSWORD">PASSWORD</option>
+    </select>
+    <button class="btn" onclick="triggerLoginLogSearch()"><i class="ti ti-search"></i>검색</button>
+    <button class="btn btn-outline" onclick="resetLoginLogSearch()"><i class="ti ti-refresh"></i>초기화</button>
+  </div>
+</div>
+
+<div class="audit-quick-filters">
+  <button class="audit-filter active" data-result="" onclick="quickLoginResult(this)">전체</button>
+  <button class="audit-filter" data-result="SUCCESS" onclick="quickLoginResult(this)">성공</button>
+  <button class="audit-filter" data-result="FAILURE" onclick="quickLoginResult(this)">실패</button>
+</div>
+
+<div class="table-wrap">
+  <table class="audit-log-table login-log-table">
+    <colgroup>
+      <col style="width:64px;">
+      <col style="width:82px;">
+      <col style="width:170px;">
+      <col style="width:155px;">
+      <col style="width:100px;">
+      <col style="width:100px;">
+      <col style="width:112px;">
+      <col style="width:145px;">
+      <col style="width:190px;">
+      <col style="width:175px;">
+      <col style="width:88px;">
+    </colgroup>
+    <thead>
+    <tr>
+      <th>순서</th>
+      <th>로그 ID</th>
+      <th>접속 일시</th>
+      <th>로그인 ID</th>
+      <th>계정 PK</th>
+      <th>결과</th>
+      <th>인증 방식</th>
+      <th>IP 주소</th>
+      <th>실패 사유</th>
+      <th>요청 ID</th>
+      <th class="actions">상세</th>
+    </tr>
+    </thead>
+    <tbody id="login-log-table-body"></tbody>
+  </table>
+</div>
+
+<div th:replace="~{common/pagination :: pagination}"></div>
+
+<div class="f-modal" id="login-log-detail-modal">
+  <div class="f-modal-content login-log-detail-content">
+    <p class="modal-title">로그인 로그 상세</p>
+    <p class="modal-subtitle">로그 ID <strong id="login-detail-id">-</strong>의 접속 정보를 확인합니다.</p>
+    <div class="modal-divider"></div>
+    <div class="audit-detail-grid login-detail-grid" id="login-detail-grid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeLoginLogDetailModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script th:src="@{/js/common/pagination.js}"></script>
+<script th:src="@{/js/login/fragment-login-log.js}"></script>

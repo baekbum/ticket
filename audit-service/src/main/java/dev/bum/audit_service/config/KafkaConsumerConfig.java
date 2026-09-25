@@ -16,6 +16,9 @@ import org.springframework.util.backoff.FixedBackOff;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Slf4j
 @Configuration
 public class KafkaConsumerConfig {
@@ -56,9 +59,14 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties,
             DefaultErrorHandler kafkaErrorHandler
     ) {
+        Map<String, Object> consumerProperties = new HashMap<>(kafkaProperties.buildConsumerProperties());
+        consumerProperties.remove(JsonDeserializer.VALUE_DEFAULT_TYPE);
+        consumerProperties.remove(JsonDeserializer.KEY_DEFAULT_TYPE);
+        consumerProperties.remove(JsonDeserializer.USE_TYPE_INFO_HEADERS);
+
         JsonDeserializer<LoginLogEvent> valueDeserializer = new JsonDeserializer<>(LoginLogEvent.class, false);
         DefaultKafkaConsumerFactory<String, LoginLogEvent> consumerFactory = new DefaultKafkaConsumerFactory<>(
-                kafkaProperties.buildConsumerProperties(),
+                consumerProperties,
                 new StringDeserializer(),
                 valueDeserializer
         );
