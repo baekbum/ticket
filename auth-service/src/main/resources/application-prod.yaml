@@ -44,6 +44,9 @@ token:
 topic:
   user:
     name: ${TOPIC_USER_EVENT_NAME:user-event}
+  login:
+    log:
+      name: ${TOPIC_LOGIN_LOG_NAME:login-log}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}

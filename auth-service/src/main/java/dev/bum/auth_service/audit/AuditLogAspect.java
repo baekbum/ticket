@@ -3,6 +3,8 @@ package dev.bum.auth_service.audit;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.kafka.audit.AuditLogProducer;
+import dev.bum.auth_service.kafka.LoginLogProducer;
+import dev.bum.common.kafka.login.LoginLogEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +31,11 @@ public class AuditLogAspect {
 
     private static final String RESULT_SUCCESS = "SUCCESS";
     private static final String RESULT_FAILURE = "FAILURE";
+    private static final String LOGIN_ACTION = "LOGIN";
+    private static final String PASSWORD_AUTH_METHOD = "PASSWORD";
 
     private final AuditLogProducer auditLogProducer;
+    private final LoginLogProducer loginLogProducer;
 
     @Value("${spring.application.name:auth-service}")
     private String serviceName;
@@ -60,8 +65,9 @@ public class AuditLogAspect {
             String actorId = findActorId(joinPoint.getArgs());
             String actorType = findActorType(actorId);
 
+            LocalDateTime occurredAt = LocalDateTime.now();
             AuditLogEvent event = AuditLogEvent.builder()
-                    .occurredAt(LocalDateTime.now())
+                    .occurredAt(occurredAt)
                     .serviceName(serviceName)
                     .actorType(actorType)
                     .actorId(actorId)
@@ -77,9 +83,41 @@ public class AuditLogAspect {
                     .metadata(metadataOf(joinPoint, actorId))
                     .build();
 
-            auditLogProducer.send(event);
+            if (LOGIN_ACTION.equals(auditLog.action())) {
+                publishLoginLog(LoginLogEvent.builder()
+                        .eventId(UUID.randomUUID().toString())
+                        .authId(AuditContext.getAuthId())
+                        .loginId(actorId)
+                        .result(result)
+                        .authMethod(PASSWORD_AUTH_METHOD)
+                        .failureReason(failureReasonOf(throwable))
+                        .ipAddress(event.getIpAddress())
+                        .userAgent(event.getUserAgent())
+                        .requestId(event.getRequestId())
+                        .traceId(event.getTraceId())
+                        .occurredAt(occurredAt)
+                        .build());
+            } else {
+                publishAuditLog(event, auditLog.action());
+            }
         } catch (Exception e) {
             log.warn("Failed to publish audit log. action={}", auditLog.action(), e);
+        }
+    }
+
+    private void publishAuditLog(AuditLogEvent event, String action) {
+        try {
+            auditLogProducer.send(event);
+        } catch (Exception exception) {
+            log.warn("Failed to publish audit log. action={}", action, exception);
+        }
+    }
+
+    private void publishLoginLog(LoginLogEvent event) {
+        try {
+            loginLogProducer.send(event);
+        } catch (Exception exception) {
+            log.warn("Failed to publish login log. eventId={}", event.getEventId(), exception);
         }
     }
 
@@ -131,6 +169,10 @@ public class AuditLogAspect {
 
         String reason = throwable.getClass().getSimpleName() + ": " + message;
         return reason.length() > 500 ? reason.substring(0, 500) : reason;
+    }
+
+    private String failureReasonOf(Throwable throwable) {
+        return throwable != null ? throwable.getClass().getSimpleName() : null;
     }
 
     private String ipAddressOf(HttpServletRequest request) {

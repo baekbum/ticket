@@ -23,7 +23,8 @@ class KafkaConsumerConfigTest {
             .withPropertyValues(
                     "spring.kafka.bootstrap-servers=localhost:9092",
                     "spring.kafka.consumer.group-id=auth-group",
-                    "topic.user.name=user-event"
+                    "topic.user.name=user-event",
+                    "topic.login.log.name=login-log"
             )
             .withBean(KafkaDltSlackNotifier.class, () -> mock(KafkaDltSlackNotifier.class));
 
@@ -55,6 +56,18 @@ class KafkaConsumerConfigTest {
             assertThat(topic.configs())
                     .containsEntry(TopicConfig.RETENTION_MS_CONFIG, "1209600000")
                     .containsEntry(TopicConfig.RETENTION_BYTES_CONFIG, "1073741824");
+        });
+    }
+
+    @Test
+    @DisplayName("로그인 로그 topic을 설정값 기준으로 생성")
+    void loginLogTopicUsesConfiguredTopicName() {
+        contextRunner.run(context -> {
+            NewTopic topic = context.getBean("loginLogTopic", NewTopic.class);
+
+            assertThat(topic.name()).isEqualTo("login-log");
+            assertThat(topic.numPartitions()).isEqualTo(3);
+            assertThat(topic.replicationFactor()).isEqualTo((short) 1);
         });
     }
 }

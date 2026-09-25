@@ -1,14 +1,20 @@
 package dev.bum.audit_service.config;
 
+import dev.bum.common.kafka.login.LoginLogEvent;
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 @Slf4j
 @Configuration
@@ -43,5 +49,24 @@ public class KafkaConsumerConfig {
         );
 
         return errorHandler;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, LoginLogEvent> loginLogKafkaListenerContainerFactory(
+            KafkaProperties kafkaProperties,
+            DefaultErrorHandler kafkaErrorHandler
+    ) {
+        JsonDeserializer<LoginLogEvent> valueDeserializer = new JsonDeserializer<>(LoginLogEvent.class, false);
+        DefaultKafkaConsumerFactory<String, LoginLogEvent> consumerFactory = new DefaultKafkaConsumerFactory<>(
+                kafkaProperties.buildConsumerProperties(),
+                new StringDeserializer(),
+                valueDeserializer
+        );
+
+        ConcurrentKafkaListenerContainerFactory<String, LoginLogEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setCommonErrorHandler(kafkaErrorHandler);
+        return factory;
     }
 }

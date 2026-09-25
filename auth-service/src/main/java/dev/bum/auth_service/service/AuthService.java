@@ -47,7 +47,7 @@ public class AuthService {
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
         info.setUserId(normalizeUserId(info.getUserId()));
-        log.info("login info : {}", info.toString());
+        log.info("Login attempt. userId={}", info.getUserId());
         Auth auth = findByUserId(info.getUserId());
         AuditContext.setActor(auth);
 

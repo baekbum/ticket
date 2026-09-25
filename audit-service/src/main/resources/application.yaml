@@ -17,6 +17,11 @@ spring:
       ddl-auto: update
   kafka:
     bootstrap-servers: localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     consumer:
       group-id: audit-service-group
       auto-offset-reset: earliest
@@ -31,6 +36,9 @@ spring:
         auto.create.topics.enable: false
 
 topic:
+  login:
+    log:
+      name: login-log
   audit:
     log:
       name: audit-log
@@ -51,6 +59,9 @@ management:
       application: ${spring.application.name}
 
 app:
+  kafka:
+    login-log:
+      group-id: audit-login-log-group
   kafka-dlt:
     slack:
       enabled: true

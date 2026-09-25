@@ -23,7 +23,8 @@ class KafkaConsumerConfigTest {
             .withPropertyValues(
                     "spring.kafka.bootstrap-servers=localhost:9092",
                     "spring.kafka.consumer.group-id=audit-group",
-                    "topic.audit.log.name=audit-log"
+                    "topic.audit.log.name=audit-log",
+                    "topic.login.log.name=login-log"
             )
             .withBean(KafkaDltSlackNotifier.class, () -> mock(KafkaDltSlackNotifier.class));
 
@@ -60,6 +61,25 @@ class KafkaConsumerConfigTest {
             assertThat(dltTopic.configs())
                     .containsEntry(TopicConfig.RETENTION_MS_CONFIG, "1209600000")
                     .containsEntry(TopicConfig.RETENTION_BYTES_CONFIG, "1073741824");
+        });
+    }
+
+    @Test
+    @DisplayName("로그인 로그 listener와 DLT에 공통 error handler를 적용")
+    void loginLogListenerAndDltUseConfiguredTopicName() {
+        contextRunner.run(context -> {
+            DefaultErrorHandler errorHandler = context.getBean(DefaultErrorHandler.class);
+            ConcurrentKafkaListenerContainerFactory<?, ?> factory = context.getBean(
+                    "loginLogKafkaListenerContainerFactory",
+                    ConcurrentKafkaListenerContainerFactory.class
+            );
+            NewTopic dltTopic = context.getBean("loginLogDltTopic", NewTopic.class);
+
+            ConcurrentMessageListenerContainer<?, ?> container = factory.createContainer("login-log");
+            assertThat(container.getCommonErrorHandler()).isSameAs(errorHandler);
+            assertThat(dltTopic.name()).isEqualTo("login-log.DLT");
+            assertThat(dltTopic.numPartitions()).isEqualTo(3);
+            assertThat(dltTopic.replicationFactor()).isEqualTo((short) 1);
         });
     }
 }

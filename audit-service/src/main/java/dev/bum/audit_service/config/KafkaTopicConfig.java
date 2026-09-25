@@ -17,6 +17,9 @@ public class KafkaTopicConfig {
     @Value("${topic.audit.log.name}")
     private String auditLogTopicName;
 
+    @Value("${topic.login.log.name}")
+    private String loginLogTopicName;
+
     @Bean
     public NewTopic auditLogTopic() {
         return TopicBuilder.name(auditLogTopicName)
@@ -28,6 +31,16 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic auditLogDltTopic() {
         return TopicBuilder.name(auditLogTopicName + DLT_SUFFIX)
+                .partitions(3)
+                .replicas(1)
+                .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
+                .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
+                .build();
+    }
+
+    @Bean
+    public NewTopic loginLogDltTopic() {
+        return TopicBuilder.name(loginLogTopicName + DLT_SUFFIX)
                 .partitions(3)
                 .replicas(1)
                 .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
