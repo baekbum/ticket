@@ -23,6 +23,7 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_USER = "USER";
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -32,6 +33,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/api/*/login-log/me").hasAnyRole(ROLE_ADMIN, ROLE_USER)
                         .anyRequest().hasRole(ROLE_ADMIN)
                 );
 

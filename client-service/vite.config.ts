@@ -7,7 +7,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     proxy: Object.fromEntries([
-      '/auth', '/user', '/ticket', '/queue', '/support', '/payment-gateway',
+      '/auth', '/user', '/ticket', '/queue', '/support', '/audit', '/payment-gateway',
     ].map(path => [path, {
       target: 'http://localhost:80',
       changeOrigin: true,

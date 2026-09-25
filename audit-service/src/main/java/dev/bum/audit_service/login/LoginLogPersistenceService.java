@@ -4,6 +4,7 @@ import dev.bum.common.kafka.login.LoginLogEvent;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.audit.dto.LoginLogCondRequest;
 import dev.bum.common.service.audit.dto.LoginLogResponse;
+import dev.bum.common.service.audit.dto.MyLoginLogResponse;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -60,6 +62,32 @@ public class LoginLogPersistenceService {
                 page.getNumber(),
                 page.getTotalElements(),
                 page.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public CustomPageResponse<MyLoginLogResponse> selectMine(String loginId, Integer page, Integer size, Integer periodDays) {
+        PageRequest pageRequest = PageRequest.of(
+                normalizePage(page),
+                normalizeSize(size),
+                defaultSort()
+        );
+        String normalizedLoginId = loginId.toLowerCase(Locale.ROOT);
+        LocalDateTime occurredFrom = LocalDateTime.now().minusDays(normalizePeriodDays(periodDays));
+        Specification<LoginLogEntity> mine = (root, query, cb) -> cb.and(
+                cb.equal(cb.lower(root.get("loginId")), normalizedLoginId),
+                cb.greaterThanOrEqualTo(root.get("occurredAt"), occurredFrom)
+        );
+
+        Page<MyLoginLogResponse> result = repository.findAll(mine, pageRequest)
+                .map(LoginLogEntity::toMyResponse);
+
+        return CustomPageResponse.of(
+                result.getContent(),
+                result.getSize(),
+                result.getNumber(),
+                result.getTotalElements(),
+                result.getTotalPages()
         );
     }
 
@@ -135,5 +163,12 @@ public class LoginLogPersistenceService {
             return DEFAULT_SIZE;
         }
         return Math.min(size, MAX_SIZE);
+    }
+
+    private int normalizePeriodDays(Integer periodDays) {
+        if (periodDays == null || periodDays <= 0) {
+            return 30;
+        }
+        return Math.min(periodDays, 365);
     }
 }

@@ -3,6 +3,7 @@ package dev.bum.audit_service.login;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.audit.dto.LoginLogCondRequest;
 import dev.bum.common.service.audit.dto.LoginLogResponse;
+import dev.bum.common.service.audit.dto.MyLoginLogResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -73,6 +74,27 @@ class LoginLogPersistenceServiceTest {
         assertThat(pageable.getSort().getOrderFor("loginId").isAscending()).isTrue();
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getPage().getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("내 로그인 기록은 최신순으로 조회하고 사용자용 필드만 반환")
+    @SuppressWarnings("unchecked")
+    void selectMine_returns_user_login_history_in_latest_order() {
+        given(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(loginLogEntity()), PageRequest.of(0, 10), 1));
+
+        CustomPageResponse<MyLoginLogResponse> response = service.selectMine("USER01", 0, 5, 30);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).findAll(any(Specification.class), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        assertThat(pageable.getSort().getOrderFor("occurredAt").isDescending()).isTrue();
+        assertThat(response.getContent()).singleElement().satisfies(item -> {
+            assertThat(item.getResult()).isEqualTo("SUCCESS");
+            assertThat(item.getAuthMethod()).isEqualTo("PASSWORD");
+            assertThat(item.getIpAddress()).isEqualTo("127.0.0.1");
+            assertThat(item.getOccurredAt()).isEqualTo(LocalDateTime.of(2026, 9, 25, 21, 0));
+        });
     }
 
     private LoginLogEntity loginLogEntity() {
