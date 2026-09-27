@@ -1,0 +1,18 @@
+@import url("../audit/fragment-audit-log.css");
+
+.login-id-input { width: 145px; }
+.login-ip-input { width: 145px; }
+.login-method-input { width: 145px; }
+.login-log-table { min-width: 1480px; }
+.login-log-detail-content { max-width: 1050px; }
+.login-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.login-row-number { text-align: center; color: var(--text-muted); }
+.login-empty-row { padding: 2rem !important; color: var(--text-muted) !important; text-align: center !important; }
+
+@media (max-width: 900px) {
+  .login-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .login-detail-grid { grid-template-columns: 1fr; }
+}

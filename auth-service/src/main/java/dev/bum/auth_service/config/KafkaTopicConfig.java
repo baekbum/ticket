@@ -17,6 +17,17 @@ public class KafkaTopicConfig {
     @Value("${topic.user.name}")
     private String userEventTopicName;
 
+    @Value("${topic.login.log.name}")
+    private String loginLogTopicName;
+
+    @Bean
+    public NewTopic loginLogTopic() {
+        return TopicBuilder.name(loginLogTopicName)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
     @Bean
     public NewTopic userEventDltTopic() {
         return TopicBuilder.name(userEventTopicName + DLT_SUFFIX)

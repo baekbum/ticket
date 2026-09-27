@@ -17,7 +17,8 @@ public class AuditLogConsumer {
 
     @KafkaListener(
             topics = "${topic.audit.log.name}",
-            groupId = "${spring.kafka.consumer.group-id}"
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "auditLogKafkaListenerContainerFactory"
     )
     public void consume(AuditLogEvent event) {
         AuditLogEntity savedAuditLog = persistenceService.save(event);

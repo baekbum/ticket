@@ -24,6 +24,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   ] },
   { label: '감사/운영', icon: 'shield-search', items: [
     { key: 'auditLog', label: '감사 로그', icon: 'history' },
+    { key: 'loginLog', label: '로그인 로그', icon: 'login-2' },
     { key: 'monitoring', label: '모니터링', icon: 'chart-line' },
   ] },
   { label: 'Redis', icon: 'database', items: [

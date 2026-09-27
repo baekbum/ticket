@@ -15,7 +15,12 @@ public final class AuditContext {
             return;
         }
 
-        ACTOR.set(new Actor(auth.getUserId(), toActorType(auth.getRole())));
+        ACTOR.set(new Actor(auth.getId(), auth.getUserId(), toActorType(auth.getRole())));
+    }
+
+    public static Long getAuthId() {
+        Actor actor = ACTOR.get();
+        return actor != null ? actor.getAuthId() : null;
     }
 
     public static String getActorId() {
@@ -42,12 +47,18 @@ public final class AuditContext {
 
     private static class Actor {
 
+        private final Long authId;
         private final String actorId;
         private final String actorType;
 
-        private Actor(String actorId, String actorType) {
+        private Actor(Long authId, String actorId, String actorType) {
+            this.authId = authId;
             this.actorId = actorId;
             this.actorType = actorType;
+        }
+
+        private Long getAuthId() {
+            return authId;
         }
 
         private String getActorId() {

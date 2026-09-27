@@ -4,9 +4,6 @@ server:
 spring:
   application:
     name: audit-service
-
-token:
-  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${SPRING_DATASOURCE_URL}
@@ -18,20 +15,27 @@ token:
       ddl-auto: update
   kafka:
     bootstrap-servers: ${KAFKA_SERVER}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     consumer:
       group-id: ${KAFKA_AUDIT_GROUP_ID:audit-service-group}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "dev.bum.*"
-        spring.json.value.default.type: dev.bum.common.kafka.audit.AuditLogEvent
-        spring.json.use.type.headers: false
     admin:
       properties:
         auto.create.topics.enable: false
 
+token:
+  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+
 topic:
+  login:
+    log:
+      name: ${TOPIC_LOGIN_LOG_NAME:login-log}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
@@ -49,6 +53,9 @@ management:
       application: ${spring.application.name}
 
 app:
+  kafka:
+    login-log:
+      group-id: ${KAFKA_LOGIN_LOG_GROUP_ID:audit-login-log-group}
   kafka-dlt:
     slack:
       enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}

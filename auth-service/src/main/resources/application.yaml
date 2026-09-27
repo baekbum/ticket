@@ -46,6 +46,9 @@ token:
 topic:
   user:
     name: user-event
+  login:
+    log:
+      name: login-log
   audit:
     log:
       name: audit-log
