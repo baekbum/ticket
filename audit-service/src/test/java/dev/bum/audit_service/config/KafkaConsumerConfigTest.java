@@ -14,6 +14,7 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.time.LocalDateTime;
@@ -61,6 +62,8 @@ class KafkaConsumerConfigTest {
             );
             DefaultKafkaConsumerFactory<String, AuditLogEvent> consumerFactory =
                     (DefaultKafkaConsumerFactory<String, AuditLogEvent>) factory.getConsumerFactory();
+            assertThat(consumerFactory.getValueDeserializer())
+                    .isInstanceOf(ErrorHandlingDeserializer.class);
             AuditLogEvent event = AuditLogEvent.builder()
                     .serviceName("auth-service")
                     .action("LOGOUT")
@@ -127,6 +130,8 @@ class KafkaConsumerConfigTest {
             );
             DefaultKafkaConsumerFactory<String, LoginLogEvent> consumerFactory =
                     (DefaultKafkaConsumerFactory<String, LoginLogEvent>) factory.getConsumerFactory();
+            assertThat(consumerFactory.getValueDeserializer())
+                    .isInstanceOf(ErrorHandlingDeserializer.class);
             LoginLogEvent event = LoginLogEvent.builder()
                     .eventId("event-1")
                     .loginId("user01")

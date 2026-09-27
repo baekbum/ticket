@@ -15,6 +15,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 import java.util.Map;
@@ -76,7 +77,8 @@ public class KafkaConsumerConfig {
             Class<T> eventType
     ) {
         Map<String, Object> consumerProperties = kafkaProperties.buildConsumerProperties();
-        JsonDeserializer<T> valueDeserializer = new JsonDeserializer<>(eventType, false);
+        JsonDeserializer<T> jsonDeserializer = new JsonDeserializer<>(eventType, false);
+        ErrorHandlingDeserializer<T> valueDeserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
         DefaultKafkaConsumerFactory<String, T> consumerFactory = new DefaultKafkaConsumerFactory<>(
                 consumerProperties,
                 new StringDeserializer(),
