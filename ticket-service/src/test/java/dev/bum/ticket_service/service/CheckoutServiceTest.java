@@ -23,6 +23,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDel
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.service.checkout.CheckoutService;
+import dev.bum.ticket_service.service.checkout.CheckoutIdempotencyKeyGenerator;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -73,6 +75,9 @@ class CheckoutServiceTest {
     @Mock
     private CheckoutPaymentService checkoutPaymentService;
 
+    @Spy
+    private CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
+
     @InjectMocks
     private CheckoutService checkoutService;
 
@@ -87,7 +92,7 @@ class CheckoutServiceTest {
         assertThat(response.getEventId()).isEqualTo(1L);
         assertThat(response.getOrderId()).isEqualTo("order-1");
         assertThat(response.getSeats()).hasSize(1);
-        assertThat(response.getIdempotencyKey()).startsWith("CHK-");
+        assertThat(response.getIdempotencyKey()).matches("CHK-\\d{8}-[0-9a-f]{32}");
         assertThat(response.getPreparedAt()).isNotNull();
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");

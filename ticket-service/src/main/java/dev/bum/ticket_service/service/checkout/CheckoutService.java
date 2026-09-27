@@ -50,6 +50,7 @@ public class CheckoutService {
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
     private final CheckoutPaymentService checkoutPaymentService;
+    private final CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
 
     @Value("${payment.expiration.ready-timeout-minutes:10}")
     private long paymentReadyTimeoutMinutes = 10;
@@ -66,7 +67,7 @@ public class CheckoutService {
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
-        String idempotencyKey = generateIdempotencyKey();
+        String idempotencyKey = idempotencyKeyGenerator.generate();
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
@@ -197,10 +198,6 @@ public class CheckoutService {
         }
 
         return idempotencyKey.trim();
-    }
-
-    private String generateIdempotencyKey() {
-        return "CHK-" + UUID.randomUUID().toString().replace("-", "");
     }
 
 }
