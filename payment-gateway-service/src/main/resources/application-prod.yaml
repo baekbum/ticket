@@ -1,0 +1,8 @@
+token:
+  secret: ${TOKEN_SECRET}
+
+app:
+  payment-provider:
+    token: ${APP_PAYMENT_PROVIDER_TOKEN}
+  ticket:
+    service-token: ${APP_INTERNAL_SERVICE_TOKEN}

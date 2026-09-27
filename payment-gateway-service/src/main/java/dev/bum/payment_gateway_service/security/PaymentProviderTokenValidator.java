@@ -14,7 +14,7 @@ public class PaymentProviderTokenValidator {
     private final String providerToken;
 
     public PaymentProviderTokenValidator(
-            @Value("${app.payment-provider.token:local-payment-provider-token}") String providerToken
+            @Value("${app.payment-provider.token}") String providerToken
     ) {
         this.providerToken = providerToken;
     }

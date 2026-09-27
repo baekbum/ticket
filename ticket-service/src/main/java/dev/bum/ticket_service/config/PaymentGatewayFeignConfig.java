@@ -8,7 +8,7 @@ public class PaymentGatewayFeignConfig {
 
     @Bean
     public RequestInterceptor paymentGatewayServiceTokenRequestInterceptor(
-            @Value("${app.internal.service-token:local-internal-service-token}") String serviceToken
+            @Value("${app.internal.service-token}") String serviceToken
     ) {
         return requestTemplate -> requestTemplate.header("X-Service-Token", serviceToken);
     }

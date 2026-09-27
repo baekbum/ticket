@@ -10,7 +10,7 @@ public class TicketServiceFeignConfig {
 
     @Bean
     public RequestInterceptor ticketServiceTokenRequestInterceptor(
-            @Value("${app.ticket.service-token:local-internal-service-token}") String serviceToken
+            @Value("${app.ticket.service-token}") String serviceToken
     ) {
         return requestTemplate -> requestTemplate.header("X-Service-Token", serviceToken);
     }

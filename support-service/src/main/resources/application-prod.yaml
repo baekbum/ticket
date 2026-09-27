@@ -14,4 +14,4 @@ spring:
       ddl-auto: update
 
 token:
-  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  secret: ${TOKEN_SECRET}

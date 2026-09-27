@@ -11,7 +11,7 @@ spring:
       database: ${SPRING_DATA_REDIS_DATABASE:0}
 
 token:
-  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  secret: ${TOKEN_SECRET}
 
 app:
   queue:
