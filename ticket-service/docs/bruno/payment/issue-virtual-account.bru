@@ -7,15 +7,12 @@ meta {
 post {
   url: {{paymentGatewayBaseUrl}}/payments/virtual-account/issue
   body: json
-  auth: bearer
+  auth: none
 }
 
 headers {
   Content-Type: application/json
-}
-
-auth:bearer {
-  token: {{accessToken}}
+  X-Service-Token: {{internalServiceToken}}
 }
 
 body:json {

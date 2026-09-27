@@ -6,9 +6,11 @@
 
 - 사용자는 `ticket-service`의 `CheckoutController.prepare`로 결제 화면 진입 가능 여부를 검증한다.
 - `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
-- 카드 승인과 가상계좌 입금 확인은 `payment-gateway-service`로 요청한다.
+- 카드 승인과 승인 상태 조회는 사용자 access token으로 `payment-gateway-service`에 직접 요청한다.
+- 가상계좌 발급과 카드/가상계좌 환불은 `ticket-service`가 `X-Service-Token`으로 `payment-gateway-service`에 요청한다.
+- 가상계좌 입금 통지는 결제 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
 - `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
-- `ticket-service` 내부 API는 `X-Service-Token` 헤더로 보호한다.
+- 서비스 간 내부 API는 `X-Service-Token` 헤더로 보호한다.
 
 ```text
 Authorization: Bearer {accessToken}
@@ -154,6 +156,7 @@ ticket-service가 카드 결제 완료 예매를 전체 취소할 때 사용한�
 
 ```http
 POST /payment-gateway/api/v1/payments/card/refund
+X-Service-Token: {internalServiceToken}
 Content-Type: application/json
 ```
 
@@ -180,7 +183,7 @@ Content-Type: application/json
 
 ```http
 POST /payment-gateway/api/v1/payments/virtual-account/deposit
-Authorization: Bearer {accessToken}
+X-Payment-Provider-Token: {paymentProviderToken}
 Content-Type: application/json
 ```
 
