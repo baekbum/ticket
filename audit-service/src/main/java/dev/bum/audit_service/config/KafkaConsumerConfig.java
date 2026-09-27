@@ -1,7 +1,8 @@
 package dev.bum.audit_service.config;
 
-import dev.bum.common.kafka.login.LoginLogEvent;
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
+import dev.bum.common.kafka.audit.AuditLogEvent;
+import dev.bum.common.kafka.login.LoginLogEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +17,6 @@ import org.springframework.util.backoff.FixedBackOff;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -55,23 +55,35 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, AuditLogEvent> auditLogKafkaListenerContainerFactory(
+            KafkaProperties kafkaProperties,
+            DefaultErrorHandler kafkaErrorHandler
+    ) {
+        return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, AuditLogEvent.class);
+    }
+
+    @Bean
     public ConcurrentKafkaListenerContainerFactory<String, LoginLogEvent> loginLogKafkaListenerContainerFactory(
             KafkaProperties kafkaProperties,
             DefaultErrorHandler kafkaErrorHandler
     ) {
-        Map<String, Object> consumerProperties = new HashMap<>(kafkaProperties.buildConsumerProperties());
-        consumerProperties.remove(JsonDeserializer.VALUE_DEFAULT_TYPE);
-        consumerProperties.remove(JsonDeserializer.KEY_DEFAULT_TYPE);
-        consumerProperties.remove(JsonDeserializer.USE_TYPE_INFO_HEADERS);
+        return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, LoginLogEvent.class);
+    }
 
-        JsonDeserializer<LoginLogEvent> valueDeserializer = new JsonDeserializer<>(LoginLogEvent.class, false);
-        DefaultKafkaConsumerFactory<String, LoginLogEvent> consumerFactory = new DefaultKafkaConsumerFactory<>(
+    private <T> ConcurrentKafkaListenerContainerFactory<String, T> typedKafkaListenerContainerFactory(
+            KafkaProperties kafkaProperties,
+            DefaultErrorHandler kafkaErrorHandler,
+            Class<T> eventType
+    ) {
+        Map<String, Object> consumerProperties = kafkaProperties.buildConsumerProperties();
+        JsonDeserializer<T> valueDeserializer = new JsonDeserializer<>(eventType, false);
+        DefaultKafkaConsumerFactory<String, T> consumerFactory = new DefaultKafkaConsumerFactory<>(
                 consumerProperties,
                 new StringDeserializer(),
                 valueDeserializer
         );
 
-        ConcurrentKafkaListenerContainerFactory<String, LoginLogEvent> factory =
+        ConcurrentKafkaListenerContainerFactory<String, T> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaErrorHandler);

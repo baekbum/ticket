@@ -1,6 +1,7 @@
 package dev.bum.audit_service.config;
 
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
+import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.kafka.login.LoginLogEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,18 +35,45 @@ class KafkaConsumerConfigTest {
             .withBean(KafkaDltSlackNotifier.class, () -> mock(KafkaDltSlackNotifier.class));
 
     @Test
-    @DisplayName("기본 Kafka listener container factory에 DLT error handler를 적용")
-    void kafkaListenerContainerFactoryHasDefaultErrorHandler() {
+    @DisplayName("감사 로그 전용 listener factory에 DLT error handler를 적용")
+    void auditLogListenerContainerFactoryHasDefaultErrorHandler() {
         contextRunner.run(context -> {
             DefaultErrorHandler errorHandler = context.getBean(DefaultErrorHandler.class);
             ConcurrentKafkaListenerContainerFactory<?, ?> factory = context.getBean(
-                    "kafkaListenerContainerFactory",
+                    "auditLogKafkaListenerContainerFactory",
                     ConcurrentKafkaListenerContainerFactory.class
             );
 
             ConcurrentMessageListenerContainer<?, ?> container = factory.createContainer("audit-log");
 
             assertThat(container.getCommonErrorHandler()).isSameAs(errorHandler);
+        });
+    }
+
+    @Test
+    @DisplayName("감사 로그 listener는 AuditLogEvent로 역직렬화")
+    @SuppressWarnings("unchecked")
+    void auditLogListenerDeserializesAuditLogEvent() {
+        contextRunner.run(context -> {
+            ConcurrentKafkaListenerContainerFactory<String, AuditLogEvent> factory = context.getBean(
+                    "auditLogKafkaListenerContainerFactory",
+                    ConcurrentKafkaListenerContainerFactory.class
+            );
+            DefaultKafkaConsumerFactory<String, AuditLogEvent> consumerFactory =
+                    (DefaultKafkaConsumerFactory<String, AuditLogEvent>) factory.getConsumerFactory();
+            AuditLogEvent event = AuditLogEvent.builder()
+                    .serviceName("auth-service")
+                    .action("LOGOUT")
+                    .result("SUCCESS")
+                    .occurredAt(LocalDateTime.of(2026, 9, 27, 10, 0))
+                    .build();
+
+            byte[] payload = new JsonSerializer<AuditLogEvent>().serialize("audit-log", event);
+            AuditLogEvent deserialized = consumerFactory.getValueDeserializer().deserialize("audit-log", payload);
+
+            assertThat(deserialized).isInstanceOf(AuditLogEvent.class);
+            assertThat(deserialized.getServiceName()).isEqualTo("auth-service");
+            assertThat(deserialized.getAction()).isEqualTo("LOGOUT");
         });
     }
 
@@ -89,7 +117,7 @@ class KafkaConsumerConfigTest {
     }
 
     @Test
-    @DisplayName("로그인 로그 listener는 전역 감사 로그 타입 설정과 무관하게 LoginLogEvent로 역직렬화")
+    @DisplayName("로그인 로그 listener는 LoginLogEvent로 역직렬화")
     @SuppressWarnings("unchecked")
     void loginLogListenerDeserializesLoginLogEvent() {
         contextRunner.run(context -> {
