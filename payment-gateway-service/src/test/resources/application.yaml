@@ -1,4 +1,9 @@
+token:
+  secret: test-token-secret-value-that-is-long-enough-for-tests
+
 app:
+  ticket:
+    base-url: http://localhost:8082
   virtual-account:
     expiration:
       cron: "*/5 * * * * *"

@@ -6,6 +6,7 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
@@ -23,9 +24,10 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private final InternalServiceTokenValidator internalServiceTokenValidator;
-    private static final String ROLE_ADMIN = "ADMIN";
+    private final PaymentProviderTokenValidator paymentProviderTokenValidator;
+    private static final String ROLE_USER = "USER";
     private static final String ROLE_INTERNAL = "INTERNAL_SERVICE";
-    private static final String[] ROLE_ADMIN_USER_OR_INTERNAL = {"ADMIN", "USER", ROLE_INTERNAL};
+    private static final String ROLE_PAYMENT_PROVIDER = "PAYMENT_PROVIDER";
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -35,9 +37,16 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/*/payments/card/**").hasAnyRole(ROLE_ADMIN_USER_OR_INTERNAL)
-                        .requestMatchers("/api/*/payments/virtual-account/**").hasAnyRole(ROLE_ADMIN_USER_OR_INTERNAL)
-                        .anyRequest().hasRole(ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/card/approve").hasRole(ROLE_USER) // 카드 결제 최소 승인
+                        .requestMatchers(HttpMethod.GET, "/api/*/payments/card/*").hasRole(ROLE_USER) // 카드 상태 조회
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/card/refund").hasRole(ROLE_INTERNAL) // 환불의 경우 ticket 서비스에서 요청
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/*/payments/virtual-account/issue",
+                                "/api/*/payments/virtual-account/refund"
+                        ).hasRole(ROLE_INTERNAL) // 가상 계좌 발급 또는 결제 금액 환불의 경우 ticket 서비스를 통해 이루어짐
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/virtual-account/deposit").hasRole(ROLE_PAYMENT_PROVIDER) // 무통장 입금 케이스
+                        .anyRequest().denyAll()
                 );
 
         configureAuthenticationFilters(http);
@@ -53,6 +62,10 @@ public class SecurityConfig {
         http.addFilterBefore(
                 new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
                 clientAuthenticationFilter.getClass()
+        );
+        http.addFilterBefore(
+                new PaymentProviderAuthenticationFilter(paymentProviderTokenValidator),
+                InternalServiceAuthenticationFilter.class
         );
     }
 
