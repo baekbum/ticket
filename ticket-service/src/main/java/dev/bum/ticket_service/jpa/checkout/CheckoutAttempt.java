@@ -106,13 +106,15 @@ public class CheckoutAttempt {
         this.status = CheckoutAttemptStatus.CONFIRMED;
     }
 
-    public void expire() {
-        if (status == CheckoutAttemptStatus.PREPARED) {
-            this.status = CheckoutAttemptStatus.EXPIRED;
-        }
-    }
-
     public boolean isConfirmed() {
         return status == CheckoutAttemptStatus.CONFIRMED;
+    }
+
+    public boolean isPrepared() {
+        return status == CheckoutAttemptStatus.PREPARED;
+    }
+
+    public boolean isExpired(LocalDateTime now) {
+        return expiresAt == null || !expiresAt.isAfter(now);
     }
 }

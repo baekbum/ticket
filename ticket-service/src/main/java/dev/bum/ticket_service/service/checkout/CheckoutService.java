@@ -39,12 +39,6 @@ import java.util.UUID;
 public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private static final List<PaymentStatus> REUSABLE_PAYMENT_STATUSES = List.of(
-            PaymentStatus.READY,
-            PaymentStatus.WAITING_DEPOSIT,
-            PaymentStatus.PAID
-    );
-
     private final SeatCacheService seatCacheService;
     private final QueueAccessService queueAccessService;
     private final ReservationRepository reservationRepository;
@@ -108,9 +102,15 @@ public class CheckoutService {
     @AuditLog(action = "CHECKOUT_CONFIRM", targetType = "CHECKOUT")
     public PaymentResponse confirm(String currentUserId, String activeToken, CheckoutConfirmRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
-        Payment existingPayment = findExistingPayment(currentUserId, idempotencyKey);
-        if (existingPayment != null) {
-            return existingPayment.toResponse();
+        CheckoutAttempt checkoutAttempt = checkoutAttemptJpaRepository
+                .findByIdempotencyKeyForUpdate(idempotencyKey)
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
+
+        validateCheckoutAttempt(currentUserId, request, checkoutAttempt);
+
+        Payment confirmedPayment = checkoutAttempt.getPayment();
+        if (validateCheckoutStatus(checkoutAttempt, confirmedPayment)) {
+            return confirmedPayment.toResponse();
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
@@ -136,7 +136,7 @@ public class CheckoutService {
 
         Payment payment = Payment.builder()
                 .reservation(reservation)
-                .paymentNo(generatePaymentNo())
+                .paymentNo(checkoutAttempt.getPaymentNo())
                 .method(request.getPaymentMethod())
                 .status(PaymentStatus.READY)
                 .amount(paymentAmount)
@@ -150,28 +150,42 @@ public class CheckoutService {
         checkoutPaymentService.process(request, payment);
 
         Payment savedPayment = paymentJpaRepository.save(payment);
+        checkoutAttempt.confirm(savedPayment);
 
         return savedPayment.toResponse();
     }
 
-    private Payment findExistingPayment(String currentUserId, String idempotencyKey) {
-        if (!StringUtils.hasText(idempotencyKey)) {
-            return null;
+    private void validateCheckoutAttempt(
+            String currentUserId,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt
+    ) {
+        if (!currentUserId.equals(checkoutAttempt.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 요청 키입니다.");
+        }
+        if (!checkoutAttempt.getOrderId().equals(request.getOrderId())
+                || !checkoutAttempt.getEventId().equals(request.getEventId())) {
+            throw new IllegalArgumentException("prepare 요청과 결제 확정 정보가 일치하지 않습니다.");
+        }
+    }
+
+    private boolean validateCheckoutStatus(CheckoutAttempt checkoutAttempt, Payment confirmedPayment) {
+        if (checkoutAttempt.isConfirmed()) {
+            if (confirmedPayment == null) {
+                throw new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.");
+            }
+            return true;
+        }
+        if (!checkoutAttempt.isPrepared()) {
+            throw new IllegalStateException("결제를 진행할 수 없는 checkout 상태입니다.");
+        }
+        if (checkoutAttempt.isExpired(LocalDateTime.now())) {
+            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
         }
 
-        return paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
-                        idempotencyKey,
-                        REUSABLE_PAYMENT_STATUSES
-                )
-                .map(payment -> {
-                    Reservation reservation = payment.getReservation();
-                    if (reservation == null || !currentUserId.equals(reservation.getUserId())) {
-                        throw new AccessDeniedException("다른 사용자의 결제 요청 키입니다.");
-                    }
-                    return payment;
-                })
-                .orElse(null);
+        return false;
     }
+
 
     private InsertReservationRequest toReservationRequest(String currentUserId, CheckoutConfirmRequest request) {
         return InsertReservationRequest.builder()
