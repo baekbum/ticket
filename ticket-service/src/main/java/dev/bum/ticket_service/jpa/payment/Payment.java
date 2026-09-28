@@ -39,7 +39,8 @@ import java.time.LocalDateTime;
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_payments_reservation_id", columnNames = "reservation_id"),
                 @UniqueConstraint(name = "uk_payments_payment_no", columnNames = "payment_no"),
-                @UniqueConstraint(name = "uk_payments_account_number", columnNames = "account_number")
+                @UniqueConstraint(name = "uk_payments_account_number", columnNames = "account_number"),
+                @UniqueConstraint(name = "uk_payments_idempotency_key", columnNames = "idempotency_key")
         }
 )
 @Getter
@@ -100,7 +101,7 @@ public class Payment {
     private Integer deliveryFeeAmount = 0;
 
     // 같은 결제 요청이 중복 처리되지 않도록 클라이언트나 서버가 발급하는 멱등성 키.
-    @Column(name = "idempotency_key", length = 100)
+    @Column(name = "idempotency_key", nullable = false, length = 100)
     private String idempotencyKey;
 
     // 카드 승인 결과 스냅샷. 카드 결제에서만 사용한다.
