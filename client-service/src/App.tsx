@@ -194,6 +194,7 @@ type CheckoutPrepareResponse = {
   idempotencyKey: string;
   prepared: boolean;
   preparedAt: string;
+  expiresAt: string;
 };
 
 type CouponDiscountType = 'FIXED_AMOUNT' | 'PERCENT' | string;
@@ -2608,6 +2609,7 @@ function BookingWindowPage() {
         coupons = [];
       }
 
+      setSeatHoldExpiresAt(prepareResult.expiresAt);
       setCheckoutPrepare(prepareResult);
       setUserCoupons(coupons.filter((coupon) => coupon.status === 'ISSUED'));
       setSelectedUserCouponId(null);

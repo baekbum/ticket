@@ -29,7 +29,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -182,6 +184,32 @@ class SeatCacheServiceTest {
 
         then(valueOperations).should().get(PURCHASE_LIMIT_KEY);
         then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("좌석 선점 검증은 선택 좌석 중 가장 먼저 만료되는 시각을 반환한다")
+    void validate_occupied_seat_returns_earliest_expiration() {
+        List<SeatInfo> seats = List.of(
+                SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build(),
+                SeatInfo.builder().id(2L).zone("VIP").row(1).col(2).build()
+        );
+        String lockValue = "LOCKED:user01:order-1";
+        given(valueOperations.get(FIRST_SEAT_KEY)).willReturn(lockValue);
+        given(valueOperations.get(SECOND_SEAT_KEY)).willReturn(lockValue);
+        given(seatRedisTemplate.getExpire(FIRST_SEAT_KEY, TimeUnit.MILLISECONDS)).willReturn(540_000L);
+        given(seatRedisTemplate.getExpire(SECOND_SEAT_KEY, TimeUnit.MILLISECONDS)).willReturn(300_000L);
+        LocalDateTime beforeValidation = LocalDateTime.now();
+
+        LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
+                EVENT_ID,
+                USER_ID,
+                "order-1",
+                seats
+        );
+
+        assertThat(expiresAt)
+                .isAfterOrEqualTo(beforeValidation.plusSeconds(299))
+                .isBeforeOrEqualTo(LocalDateTime.now().plusSeconds(301));
     }
 
     @Test

@@ -21,4 +21,5 @@ public class CheckoutPrepareResponse {
     private String idempotencyKey;
     private boolean prepared;
     private LocalDateTime preparedAt;
+    private LocalDateTime expiresAt;
 }

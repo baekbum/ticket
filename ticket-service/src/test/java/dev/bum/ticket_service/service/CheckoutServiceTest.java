@@ -14,6 +14,9 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptStatus;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -73,6 +76,9 @@ class CheckoutServiceTest {
     private PaymentJpaRepository paymentJpaRepository;
 
     @Mock
+    private CheckoutAttemptJpaRepository checkoutAttemptJpaRepository;
+
+    @Mock
     private CheckoutPaymentService checkoutPaymentService;
 
     @Spy
@@ -85,6 +91,9 @@ class CheckoutServiceTest {
     @DisplayName("checkout 준비 요청은 active token과 좌석 선점 상태를 검증한다")
     void prepare_validates_active_token_and_occupied_seats() {
         CheckoutPrepareRequest request = checkoutRequest();
+        LocalDateTime seatExpiresAt = LocalDateTime.now().plusMinutes(9);
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
+                .willReturn(seatExpiresAt);
 
         CheckoutPrepareResponse response = checkoutService.prepare("user01", "queue-token", request);
 
@@ -94,6 +103,18 @@ class CheckoutServiceTest {
         assertThat(response.getSeats()).hasSize(1);
         assertThat(response.getIdempotencyKey()).matches("CHK-\\d{8}-[0-9a-f]{32}");
         assertThat(response.getPreparedAt()).isNotNull();
+        assertThat(response.getExpiresAt()).isEqualTo(seatExpiresAt);
+
+        ArgumentCaptor<CheckoutAttempt> checkoutAttemptCaptor = ArgumentCaptor.forClass(CheckoutAttempt.class);
+        then(checkoutAttemptJpaRepository).should().save(checkoutAttemptCaptor.capture());
+        CheckoutAttempt checkoutAttempt = checkoutAttemptCaptor.getValue();
+        assertThat(checkoutAttempt.getIdempotencyKey()).isEqualTo(response.getIdempotencyKey());
+        assertThat(checkoutAttempt.getUserId()).isEqualTo("user01");
+        assertThat(checkoutAttempt.getOrderId()).isEqualTo("order-1");
+        assertThat(checkoutAttempt.getEventId()).isEqualTo(1L);
+        assertThat(checkoutAttempt.getPaymentNo()).startsWith("PAY-");
+        assertThat(checkoutAttempt.getStatus()).isEqualTo(CheckoutAttemptStatus.PREPARED);
+        assertThat(checkoutAttempt.getExpiresAt()).isEqualTo(seatExpiresAt);
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
         then(seatCacheService).should().validateOccupiedSeat(
@@ -111,6 +132,8 @@ class CheckoutServiceTest {
         TransactionSynchronizationManager.initSynchronization();
         try {
             CheckoutPrepareRequest request = checkoutRequest();
+            given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
+                    .willReturn(LocalDateTime.now().plusMinutes(9));
 
             checkoutService.prepare("user01", "queue-token", request);
 
@@ -124,6 +147,20 @@ class CheckoutServiceTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    @Test
+    @DisplayName("checkout 준비 검증에 실패하면 준비 정보를 저장하지 않는다")
+    void prepare_does_not_save_attempt_when_validation_fails() {
+        CheckoutPrepareRequest request = checkoutRequest();
+        org.mockito.Mockito.doThrow(new dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException())
+                .when(queueAccessService).validate(1L, "user01", "expired");
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", request))
+                .isInstanceOf(dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException.class);
+
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
     }
 
     @Test

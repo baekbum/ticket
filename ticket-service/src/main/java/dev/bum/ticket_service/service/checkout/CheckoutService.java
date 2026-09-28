@@ -7,6 +7,8 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -49,6 +51,7 @@ public class CheckoutService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
+    private final CheckoutAttemptJpaRepository checkoutAttemptJpaRepository;
     private final CheckoutPaymentService checkoutPaymentService;
     private final CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
 
@@ -67,24 +70,34 @@ public class CheckoutService {
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
-        String idempotencyKey = idempotencyKeyGenerator.generate();
-
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
-        seatCacheService.validateOccupiedSeat(
+        LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
                 request.getSeats()
         );
 
+        LocalDateTime preparedAt = LocalDateTime.now();
+        CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
+                idempotencyKeyGenerator.generate(),
+                currentUserId,
+                request.getOrderId(),
+                request.getEventId(),
+                generatePaymentNo(),
+                expiresAt
+        );
+        checkoutAttemptJpaRepository.save(checkoutAttempt);
+
         return CheckoutPrepareResponse.builder()
                 .eventId(request.getEventId())
                 .orderId(request.getOrderId())
                 .seats(request.getSeats())
-                .idempotencyKey(idempotencyKey)
+                .idempotencyKey(checkoutAttempt.getIdempotencyKey())
                 .prepared(true)
-                .preparedAt(LocalDateTime.now())
+                .preparedAt(preparedAt)
+                .expiresAt(expiresAt)
                 .build();
     }
 

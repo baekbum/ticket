@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static dev.bum.common.service.ticket.event.event.enums.TicketLimitScope.PER_GROUP;
@@ -351,28 +352,39 @@ public class SeatCacheService {
      * 예매 요청 좌석이 요청 사용자로 선점된 상태인지 검증하는 메서드
      */
     @Observed(name = "ticket.seat-cache.redis.validate-occupied-seat", contextualName = "ticket seat cache redis validate occupied seat")
-    public void validateOccupiedSeat(Long eventId, String userId, String orderId, List<SeatInfo> seats) {
+    public LocalDateTime validateOccupiedSeat(Long eventId, String userId, String orderId, List<SeatInfo> seats) {
+        LocalDateTime earliestExpiresAt = null;
+
         for (SeatInfo seat : seats) {
             String correctValue = buildSeatLockValue(userId, orderId);
             String redisKey = buildSeatRedisKey(eventId, seat.getZone(), seat.getRow(), seat.getCol());
             String redisKeyValue;
+            Long ttlMillis;
 
             try {
                 redisKeyValue = seatRedisTemplate.opsForValue().get(redisKey);
+                ttlMillis = seatRedisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
             } catch (DataAccessException e) {
                 log.error("[REDIS-ERROR] 좌석 선점 검증 Redis 조회 실패. operation=get, keyPrefix=event:{eventId}:seat, redisKey={}, eventId={}, userId={}, orderId={}",
                         redisKey, eventId, userId, orderId, e);
                 throw new SeatOccupationFailedException("좌석 정보 검증 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", e);
             }
 
-            if (redisKeyValue == null || !redisKeyValue.equals(correctValue)) {
+            if (redisKeyValue == null || !redisKeyValue.equals(correctValue) || ttlMillis == null || ttlMillis <= 0) {
                 log.error("[Redis 좌석 검증 오류 발생] eventId={}, zone={}, row={}, col={}, userId={}, orderId={}, redisKey={}",
                         eventId, seat.getZone(), seat.getRow(), seat.getCol(), userId, orderId, redisKey);
-                log.error("[Redis 저장된 좌석 정보] : {}", redisKeyValue);
+                log.error("[Redis 저장된 좌석 정보] value={}, ttlMillis={}", redisKeyValue, ttlMillis);
 
                 throw new SeatOccupationFailedException("좌석 정보가 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
             }
+
+            LocalDateTime expiresAt = LocalDateTime.now().plusNanos(ttlMillis * 1_000_000);
+            if (earliestExpiresAt == null || expiresAt.isBefore(earliestExpiresAt)) {
+                earliestExpiresAt = expiresAt;
+            }
         }
+
+        return earliestExpiresAt;
     }
 
     /**
