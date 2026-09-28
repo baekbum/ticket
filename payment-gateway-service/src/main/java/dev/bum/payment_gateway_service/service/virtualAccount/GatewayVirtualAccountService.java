@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
@@ -42,7 +43,11 @@ public class GatewayVirtualAccountService {
 
     public GatewayVirtualAccountIssueResponse issue(GatewayVirtualAccountIssueRequest request) {
         return dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())
-                .map(virtualAccount -> toIssueResponse(virtualAccount, "이미 발급된 가상계좌입니다."))
+                .map(virtualAccount -> {
+                    validateSameIssueRequest(virtualAccount, request);
+                    expireIfNecessary(virtualAccount);
+                    return toIssueResponse(virtualAccount, "이미 발급된 가상계좌입니다.");
+                })
                 .orElseGet(() -> issueNewVirtualAccount(request));
     }
 
@@ -223,6 +228,25 @@ public class GatewayVirtualAccountService {
         }
     }
 
+    private void validateSameIssueRequest(
+            DummyVirtualAccount virtualAccount,
+            GatewayVirtualAccountIssueRequest request
+    ) {
+        boolean sameBankCompany = virtualAccount.getBankCompany() == request.getBankCompany();
+        boolean sameAmount = virtualAccount.getAmount().compareTo(request.getAmount()) == 0;
+
+        if (!sameBankCompany || !sameAmount) {
+            throw new IllegalArgumentException("동일한 결제번호로 다른 가상계좌 발급 정보를 요청할 수 없습니다.");
+        }
+    }
+
+    private void expireIfNecessary(DummyVirtualAccount virtualAccount) {
+        if (virtualAccount.getStatus() == VirtualAccountPaymentStatus.WAITING_DEPOSIT
+                && LocalDateTime.now().isAfter(virtualAccount.getExpiresAt())) {
+            virtualAccount.expire();
+        }
+    }
+
     private void validateRefund(DummyVirtualAccount virtualAccount, GatewayVirtualAccountRefundRequest request) {
         if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
             throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
@@ -241,6 +265,7 @@ public class GatewayVirtualAccountService {
                 .depositorName(virtualAccount.getDepositorName())
                 .amount(virtualAccount.getAmount())
                 .expiresAt(virtualAccount.getExpiresAt())
+                .status(GatewayVirtualAccountStatus.valueOf(virtualAccount.getStatus().name()))
                 .issued(true)
                 .message(message)
                 .build();

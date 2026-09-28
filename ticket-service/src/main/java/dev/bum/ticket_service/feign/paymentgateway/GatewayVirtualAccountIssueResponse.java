@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.feign.paymentgateway;
 
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,7 @@ public class GatewayVirtualAccountIssueResponse {
     private String depositorName;
     private BigDecimal amount;
     private LocalDateTime expiresAt;
+    private GatewayVirtualAccountStatus status;
     private Boolean issued;
     private String message;
 }

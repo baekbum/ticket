@@ -2,6 +2,7 @@ package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
@@ -66,6 +67,7 @@ class GatewayVirtualAccountServiceTest {
         GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
 
         assertThat(response.getIssued()).isTrue();
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.WAITING_DEPOSIT);
         assertThat(response.getBankCompany()).isEqualTo(BankCompany.KB);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).startsWith("1111-");
@@ -95,9 +97,78 @@ class GatewayVirtualAccountServiceTest {
         GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
 
         assertThat(response.getAccountNumber()).isEqualTo("1111-1234-123456");
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.WAITING_DEPOSIT);
         assertThat(response.getMessage()).isEqualTo("이미 발급된 가상계좌입니다.");
         then(dummyVirtualAccountJpaRepository).should().findByPaymentNo(request.getPaymentNo());
         then(dummyVirtualAccountJpaRepository).shouldHaveNoMoreInteractions();
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 발급된 paymentNo의 은행이 다르면 재발급을 거부한다")
+    void reject_existing_virtual_account_with_different_bank() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        request.setBankCompany(BankCompany.SHINHAN);
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                request.getAmount(),
+                LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.issue(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("동일한 결제번호로 다른 가상계좌 발급 정보를 요청할 수 없습니다.");
+
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 발급된 paymentNo의 금액이 다르면 재발급을 거부한다")
+    void reject_existing_virtual_account_with_different_amount() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                BigDecimal.valueOf(170000),
+                LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.issue(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("동일한 결제번호로 다른 가상계좌 발급 정보를 요청할 수 없습니다.");
+
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 만료된 가상계좌를 조회하면 만료 상태를 반환한다")
+    void return_expired_status_for_existing_virtual_account() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                request.getAmount(),
+                LocalDateTime.of(LocalDate.now().minusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
+
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.EXPIRED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(response.getIssued()).isTrue();
         then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
         then(ticketPaymentClient).shouldHaveNoInteractions();
     }
