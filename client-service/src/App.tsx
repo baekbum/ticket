@@ -2622,6 +2622,10 @@ function BookingWindowPage() {
         return;
       }
 
+      if (error instanceof ApiRequestError && error.code === 'SEAT_ALREADY_OCCUPIED' && selectedArea) {
+        await selectArea(selectedArea);
+      }
+
       alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));
     } finally {
       checkoutPreparingRef.current = false;
