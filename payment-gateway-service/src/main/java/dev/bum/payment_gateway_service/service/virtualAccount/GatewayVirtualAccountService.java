@@ -5,6 +5,8 @@ import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRe
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
@@ -18,6 +20,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpa
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +39,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class GatewayVirtualAccountService {
 
     private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
+    private static final int MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS = 3;
 
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
@@ -141,35 +145,73 @@ public class GatewayVirtualAccountService {
     }
 
     private boolean applyTicketVirtualAccountDepositCompleted(DummyVirtualAccount virtualAccount) {
-        try {
-            ticketPaymentClient.completeVirtualAccountDeposit(
-                    VirtualAccountDepositCompleteRequest.builder()
-                            .paymentNo(virtualAccount.getPaymentNo())
-                            .bankCompany(virtualAccount.getBankCompany())
-                            .bankName(virtualAccount.getBankName())
-                            .accountNumber(virtualAccount.getAccountNumber())
-                            .depositorName(virtualAccount.getDepositorName())
-                            .amount(virtualAccount.getAmount())
-                            .depositedAt(virtualAccount.getDepositedAt())
-                            .build()
-            );
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo(virtualAccount.getPaymentNo())
+                .bankCompany(virtualAccount.getBankCompany())
+                .bankName(virtualAccount.getBankName())
+                .accountNumber(virtualAccount.getAccountNumber())
+                .depositorName(virtualAccount.getDepositorName())
+                .amount(virtualAccount.getAmount())
+                .depositedAt(virtualAccount.getDepositedAt())
+                .build();
 
-            virtualAccount.completeTicketPayment(null);
+        String failureReason = null;
 
-            dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                    DummyVirtualAccountPaymentHistory.ticketPaymentCompleted(virtualAccount)
-            );
+        for (int attempt = 1; attempt <= MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS; attempt++) {
+            PaymentResponse response;
 
-            return true;
-        } catch (RuntimeException e) {
-            virtualAccount.failTicketPayment("ticket-service 입금 완료 반영 실패: " + e.getMessage());
+            try {
+                response = ticketPaymentClient.completeVirtualAccountDeposit(request);
+            } catch (FeignException e) {
+                failureReason = e.status() <= 0
+                        ? "ticket-service 입금 완료 응답을 확인하지 못했습니다."
+                        : "ticket-service 입금 완료 반영 실패: HTTP " + e.status();
 
-            dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                    DummyVirtualAccountPaymentHistory.ticketPaymentFailed(virtualAccount)
-            );
+                if (!isRetryableTicketFailure(e) || attempt == MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS) {
+                    break;
+                }
 
-            return false;
+                log.warn("ticket-service 입금 완료 요청 재시도: paymentNo={}, attempt={}", virtualAccount.getPaymentNo(), attempt + 1);
+                continue;
+            } catch (RuntimeException e) {
+                failureReason = "ticket-service 입금 완료 반영 실패: " + e.getClass().getSimpleName();
+                break;
+            }
+
+            if (isConfirmedDeposit(response, virtualAccount)) {
+                virtualAccount.completeTicketPayment(null);
+
+                dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                        DummyVirtualAccountPaymentHistory.ticketPaymentCompleted(virtualAccount)
+                );
+
+                return true;
+            }
+
+            failureReason = "ticket-service 입금 완료 응답이 결제 정보와 일치하지 않습니다.";
+            break;
         }
+
+        virtualAccount.failTicketPayment(failureReason);
+        dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                DummyVirtualAccountPaymentHistory.ticketPaymentFailed(virtualAccount)
+        );
+
+        return false;
+    }
+
+    private boolean isConfirmedDeposit(PaymentResponse response, DummyVirtualAccount virtualAccount) {
+        return response != null
+                && response.getStatus() == PaymentStatus.PAID
+                && response.getMethod() == PaymentMethod.BANK_TRANSFER
+                && virtualAccount.getPaymentNo().equals(response.getPaymentNo())
+                && response.getAmount() != null
+                && virtualAccount.getAmount().compareTo(BigDecimal.valueOf(response.getAmount())) == 0
+                && virtualAccount.getAccountNumber().equals(response.getAccountNumber());
+    }
+
+    private boolean isRetryableTicketFailure(FeignException exception) {
+        return exception.status() <= 0 || exception.status() >= 500;
     }
 
     /**

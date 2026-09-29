@@ -109,17 +109,19 @@ paymentNo unique 제약은 중복 승인 저장을 차단한다. 완료/취소/�
 
 8. payment-gateway-service -> ticket-service
    입금 완료 내부 API 호출
-   ticket-service 결제 완료 반영 요청
+   ticket-service 결제 완료 반영 요청. 타임아웃/5xx는 동일 요청으로 최대 3회 시도
 
 9. ticket-service
    Payment.status = PAID
    예약/티켓/좌석 상태 확정
 
 10. payment-gateway-service
-    ticket-service 반영 성공 시 DummyVirtualAccount.status = TICKET_PAYMENT_COMPLETED
-    ticket-service 반영 실패 시 DummyVirtualAccount.status = TICKET_PAYMENT_FAILED
+    PAID 응답의 결제번호·결제수단·금액·계좌번호를 확인한 뒤 DummyVirtualAccount.status = TICKET_PAYMENT_COMPLETED
+    4xx, 응답 불일치 또는 3회 시도 후에도 완료를 확인하지 못하면 DummyVirtualAccount.status = TICKET_PAYMENT_FAILED
     실패 사유 저장
 ```
+
+Ticket은 같은 입금 완료 요청을 다시 받아도 이미 `PAID`인 결제를 확인해 완료 응답을 반환한다. 따라서 PG는 앞선 호출의 응답만 유실된 경우에도 동일한 요청으로 결과를 확인할 수 있다.
 
 ### 상태 흐름
 
