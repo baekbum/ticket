@@ -25,6 +25,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.CheckoutService;
 import dev.bum.ticket_service.service.checkout.CheckoutIdempotencyKeyGenerator;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
@@ -79,6 +80,9 @@ class CheckoutServiceTest {
 
     @Mock
     private CheckoutPaymentService checkoutPaymentService;
+
+    @Mock
+    private PaymentGatewayCardClient paymentGatewayCardClient;
 
     @Spy
     private CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
@@ -267,6 +271,87 @@ class CheckoutServiceTest {
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         then(seatCacheService).shouldHaveNoInteractions();
         then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentGatewayCardClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("카드 READY 결제에 승인 이력이 없으면 같은 결제번호로 무통장 전환한다")
+    void confirm_switches_card_to_bank_transfer_before_approval() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = Payment.builder()
+                .paymentId(1L)
+                .reservation(reservation)
+                .paymentNo("PAY-1")
+                .method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.READY)
+                .amount(180000)
+                .idempotencyKey("idem-1")
+                .requestedAt(LocalDateTime.now().minusMinutes(1))
+                .expiresAt(LocalDateTime.now().plusMinutes(8))
+                .build();
+        CheckoutAttempt checkoutAttempt = confirmedAttempt(payment);
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(checkoutAttempt));
+        given(paymentJpaRepository.findByPaymentNoForUpdate("PAY-1")).willReturn(Optional.of(payment));
+        given(paymentGatewayCardClient.hasApprovalHistory("PAY-1")).willReturn(false);
+        doAnswer(invocation -> {
+            Payment switchingPayment = invocation.getArgument(1);
+            switchingPayment.waitDeposit("KB국민은행", "1111-2222-3333-4444", LocalDateTime.now().plusDays(1));
+            return null;
+        }).when(checkoutPaymentService).process(request, payment);
+
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
+
+        assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
+        then(paymentGatewayCardClient).should().hasApprovalHistory("PAY-1");
+        then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(reservationRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("PG에 카드 승인 이력이 있으면 READY 결제도 무통장으로 바꾸지 않는다")
+    void confirm_rejects_card_to_bank_transfer_after_approval() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = Payment.builder()
+                .paymentId(1L).reservation(reservation).paymentNo("PAY-1")
+                .method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.READY)
+                .amount(180000).idempotencyKey("idem-1")
+                .expiresAt(LocalDateTime.now().plusMinutes(8)).build();
+        CheckoutAttempt checkoutAttempt = confirmedAttempt(payment);
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(checkoutAttempt));
+        given(paymentJpaRepository.findByPaymentNoForUpdate("PAY-1")).willReturn(Optional.of(payment));
+        given(paymentGatewayCardClient.hasApprovalHistory("PAY-1")).willReturn(true);
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("카드 승인 이력이 있어 결제 수단을 변경할 수 없습니다.");
+        assertThat(payment.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+        then(checkoutPaymentService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("발급된 무통장 결제는 카드로 변경하지 않는다")
+    void confirm_rejects_bank_transfer_to_card() {
+        Reservation reservation = reservation(event(), "user01");
+        Payment payment = Payment.builder()
+                .paymentId(1L).reservation(reservation).paymentNo("PAY-1")
+                .method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.WAITING_DEPOSIT)
+                .amount(180000).idempotencyKey("idem-1").build();
+        CheckoutAttempt checkoutAttempt = confirmedAttempt(payment);
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(checkoutAttempt));
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("변경할 수 없는 결제 수단입니다.");
+        then(paymentGatewayCardClient).shouldHaveNoInteractions();
     }
 
     @Test
@@ -444,6 +529,15 @@ class CheckoutServiceTest {
                 "PAY-PREPARED",
                 LocalDateTime.now().plusMinutes(9)
         );
+    }
+
+    private CheckoutAttempt confirmedAttempt(Payment payment) {
+        CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
+                "idem-1", "user01", "order-1", 1L, payment.getPaymentNo(),
+                LocalDateTime.now().plusMinutes(9)
+        );
+        checkoutAttempt.confirm(payment);
+        return checkoutAttempt;
     }
 
 }

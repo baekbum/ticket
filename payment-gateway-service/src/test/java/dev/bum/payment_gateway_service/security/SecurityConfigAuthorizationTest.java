@@ -71,6 +71,20 @@ class SecurityConfigAuthorizationTest {
     }
 
     @Test
+    void internal_service_can_check_card_approval_history() throws Exception {
+        mockMvc.perform(get("/api/v1/payments/card/internal/PAY-1/approval-exists")
+                        .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void user_cannot_check_internal_card_approval_history() throws Exception {
+        mockMvc.perform(get("/api/v1/payments/card/internal/PAY-1/approval-exists"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @WithMockUser(roles = "ADMIN")
     void admin_cannot_approve_card_directly() throws Exception {
         mockMvc.perform(post("/api/v1/payments/card/approve"))

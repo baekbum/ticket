@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
@@ -18,6 +19,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -47,6 +49,7 @@ public class CheckoutService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final CheckoutAttemptJpaRepository checkoutAttemptJpaRepository;
     private final CheckoutPaymentService checkoutPaymentService;
+    private final PaymentGatewayCardClient paymentGatewayCardClient;
     private final CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
 
     @Value("${payment.expiration.ready-timeout-minutes:10}")
@@ -106,11 +109,16 @@ public class CheckoutService {
                 .findByIdempotencyKeyForUpdate(idempotencyKey)
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
 
-        validateCheckoutAttempt(currentUserId, request, checkoutAttempt);
+        validateRequestMatchesAttempt(currentUserId, request, checkoutAttempt);
 
-        Payment confirmedPayment = checkoutAttempt.getPayment();
-        if (validateCheckoutStatus(checkoutAttempt, confirmedPayment)) {
-            return confirmedPayment.toResponse();
+        if (checkoutAttempt.isConfirmed()) {
+            return handleConfirmedPayment(currentUserId, activeToken, request, checkoutAttempt);
+        }
+        if (!checkoutAttempt.isPrepared()) {
+            throw new IllegalStateException("결제를 진행할 수 없는 checkout 상태입니다.");
+        }
+        if (checkoutAttempt.isExpired(LocalDateTime.now())) {
+            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
@@ -155,7 +163,7 @@ public class CheckoutService {
         return savedPayment.toResponse();
     }
 
-    private void validateCheckoutAttempt(
+    private void validateRequestMatchesAttempt(
             String currentUserId,
             CheckoutConfirmRequest request,
             CheckoutAttempt checkoutAttempt
@@ -169,21 +177,63 @@ public class CheckoutService {
         }
     }
 
-    private boolean validateCheckoutStatus(CheckoutAttempt checkoutAttempt, Payment confirmedPayment) {
-        if (checkoutAttempt.isConfirmed()) {
-            if (confirmedPayment == null) {
-                throw new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.");
-            }
-            return true;
+    private PaymentResponse handleConfirmedPayment(
+            String currentUserId,
+            String activeToken,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt
+    ) {
+        Payment confirmedPayment = checkoutAttempt.getPayment();
+
+        if (confirmedPayment == null) {
+            throw new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.");
         }
-        if (!checkoutAttempt.isPrepared()) {
-            throw new IllegalStateException("결제를 진행할 수 없는 checkout 상태입니다.");
+
+        if (confirmedPayment.getMethod() == request.getPaymentMethod()) {
+            return confirmedPayment.toResponse();
         }
-        if (checkoutAttempt.isExpired(LocalDateTime.now())) {
+
+        return switchCardToBankTransfer(currentUserId, activeToken, request, checkoutAttempt, confirmedPayment);
+    }
+
+    private PaymentResponse switchCardToBankTransfer(
+            String currentUserId,
+            String activeToken,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt,
+            Payment confirmedPayment
+    ) {
+
+        if (confirmedPayment.getMethod() != PaymentMethod.CREDIT_CARD
+                || request.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalStateException("변경할 수 없는 결제 수단입니다.");
+        }
+
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(confirmedPayment.getPaymentNo())
+                .orElseThrow(() -> new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다."));
+
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD || payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (checkoutAttempt.isExpired(now) || payment.getExpiresAt() == null
+                || !payment.getExpiresAt().isAfter(now)) {
             throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
         }
 
-        return false;
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        seatCacheService.validateOccupiedSeat(
+                request.getEventId(), currentUserId, request.getOrderId(), request.getSeats()
+        );
+
+        if (!Boolean.FALSE.equals(paymentGatewayCardClient.hasApprovalHistory(payment.getPaymentNo()))) {
+            throw new IllegalStateException("카드 승인 이력이 있어 결제 수단을 변경할 수 없습니다.");
+        }
+
+        payment.switchToBankTransfer();
+        checkoutPaymentService.process(request, payment);
+        return payment.toResponse();
     }
 
 

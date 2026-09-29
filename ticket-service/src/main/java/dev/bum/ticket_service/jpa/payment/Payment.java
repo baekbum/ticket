@@ -174,6 +174,13 @@ public class Payment {
         this.expiresAt = expiresAt;
     }
 
+    public void switchToBankTransfer() {
+        if (this.method != PaymentMethod.CREDIT_CARD || this.status != PaymentStatus.READY) {
+            throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
+        }
+        this.method = PaymentMethod.BANK_TRANSFER;
+    }
+
     public void completeCard(String transactionId, CardCompany cardCompany, String maskedCardNumber, LocalDateTime paidAt) {
         this.cardInfo = CardPaymentInfo.builder()
                 .transactionId(transactionId)
