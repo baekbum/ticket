@@ -175,9 +175,12 @@ class CheckoutServiceTest {
         new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
         CheckoutAttempt checkoutAttempt = preparedAttempt();
+        LocalDateTime seatExpiresAt = LocalDateTime.now().plusMinutes(8);
 
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
+                .willReturn(seatExpiresAt);
         given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
@@ -193,6 +196,7 @@ class CheckoutServiceTest {
         assertThat(response.getAccountNumber()).isNull();
         assertThat(checkoutAttempt.getStatus()).isEqualTo(CheckoutAttemptStatus.CONFIRMED);
         assertThat(checkoutAttempt.getPayment()).isNotNull();
+        assertThat(checkoutAttempt.getPayment().getExpiresAt()).isEqualTo(seatExpiresAt);
 
         then(seatCacheService).should().validateOccupiedSeat(1L, "user01", "order-1", request.getSeats());
         then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.argThat(info ->

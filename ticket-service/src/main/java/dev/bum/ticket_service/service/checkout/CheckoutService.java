@@ -52,9 +52,6 @@ public class CheckoutService {
     private final PaymentGatewayCardClient paymentGatewayCardClient;
     private final CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
 
-    @Value("${payment.expiration.ready-timeout-minutes:10}")
-    private long paymentReadyTimeoutMinutes = 10;
-
     @Value("${app.checkout.reservation-fee-per-ticket:4000}")
     private int reservationFeePerTicket = 4000;
 
@@ -123,7 +120,7 @@ public class CheckoutService {
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
-        seatCacheService.validateOccupiedSeat(
+        LocalDateTime seatExpiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
@@ -152,7 +149,7 @@ public class CheckoutService {
                 .deliveryFeeAmount(request.getDelivery() != null ? deliveryFee : 0)
                 .idempotencyKey(idempotencyKey)
                 .requestedAt(requestedAt)
-                .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))
+                .expiresAt(seatExpiresAt)
                 .build();
 
         checkoutPaymentService.process(request, payment);
