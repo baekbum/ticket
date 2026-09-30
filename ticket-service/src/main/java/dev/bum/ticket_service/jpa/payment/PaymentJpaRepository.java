@@ -1,10 +1,13 @@
 package dev.bum.ticket_service.jpa.payment;
 
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import io.micrometer.observation.annotation.Observed;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +19,21 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
+
+    @EntityGraph(attributePaths = "reservation")
+    Page<Payment> findByMethod(PaymentMethod method, Pageable pageable);
+
+    @EntityGraph(attributePaths = "reservation")
+    Page<Payment> findByMethodAndStatus(PaymentMethod method, PaymentStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = "reservation")
+    Page<Payment> findByMethodAndPaymentNoContainingIgnoreCase(PaymentMethod method, String paymentNo, Pageable pageable);
+
+    @EntityGraph(attributePaths = "reservation")
+    Page<Payment> findByMethodAndStatusAndPaymentNoContainingIgnoreCase(
+            PaymentMethod method, PaymentStatus status, String paymentNo, Pageable pageable);
+
+    Optional<Payment> findByPaymentNo(String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.paymentNo = :paymentNo")

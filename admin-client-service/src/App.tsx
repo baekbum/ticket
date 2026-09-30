@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { adminFetch, clearTokens, getAccessToken, loadCurrentUser, login, logout, type AdminUser } from './api';
+import VirtualAccountReconciliation from './VirtualAccountReconciliation';
 
 type Menu = { key: string; label: string; icon: string };
 const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
@@ -12,6 +13,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
     { key: 'reservation', label: '예매 관리', icon: 'calendar-stats' },
     { key: 'reservationDelivery', label: '배송 관리', icon: 'truck-delivery' },
     { key: 'paymentRefundProcess', label: '환불 처리 현황', icon: 'refresh-alert' },
+    { key: 'virtualAccountReconciliation', label: '가상계좌 입금 현황', icon: 'receipt' },
   ] },
   { label: '쿠폰', icon: 'discount-2', items: [
     { key: 'coupon', label: '쿠폰 관리', icon: 'discount-check' },
@@ -364,7 +366,9 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
         })}
       </nav>
       <main className="admin-main">
-        <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={menuGroups.flatMap(group => group.items).find(item => item.key === menu)?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />
+        {menu === 'virtualAccountReconciliation'
+          ? <VirtualAccountReconciliation />
+          : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={menuGroups.flatMap(group => group.items).find(item => item.key === menu)?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}
         {embeds.length > 0 && <div className="embed-layer">
           {embeds.map(embed => {
             const offset = ((embed.id - 1) % 5) * 36;

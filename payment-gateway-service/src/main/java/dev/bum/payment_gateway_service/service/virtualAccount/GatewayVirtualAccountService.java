@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
@@ -44,6 +45,18 @@ public class GatewayVirtualAccountService {
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
+
+    @Transactional(readOnly = true)
+    public GatewayVirtualAccountStatusResponse status(String paymentNo) {
+        DummyVirtualAccount account = dummyVirtualAccountJpaRepository.findByPaymentNo(paymentNo)
+                .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
+        return new GatewayVirtualAccountStatusResponse(
+                account.getPaymentNo(), account.getBankCompany(), account.getBankName(),
+                account.getAccountNumber(), account.getDepositorName(), account.getAmount(),
+                account.getExpiresAt(), account.getDepositedAt(),
+                GatewayVirtualAccountStatus.valueOf(account.getStatus().name())
+        );
+    }
 
     public GatewayVirtualAccountIssueResponse issue(GatewayVirtualAccountIssueRequest request) {
         return dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())

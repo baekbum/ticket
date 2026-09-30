@@ -40,6 +40,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/approve").hasRole(ROLE_USER) // 카드 결제 최소 승인
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/internal/*/approval-exists").hasRole(ROLE_INTERNAL) // 승인 내용이 있는지 조회
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/*").hasRole(ROLE_USER) // 카드 상태 조회
+                        .requestMatchers(HttpMethod.GET, "/api/*/payments/virtual-account/internal/*/status").hasRole(ROLE_INTERNAL)
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/refund").hasRole(ROLE_INTERNAL) // 환불의 경우 ticket 서비스에서 요청
                         .requestMatchers(
                                 HttpMethod.POST,

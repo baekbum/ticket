@@ -14,12 +14,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("test")
 @DataJpaTest
@@ -61,6 +64,34 @@ class PaymentJpaRepositoryTest {
         assertThatThrownBy(() -> {
             paymentJpaRepository.saveAndFlush(virtualAccountPayment(secondReservation, "PAY-2", "idem-2", "1111-2222"));
         }).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("가상계좌 목록은 카드 결제를 제외하고 최신순 정렬과 상태·결제번호 검색을 지원한다")
+    void virtual_account_list_is_filtered_and_sorted() {
+        Event event = eventJpaRepository.save(event());
+        Reservation first = reservationJpaRepository.save(reservation("order-1", "user01", event));
+        Reservation second = reservationJpaRepository.save(reservation("order-2", "user01", event));
+        Reservation third = reservationJpaRepository.save(reservation("order-3", "user01", event));
+        Reservation fourth = reservationJpaRepository.save(reservation("order-4", "user01", event));
+
+        Payment older = virtualAccountPayment(first, "PAY-OLD", "idem-1", "1111-2222");
+        Payment newer = virtualAccountPayment(second, "PAY-NEW", "idem-2", "3333-4444");
+        Payment expired = virtualAccountPayment(third, "PAY-EXPIRED", "idem-3", "5555-6666");
+        paymentJpaRepository.save(older);
+        paymentJpaRepository.save(newer);
+        paymentJpaRepository.save(expired);
+        paymentJpaRepository.save(payment(fourth, "PAY-CARD", "idem-4"));
+        // 요청 시각이 같으면 생성 순서(paymentId)의 역순으로 보여준다.
+        var pageable = PageRequest.of(0, 2, Sort.by(Sort.Order.desc("requestedAt"), Sort.Order.desc("paymentId")));
+
+        var page = paymentJpaRepository.findByMethod(PaymentMethod.BANK_TRANSFER, pageable);
+
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).extracting(Payment::getPaymentNo).containsExactly("PAY-EXPIRED", "PAY-NEW");
+        assertThat(paymentJpaRepository.findByMethodAndStatusAndPaymentNoContainingIgnoreCase(
+                PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_DEPOSIT, "new", pageable).getContent())
+                .extracting(Payment::getPaymentNo).containsExactly("PAY-NEW");
     }
 
     private Event event() {

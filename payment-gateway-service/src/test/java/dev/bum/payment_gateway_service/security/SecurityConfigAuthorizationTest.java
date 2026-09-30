@@ -132,4 +132,18 @@ class SecurityConfigAuthorizationTest {
                         .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void user_cannot_query_virtual_account_status() throws Exception {
+        mockMvc.perform(get("/api/v1/payments/virtual-account/internal/PAY-1/status"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internal_service_can_query_virtual_account_status() throws Exception {
+        mockMvc.perform(get("/api/v1/payments/virtual-account/internal/PAY-1/status")
+                        .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
+                .andExpect(status().isOk());
+    }
 }
