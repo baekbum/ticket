@@ -387,14 +387,14 @@
         <input type="radio" name="cache-warmup-mode" value="MISSING_ONLY" checked>
         <span>
           <strong>없는 데이터만 추가</strong>
-          <small>이미 Redis에 있는 좌석 상태는 유지합니다.</small>
+          <small>판매 전에는 없는 좌석을 DB 상태로 추가합니다. 판매 후에는 DB에서 예매 가능하고 Redis 좌석·락 키가 모두 없는 좌석만 추가합니다.</small>
         </span>
       </label>
       <label class="cache-mode-card">
         <input type="radio" name="cache-warmup-mode" value="OVERWRITE">
         <span>
           <strong>전체 덮어쓰기</strong>
-          <small>대상 좌석을 모두 AVAILABLE 상태로 다시 적재합니다.</small>
+          <small>판매 시작 전까지만 사용할 수 있으며, 대상 좌석을 DB 상태로 다시 적재합니다.</small>
         </span>
       </label>
     </div>

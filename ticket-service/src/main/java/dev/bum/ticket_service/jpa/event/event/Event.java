@@ -29,7 +29,6 @@ import java.util.List;
 @Builder
 public class Event {
 
-    // 🌟 가독성과 성능을 위해 포맷터를 상수로 분리
     private static final DateTimeFormatter EVENT_FORMATTER = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시 mm분");
 
     @Id

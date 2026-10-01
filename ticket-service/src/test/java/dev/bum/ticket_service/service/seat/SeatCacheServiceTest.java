@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -82,6 +83,73 @@ class SeatCacheServiceTest {
                 seatCacheSyncFailureService
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
+    }
+
+    @Test
+    @DisplayName("판매 시작 전 덮어쓰기는 DB 좌석 상태를 Redis에 그대로 반영한다")
+    void warm_up_before_sale_uses_database_status() {
+        Event event = Event.builder().eventId(EVENT_ID).saleStartAt(LocalDateTime.now().plusHours(1)).build();
+        Seat reserved = warmUpSeat(event, SeatStatus.RESERVED);
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+        given(repository.selectByEventId(EVENT_ID)).willReturn(List.of(reserved));
+
+        seatCacheService.warmUpEventSeatsToCache(EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE);
+
+        then(valueOperations).should().multiSet(java.util.Map.of(FIRST_SEAT_KEY, "RESERVED"));
+    }
+
+    @Test
+    @DisplayName("판매 시작 후 덮어쓰기는 좌석 캐시를 변경하지 않는다")
+    void warm_up_after_sale_rejects_overwrite() {
+        Event event = Event.builder().eventId(EVENT_ID).saleStartAt(LocalDateTime.now().minusMinutes(1)).build();
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+        given(repository.selectByEventId(EVENT_ID)).willReturn(List.of(warmUpSeat(event, SeatStatus.AVAILABLE)));
+
+        assertThatThrownBy(() -> seatCacheService.warmUpEventSeatsToCache(
+                EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("판매 시작 이후");
+        then(valueOperations).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("구역 단위 예열도 판매 시작 후 덮어쓰기를 거부한다")
+    void area_warm_up_after_sale_rejects_overwrite() {
+        Event event = Event.builder().eventId(EVENT_ID).saleStartAt(LocalDateTime.now().minusMinutes(1)).build();
+        given(repository.selectByAreaId(10L)).willReturn(List.of(warmUpSeat(event, SeatStatus.AVAILABLE)));
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+
+        assertThatThrownBy(() -> seatCacheService.warmUpAreaSeatsToCache(
+                10L, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("판매 시작 이후");
+        then(valueOperations).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("판매 시작 후 예열은 DB에서 가능한 좌석만 Redis 좌석 키와 lock 키가 비었을 때 채운다")
+    void warm_up_after_sale_only_fills_missing_available_seats() {
+        Event event = Event.builder().eventId(EVENT_ID).saleStartAt(LocalDateTime.now().minusMinutes(1)).build();
+        Seat available = warmUpSeat(event, SeatStatus.AVAILABLE);
+        Seat reserved = Seat.builder().event(event).zone("VIP").seatRow(1).seatCol(2)
+                .status(SeatStatus.RESERVED).build();
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
+        given(repository.selectByEventId(EVENT_ID)).willReturn(List.of(available, reserved));
+        given(seatRedisTemplate.execute(any(DefaultRedisScript.class),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), eq("604800000")))
+                .willReturn(1L);
+
+        String result = seatCacheService.warmUpEventSeatsToCache(
+                EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.MISSING_ONLY);
+
+        assertThat(result).contains("반영 1개");
+        then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), eq("604800000"));
+        then(valueOperations).shouldHaveNoInteractions();
+    }
+
+    private Seat warmUpSeat(Event event, SeatStatus status) {
+        return Seat.builder().event(event).zone("VIP").seatRow(1).seatCol(1).status(status).build();
     }
 
     @Test

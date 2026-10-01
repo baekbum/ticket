@@ -29,6 +29,7 @@ import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -54,6 +55,7 @@ public class SeatCacheService {
 
     private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
     private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
+    private static final DefaultRedisScript<Long> SAFE_WARM_UP_SCRIPT = safeWarmUpScript();
     private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final SeatRepository repository;
@@ -71,8 +73,13 @@ public class SeatCacheService {
     @Observed(name = "ticket.seat-cache.redis.warm-up-event", contextualName = "ticket seat cache redis warm up event")
     public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
         log.info("[REDIS-WARM-UP] EventId : {}, Mode : {}", eventId, mode);
+
+        Event event = eventRepository.selectById(eventId);
+        validateEventSaleStartAt(event);
+
         List<Seat> seats = repository.selectByEventId(eventId);
-        int updated = warmUpSeatCache(seats, mode);
+        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
+
         return String.format("이벤트 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", eventId, seats.size(), updated);
     }
 
@@ -86,7 +93,12 @@ public class SeatCacheService {
     public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
         log.info("[REDIS-WARM-UP] AreaId : {}, Mode : {}", areaId, mode);
         List<Seat> seats = repository.selectByAreaId(areaId);
-        int updated = warmUpSeatCache(seats, mode);
+        if (seats.isEmpty()) {
+            return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 0개, 반영 0개", areaId);
+        }
+        Event event = eventRepository.selectById(seats.get(0).getEvent().getEventId());
+        validateEventSaleStartAt(event);
+        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
         return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", areaId, seats.size(), updated);
     }
 
@@ -585,36 +597,100 @@ public class SeatCacheService {
         }
     }
 
+
+    private void validateEventSaleStartAt(Event event) {
+        if (event.getSaleStartAt() == null) {
+            throw new IllegalStateException("판매 시작 시간이 설정되지 않아 좌석 캐시를 예열할 수 없습니다.");
+        }
+    }
+
     /**
      * 좌석 목록을 Redis 캐시에 적재하는 메서드
      * @param seats
      * @param mode
      * @return
      */
-    private int warmUpSeatCache(List<Seat> seats, SeatCacheWarmUpMode mode) {
+    private int warmUpSeatCache(List<Seat> seats, SeatCacheWarmUpMode mode, LocalDateTime saleStartAt) {
         if (seats.isEmpty()) {
             return 0;
         }
 
         if (mode == SeatCacheWarmUpMode.OVERWRITE) {
-            Map<String, String> seatCacheMap = new HashMap<>();
-            for (Seat seat : seats) {
-                seatCacheMap.put(buildSeatRedisKey(seat), SeatStatus.AVAILABLE.name());
+            if (!LocalDateTime.now().isBefore(saleStartAt)) {
+                throw new IllegalStateException("판매 시작 이후에는 좌석 캐시를 덮어쓸 수 없습니다.");
             }
+
+            Map<String, String> seatCacheMap = new HashMap<>();
+
+            for (Seat seat : seats) {
+                seatCacheMap.put(buildSeatRedisKey(seat), seat.getStatus().name());
+            }
+
+            if (!LocalDateTime.now().isBefore(saleStartAt)) {
+                throw new IllegalStateException("판매 시작 이후에는 좌석 캐시를 덮어쓸 수 없습니다.");
+            }
+
             seatRedisTemplate.opsForValue().multiSet(seatCacheMap);
             expireSeatKeys(new ArrayList<>(seatCacheMap.keySet()));
             return seatCacheMap.size();
         }
 
-        int inserted = 0;
-        for (Seat seat : seats) {
-            Boolean success = seatRedisTemplate.opsForValue()
-                    .setIfAbsent(buildSeatRedisKey(seat), SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
-            if (Boolean.TRUE.equals(success)) {
-                inserted++;
+        if (mode == SeatCacheWarmUpMode.MISSING_ONLY) {
+            int inserted = 0;
+
+            // 판매 시작 시간 이후에는,
+            // redis에  키가 존재하지 않고,
+            // DB의 좌석 상태 값이 available인 좌석만 동기화
+            if (!LocalDateTime.now().isBefore(saleStartAt)) {
+                for (Seat seat : seats) {
+                    if (seat.getStatus() != SeatStatus.AVAILABLE) {
+                        continue;
+                    }
+
+                    String redisKey = buildSeatRedisKey(seat);
+                    Long result = seatRedisTemplate.execute(
+                            SAFE_WARM_UP_SCRIPT,
+                            List.of(redisKey, redisKey + ":lock"),
+                            String.valueOf(SEAT_CACHE_TTL.toMillis())
+                    );
+
+                    if (Long.valueOf(1L).equals(result)) {
+                        inserted++;
+                    }
+                }
+
+                return inserted;
+            }
+
+            // 판매 시작 시간 이전에는
+            // redis에 키가 존재하지 않는 모든 좌석 값을 DB값으로 동기화
+            else {
+                for (Seat seat : seats) {
+                    Boolean success = seatRedisTemplate.opsForValue()
+                            .setIfAbsent(buildSeatRedisKey(seat), seat.getStatus().name(), SEAT_CACHE_TTL);
+                    if (Boolean.TRUE.equals(success)) {
+                        inserted++;
+                    }
+                }
+
+                return inserted;
             }
         }
-        return inserted;
+
+        return 0;
+    }
+
+    private static DefaultRedisScript<Long> safeWarmUpScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setScriptText("""
+                if redis.call('exists', KEYS[1]) == 1 or redis.call('exists', KEYS[2]) == 1 then
+                    return 0
+                end
+                redis.call('psetex', KEYS[1], ARGV[1], 'AVAILABLE')
+                return 1
+                """);
+        script.setResultType(Long.class);
+        return script;
     }
 
     private int normalizeInspectLimit(int limit) {
