@@ -35,7 +35,8 @@ public class PaymentCompletionService {
     }
 
     private PaymentResponse complete(Payment payment, LocalDateTime paidAt, String depositorName) {
-        return complete(payment, paidAt, depositorName, null);
+        return
+                complete(payment, paidAt, depositorName, null);
     }
 
     public PaymentResponse completeCard(

@@ -40,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,6 +57,11 @@ public class SeatCacheService {
     private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
     private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
     private static final DefaultRedisScript<Long> SAFE_WARM_UP_SCRIPT = safeWarmUpScript();
+    private static final DefaultRedisScript<Long> SYNC_SEAT_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('psetex', KEYS[1], ARGV[1], ARGV[2])
+            redis.call('del', KEYS[2])
+            return 1
+            """, Long.class);
     private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final SeatRepository repository;
@@ -476,40 +482,51 @@ public class SeatCacheService {
         }
     }
 
+    /**
+     * DB에 좌석 상태를 반영한 후,
+     * Redis에 동기화 할 떄, 실패한 좌석에 대해 재처리를 위해 따로 따로 이력을 생성한다.
+     * @param operation
+     * @param updates
+     */
     private void syncSeatCacheUpdates(String operation, List<SeatCacheUpdate> updates) {
-        try {
-            for (SeatCacheUpdate update : updates) {
-                seatRedisTemplate.opsForValue().set(update.getRedisKey(), update.getValue(), update.getTtl());
-                seatRedisTemplate.delete(update.getRedisKey() + ":lock");
-            }
-        } catch (DataAccessException e) {
-            List<String> redisKeys = updates.stream()
-                    .map(SeatCacheUpdate::getRedisKey)
-                    .collect(Collectors.toList());
-            List<String> values = updates.stream()
-                    .map(SeatCacheUpdate::getValue)
-                    .distinct()
-                    .collect(Collectors.toList());
+        Map<SeatCacheUpdate, DataAccessException> failures = new LinkedHashMap<>();
 
-            log.error("[REDIS-ERROR] DB 커밋 후 좌석 Redis 동기화 실패. operation={}, keyPrefix=event:{eventId}:seat, redisKeys={}, values={}",
-                    operation, redisKeys, values, e);
+        for (SeatCacheUpdate update : updates) {
+            try {
+                Long result = seatRedisTemplate.execute(SYNC_SEAT_SCRIPT,
+                        List.of(update.getRedisKey(), update.getRedisKey() + ":lock"),
+                        String.valueOf(update.getTtl().toMillis()),
+                        update.getValue()
+                );
+
+                if (!Long.valueOf(1L).equals(result)) {
+                    throw new org.springframework.dao.DataRetrievalFailureException("좌석 Redis 동기화 결과를 확인할 수 없습니다.");
+                }
+            } catch (DataAccessException e) {
+                failures.put(update, e);
+                log.error("[REDIS-ERROR] DB 커밋 후 좌석 Redis 동기화 실패. operation={}, redisKey={}, value={}",
+                        operation, update.getRedisKey(), update.getValue(), e);
+            }
+        }
+
+        failures.forEach((update, exception) -> {
             try {
                 seatCacheSyncFailureService.recordFailure(
                         operation,
                         "event:{eventId}:seat",
-                        redisKeys,
-                        values,
-                        e
+                        List.of(update.getRedisKey()),
+                        List.of(update.getValue()),
+                        exception
                 );
             } catch (Exception recordException) {
-                log.error("[REDIS-ERROR] 좌석 Redis 동기화 실패 이력 저장 실패. operation={}, redisKeys={}",
-                        operation, redisKeys, recordException);
+                log.error("[REDIS-ERROR] 좌석 Redis 동기화 실패 이력 저장 실패. operation={}, redisKey={}",
+                        operation, update.getRedisKey(), recordException);
             }
-        }
+        });
     }
 
     /**
-     * 다중 좌석 선점 중 오류가 발생했을 때 Redis 상태를 원복하는 메서드
+     * 좌석 선점 중 오류가 발생했을 때 Redis 상태를 원복하는 메서드
      * @param lockKeys
      * @param redisKeys
      */

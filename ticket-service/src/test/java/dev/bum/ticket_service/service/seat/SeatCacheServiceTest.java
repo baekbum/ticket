@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -286,17 +287,19 @@ class SeatCacheServiceTest {
         TransactionSynchronizationManager.initSynchronization();
         try {
             Seat seat = seat(1L, "VIP", 1, 1);
+            given(seatRedisTemplate.execute(any(DefaultRedisScript.class), anyList(), anyString(), eq("RESERVED")))
+                    .willReturn(1L);
 
             seatCacheService.syncReservedSeatsAfterCommit(List.of(seat));
 
-            then(valueOperations).should(never()).set(anyString(), anyString(), any(Duration.class));
+            then(seatRedisTemplate).should(never()).execute(any(DefaultRedisScript.class), anyList(), anyString(), anyString());
 
             List<TransactionSynchronization> synchronizations =
                     TransactionSynchronizationManager.getSynchronizations();
             synchronizations.forEach(TransactionSynchronization::afterCommit);
 
-            then(valueOperations).should().set(eq(FIRST_SEAT_KEY), eq(SeatStatus.RESERVED.name()), any(Duration.class));
-            then(seatRedisTemplate).should().delete(FIRST_SEAT_KEY + ":lock");
+            then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
+                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("RESERVED"));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -309,9 +312,9 @@ class SeatCacheServiceTest {
         try {
             Seat seat = seat(1L, "VIP", 1, 1);
             DataAccessException redisError = new DataAccessException("redis error") {};
-            willThrow(redisError)
-                    .given(valueOperations)
-                    .set(eq(FIRST_SEAT_KEY), eq(SeatStatus.RESERVED.name()), any(Duration.class));
+            given(seatRedisTemplate.execute(any(DefaultRedisScript.class),
+                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("RESERVED")))
+                    .willThrow(redisError);
 
             seatCacheService.syncReservedSeatsAfterCommit(List.of(seat));
 
@@ -329,6 +332,30 @@ class SeatCacheServiceTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    @Test
+    @DisplayName("좌석별 동기화를 계속 수행하고 실패한 좌석만 각각 저장한다")
+    void sync_available_seats_continues_and_records_only_each_failed_seat() {
+        String secondKey = "event:1:seat:VIP:1:2";
+        String thirdKey = "event:1:seat:VIP:1:3";
+        String fourthKey = "event:1:seat:VIP:1:4";
+        DataAccessException secondError = new DataAccessException("second failed") {};
+        DataAccessException thirdError = new DataAccessException("third failed") {};
+        given(seatRedisTemplate.execute(any(DefaultRedisScript.class), anyList(), anyString(), eq("AVAILABLE")))
+                .willReturn(1L).willThrow(secondError).willThrow(thirdError).willReturn(1L);
+
+        seatCacheService.syncAvailableSeatsAfterCommit(List.of(
+                seat(1L, "VIP", 1, 1), seat(2L, "VIP", 1, 2),
+                seat(3L, "VIP", 1, 3), seat(4L, "VIP", 1, 4)));
+
+        then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
+                eq(List.of(fourthKey, fourthKey + ":lock")), anyString(), eq("AVAILABLE"));
+        then(seatCacheSyncFailureService).should().recordFailure("syncAvailableSeatsAfterCommit",
+                "event:{eventId}:seat", List.of(secondKey), List.of("AVAILABLE"), secondError);
+        then(seatCacheSyncFailureService).should().recordFailure("syncAvailableSeatsAfterCommit",
+                "event:{eventId}:seat", List.of(thirdKey), List.of("AVAILABLE"), thirdError);
+        then(seatCacheSyncFailureService).shouldHaveNoMoreInteractions();
     }
 
     private Event event() {

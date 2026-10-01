@@ -109,6 +109,24 @@ class SeatRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("Redis 좌표로 조회할 때 공백이 포함된 구역명을 매칭하고 현재 DB 상태를 조회한다")
+    void seat_select_by_cache_coordinates_for_update() {
+        seatRepository.insert(insertRequest("VIP A", 1, 1));
+        Seat target = seatJpaRepository.findByEventEventId(event.getEventId()).stream()
+                .filter(seat -> seat.getZone().equals("VIP A")).findFirst().orElseThrow();
+        target.reserved();
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Seat> seats = seatJpaRepository.findByCacheCoordinatesForUpdate(
+                event.getEventId(), "VIP_A", 1, 1);
+
+        assertThat(seats).hasSize(1);
+        assertThat(seats.get(0).getSeatId()).isEqualTo(target.getSeatId());
+        assertThat(seats.get(0).getStatus()).isEqualTo(SeatStatus.RESERVED);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 ID 조회 시 예외 발생")
     void seat_select_by_id_fail() {
         assertThatThrownBy(() -> seatRepository.selectById(999L))

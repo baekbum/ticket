@@ -7,6 +7,8 @@ import dev.bum.common.service.ticket.seat.dto.SeatCacheSyncFailureResponse;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailure;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureJpaRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureStatus;
+import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -15,16 +17,20 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 @Service
 @RequiredArgsConstructor
@@ -34,9 +40,21 @@ public class SeatCacheSyncFailureService {
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 100;
     private static final Duration RETRY_SEAT_CACHE_TTL = Duration.ofDays(7);
+    private static final Pattern SEAT_KEY_PATTERN = Pattern.compile("^event:(\\d+):seat:(.+):(\\d+):(\\d+)$");
+    // 소유 정보를 갖지 않는 과거 이력으로 현재 사용자 선점을 해제하지 않는다.
+    private static final DefaultRedisScript<Long> RETRY_SCRIPT = new DefaultRedisScript<>("""
+            local current = redis.call('get', KEYS[1])
+            if redis.call('exists', KEYS[2]) == 1
+                or (current and string.sub(current, 1, 7) == 'LOCKED:') then
+                return 0
+            end
+            redis.call('psetex', KEYS[1], ARGV[1], ARGV[2])
+            return 1
+            """, Long.class);
 
     private final SeatCacheSyncFailureJpaRepository repository;
     private final StringRedisTemplate seatRedisTemplate;
+    private final SeatJpaRepository seatRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(
@@ -46,13 +64,16 @@ public class SeatCacheSyncFailureService {
             List<String> targetValues,
             Exception exception
     ) {
-        repository.save(SeatCacheSyncFailure.builder()
+        validateRetryTarget(redisKeys, targetValues);
+        for (int index = 0; index < redisKeys.size(); index++) {
+            repository.save(SeatCacheSyncFailure.builder()
                 .operation(operation)
                 .keyPrefix(keyPrefix)
-                .redisKeys(String.join("\n", redisKeys))
-                .targetValue(String.join(",", targetValues))
+                .redisKeys(redisKeys.get(index))
+                .targetValue(targetValues.size() == 1 ? targetValues.get(0) : targetValues.get(index))
                 .failureMessage(exception.getMessage())
                 .build());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -79,7 +100,7 @@ public class SeatCacheSyncFailureService {
 
     @Transactional(noRollbackFor = RuntimeException.class)
     public SeatCacheSyncFailureHandleResponse retry(Long id) {
-        SeatCacheSyncFailure failure = findById(id);
+        SeatCacheSyncFailure failure = findByIdForUpdate(id);
         if (failure.getStatus() != SeatCacheSyncFailureStatus.PENDING) {
             throw new IllegalStateException("PENDING 상태의 Redis 보정 이력만 재처리할 수 있습니다. id=" + id);
         }
@@ -91,12 +112,16 @@ public class SeatCacheSyncFailureService {
 
             for (int index = 0; index < redisKeys.size(); index++) {
                 String redisKey = redisKeys.get(index);
-                String targetValue = targetValues.size() == 1 ? targetValues.get(0) : targetValues.get(index);
-                seatRedisTemplate.opsForValue().set(redisKey, targetValue, RETRY_SEAT_CACHE_TTL);
-                seatRedisTemplate.delete(redisKey + ":lock");
+                Seat seat = findSeatForUpdate(redisKey);
+                Long result = seatRedisTemplate.execute(RETRY_SCRIPT,
+                        List.of(redisKey, redisKey + ":lock"),
+                        String.valueOf(retryTtl(seat).toMillis()), seat.getStatus().name());
+                if (!Long.valueOf(1L).equals(result)) {
+                    throw new IllegalStateException("현재 좌석 선점이 있거나 Redis 보정 결과를 확인할 수 없습니다. key=" + redisKey);
+                }
             }
 
-            failure.resolve("Redis 좌석 캐시 보정 재처리 완료");
+            failure.resolve("현재 DB 상태 기준 Redis 좌석 캐시 보정 완료");
             return new SeatCacheSyncFailureHandleResponse(failure.getId(), failure.getStatus().name(), failure.getRetryCount(), failure.getResolvedMessage());
         } catch (RuntimeException e) {
             failure.failRetry(e.getMessage());
@@ -106,7 +131,7 @@ public class SeatCacheSyncFailureService {
 
     @Transactional
     public SeatCacheSyncFailureHandleResponse discard(Long id) {
-        SeatCacheSyncFailure failure = findById(id);
+        SeatCacheSyncFailure failure = findByIdForUpdate(id);
         if (failure.getStatus() != SeatCacheSyncFailureStatus.PENDING) {
             throw new IllegalStateException("PENDING 상태의 Redis 보정 이력만 폐기할 수 있습니다. id=" + id);
         }
@@ -118,6 +143,34 @@ public class SeatCacheSyncFailureService {
     private SeatCacheSyncFailure findById(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Redis 보정 이력을 찾을 수 없습니다. id=" + id));
+    }
+
+    private SeatCacheSyncFailure findByIdForUpdate(Long id) {
+        return repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new IllegalArgumentException("Redis 보정 이력을 찾을 수 없습니다. id=" + id));
+    }
+
+    private Seat findSeatForUpdate(String redisKey) {
+        Matcher matcher = SEAT_KEY_PATTERN.matcher(redisKey);
+        if (!matcher.matches()) {
+            throw new IllegalStateException("좌석 Redis key 형식이 올바르지 않습니다. key=" + redisKey);
+        }
+        List<Seat> seats = seatRepository.findByCacheCoordinatesForUpdate(
+                Long.valueOf(matcher.group(1)), matcher.group(2),
+                Integer.valueOf(matcher.group(3)), Integer.valueOf(matcher.group(4)));
+        if (seats.size() != 1) {
+            throw new IllegalStateException("보정 대상 좌석을 하나로 식별할 수 없습니다. key=" + redisKey);
+        }
+        return seats.get(0);
+    }
+
+    private Duration retryTtl(Seat seat) {
+        if (seat.getEvent() == null || seat.getEvent().getEventDateTime() == null) {
+            return RETRY_SEAT_CACHE_TTL;
+        }
+        int runningMinutes = seat.getEvent().getRunningMinutes() == null ? 0 : seat.getEvent().getRunningMinutes();
+        Duration ttl = Duration.between(LocalDateTime.now(), seat.getEvent().getEventDateTime().plusMinutes(runningMinutes));
+        return ttl.isPositive() ? ttl : Duration.ofMinutes(1);
     }
 
     private Specification<SeatCacheSyncFailure> specificationOf(SeatCacheSyncFailureCondRequest cond) {

@@ -12,6 +12,11 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Seat s where s.event.eventId = :eventId and replace(s.zone, ' ', '_') = :zone and s.seatRow = :row and s.seatCol = :col")
+    List<Seat> findByCacheCoordinatesForUpdate(@Param("eventId") Long eventId,
+            @Param("zone") String zone, @Param("row") Integer row, @Param("col") Integer col);
+
     List<Seat> findByEventEventId(long eventId);
 
     List<Seat> findByAreaAreaId(long areaId);
