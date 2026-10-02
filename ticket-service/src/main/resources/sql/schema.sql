@@ -378,3 +378,19 @@ CREATE TABLE seat_cache_sync_failures (
 
 CREATE INDEX idx_seat_cache_sync_failure_status ON seat_cache_sync_failures(status);
 CREATE INDEX idx_seat_cache_sync_failure_status_created_at ON seat_cache_sync_failures(status, created_at);
+
+-- ==========================================
+-- 17. ticket_purchase_locks
+-- ==========================================
+CREATE TABLE ticket_purchase_locks (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    limit_scope VARCHAR(20) NOT NULL,
+    scope_key VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_ticket_purchase_locks_user_scope
+        UNIQUE (user_id, limit_scope, scope_key),
+    CONSTRAINT ck_ticket_purchase_locks_scope
+        CHECK (limit_scope IN ('PER_EVENT', 'PER_GROUP'))
+);
