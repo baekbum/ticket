@@ -198,7 +198,7 @@ class ReservationManagementServiceTest {
         assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
-        then(seatCacheService).should().updateUserPurchaseLimit(selectedTicket.getSeat().getEvent(), "user01", 1, "SUB");
+        then(seatCacheService).should().syncUserPurchaseLimitAfterCommit(selectedTicket.getSeat().getEvent(), "user01");
     }
 
     @Test

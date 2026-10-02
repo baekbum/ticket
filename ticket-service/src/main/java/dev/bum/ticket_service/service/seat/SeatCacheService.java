@@ -69,6 +69,7 @@ public class SeatCacheService {
     private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
     private final SeatCacheSyncFailureService seatCacheSyncFailureService;
+    private final PurchaseLimitCacheService purchaseLimitCacheService;
 
     /**
      * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
@@ -455,30 +456,21 @@ public class SeatCacheService {
     }
 
     /**
-     * Redis에 공연별 사용자 예매 매수를 반영하는 메서드
+     * DB 커밋 이후 현재 유효 티켓 수로 구매 매수 캐시를 재구성한다.
      * @param event
      * @param userId
-     * @param purchaseCnt
-     * @param type
      */
-    public void updateUserPurchaseLimit(Event event, String userId, int purchaseCnt, String type) {
-        String purchaseKey = createPurchaseLimitKey(event, userId);
+    public void syncUserPurchaseLimitAfterCommit(Event event, String userId) {
+        runAfterCommit(() -> refreshUserPurchaseLimit(event, userId));
+    }
 
+    private void refreshUserPurchaseLimit(Event event, String userId) {
         try {
-            int amount = type.equals("PLUS") ? purchaseCnt : -purchaseCnt;
-            Long currentCount = seatRedisTemplate.opsForValue().increment(purchaseKey, amount);
-
-            if (currentCount != null && currentCount < 0) {
-                seatRedisTemplate.opsForValue().set(purchaseKey, "0");
-                currentCount = 0L;
-            }
-
-            seatRedisTemplate.expire(purchaseKey, Duration.ofDays(30));
-            log.info("[Redis 공연 매수 반영 (key : {}), (value : {})]", purchaseKey, currentCount);
-        } catch (DataAccessException e) {
-            log.error("[REDIS-ERROR] 사용자 구매 제한 Redis 갱신 실패. operation=increment, keyPrefix=user:purchase:limit, redisKey={}, eventId={}, userId={}, type={}, purchaseCnt={}",
-                    purchaseKey, event.getEventId(), userId, type, purchaseCnt, e);
-            throw e;
+            purchaseLimitCacheService.refresh(event, userId);
+        } catch (RuntimeException e) {
+            // 이미 커밋된 결제/취소 결과 및 나머지 후처리는 유지한다. 다음 선점 요청에서 재구성한다.
+            log.error("[PURCHASE-CACHE-ERROR] DB 기준 구매 매수 캐시 재구성 실패. redisKey={}, eventId={}, userId={}",
+                    PurchaseLimitCacheService.cacheKey(event, userId), event.getEventId(), userId, e);
         }
     }
 
@@ -553,15 +545,8 @@ public class SeatCacheService {
     private void validateUserPurchaseLimit(SeatOccupyRequest request) {
         Event event = eventRepository.selectById(request.getEventId());
         validateUserPurchaseLimitFromDatabase(request, event);
-        String purchaseKey = createPurchaseLimitKey(event, request.getUserId());
-        String purchaseStr = seatRedisTemplate.opsForValue().get(purchaseKey);
-        int purchaseCount = (purchaseStr == null) ? 0 : Integer.parseInt(purchaseStr);
-
-        int limitMax = event.getMaxTicketsPerPerson();
-
-        if (purchaseCount + request.getSeats().size() > limitMax) {
-            throw new SeatOccupationFailedException(createPurchaseLimitExceededMessage(event, limitMax));
-        }
+        // 캐시는 보조 스냅샷이다. 오래된 값이나 복구 실패로 DB상 가능한 예매를 차단하지 않는다.
+        refreshUserPurchaseLimit(event, request.getUserId());
     }
 
     private void validateUserPurchaseLimitFromDatabase(SeatOccupyRequest request, Event event) {
@@ -586,14 +571,6 @@ public class SeatCacheService {
         }
 
         return "이 공연은 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";
-    }
-
-    private String createPurchaseLimitKey(Event event, String userId) {
-        if (event.getTicketLimitScope() == PER_GROUP) {
-            return "user:purchase:limit:group:" + event.getEventGroupCode() + ":" + userId;
-        }
-
-        return "user:purchase:limit:event:" + event.getEventId() + ":" + userId;
     }
 
     /**

@@ -268,11 +268,9 @@ public class PaymentRefundProcessService {
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
             if (!cancelledSeats.isEmpty()) {
-                seatCacheService.updateUserPurchaseLimit(
+                seatCacheService.syncUserPurchaseLimitAfterCommit(
                         cancelledSeats.get(0).getEvent(),
-                        reservation.getUserId(),
-                        cancelledSeats.size(),
-                        "SUB"
+                        reservation.getUserId()
                 );
             }
         } catch (RuntimeException e) {

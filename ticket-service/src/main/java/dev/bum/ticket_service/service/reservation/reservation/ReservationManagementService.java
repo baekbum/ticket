@@ -147,11 +147,9 @@ public class ReservationManagementService {
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
             if (!cancelledSeats.isEmpty()) {
-                seatCacheService.updateUserPurchaseLimit(
+                seatCacheService.syncUserPurchaseLimitAfterCommit(
                         cancelledSeats.get(0).getEvent(),
-                        info.getUserId(),
-                        cancelledSeats.size(),
-                        "SUB"
+                        info.getUserId()
                 );
             }
         } catch (RuntimeException e) {
