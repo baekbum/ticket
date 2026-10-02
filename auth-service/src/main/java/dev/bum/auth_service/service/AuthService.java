@@ -109,7 +109,7 @@ public class AuthService {
      */
     public void insertUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 추가] : {}", event.toString());
+        log.info("[유저 추가] userId={}", event.getUserId());
         repository.insert(event);
     }
 
@@ -119,7 +119,7 @@ public class AuthService {
      */
     public void updateUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 수정] : {}", event.toString());
+        log.info("[유저 수정] userId={}", event.getUserId());
         repository.update(event);
         if (UserStatus.WITHDRAWN.name().equals(event.getStatus())) {
             try {
@@ -136,7 +136,7 @@ public class AuthService {
      */
     public void deleteUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 삭제] : {}", event.toString());
+        log.info("[유저 삭제] userId={}", event.getUserId());
         repository.delete(event.getUserId());
     }
 
