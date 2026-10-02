@@ -12,7 +12,7 @@
     let currentSortFilters  = {};
 
     /* ─────────────────── 다중 선택 상태 ─────────────────── */
-    let selectedIds = new Set(); // Set of u.id (Number)
+    let selectedIds = new Set(); // 선택한 사용자 ID를 숫자로 보관하는 집합
 
     function updateBulkBar() {
       const bar   = document.getElementById('bulk-action-bar');

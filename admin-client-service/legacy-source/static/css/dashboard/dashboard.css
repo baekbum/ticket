@@ -36,7 +36,7 @@
     align-items: center;
   }
 
-  /* ── Shell ── */
+  /* ── 전체 화면 틀 ── */
   .dashboard-container {
     width: 100%;
     max-width: 1440px;
@@ -56,7 +56,7 @@
     overflow: hidden;
   }
 
-  /* ── Header ── */
+  /* ── 상단 영역 ── */
   .dashboard-header {
     display: flex;
     justify-content: space-between;
@@ -173,7 +173,7 @@
     border-color: rgba(124,77,255,0.28);
   }
 
-  /* ── Layout ── */
+  /* ── 화면 배치 ── */
   .dashboard-layout {
     display: grid;
     grid-template-columns: 200px 1fr;
@@ -183,7 +183,7 @@
     overflow: hidden;
   }
 
-  /* ── Sidebar ── */
+  /* ── 측면 메뉴 ── */
   .sidebar {
     display: flex;
     flex-direction: column;
@@ -401,7 +401,7 @@
     letter-spacing: 0.3px;
   }
 
-  /* ── Main content ── */
+  /* ── 본문 영역 ── */
   .main-content {
     display: flex;
     flex-direction: column;
@@ -1265,7 +1265,7 @@
     backdrop-filter: blur(14px);
   }
 
-  /* Dark theme: deliberately separated elevation levels for reliable contrast. */
+  /* 어두운 테마에서는 영역별 높이감을 구분해 명확한 대비를 유지한다. */
   body.dark-mode {
     --purple: #9485ff;
     --purple-hover: #ab9fff;
@@ -1443,7 +1443,7 @@
 
   body.dark-mode .dashboard-embed-frame { background: #0d1423; }
 
-  /* Table management actions: neutral surfaces keep every label readable. */
+  /* 표 관리 버튼은 중립적인 배경색을 사용해 모든 문구가 잘 읽히도록 한다. */
   body:not(.dark-mode) .main-content table tbody td.actions .btn,
   body:not(.dark-mode) .main-content table tbody td:last-child > .btn,
   body:not(.dark-mode) .main-content table tbody td:last-child .delivery-actions .btn {
