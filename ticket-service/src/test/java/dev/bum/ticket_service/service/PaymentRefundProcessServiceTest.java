@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
@@ -52,6 +53,9 @@ import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentRefundProcessServiceTest {
+
+    @Mock
+    private TicketPurchaseCountService ticketPurchaseCountService;
 
     @InjectMocks
     private PaymentRefundProcessService paymentRefundProcessService;

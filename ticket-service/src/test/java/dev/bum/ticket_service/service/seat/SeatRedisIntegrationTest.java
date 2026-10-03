@@ -13,11 +13,9 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailure;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureJpaRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureStatus;
-import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -26,13 +24,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
-import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.transaction.support.TransactionTemplate;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 
 import java.nio.charset.StandardCharsets;
-import java.net.ServerSocket;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -95,10 +90,9 @@ class SeatRedisIntegrationTest {
 
     @Test
     void concurrent_occupation_has_exactly_one_winner() throws Exception {
-        SeatCacheService service = service(redis, mock(PurchaseLimitCacheService.class));
+        SeatCacheService service = service(redis);
         String key = key(1);
         redis.opsForValue().set(key, "AVAILABLE", Duration.ofMinutes(2));
-        given(tickets.isWithinPurchaseLimit(anyString(), eq(event), eq(1))).willReturn(true);
         ExecutorService executor = Executors.newFixedThreadPool(16);
         CountDownLatch ready = new CountDownLatch(16);
         CountDownLatch start = new CountDownLatch(1);
@@ -143,7 +137,7 @@ class SeatRedisIntegrationTest {
         given(seats.selectByEventId(event.getEventId())).willReturn(List.of(
                 seat(1, SeatStatus.AVAILABLE), seat(2, SeatStatus.RESERVED), seat(3, SeatStatus.AVAILABLE)));
 
-        assertThat(service(redis, mock(PurchaseLimitCacheService.class))
+        assertThat(service(redis)
                 .warmUpEventSeatsToCache(event.getEventId(), SeatCacheWarmUpMode.MISSING_ONLY)).contains("반영 1개");
 
         assertThat(redis.opsForValue().get(available)).isEqualTo("AVAILABLE");
@@ -157,7 +151,7 @@ class SeatRedisIntegrationTest {
         String key = key(1);
         redis.opsForValue().set(key + ":lock", "LOCKED:new-user:new-order", Duration.ofMinutes(2));
         given(seats.selectByEventId(event.getEventId())).willReturn(List.of(seat(1, SeatStatus.AVAILABLE)));
-        assertThat(service(redis, mock(PurchaseLimitCacheService.class))
+        assertThat(service(redis)
                 .warmUpEventSeatsToCache(event.getEventId(), SeatCacheWarmUpMode.MISSING_ONLY)).contains("반영 0개");
         assertThat(redis.hasKey(key)).isFalse();
 
@@ -202,7 +196,7 @@ class SeatRedisIntegrationTest {
         }
         StringRedisTemplate restricted = restrictedRedis(List.of(key(1), key(1) + ":lock", key(4), key(4) + ":lock"));
 
-        service(restricted, mock(PurchaseLimitCacheService.class)).syncAvailableSeatsAfterCommit(targets);
+        service(restricted).syncAvailableSeatsAfterCommit(targets);
 
         assertThat(redis.opsForValue().get(key(1))).isEqualTo("AVAILABLE");
         assertThat(redis.opsForValue().get(key(4))).isEqualTo("AVAILABLE");
@@ -216,65 +210,38 @@ class SeatRedisIntegrationTest {
     }
 
     @Test
-    void database_rollback_leaves_cache_untouched_and_after_commit_failure_is_recoverable() throws Exception {
+    void seat_cache_is_updated_only_after_database_commit() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", "sa", "");
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        jdbc.execute("create table purchase_count (amount integer not null)");
-        jdbc.update("insert into purchase_count values (0)");
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource);
-        TransactionTemplate transaction = new TransactionTemplate(manager);
-        TicketJpaRepository counts = mock(TicketJpaRepository.class);
-        given(counts.countByUserIdAndEventAndStatusIn(eq("integration-user"), eq(event), anyList()))
-                .willAnswer(invocation -> jdbc.queryForObject("select amount from purchase_count", Long.class));
-        String purchaseKey = PurchaseLimitCacheService.cacheKey(event, "integration-user");
-        testKeys.add(purchaseKey);
-        int unavailablePort;
-        try (ServerSocket temporaryPort = new ServerSocket(0)) {
-            unavailablePort = temporaryPort.getLocalPort();
-        }
-        LettuceConnectionFactory unavailableFactory = connectionFactory(null, null, unavailablePort);
-        restrictedFactories.add(unavailableFactory);
-        StringRedisTemplate unavailableRedis = new StringRedisTemplate(unavailableFactory);
-        PurchaseLimitCacheService cache = transactionalCache(counts, unavailableRedis, manager);
-        SeatCacheService service = service(redis, cache);
+        jdbc.execute("create table transaction_marker (amount integer not null)");
+        jdbc.update("insert into transaction_marker values (0)");
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        SeatCacheService service = service(redis);
+        String seatKey = key(1);
         try {
             assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
-                jdbc.update("update purchase_count set amount = 3");
-                service.syncUserPurchaseLimitAfterCommit(event, "integration-user");
-                throw new IllegalStateException("DB rollback");
+                jdbc.update("update transaction_marker set amount = 1");
+                service.syncReservedSeatsAfterCommit(List.of(seat(1, SeatStatus.RESERVED)));
+                throw new IllegalStateException("DB 롤백");
             })).isInstanceOf(IllegalStateException.class);
-            assertThat(jdbc.queryForObject("select amount from purchase_count", Integer.class)).isZero();
-            assertThat(redis.hasKey(purchaseKey)).isFalse();
-            then(counts).shouldHaveNoInteractions();
+            assertThat(jdbc.queryForObject("select amount from transaction_marker", Integer.class)).isZero();
+            assertThat(redis.hasKey(seatKey)).isFalse();
 
             transaction.executeWithoutResult(status -> {
-                jdbc.update("update purchase_count set amount = 3");
-                service.syncUserPurchaseLimitAfterCommit(event, "integration-user");
+                jdbc.update("update transaction_marker set amount = 1");
                 service.syncReservedSeatsAfterCommit(List.of(seat(1, SeatStatus.RESERVED)));
+                assertThat(redis.hasKey(seatKey)).isFalse();
             });
-            assertThat(jdbc.queryForObject("select amount from purchase_count", Integer.class)).isEqualTo(3);
-            assertThat(redis.hasKey(purchaseKey)).isFalse(); // DB 커밋 이후 Redis 접속 실패로 캐시는 반영되지 않는다.
-            assertThat(redis.opsForValue().get(key(1))).isEqualTo("RESERVED"); // 다음 좌석 동기화 콜백은 정상 실행된다.
-            transactionalCache(counts, redis, manager).refresh(event, "integration-user");
-            assertThat(redis.opsForValue().get(purchaseKey)).isEqualTo("3");
-            assertThat(redis.getExpire(purchaseKey, TimeUnit.SECONDS)).isBetween(2_591_990L, 2_592_000L);
+            assertThat(jdbc.queryForObject("select amount from transaction_marker", Integer.class)).isEqualTo(1);
+            assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
         } finally {
             jdbc.execute("shutdown");
         }
     }
 
-    private PurchaseLimitCacheService transactionalCache(TicketJpaRepository counts, StringRedisTemplate template,
-            DataSourceTransactionManager manager) {
-        ProxyFactory proxy = new ProxyFactory(new PurchaseLimitCacheService(counts, template));
-        proxy.setProxyTargetClass(true);
-        proxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
-        return (PurchaseLimitCacheService) proxy.getProxy();
+    private SeatCacheService service(StringRedisTemplate template) {
+        return new SeatCacheService(seats, events, template, failures);
     }
-
-    private SeatCacheService service(StringRedisTemplate template, PurchaseLimitCacheService cache) {
-        return new SeatCacheService(seats, events, tickets, template, failures, cache);
-    }
-
     private Seat seat(int col, SeatStatus status) {
         return Seat.builder().seatId((long) col).event(event).zone("VIP").seatRow(1).seatCol(col).status(status).build();
     }

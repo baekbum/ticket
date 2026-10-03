@@ -17,7 +17,6 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
-import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,10 +65,8 @@ public class SeatCacheService {
 
     private final SeatRepository repository;
     private final EventRepository eventRepository;
-    private final TicketRepository ticketRepository;
     private final StringRedisTemplate seatRedisTemplate;
     private final SeatCacheSyncFailureService seatCacheSyncFailureService;
-    private final PurchaseLimitCacheService purchaseLimitCacheService;
 
     /**
      * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
@@ -456,25 +453,6 @@ public class SeatCacheService {
     }
 
     /**
-     * DB 커밋 이후 현재 유효 티켓 수로 구매 매수 캐시를 재구성한다.
-     * @param event
-     * @param userId
-     */
-    public void syncUserPurchaseLimitAfterCommit(Event event, String userId) {
-        runAfterCommit(() -> refreshUserPurchaseLimit(event, userId));
-    }
-
-    private void refreshUserPurchaseLimit(Event event, String userId) {
-        try {
-            purchaseLimitCacheService.refresh(event, userId);
-        } catch (RuntimeException e) {
-            // 이미 커밋된 결제/취소 결과 및 나머지 후처리는 유지한다. 다음 선점 요청에서 재구성한다.
-            log.error("[PURCHASE-CACHE-ERROR] DB 기준 구매 매수 캐시 재구성 실패. redisKey={}, eventId={}, userId={}",
-                    PurchaseLimitCacheService.cacheKey(event, userId), event.getEventId(), userId, e);
-        }
-    }
-
-    /**
      * DB에 좌석 상태를 반영한 후,
      * Redis에 동기화 할 떄, 실패한 좌석에 대해 재처리를 위해 따로 따로 이력을 생성한다.
      * @param operation
@@ -538,33 +516,17 @@ public class SeatCacheService {
         }
     }
 
-    /**
-     * Redis에 예매 가능한 좌석 수가 남아있는지 검증하는 메서드
-     * @param request
-     */
+    /** 이번 요청에서 선택한 좌석 수만 공연의 1인 최대 매수와 비교한다. */
     private void validateUserPurchaseLimit(SeatOccupyRequest request) {
         Event event = eventRepository.selectById(request.getEventId());
-        validateUserPurchaseLimitFromDatabase(request, event);
-        // 캐시는 보조 스냅샷이다. 오래된 값이나 복구 실패로 DB상 가능한 예매를 차단하지 않는다.
-        refreshUserPurchaseLimit(event, request.getUserId());
-    }
-
-    private void validateUserPurchaseLimitFromDatabase(SeatOccupyRequest request, Event event) {
         int selectedSeatCount = request.getSeats().size();
-
+        if (selectedSeatCount <= 0) {
+            throw new IllegalArgumentException("선택한 좌석이 없습니다.");
+        }
         if (event.getMaxTicketsPerPerson() < selectedSeatCount) {
             throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
         }
-
-        boolean withinPurchaseLimit = event.getTicketLimitScope() == PER_GROUP
-                ? ticketRepository.isWithinGroupPurchaseLimit(request.getUserId(), event, selectedSeatCount)
-                : ticketRepository.isWithinPurchaseLimit(request.getUserId(), event, selectedSeatCount);
-
-        if (!withinPurchaseLimit) {
-            throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
-        }
     }
-
     private String createPurchaseLimitExceededMessage(Event event, int limitMax) {
         if (event.getTicketLimitScope() == PER_GROUP) {
             return "이 공연은 모든 공연을 포함해서 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";

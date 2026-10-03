@@ -387,10 +387,12 @@ CREATE TABLE ticket_purchase_locks (
     user_id VARCHAR(100) NOT NULL,
     limit_scope VARCHAR(20) NOT NULL,
     scope_key VARCHAR(100) NOT NULL,
+    ticket_count BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_ticket_purchase_locks_user_scope
         UNIQUE (user_id, limit_scope, scope_key),
     CONSTRAINT ck_ticket_purchase_locks_scope
-        CHECK (limit_scope IN ('PER_EVENT', 'PER_GROUP'))
+        CHECK (limit_scope IN ('PER_EVENT', 'PER_GROUP')),
+    CONSTRAINT ck_ticket_purchase_locks_count CHECK (ticket_count >= 0)
 );

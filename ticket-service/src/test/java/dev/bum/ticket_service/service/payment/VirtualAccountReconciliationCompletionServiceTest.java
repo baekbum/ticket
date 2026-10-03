@@ -69,7 +69,6 @@ class VirtualAccountReconciliationCompletionServiceTest {
         assertThat(fixture.reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(fixture.ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(fixture.seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-        then(seatCache).should().syncUserPurchaseLimitAfterCommit(fixture.event, "user01");
     }
 
     @Test
@@ -107,7 +106,6 @@ class VirtualAccountReconciliationCompletionServiceTest {
         assertThatThrownBy(() -> service.complete(PAYMENT_NO, gatewayStatus(GatewayVirtualAccountStatus.DEPOSITED, 180000)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("좌석 상태");
-        then(seatCache).should(never()).syncUserPurchaseLimitAfterCommit(fixture.event, "user01");
     }
 
     private GatewayVirtualAccountStatusResponse gatewayStatus(GatewayVirtualAccountStatus status, int amount) {

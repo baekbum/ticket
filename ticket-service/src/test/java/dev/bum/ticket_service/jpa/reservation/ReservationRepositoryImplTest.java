@@ -16,6 +16,7 @@ import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.area.Area;
@@ -66,11 +67,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         SeatRepositoryImpl.class,
         AreaRepositoryImpl.class,
         EventRepositoryImpl.class,
-        QuerydslConfig.class
+        QuerydslConfig.class, TicketPurchaseCountService.class
 })
 @ActiveProfiles("test")
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class ReservationRepositoryImplTest {
 
     @Autowired

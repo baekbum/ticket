@@ -63,7 +63,6 @@ class PaymentCompletionServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-        then(seatCacheService).should().syncUserPurchaseLimitAfterCommit(event, "user01");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 
@@ -90,7 +89,6 @@ class PaymentCompletionServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAID);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.RESERVED);
-        then(seatCacheService).should().syncUserPurchaseLimitAfterCommit(event, "user01");
         then(seatCacheService).should().syncReservedSeatsAfterCommit(List.of(seat));
     }
 

@@ -3,7 +3,6 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
-import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
@@ -27,10 +26,6 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.support.AbstractPlatformTransactionManager;
-import org.springframework.transaction.support.DefaultTransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.TransactionDefinition;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -45,7 +40,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
@@ -74,9 +68,6 @@ class SeatCacheServiceTest {
     private SeatCacheSyncFailureService seatCacheSyncFailureService;
 
     @Mock
-    private PurchaseLimitCacheService purchaseLimitCacheService;
-
-    @Mock
     private ValueOperations<String, String> valueOperations;
 
     private SeatCacheService seatCacheService;
@@ -86,10 +77,8 @@ class SeatCacheServiceTest {
         seatCacheService = new SeatCacheService(
                 repository,
                 eventRepository,
-                ticketRepository,
                 seatRedisTemplate,
-                seatCacheSyncFailureService,
-                purchaseLimitCacheService
+                seatCacheSyncFailureService
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -176,7 +165,6 @@ class SeatCacheServiceTest {
 
         Event event = event();
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(ticketRepository.isWithinPurchaseLimit(USER_ID, event, 2)).willReturn(true);
         given(valueOperations.get(FIRST_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
         given(valueOperations.get(SECOND_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
         given(valueOperations.setIfAbsent(eq(FIRST_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(true);
@@ -191,7 +179,7 @@ class SeatCacheServiceTest {
     }
 
     @Test
-    @DisplayName("그룹 DB 검증을 통과하면 오래된 Redis 매수로 좌석 선점을 차단하지 않는다")
+    @DisplayName("선택 매수가 제한 이내이면 기존 예매 매수와 구매 캐시를 조회하지 않고 선점한다")
     void occupy_seat_ignores_stale_group_purchase_cache() {
         SeatOccupyRequest request = SeatOccupyRequest.builder()
                 .eventId(EVENT_ID)
@@ -204,7 +192,6 @@ class SeatCacheServiceTest {
 
         Event event = event(TicketLimitScope.PER_GROUP, 1);
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(ticketRepository.isWithinGroupPurchaseLimit(USER_ID, event, 1)).willReturn(true);
         lenient().when(valueOperations.get(GROUP_PURCHASE_LIMIT_KEY)).thenReturn("99");
         given(valueOperations.get(FIRST_SEAT_KEY)).willReturn("AVAILABLE");
         given(valueOperations.setIfAbsent(eq(FIRST_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(true);
@@ -212,32 +199,22 @@ class SeatCacheServiceTest {
         assertThat(seatCacheService.occupySeat(request).getOrderId()).isNotBlank();
 
         then(valueOperations).should(never()).get(GROUP_PURCHASE_LIMIT_KEY);
-        then(purchaseLimitCacheService).should().refresh(event, USER_ID);
+        then(ticketRepository).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("그룹 단위 제한 공연은 기존 DB 예매 내역까지 합산해 좌석 선점을 차단한다")
-    void occupy_seat_blocks_purchase_limit_by_group_database_count() {
-        SeatOccupyRequest request = SeatOccupyRequest.builder()
-                .eventId(EVENT_ID)
-                .userId(USER_ID)
-                .seats(List.of(
-                        SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build()
-                ))
-                .build();
+    @DisplayName("좌석 선점은 기존 예매 매수를 조회하지 않고 이번 선택 매수만 제한한다")
+    void occupy_seat_checks_only_selected_count() {
         Event event = event(TicketLimitScope.PER_GROUP, 1);
-
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(ticketRepository.isWithinGroupPurchaseLimit(USER_ID, event, 1)).willReturn(false);
-
+        SeatOccupyRequest request = SeatOccupyRequest.builder().eventId(EVENT_ID).userId(USER_ID)
+                .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build(),
+                        SeatInfo.builder().id(2L).zone("VIP").row(1).col(2).build())).build();
         assertThatThrownBy(() -> seatCacheService.occupySeat(request))
-                .isInstanceOf(TicketLimitExceededException.class)
-                .hasMessage("이 공연은 모든 공연을 포함해서 1인당 최대 1매까지만 예매 가능합니다.");
-
-        then(valueOperations).should(never()).get(GROUP_PURCHASE_LIMIT_KEY);
-        then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+                .isInstanceOf(TicketLimitExceededException.class);
+        then(ticketRepository).shouldHaveNoInteractions();
+        then(valueOperations).shouldHaveNoInteractions();
     }
-
     @Test
     @DisplayName("좌석 선점 중 Redis 장애는 복구 단서 로깅 후 선점 실패로 변환한다")
     void occupy_seat_wraps_redis_error() {
@@ -251,7 +228,6 @@ class SeatCacheServiceTest {
         Event event = event();
 
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(ticketRepository.isWithinPurchaseLimit(USER_ID, event, 1)).willReturn(true);
         given(valueOperations.get(FIRST_SEAT_KEY)).willThrow(new DataAccessException("redis error") {});
 
         assertThatThrownBy(() -> seatCacheService.occupySeat(request))
@@ -260,68 +236,6 @@ class SeatCacheServiceTest {
 
         then(valueOperations).should().get(FIRST_SEAT_KEY);
         then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
-    }
-
-    @Test
-    @DisplayName("DB 트랜잭션이 롤백되면 구매 매수 캐시는 갱신하지 않는다")
-    void purchase_cache_is_not_updated_on_rollback() {
-        TransactionTemplate transaction = transactionTemplate();
-        Event event = event();
-
-        assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
-            seatCacheService.syncUserPurchaseLimitAfterCommit(event, USER_ID);
-            then(purchaseLimitCacheService).shouldHaveNoInteractions();
-            throw new IllegalStateException("DB failure");
-        })).isInstanceOf(IllegalStateException.class);
-
-        then(purchaseLimitCacheService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("구매 매수 캐시는 커밋 이후 갱신하며 실패해도 좌석 후처리를 계속한다")
-    void purchase_cache_failure_does_not_interrupt_after_commit() {
-        Event event = event();
-        willThrow(new DataAccessException("redis unavailable") {})
-                .given(purchaseLimitCacheService).refresh(event, USER_ID);
-        given(seatRedisTemplate.execute(any(DefaultRedisScript.class), anyList(), anyString(), eq("RESERVED")))
-                .willReturn(1L);
-
-        transactionTemplate().executeWithoutResult(status -> {
-            seatCacheService.syncUserPurchaseLimitAfterCommit(event, USER_ID);
-            seatCacheService.syncReservedSeatsAfterCommit(List.of(seat(1L, "VIP", 1, 1)));
-            then(purchaseLimitCacheService).shouldHaveNoInteractions();
-        });
-
-        then(purchaseLimitCacheService).should().refresh(event, USER_ID);
-        then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
-                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("RESERVED"));
-    }
-
-    @Test
-    @DisplayName("매수 캐시 복구가 실패해도 DB 검증을 통과한 선점을 진행한다")
-    void purchase_cache_recovery_failure_does_not_block_database_validated_request() {
-        Event event = event();
-        given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(ticketRepository.isWithinPurchaseLimit(USER_ID, event, 1)).willReturn(true);
-        willThrow(new DataAccessException("cache unavailable") {})
-                .given(purchaseLimitCacheService).refresh(event, USER_ID);
-        given(valueOperations.get(FIRST_SEAT_KEY)).willReturn("AVAILABLE");
-        given(valueOperations.setIfAbsent(eq(FIRST_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(true);
-
-        SeatOccupyResponse response = seatCacheService.occupySeat(SeatOccupyRequest.builder()
-                .eventId(EVENT_ID).userId(USER_ID)
-                .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build())).build());
-
-        assertThat(response.getOrderId()).isNotBlank();
-    }
-
-    private TransactionTemplate transactionTemplate() {
-        return new TransactionTemplate(new AbstractPlatformTransactionManager() {
-            @Override protected Object doGetTransaction() { return new Object(); }
-            @Override protected void doBegin(Object transaction, TransactionDefinition definition) { }
-            @Override protected void doCommit(DefaultTransactionStatus status) { }
-            @Override protected void doRollback(DefaultTransactionStatus status) { }
-        });
     }
 
     @Test

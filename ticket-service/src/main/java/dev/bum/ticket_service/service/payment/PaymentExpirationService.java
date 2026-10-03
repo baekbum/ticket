@@ -13,6 +13,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class PaymentExpirationService {
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final SeatCacheService seatCacheService;
+    private final TicketPurchaseCountService ticketPurchaseCountService;
 
     /**
      * 만료 대상 결제를 락으로 재조회한 뒤 결제, 예매, 티켓, 좌석, 배송, 쿠폰 상태를 함께 정리한다.
@@ -53,6 +55,7 @@ public class PaymentExpirationService {
                 .map(Ticket::getSeat)
                 .toList();
 
+        ticketPurchaseCountService.release(reservation, tickets);
         payment.expire();
         reservation.expire();
         tickets.forEach(ticket -> {

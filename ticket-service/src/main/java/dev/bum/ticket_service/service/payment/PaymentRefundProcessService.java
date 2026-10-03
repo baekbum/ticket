@@ -23,6 +23,7 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -47,6 +48,7 @@ public class PaymentRefundProcessService {
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final SeatCacheService seatCacheService;
+    private final TicketPurchaseCountService ticketPurchaseCountService;
 
     @Transactional(readOnly = true)
     public CustomPageResponse<PaymentRefundProcessResponse> selectByCond(PaymentRefundProcessCondRequest cond) {
@@ -261,18 +263,13 @@ public class PaymentRefundProcessService {
             List<Ticket> selectedTickets = selectProcessTickets(process, reservation);
             boolean restoreCouponOnCancel = process.isFullCancellation() && reservation.getStatus() == ReservationStatus.PAID;
 
+            ticketPurchaseCountService.release(reservation, selectedTickets);
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
             applyReservationCancelStatus(reservation, process.isFullCancellation(), restoreCouponOnCancel);
             savePaymentRefundHistory(process, payment, selectedTickets, process.getRefundAmount(), process.isFullCancellation());
             process.localSucceeded();
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
-            if (!cancelledSeats.isEmpty()) {
-                seatCacheService.syncUserPurchaseLimitAfterCommit(
-                        cancelledSeats.get(0).getEvent(),
-                        reservation.getUserId()
-                );
-            }
         } catch (RuntimeException e) {
             process.localFailed(messageOf(e));
             throw e;

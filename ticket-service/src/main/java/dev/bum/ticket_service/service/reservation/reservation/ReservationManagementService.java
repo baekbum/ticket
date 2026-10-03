@@ -31,6 +31,7 @@ import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -56,6 +57,7 @@ public class ReservationManagementService {
 
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
+    private final TicketPurchaseCountService ticketPurchaseCountService;
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
@@ -141,17 +143,12 @@ public class ReservationManagementService {
         Long paymentRefundProcessId = null;
         try {
             paymentRefundProcessId = refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
+            ticketPurchaseCountService.release(reservation, selectedTickets);
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
             applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
             registerRefundProcessCompletion(paymentRefundProcessId);
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
-            if (!cancelledSeats.isEmpty()) {
-                seatCacheService.syncUserPurchaseLimitAfterCommit(
-                        cancelledSeats.get(0).getEvent(),
-                        info.getUserId()
-                );
-            }
         } catch (RuntimeException e) {
             markLocalFailed(paymentRefundProcessId, e);
             throw e;
@@ -445,6 +442,8 @@ public class ReservationManagementService {
             throw new IllegalArgumentException("상태를 보정할 티켓 정보가 없습니다.");
         }
 
+        ticketPurchaseCountService.prepareStatusAdjustment(reservation, tickets);
+        long beforeTicketCount = TicketPurchaseCountService.activeCount(tickets);
         ReservationStatus targetStatus = request.getStatus();
         List<Seat> lockedSeats = new ArrayList<>();
         List<Seat> reservedSeats = new ArrayList<>();
@@ -524,6 +523,7 @@ public class ReservationManagementService {
             }
         }
 
+        ticketPurchaseCountService.applyStatusAdjustment(reservation, beforeTicketCount, tickets);
         AuditDataMapper.setFieldChange("status", beforeStatus, targetStatus);
         syncAdjustedSeatCache(lockedSeats, reservedSeats, availableSeats);
 

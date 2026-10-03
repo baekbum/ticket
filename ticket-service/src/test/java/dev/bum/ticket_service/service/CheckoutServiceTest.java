@@ -214,7 +214,6 @@ class CheckoutServiceTest {
         then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.argThat(payment ->
                 payment.getReservationFeeAmount() == 4000
                         && payment.getDeliveryFeeAmount() == 3200));
-        then(seatCacheService).should(never()).syncUserPurchaseLimitAfterCommit(event, "user01");
     }
 
     @Test
@@ -252,7 +251,6 @@ class CheckoutServiceTest {
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        then(seatCacheService).should(never()).syncUserPurchaseLimitAfterCommit(event, "user01");
         then(checkoutPaymentService).should().process(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.any(Payment.class));
     }
 

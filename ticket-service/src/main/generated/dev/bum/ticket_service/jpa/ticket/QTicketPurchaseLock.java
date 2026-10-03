@@ -27,6 +27,8 @@ public class QTicketPurchaseLock extends EntityPathBase<TicketPurchaseLock> {
 
     public final StringPath scopeKey = createString("scopeKey");
 
+    public final NumberPath<Long> ticketCount = createNumber("ticketCount", Long.class);
+
     public final StringPath userId = createString("userId");
 
     public QTicketPurchaseLock(String variable) {
