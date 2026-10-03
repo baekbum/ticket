@@ -112,7 +112,14 @@ class ReservationManagementServiceTest {
     @DisplayName("ID로 예약을 조회한다")
     void reservation_select_by_id() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
-        new Ticket(1L, "user01", reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        Ticket.builder()
+                .ticketId(1L)
+                .userId("user01")
+                .reservation(reservation)
+                .event(reservation.getEvent())
+                .seat(seat(1L, reservation.getEvent(), "VIP", 1, 1))
+                .status(TicketStatus.PENDING_PAYMENT)
+                .build();
 
         given(repository.selectById(1L)).willReturn(reservation);
 

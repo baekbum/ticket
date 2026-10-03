@@ -69,7 +69,13 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         // 사용자별 구매 카운트를 잠그고 증가시킨 뒤 같은 트랜잭션에서 티켓을 생성한다.
         ticketPurchaseCountService.reserve(event, info.getUserId(), info.getSeats().size());
         // 조회한 공연 정보를 통해 예매 정보(프레임)를 생성
-        Reservation reservation = new Reservation(info, event);
+        Reservation reservation = Reservation.builder()
+                .orderId(info.getOrderId())
+                .userId(info.getUserId())
+                .event(event)
+                .status(ReservationStatus.PENDING_PAYMENT)
+                .reservedAt(LocalDateTime.now())
+                .build();
 
         // 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)

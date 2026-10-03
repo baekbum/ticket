@@ -172,7 +172,14 @@ class CheckoutServiceTest {
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Seat seat = seat(event);
-        new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
+        Ticket.builder()
+                .ticketId(1L)
+                .userId("user01")
+                .reservation(reservation)
+                .event(event)
+                .seat(seat)
+                .status(TicketStatus.PENDING_PAYMENT)
+                .build();
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
         CheckoutAttempt checkoutAttempt = preparedAttempt();
         LocalDateTime seatExpiresAt = LocalDateTime.now().plusMinutes(8);
@@ -222,7 +229,14 @@ class CheckoutServiceTest {
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Seat seat = seat(event);
-        new Ticket(1L, "user01", reservation, event, seat, TicketStatus.PENDING_PAYMENT);
+        Ticket.builder()
+                .ticketId(1L)
+                .userId("user01")
+                .reservation(reservation)
+                .event(event)
+                .seat(seat)
+                .status(TicketStatus.PENDING_PAYMENT)
+                .build();
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
         request.setDelivery(null);
         CheckoutAttempt checkoutAttempt = preparedAttempt();

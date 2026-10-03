@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
@@ -129,7 +130,17 @@ public class CheckoutService {
 
         Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
         if (request.getDelivery() != null) {
-            reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+            ReservationDelivery delivery = ReservationDelivery.builder()
+                    .reservation(reservation)
+                    .recipientName(request.getDelivery().getRecipientName())
+                    .recipientPhone(request.getDelivery().getRecipientPhone())
+                    .zipCode(request.getDelivery().getZipCode())
+                    .address(request.getDelivery().getAddress())
+                    .detailAddress(request.getDelivery().getDetailAddress())
+                    .deliveryMessage(request.getDelivery().getDeliveryMessage())
+                    .status(ReservationDeliveryStatus.READY)
+                    .build();
+            reservationDeliveryJpaRepository.save(delivery);
         }
 
         int totalTicketAmount = calculateTotalTicketAmount(reservation);

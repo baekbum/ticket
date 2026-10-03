@@ -102,17 +102,6 @@ public class ReservationDelivery {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    public ReservationDelivery(Reservation reservation, ReservationDeliveryRequest info) {
-        this.reservation = reservation;
-        this.recipientName = info.getRecipientName();
-        this.recipientPhone = info.getRecipientPhone();
-        this.zipCode = info.getZipCode();
-        this.address = info.getAddress();
-        this.detailAddress = info.getDetailAddress();
-        this.deliveryMessage = info.getDeliveryMessage();
-        this.status = ReservationDeliveryStatus.READY;
-    }
-
     public ReservationDeliveryResponse toResponse() {
         return ReservationDeliveryResponse.builder()
                 .reservationDeliveryId(this.reservationDeliveryId)

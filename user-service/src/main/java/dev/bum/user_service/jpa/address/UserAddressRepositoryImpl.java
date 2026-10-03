@@ -44,7 +44,17 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
             unsetDefaultAddresses(userId);
         }
 
-        UserAddress address = new UserAddress(user, info, defaultAddress);
+        UserAddress address = UserAddress.builder()
+                .user(user)
+                .alias(info.getAlias())
+                .recipientName(info.getRecipientName())
+                .recipientPhone(info.getRecipientPhone())
+                .zipCode(info.getZipCode())
+                .address(info.getAddress())
+                .detailAddress(info.getDetailAddress())
+                .defaultAddress(defaultAddress)
+                .status(AddressStatus.ACTIVE)
+                .build();
         return jpaRepository.save(address);
     }
 

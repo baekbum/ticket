@@ -3,6 +3,8 @@ package dev.bum.auth_service.jpa;
 import dev.bum.auth_service.exception.UserAlreadyExistException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -28,7 +30,16 @@ public class AuthRepositoryImpl implements AuthRepository {
         event.setUserId(normalizeUserId(event.getUserId()));
         throwIfUserExists(event.getUserId());
 
-        jpaRepository.save(new Auth(event));
+        Auth auth = Auth.builder()
+                .id(event.getId())
+                .userId(event.getUserId())
+                .password(event.getPassword())
+                .role(UserRole.valueOf(event.getRole()))
+                .status(event.getStatus() == null ? UserStatus.ACTIVE : UserStatus.valueOf(event.getStatus()))
+                .isBlacklisted(event.getIsBlacklisted())
+                .blacklistedUntil(event.getBlacklistedUntil())
+                .build();
+        jpaRepository.save(auth);
     }
 
     @Override

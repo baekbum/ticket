@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
 import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
+import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
@@ -45,7 +46,21 @@ public class CouponService {
             throw new IllegalArgumentException("이미 존재하는 쿠폰 코드입니다.");
         }
 
-        Coupon savedCoupon = couponRepository.insert(new Coupon(request));
+        Integer validDaysAfterIssue = request.getValidDaysAfterIssue() != null && request.getValidDaysAfterIssue() > 0
+                ? request.getValidDaysAfterIssue() : null;
+        Coupon coupon = Coupon.builder()
+                .name(request.getName())
+                .code(request.getCode())
+                .discountType(request.getDiscountType())
+                .discountValue(request.getDiscountValue())
+                .maxDiscountAmount(request.getMaxDiscountAmount())
+                .minOrderAmount(request.getMinOrderAmount())
+                .validFrom(request.getValidFrom())
+                .validUntil(validDaysAfterIssue != null ? null : request.getValidUntil())
+                .validDaysAfterIssue(validDaysAfterIssue)
+                .status(request.getStatus() != null ? request.getStatus() : CouponStatus.ACTIVE)
+                .build();
+        Coupon savedCoupon = couponRepository.insert(coupon);
         log.info("[COUPON][INSERT][SUCCESS] couponId={}, code={}, status={}",
                 savedCoupon.getCouponId(), savedCoupon.getCode(), savedCoupon.getStatus());
 

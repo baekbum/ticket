@@ -65,7 +65,7 @@ class UserRepositoryImplTest {
                 .build();
 
         User IU = User.builder()
-                .userId("IU")
+                .userId("iu")
                 .password("IU05160918")
                 .role(UserRole.ROLE_USER)
                 .name("아이유")
@@ -133,7 +133,7 @@ class UserRepositoryImplTest {
 
         User user = userRepository.selectById(userId);
 
-        assertThat(user.getUserId()).isEqualTo("IU");
+        assertThat(user.getUserId()).isEqualTo("iu");
         assertThat(user.getPassword()).isEqualTo("IU05160918");
         assertThat(user.getRole()).isEqualTo(UserRole.ROLE_USER);
         assertThat(user.getGrade()).isEqualTo(UserGrade.GENERAL);
@@ -218,7 +218,7 @@ class UserRepositoryImplTest {
 
         User updatedUser = userRepository.update(userId, info);
 
-        assertThat(updatedUser.getUserId()).isEqualTo("IU");
+        assertThat(updatedUser.getUserId()).isEqualTo("iu");
         assertThat(updatedUser.getPhoneNumber()).isEqualTo("010-8888-9999");
         assertThat(updatedUser.getEmail()).isEqualTo("update@test.com");
     }
@@ -254,7 +254,7 @@ class UserRepositoryImplTest {
         Page<User> response = userRepository.selectByCond(cond, pageable);
 
         assertThat(response.getTotalElements()).isEqualTo(1);
-        assertThat(response.getContent().get(0).getUserId()).isEqualTo("IU");
+        assertThat(response.getContent().get(0).getUserId()).isEqualTo("iu");
     }
 
     @Test
@@ -272,7 +272,7 @@ class UserRepositoryImplTest {
         Page<User> response = userRepository.selectByCond(cond, pageable);
 
         assertThat(response.getTotalElements()).isEqualTo(1);
-        assertThat(response.getContent().get(0).getUserId()).isEqualTo("IU");
+        assertThat(response.getContent().get(0).getUserId()).isEqualTo("iu");
         assertThat(response.getContent().get(0).getGrade()).isEqualTo(UserGrade.VIP);
     }
 

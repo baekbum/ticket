@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.jpa.reservation.reservation;
 
-import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -100,15 +99,6 @@ public class Reservation {
                 .ticketCount(this.tickets != null ? this.tickets.size() : 0)
                 .status(this.status != null ? this.status.name() : null)
                 .build();
-    }
-
-    public Reservation(InsertReservationRequest info, Event event) {
-        this.orderId = info.getOrderId();
-        this.userId = info.getUserId();
-        this.event = event;
-        this.status = ReservationStatus.PENDING_PAYMENT;
-        this.tickets = new ArrayList<>();
-        this.reservedAt = LocalDateTime.now();
     }
 
     public void paid() {

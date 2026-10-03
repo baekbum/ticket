@@ -9,6 +9,7 @@ import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
+import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
@@ -49,7 +50,19 @@ public class UserRepositoryImpl implements UserRepository {
         // 비밀번호 암호화 작업
         info.setPassword(passwordEncoder.encode(info.getPassword()));
 
-        User user = new User(info);
+        User user = User.builder()
+                .userId(info.getUserId())
+                .password(info.getPassword())
+                .role(UserRole.ROLE_USER)
+                .grade(UserGrade.GENERAL)
+                .name(info.getName())
+                .phoneNumber(info.getPhoneNumber())
+                .email(info.getEmail())
+                .birthDate(info.getBirthDate())
+                .address(StringUtils.hasText(info.getAddress()) ? info.getAddress() : null)
+                .isBlacklisted(false)
+                .status(UserStatus.ACTIVE)
+                .build();
         jpaRepository.save(user);
 
         return user;

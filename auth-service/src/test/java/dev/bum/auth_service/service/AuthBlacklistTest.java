@@ -35,7 +35,7 @@ class AuthBlacklistTest {
 
     @Test
     void event_updates_blacklist() {
-        Auth auth = new Auth(1L, "user", "encoded", UserRole.ROLE_USER);
+        Auth auth = Auth.builder().id(1L).userId("user").password("encoded").role(UserRole.ROLE_USER).build();
         LocalDate until = LocalDate.of(2026, 12, 31);
         auth.updateInfo(UserDtoForEvent.builder().isBlacklisted(true).blacklistedUntil(until).build());
         assertThat(auth.isCurrentlyBlacklisted()).isTrue();
@@ -51,9 +51,9 @@ class AuthBlacklistTest {
 
     @Test
     void login_rejects_blacklisted_user_before_issuing_token() {
-        Auth auth = new Auth(UserDtoForEvent.builder().id(1L).userId("user")
-                .password("encoded").role("ROLE_USER").isBlacklisted(true)
-                .blacklistedUntil(LocalDate.of(2026, 12, 31)).build());
+        Auth auth = Auth.builder().id(1L).userId("user")
+                .password("encoded").role(UserRole.ROLE_USER).isBlacklisted(true)
+                .blacklistedUntil(LocalDate.of(2026, 12, 31)).build();
         given(repository.findByUserId("user")).willReturn(auth);
         given(passwordEncoder.matches("password", "encoded")).willReturn(true);
 
@@ -65,8 +65,8 @@ class AuthBlacklistTest {
 
     @Test
     void reissue_rejects_blacklisted_user_before_issuing_token() {
-        Auth auth = new Auth(UserDtoForEvent.builder().id(1L).userId("user")
-                .password("encoded").role("ROLE_USER").isBlacklisted(true).build());
+        Auth auth = Auth.builder().id(1L).userId("user")
+                .password("encoded").role(UserRole.ROLE_USER).isBlacklisted(true).build();
         given(tokenProvider.validateToken("refresh")).willReturn(true);
         given(tokenProvider.getUserId("refresh")).willReturn("user");
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
