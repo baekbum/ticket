@@ -10,6 +10,10 @@
 
 ### 인증 헤더
 
+Ticksy 사용자 로그인(`POST /api/v1/login`)은 `ROLE_USER` 계정만 허용한다.
+관리자 화면은 별도의 `POST /api/v1/admin/login`으로 로그인하며 `ROLE_ADMIN` 계정만 허용한다.
+공개 아이디 찾기·비밀번호 찾기·비밀번호 재설정은 관리자 계정을 대상으로 사용할 수 없다.
+
 로그인 이후 대부분의 사용자 API는 Access Token을 보낸다.
 
 ```http

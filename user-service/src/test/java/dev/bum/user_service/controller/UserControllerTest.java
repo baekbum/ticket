@@ -14,6 +14,8 @@ import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.user.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -41,6 +43,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/select/me", "/update/me", "/password/validate/me", "/password/change/me", "/withdraw/me", "/validate/info"})
+    @DisplayName("관리자 토큰으로 사용자 계정 및 비밀번호 API에 접근할 수 없다")
+    void admin_cannot_use_ticksy_account_api(String path) throws Exception {
+        var admin = new UsernamePasswordAuthenticationToken("admin", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        var request = switch (path) {
+            case "/select/me" -> get(baseUrl + path);
+            case "/update/me", "/password/change/me" -> put(baseUrl + path);
+            default -> post(baseUrl + path);
+        };
+        mockMvc.perform(request.with(authentication(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(userService);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -187,10 +206,10 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("비밀번호 검증")
+    @DisplayName("사용자 비밀번호 검증은 요청의 대상 ID 대신 인증된 본인 ID를 사용한다")
     void validate_info() throws Exception {
         ValidatePasswordRequest info = ValidatePasswordRequest.builder()
-                .userId("IU")
+                .userId("admin")
                 .password("IU05160918")
                 .build();
 
@@ -200,7 +219,8 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(info)))
                 .andExpect(status().isOk());
 
-        then(userService).should().validateInfo(info);
+        then(userService).should().validateMyPassword("IU", info.getPassword());
+        org.mockito.Mockito.verify(userService, org.mockito.Mockito.never()).validateInfo(any());
     }
 
     private InsertUserRequest insertUserRequest() {

@@ -3,6 +3,7 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.BlacklistedUserException;
+import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
@@ -14,6 +15,7 @@ import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.enums.UserStatus;
+import dev.bum.common.service.user.user.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -47,10 +49,25 @@ public class AuthService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
+        return loginAndCreateToken(info, UserRole.ROLE_USER);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @AuditLog(action = "LOGIN", targetType = "AUTH")
+    public TokenResponse adminLoginAndCreateToken(LoginRequest info) {
+        return loginAndCreateToken(info, UserRole.ROLE_ADMIN);
+    }
+
+    private TokenResponse loginAndCreateToken(LoginRequest info, UserRole requiredRole) {
         info.setUserId(normalizeUserId(info.getUserId()));
         log.info("Login attempt. userId={}", info.getUserId());
         Auth auth = findByUserId(info.getUserId());
         AuditContext.setActor(auth);
+
+        // 다른 로그인 경로로 관리자 계정을 잠그거나 계정 권한을 확인할 수 없게 한다.
+        if (auth.getRole() != requiredRole) {
+            throw new PasswordIncorrectException(ErrorCode.LOGIN_FAILED.getMessage());
+        }
 
         log.info("id : {}", auth.getId());
         log.info("user id : {}", auth.getUserId());

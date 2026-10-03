@@ -574,7 +574,7 @@ class UserServiceTest {
     @Test
     @DisplayName("현재 비밀번호가 틀리면 변경 화면 진입 검증 실패")
     void validate_my_password_wrong_password() {
-        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        User current = User.builder().id(1L).userId("user01").password("old-hash").role(UserRole.ROLE_USER).build();
         given(userRepository.selectById("user01")).willReturn(current);
         given(passwordEncoder.matches("wrong-password", "old-hash")).willReturn(false);
 

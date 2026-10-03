@@ -123,7 +123,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndPhoneNumber(request.getName(), request.getPhoneNumber());
-        validateIsUserStatusActive(user);
+        validateTicksyUser(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -138,7 +138,7 @@ public class UserService {
         }
 
         User user = repository.selectByNameAndEmail(request.getName(), request.getEmail());
-        validateIsUserStatusActive(user);
+        validateTicksyUser(user);
 
         return FindUserIdResponse.builder()
                 .maskedUserId(maskUserId(user.getUserId()))
@@ -157,7 +157,7 @@ public class UserService {
                 request.getName(),
                 request.getPhoneNumber()
         );
-        validateIsUserStatusActive(user);
+        validateTicksyUser(user);
 
         return createPasswordResetToken(user);
     }
@@ -174,7 +174,7 @@ public class UserService {
                 request.getName(),
                 request.getEmail()
         );
-        validateIsUserStatusActive(user);
+        validateTicksyUser(user);
 
         return createPasswordResetToken(user);
     }
@@ -185,7 +185,7 @@ public class UserService {
         if (resetToken == null || resetToken.isExpired()) {
             throw new UserNotExistException("비밀번호 재설정 요청이 만료되었습니다.");
         }
-        validateIsUserStatusActive(repository.selectById(resetToken.userId()));
+        validateTicksyUser(repository.selectById(resetToken.userId()));
 
         User updatedUser = repository.update(
                 resetToken.userId(),
@@ -396,12 +396,20 @@ public class UserService {
         }
     }
 
+    private void validateTicksyUser(User user) {
+        if (user.getRole() != UserRole.ROLE_USER) {
+            // 관리자 계정 여부를 공개 복구 API의 응답으로 노출하지 않는다.
+            throw new UserNotExistException("사용자 정보가 일치하지 않습니다.");
+        }
+        validateIsUserStatusActive(user);
+    }
+
     @Transactional(readOnly = true)
     @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
     public void validateMyPassword(String userId, String password) {
         User user = repository.selectById(userId);
 
-        validateIsUserStatusActive(user);
+        validateTicksyUser(user);
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new PasswordIncorrectException("비밀번호가 일치하지 않습니다.");

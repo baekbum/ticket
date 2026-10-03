@@ -118,8 +118,11 @@ public class UserController {
     }
 
     @PostMapping("/validate/info")
-    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
-        userService.validateInfo(info);
+    public ResponseEntity<Void> validateInfo(
+            @AuthenticationPrincipal String currentUserId,
+            @Valid @RequestBody ValidatePasswordRequest info
+    ) {
+        userService.validateMyPassword(currentUserId, info.getPassword());
         return ResponseEntity.ok().build();
     }
 }

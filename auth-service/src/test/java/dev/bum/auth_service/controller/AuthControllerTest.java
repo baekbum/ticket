@@ -39,6 +39,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthControllerTest {
 
     @Test
+    @DisplayName("관리자 로그인 API는 인증 없이 호출하고 관리자 로그인 서비스로 위임한다")
+    void admin_login_success() throws Exception {
+        LoginRequest info = new LoginRequest("admin", "admin-password");
+        given(authService.adminLoginAndCreateToken(any()))
+                .willReturn(new TokenResponse("admin-access", "admin-refresh"));
+
+        mockMvc.perform(post("/api/v1/admin/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("admin-access"));
+
+        then(authService).should().adminLoginAndCreateToken(info);
+        then(authService).should(never()).LoginAndCreateToken(any());
+    }
+
+    @Test
     @DisplayName("로그인 잠금 계정은 비밀번호 재설정 안내와 403 응답을 반환한다")
     void login_locked_account() throws Exception {
         given(authService.LoginAndCreateToken(any()))

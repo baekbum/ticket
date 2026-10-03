@@ -35,9 +35,50 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
+
+    @Test
+    @DisplayName("관리자는 사용자 로그인으로 토큰을 발급받거나 로그인 실패 횟수를 변경할 수 없다")
+    void user_login_rejects_admin() {
+        Auth admin = Auth.builder().id(1L).userId("admin").role(UserRole.ROLE_ADMIN).build();
+        given(authRepository.findByUserId("admin")).willReturn(admin);
+
+        assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest(" ADMIN ", "password")))
+                .isInstanceOf(PasswordIncorrectException.class)
+                .hasMessage(ErrorCode.LOGIN_FAILED.getMessage());
+
+        verifyNoInteractions(loginAttemptService, tokenProvider, redisTemplate);
+    }
+
+    @Test
+    @DisplayName("일반 회원은 관리자 로그인으로 토큰을 발급받을 수 없다")
+    void admin_login_rejects_user() {
+        given(authRepository.findByUserId("user01")).willReturn(auth("user01"));
+
+        assertThatThrownBy(() -> authService.adminLoginAndCreateToken(new LoginRequest("user01", "password")))
+                .isInstanceOf(PasswordIncorrectException.class)
+                .hasMessage(ErrorCode.LOGIN_FAILED.getMessage());
+
+        verifyNoInteractions(loginAttemptService, tokenProvider, redisTemplate);
+    }
+
+    @Test
+    @DisplayName("관리자 전용 로그인은 비밀번호 검증 후 관리자 토큰을 발급한다")
+    void admin_login_success() {
+        Auth admin = Auth.builder().id(1L).userId("admin").role(UserRole.ROLE_ADMIN).build();
+        TokenResponse tokens = new TokenResponse("admin-access", "admin-refresh");
+        given(authRepository.findByUserId("admin")).willReturn(admin);
+        given(tokenProvider.createToken("admin", "ROLE_ADMIN")).willReturn(tokens);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        assertThat(authService.adminLoginAndCreateToken(new LoginRequest("Admin", "password"))).isSameAs(tokens);
+
+        then(loginAttemptService).should().validatePassword(1L, "password");
+        then(valueOperations).should().set("RT:admin", "admin-refresh", Duration.ofDays(14));
+    }
 
     @InjectMocks
     private AuthService authService;

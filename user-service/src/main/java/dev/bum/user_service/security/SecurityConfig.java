@@ -28,7 +28,7 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private static final String ROLE_ADMIN = "ADMIN";
-    private static final String[] ROLE_ADMIN_OR_USER = {"ADMIN", "USER"};
+    private static final String ROLE_USER = "USER";
 
     @Bean
     @Order(1)
@@ -66,17 +66,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/check/duplication/**").permitAll()
                         .requestMatchers("/api/*/signup").permitAll()
 
-                        // 3. 관리자(ADMIN) 및 유저(USER) 모두 접근 가능 (내 정보 조회 / 내 정보 수정)
-                        .requestMatchers("/api/*/select/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/update/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/password/validate/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/password/change/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/withdraw/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/validate/info").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/address/insert/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/address/select/me").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/address/update/me/**").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .requestMatchers("/api/*/address/delete/me/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        // 3. Ticksy의 내 정보와 비밀번호 API는 일반 회원(USER)만 접근 가능
+                        .requestMatchers("/api/*/select/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/update/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/password/validate/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/password/change/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/withdraw/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/validate/info").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/address/insert/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/address/select/me").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/address/update/me/**").hasRole(ROLE_USER)
+                        .requestMatchers("/api/*/address/delete/me/**").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/manage/**").hasRole(ROLE_ADMIN)
 
                         // 4. 나머지 모든 요청은 무조건 관리자(ADMIN)만 가능

@@ -27,6 +27,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.LoginAndCreateToken(info));
     }
 
+    @PostMapping("/admin/login")
+    public ResponseEntity<TokenResponse> adminLogin(@Valid @RequestBody LoginRequest info) {
+        return ResponseEntity.ok(authService.adminLoginAndCreateToken(info));
+    }
+
     /**
      * Nginx auth_request 전용 검증 엔드포인트
      * (SecurityConfig에서 permitAll로 열려있고, Nginx internal;로 보호되는 경로)
