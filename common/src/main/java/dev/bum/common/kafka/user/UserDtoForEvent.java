@@ -17,6 +17,8 @@ public class UserDtoForEvent {
     private Long id;
     private String userId;
     private String password;
+    // 비밀번호 찾기를 통한 재설정 완료 이벤트에서만 설정한다.
+    private Boolean passwordReset;
     private String role;
     private String status;
     private Boolean isBlacklisted;

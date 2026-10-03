@@ -38,6 +38,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 class AuthControllerTest {
 
+    @Test
+    @DisplayName("로그인 잠금 계정은 비밀번호 재설정 안내와 403 응답을 반환한다")
+    void login_locked_account() throws Exception {
+        given(authService.LoginAndCreateToken(any()))
+                .willThrow(new dev.bum.auth_service.exception.UserLoginLockedException());
+        mockMvc.perform(post("/api/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("user01", "password"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_LOGIN_LOCKED"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("비밀번호 찾기")));
+    }
+
     @Autowired
     private MockMvc mockMvc;
 

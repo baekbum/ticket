@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
+import java.util.Objects;
 
 @Slf4j
 @Repository
@@ -18,6 +19,7 @@ import java.util.Locale;
 public class AuthRepositoryImpl implements AuthRepository {
 
     private final AuthJpaRepository jpaRepository;
+    private final UserLoginLockJpaRepository loginLocks;
 
     private void throwIfUserExists(String userId) {
         if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
@@ -51,8 +53,16 @@ public class AuthRepositoryImpl implements AuthRepository {
     @Override
     public void update(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        Auth auth = findByUserId(event.getUserId());
+        Auth auth = jpaRepository.findByUserIdForUpdate(event.getUserId())
+                .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
+        boolean passwordReset = Boolean.TRUE.equals(event.getPasswordReset())
+                && StringUtils.hasText(event.getPassword())
+                && !Objects.equals(auth.getPassword(), event.getPassword());
         auth.updateInfo(event);
+        // 같은 재설정 이벤트가 재전달되면 그 이후에 쌓인 실패 횟수를 지우지 않는다.
+        if (passwordReset) {
+            loginLocks.findByAuthId(auth.getId()).ifPresent(UserLoginLock::reset);
+        }
     }
 
     @Override

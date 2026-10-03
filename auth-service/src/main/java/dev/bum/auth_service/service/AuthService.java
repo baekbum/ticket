@@ -3,7 +3,6 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.BlacklistedUserException;
-import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
@@ -19,9 +18,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -35,7 +34,7 @@ import java.util.Locale;
 public class AuthService {
 
     private final AuthRepository repository;
-    private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptService loginAttemptService;
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
 
@@ -44,7 +43,8 @@ public class AuthService {
      * @param info
      * @return
      */
-    @Transactional(readOnly = true)
+    // 실패 횟수 저장용 트랜잭션을 기다리는 동안 외부 DB 연결을 점유하지 않는다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
         info.setUserId(normalizeUserId(info.getUserId()));
@@ -74,9 +74,7 @@ public class AuthService {
     }
 
     private void comparePassword(LoginRequest info, Auth auth) {
-        if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
-            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
-        }
+        loginAttemptService.validatePassword(auth.getId(), info.getPassword());
     }
 
     private Auth findByUserId(String userId) {

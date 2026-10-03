@@ -199,6 +199,7 @@ public class UserService {
                 .id(updatedUser.getId())
                 .userId(updatedUser.getUserId())
                 .password(updatedUser.getPassword())
+                .passwordReset(true)
                 .role(updatedUser.getRole().name())
                 .build());
     }

@@ -13,7 +13,6 @@ import org.springframework.data.redis.connection.lettuce.LettuceClientConfigurat
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
 import java.util.*;
@@ -56,7 +55,7 @@ class RefreshTokenRedisIntegrationTest {
         repository = mock(AuthRepository.class);
         auth = Auth.builder().id(1L).userId(user).role(UserRole.ROLE_USER).password("encoded").build();
         given(repository.findByUserId(user)).willReturn(auth);
-        service = new AuthService(repository, mock(PasswordEncoder.class), provider, redis);
+        service = new AuthService(repository, mock(LoginAttemptService.class), provider, redis);
     }
 
     @AfterEach

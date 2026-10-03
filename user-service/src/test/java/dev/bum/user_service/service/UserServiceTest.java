@@ -47,6 +47,29 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
+    @Test
+    @DisplayName("비밀번호 찾기로 재설정하면 로그인 잠금 해제를 위한 재설정 표시를 전파한다")
+    void password_reset_publishes_reset_flag() {
+        User user = User.builder().id(1L).userId("user01").name("홍길동")
+                .password("new-encoded-password").role(UserRole.ROLE_USER).build();
+        given(userRepository.selectByUserIdAndNameAndPhoneNumber("user01", "홍길동", "01012345678"))
+                .willReturn(user);
+        given(userRepository.selectById("user01")).willReturn(user);
+        given(userRepository.update(eq("user01"), any(UpdateUserRequest.class))).willReturn(user);
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
+        var response = userService.findPasswordByPhoneNumber(
+                dev.bum.common.service.user.user.dto.FindPasswordRequest.builder().userId("user01")
+                        .name("홍길동").phoneNumber("01012345678").build());
+
+        userService.resetPassword(dev.bum.common.service.user.user.dto.ResetPasswordRequest.builder()
+                .resetToken(response.getResetToken()).password("new-password").build());
+
+        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+                Boolean.TRUE.equals(event.getPasswordReset())
+                        && "new-encoded-password".equals(event.getPassword())
+                        && "user01".equals(event.getUserId())));
+    }
+
     @InjectMocks
     private UserService userService;
 

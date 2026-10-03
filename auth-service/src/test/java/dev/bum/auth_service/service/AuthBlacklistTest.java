@@ -14,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.verify;
 class AuthBlacklistTest {
     @InjectMocks AuthService service;
     @Mock AuthRepository repository;
-    @Mock PasswordEncoder passwordEncoder;
+    @Mock LoginAttemptService loginAttemptService;
     @Mock JwtTokenProvider tokenProvider;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOperations;
@@ -55,7 +54,6 @@ class AuthBlacklistTest {
                 .password("encoded").role(UserRole.ROLE_USER).isBlacklisted(true)
                 .blacklistedUntil(LocalDate.of(2026, 12, 31)).build();
         given(repository.findByUserId("user")).willReturn(auth);
-        given(passwordEncoder.matches("password", "encoded")).willReturn(true);
 
         assertThatThrownBy(() -> service.LoginAndCreateToken(new LoginRequest("user", "password")))
                 .isInstanceOf(BlacklistedUserException.class)

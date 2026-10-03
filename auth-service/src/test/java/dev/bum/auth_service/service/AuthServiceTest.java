@@ -21,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
 import java.util.List;
@@ -56,7 +55,7 @@ class AuthServiceTest {
     private ValueOperations<String, String> valueOperations;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private LoginAttemptService loginAttemptService;
 
     @Test
     @DisplayName("로그인 성공 시 토큰 생성 및 Refresh Token 저장")
@@ -66,7 +65,7 @@ class AuthServiceTest {
         TokenResponse tokens = new TokenResponse("access-token", "refresh-token");
 
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
+
         given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(tokens);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
@@ -75,7 +74,7 @@ class AuthServiceTest {
         assertThat(response.getAccessToken()).isEqualTo("access-token");
         assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         then(authRepository).should().findByUserId("user01");
-        then(passwordEncoder).should().matches("plain-password", "encoded-password");
+        then(loginAttemptService).should().validatePassword(1L, "plain-password");
         then(tokenProvider).should().createToken("user01", "ROLE_USER");
         then(valueOperations).should().set("RT:user01", "refresh-token", Duration.ofDays(14));
     }
@@ -87,13 +86,13 @@ class AuthServiceTest {
         Auth auth = auth("user01");
 
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("wrong-password", "encoded-password")).willReturn(false);
+        willThrow(new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.")).given(loginAttemptService).validatePassword(1L, "wrong-password");
 
         assertThatThrownBy(() -> authService.LoginAndCreateToken(info))
                 .isInstanceOf(PasswordIncorrectException.class);
 
         then(authRepository).should().findByUserId("user01");
-        then(passwordEncoder).should().matches("wrong-password", "encoded-password");
+        then(loginAttemptService).should().validatePassword(1L, "wrong-password");
         then(tokenProvider).should(never()).createToken(anyString(), anyString());
     }
 
@@ -105,7 +104,7 @@ class AuthServiceTest {
         TokenResponse tokens = new TokenResponse("access-token", "refresh-token");
 
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
+
         given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(tokens);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         willThrow(new DataAccessException("redis error") {})
@@ -251,7 +250,7 @@ class AuthServiceTest {
         Auth auth = auth("user01");
         auth.updateInfo(UserDtoForEvent.builder().status(UserStatus.WITHDRAWN.name()).build());
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
+
 
         assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest("user01", "plain-password")))
                 .isInstanceOf(WithdrawnUserException.class)
