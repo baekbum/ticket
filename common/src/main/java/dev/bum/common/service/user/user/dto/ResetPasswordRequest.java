@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Data
 @Builder
@@ -14,9 +15,11 @@ import lombok.NoArgsConstructor;
 public class ResetPasswordRequest {
 
     @NotBlank(message = "비밀번호 재설정 토큰은 필수 값입니다.")
+    @ToString.Exclude
     private String resetToken;
 
     @NotBlank(message = "비밀번호는 필수 값입니다.")
     @Size(min = 8, message = "비밀번호는 최소 여덟 글자 이상입니다.")
+    @ToString.Exclude
     private String password;
 }

@@ -78,7 +78,7 @@ public class UserService {
     @AuditLog(action = "USER_CREATE", targetType = "USER")
     public UserResponse insert(InsertUserRequest info) {
         info.setUserId(normalizeUserId(info.getUserId()));
-        log.info("[INSERT] insertUserInfo : {}", info.toString());
+        log.info("[INSERT] userId={}", info.getUserId());
         User savedUser = repository.insert(info);
 
         UserDtoForEvent event = UserDtoForEvent.builder()
@@ -233,7 +233,7 @@ public class UserService {
      */
     @AuditLog(action = "USER_UPDATE", targetType = "USER")
     public UserResponse update(String userId, UpdateUserRequest info) {
-        log.info("[UPDATE] updateUserInfo : {}", info.toString());
+        log.info("[UPDATE] userId={}", userId);
 
         User beforeUser = repository.selectById(userId);
         if (beforeUser.getStatus() != UserStatus.ACTIVE && info.getStatus() == null) {
@@ -309,7 +309,7 @@ public class UserService {
     @Transactional(readOnly = true)
     @AuditLog(action = "USER_PASSWORD_VALIDATE", targetType = "USER")
     public void validateInfo(ValidatePasswordRequest info) {
-        log.info("[VALIDATE] : {}", info);
+        log.info("[VALIDATE] userId={}", info.getUserId());
         User user = repository.selectById(info.getUserId());
         validateIsUserStatusActive(user);
 

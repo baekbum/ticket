@@ -8,5 +8,6 @@ import lombok.*;
 @Builder
 public class ValidatePasswordRequest {
     String userId;
+    @ToString.Exclude
     String password;
 }
