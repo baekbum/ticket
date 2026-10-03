@@ -24,10 +24,14 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
+import java.util.List;
+import dev.bum.common.error.ErrorCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -158,6 +162,9 @@ class AuthServiceTest {
         given(authRepository.findByUserId("user01")).willReturn(auth);
         given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(newTokens);
 
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
+                refreshToken, "new-refresh-token", "1209600000")).willReturn(1L);
+
         TokenResponse response = authService.reissueToken(refreshToken);
 
         assertThat(response.getAccessToken()).isEqualTo("new-access-token");
@@ -167,7 +174,8 @@ class AuthServiceTest {
         then(valueOperations).should().get("RT:user01");
         then(authRepository).should().findByUserId("user01");
         then(tokenProvider).should().createToken("user01", "ROLE_USER");
-        then(valueOperations).should().set("RT:user01", "new-refresh-token", Duration.ofDays(14));
+        then(redisTemplate).should().execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
+                refreshToken, "new-refresh-token", "1209600000");
     }
 
     @Test
@@ -274,7 +282,7 @@ class AuthServiceTest {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get("RT:user01")).willReturn(refreshToken);
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(redisTemplate.delete("RT:user01")).willReturn(true);
+        given(redisTemplate.execute(RefreshTokenScripts.DELETE, List.of("RT:user01"), refreshToken)).willReturn(1L);
 
         authService.logout(refreshToken);
 
@@ -282,7 +290,7 @@ class AuthServiceTest {
         then(tokenProvider).should().getUserId(refreshToken);
         then(valueOperations).should().get("RT:user01");
         then(authRepository).should().findByUserId("user01");
-        then(redisTemplate).should().delete("RT:user01");
+        then(redisTemplate).should().execute(RefreshTokenScripts.DELETE, List.of("RT:user01"), refreshToken);
     }
 
     @Test
@@ -297,7 +305,7 @@ class AuthServiceTest {
 
         then(tokenProvider).should().validateToken(refreshToken);
         then(tokenProvider).should(never()).getUserId(anyString());
-        then(redisTemplate).should(never()).delete(anyString());
+        then(redisTemplate).should(never()).execute(eq(RefreshTokenScripts.DELETE), anyList(), anyString());
     }
 
     @Test
@@ -317,7 +325,7 @@ class AuthServiceTest {
         then(tokenProvider).should().getUserId(refreshToken);
         then(valueOperations).should().get("RT:user01");
         then(authRepository).should(never()).findByUserId(anyString());
-        then(redisTemplate).should(never()).delete(anyString());
+        then(redisTemplate).should(never()).execute(eq(RefreshTokenScripts.DELETE), anyList(), anyString());
     }
 
     @Test
@@ -333,12 +341,12 @@ class AuthServiceTest {
         given(authRepository.findByUserId("user01")).willReturn(auth);
         willThrow(new DataAccessException("redis error") {})
                 .given(redisTemplate)
-                .delete("RT:user01");
+                .execute(RefreshTokenScripts.DELETE, List.of("RT:user01"), refreshToken);
 
         assertThatThrownBy(() -> authService.logout(refreshToken))
                 .isInstanceOf(RedisException.class);
 
-        then(redisTemplate).should().delete("RT:user01");
+        then(redisTemplate).should().execute(RefreshTokenScripts.DELETE, List.of("RT:user01"), refreshToken);
     }
 
     private Auth auth(String userId) {
@@ -357,5 +365,60 @@ class AuthServiceTest {
                 .password("encoded-password")
                 .role("ROLE_USER")
                 .build();
+    }
+
+    @Test
+    @DisplayName("사전 검증 후 다른 요청이 토큰을 교체하면 재발급을 거절한다")
+    void reissue_rejects_token_changed_after_precheck() {
+        prepareReissue();
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
+                "refresh-token", "new-refresh-token", "1209600000")).willReturn(0L);
+        assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
+                .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REFRESH_TOKEN_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("Lua 교체 결과를 확인하지 못하면 새 토큰을 반환하지 않는다")
+    void reissue_rejects_unknown_script_result() {
+        prepareReissue();
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
+                "refresh-token", "new-refresh-token", "1209600000")).willReturn(null);
+        assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
+                .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REDIS_ERROR);
+    }
+
+    @Test
+    @DisplayName("Lua 토큰 교체 중 Redis 장애는 Redis 오류로 전달한다")
+    void reissue_wraps_rotation_error() {
+        prepareReissue();
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
+                "refresh-token", "new-refresh-token", "1209600000"))
+                .willThrow(new DataAccessException("Redis 장애") {});
+        assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
+                .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REDIS_ERROR);
+    }
+
+    @Test
+    @DisplayName("사전 검증 후 다른 요청이 토큰을 교체하면 로그아웃 삭제를 거절한다")
+    void logout_rejects_token_changed_after_precheck() {
+        given(tokenProvider.validateToken("refresh-token")).willReturn(true);
+        given(tokenProvider.getUserId("refresh-token")).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn("refresh-token");
+        given(authRepository.findByUserId("user01")).willReturn(auth("user01"));
+        given(redisTemplate.execute(RefreshTokenScripts.DELETE, List.of("RT:user01"), "refresh-token")).willReturn(0L);
+        assertThatThrownBy(() -> authService.logout("refresh-token"))
+                .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REFRESH_TOKEN_MISMATCH);
+        then(redisTemplate).should(never()).delete(anyString());
+    }
+
+    private void prepareReissue() {
+        given(tokenProvider.validateToken("refresh-token")).willReturn(true);
+        given(tokenProvider.getUserId("refresh-token")).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn("refresh-token");
+        given(authRepository.findByUserId("user01")).willReturn(auth("user01"));
+        given(tokenProvider.createToken("user01", "ROLE_USER"))
+                .willReturn(new TokenResponse("new-access-token", "new-refresh-token"));
     }
 }

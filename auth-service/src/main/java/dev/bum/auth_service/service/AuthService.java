@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -153,7 +154,7 @@ public class AuthService {
         // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
         String userId = tokenProvider.getUserId(refreshToken);
 
-        // 3. Redis에서 해당 유저의 RT 조회
+        // 3. 사전 검증을 위해 Redis 토큰을 조회한다. 실제 교체 시 Lua에서 다시 비교한다.
         String redisKey = buildRefreshTokenKey(userId);
         String savedRefreshToken;
         try {
@@ -186,11 +187,13 @@ public class AuthService {
 
         TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
-        // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화
+        // 7. 요청 토큰과 일치할 때만 교체하고 TTL을 초기화한다. 동시 요청 중 하나만 성공한다.
         try {
-            redisTemplate.opsForValue().set(redisKey, newTokens.getRefreshToken(), Duration.ofDays(14));
+            Long result = redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of(redisKey),
+                    refreshToken, newTokens.getRefreshToken(), String.valueOf(Duration.ofDays(14).toMillis()));
+            validateTokenMutationResult(result);
         } catch (DataAccessException e) {
-            log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=set, keyPrefix=RT, redisKey={}, userId={}",
+            log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=rotate, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
             throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
         }
@@ -228,7 +231,9 @@ public class AuthService {
         }
 
         try {
-            redisTemplate.delete(redisKey);
+            // 사전 조회 후 토큰이 교체됐더라도 이전 요청으로 새 토큰을 삭제하지 않는다.
+            Long result = redisTemplate.execute(RefreshTokenScripts.DELETE, List.of(redisKey), refreshToken);
+            validateTokenMutationResult(result);
         } catch (DataAccessException e) {
             log.error("[REDIS-ERROR] Refresh Token 삭제 실패. operation=delete, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
@@ -238,6 +243,16 @@ public class AuthService {
 
     private String buildRefreshTokenKey(String userId) {
         return "RT:" + userId;
+    }
+
+    private void validateTokenMutationResult(Long result) {
+        if (Long.valueOf(0L).equals(result)) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH,
+                    "Refresh Token이 변경되었거나 이미 로그아웃되었습니다. 다시 로그인해 주세요.");
+        }
+        if (!Long.valueOf(1L).equals(result)) {
+            throw new RedisException("Redis Refresh Token 처리 결과를 확인할 수 없습니다.");
+        }
     }
 
     private String normalizeUserId(String userId) {
