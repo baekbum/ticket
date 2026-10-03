@@ -3,6 +3,7 @@ package dev.bum.payment_gateway_service.service.card;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentStatusResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.card.*;
@@ -54,7 +55,8 @@ public class GatewayCardSettlementService {
         } else if (result.outcome() == CardPaymentSettlementResponse.Outcome.REJECTED
                 && (result.payment().getStatus() == PaymentStatus.EXPIRED
                     || result.payment().getStatus() == PaymentStatus.CANCELLED
-                    || result.payment().getStatus() == PaymentStatus.FAILED)) {
+                    || result.payment().getStatus() == PaymentStatus.FAILED
+                    || result.payment().getMethod() == PaymentMethod.BANK_TRANSFER)) {
 
             DummyCard card = cards.findByIdForUpdate(history.getDummyCard().getDummyCardId()).orElseThrow();
             card.cancelApproval(history.getAmount());
@@ -83,6 +85,11 @@ public class GatewayCardSettlementService {
             throw new AccessDeniedException("다른 사용자의 결제입니다.");
         }
         return new GatewayCardPaymentStatusResponse(paymentNo, history.getStatus(), history.getTransactionId());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasApprovalHistory(String paymentNo) {
+        return histories.existsByPaymentNo(paymentNo);
     }
 
     private boolean pending(DummyCardPaymentHistory history) {

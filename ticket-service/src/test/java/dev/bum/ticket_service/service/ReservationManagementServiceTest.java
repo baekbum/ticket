@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -64,6 +65,9 @@ import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationManagementServiceTest {
+
+    @Mock
+    private TicketPurchaseCountService ticketPurchaseCountService;
 
     @InjectMocks
     private ReservationManagementService reservationManagementService;
@@ -108,7 +112,14 @@ class ReservationManagementServiceTest {
     @DisplayName("ID로 예약을 조회한다")
     void reservation_select_by_id() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
-        new Ticket(1L, "user01", reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        Ticket.builder()
+                .ticketId(1L)
+                .userId("user01")
+                .reservation(reservation)
+                .event(reservation.getEvent())
+                .seat(seat(1L, reservation.getEvent(), "VIP", 1, 1))
+                .status(TicketStatus.PENDING_PAYMENT)
+                .build();
 
         given(repository.selectById(1L)).willReturn(reservation);
 
@@ -198,7 +209,6 @@ class ReservationManagementServiceTest {
         assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
-        then(seatCacheService).should().updateUserPurchaseLimit(selectedTicket.getSeat().getEvent(), "user01", 1, "SUB");
     }
 
     @Test

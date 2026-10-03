@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +63,9 @@ import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
+
+    @Mock
+    private TicketPurchaseCountService ticketPurchaseCountService;
 
     @InjectMocks
     private ReservationService reservationService;
@@ -184,7 +188,6 @@ class ReservationServiceTest {
         assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(repository).should().selectById(1L);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
-        then(seatCacheService).should().updateUserPurchaseLimit(selectedTicket.getSeat().getEvent(), "user01", 1, "SUB");
     }
 
     @Test

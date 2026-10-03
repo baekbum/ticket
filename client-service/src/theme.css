@@ -1,4 +1,4 @@
-/* Ticksy live identity. Keep booking geometry and seat status colors in App.css. */
+/* Ticksy의 생동감 있는 시각 스타일을 정의한다. 예매 화면 배치와 좌석 상태 색상은 App.css에서 관리한다. */
 :root {
   --live-ink: #141817;
   --live-muted: #68716b;
@@ -45,7 +45,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .category-nav button.active-category::after { height: 3px; background: var(--live-green); }
 .category-nav .my-ticket { color: var(--live-green); }
 
-/* A self-contained stage illustration: no external image or font requests. */
+/* 외부 이미지나 글꼴을 요청하지 않고 자체적으로 구성하는 무대 그림. */
 .live-hero { position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 475px; overflow: hidden; padding: 60px max(40px, calc((100vw - 1232px) / 2)); background: #121c18; color: #fff; isolation: isolate; }
 .live-hero::before { position: absolute; z-index: -1; inset: 0; content: ""; background: radial-gradient(ellipse at 82% 45%, #45673980, transparent 48%), repeating-linear-gradient(90deg, transparent 0 119px, #ffffff05 120px); }
 .live-hero-copy { position: relative; z-index: 2; }
@@ -119,7 +119,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .mini-poster-description { margin: 0; font-size: 12px; }
 .mini-poster-empty { padding: 40px 12px; font-size: 14px; font-weight: 500; }
 
-/* Discovery, account, and booking surfaces share the same restrained details. */
+/* 공연 탐색, 계정, 예매 화면에 동일한 절제된 디자인을 적용한다. */
 .category-list-page, .my-ticket-page { max-width: 1120px; padding-top: 48px; }
 .category-list-header, .my-ticket-title { padding-bottom: 24px; border-bottom: 1px solid #cdd7c5; }
 .category-list-header h1, .my-ticket-title h1, .event-detail-header h1 { font-size: 36px; letter-spacing: -.055em; }

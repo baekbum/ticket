@@ -51,10 +51,14 @@ public class CardPaymentService {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
-        validateOwnerAndMethod(payment, request.getUserId());
+        validateOwner(payment, request.getUserId());
 
         if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
+        }
+
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
+            return new CardPaymentSettlementResponse(CardPaymentSettlementResponse.Outcome.REJECTED, payment.toResponse());
         }
 
         // 이미 결제를 완료한 건이므로 기존 결제 정보를 반환한다.
@@ -94,11 +98,15 @@ public class CardPaymentService {
     }
 
     private void validateOwnerAndMethod(Payment payment, String userId) {
-        if (payment.getReservation() == null || !java.util.Objects.equals(userId, payment.getReservation().getUserId())) {
-            throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
-        }
+        validateOwner(payment, userId);
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
+        }
+    }
+
+    private void validateOwner(Payment payment, String userId) {
+        if (payment.getReservation() == null || !java.util.Objects.equals(userId, payment.getReservation().getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
         }
     }
 

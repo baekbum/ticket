@@ -2,6 +2,7 @@ package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
@@ -16,6 +17,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpa
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
+import feign.FeignException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class GatewayVirtualAccountServiceTest {
@@ -66,6 +69,7 @@ class GatewayVirtualAccountServiceTest {
         GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
 
         assertThat(response.getIssued()).isTrue();
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.WAITING_DEPOSIT);
         assertThat(response.getBankCompany()).isEqualTo(BankCompany.KB);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).startsWith("1111-");
@@ -95,9 +99,78 @@ class GatewayVirtualAccountServiceTest {
         GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
 
         assertThat(response.getAccountNumber()).isEqualTo("1111-1234-123456");
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.WAITING_DEPOSIT);
         assertThat(response.getMessage()).isEqualTo("이미 발급된 가상계좌입니다.");
         then(dummyVirtualAccountJpaRepository).should().findByPaymentNo(request.getPaymentNo());
         then(dummyVirtualAccountJpaRepository).shouldHaveNoMoreInteractions();
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 발급된 paymentNo의 은행이 다르면 재발급을 거부한다")
+    void reject_existing_virtual_account_with_different_bank() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        request.setBankCompany(BankCompany.SHINHAN);
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                request.getAmount(),
+                LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.issue(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("동일한 결제번호로 다른 가상계좌 발급 정보를 요청할 수 없습니다.");
+
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 발급된 paymentNo의 금액이 다르면 재발급을 거부한다")
+    void reject_existing_virtual_account_with_different_amount() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                BigDecimal.valueOf(170000),
+                LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.issue(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("동일한 결제번호로 다른 가상계좌 발급 정보를 요청할 수 없습니다.");
+
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 만료된 가상계좌를 조회하면 만료 상태를 반환한다")
+    void return_expired_status_for_existing_virtual_account() {
+        GatewayVirtualAccountIssueRequest request = issueRequest(LocalDate.now().plusDays(2).atTime(18, 0));
+        DummyVirtualAccount virtualAccount = DummyVirtualAccount.issue(
+                request.getPaymentNo(),
+                BankCompany.KB,
+                "1111-1234-123456",
+                request.getAmount(),
+                LocalDateTime.of(LocalDate.now().minusDays(1), LocalTime.of(23, 59, 59))
+        );
+
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())).willReturn(Optional.of(virtualAccount));
+
+        GatewayVirtualAccountIssueResponse response = gatewayVirtualAccountService.issue(request);
+
+        assertThat(response.getStatus()).isEqualTo(GatewayVirtualAccountStatus.EXPIRED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(response.getIssued()).isTrue();
         then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
         then(ticketPaymentClient).shouldHaveNoInteractions();
     }
@@ -119,6 +192,84 @@ class GatewayVirtualAccountServiceTest {
         assertThat(response.getDepositedAt()).isEqualTo(LocalDateTime.of(2026, 8, 19, 12, 0));
         assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
         then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2)).save(any(DummyVirtualAccountPaymentHistory.class));
+        then(ticketPaymentClient).should().completeVirtualAccountDeposit(any());
+    }
+
+    @Test
+    @DisplayName("ticket 응답이 유실되면 같은 입금 완료 요청을 재시도하여 PAID를 확인한다")
+    void retry_deposit_completion_after_transient_ticket_failure() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+        FeignException timeout = mock(FeignException.class);
+        given(timeout.status()).willReturn(-1);
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any()))
+                .willThrow(timeout)
+                .willReturn(paymentResponse(PaymentStatus.PAID));
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
+        then(ticketPaymentClient).should(times(2)).completeVirtualAccountDeposit(
+                org.mockito.ArgumentMatchers.argThat(ticketRequest ->
+                        ticketRequest.getPaymentNo().equals(virtualAccount.getPaymentNo())
+                                && ticketRequest.getAmount().compareTo(virtualAccount.getAmount()) == 0
+                                && ticketRequest.getAccountNumber().equals(virtualAccount.getAccountNumber())));
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
+                .save(any(DummyVirtualAccountPaymentHistory.class));
+    }
+
+    @Test
+    @DisplayName("ticket의 일시적 오류가 세 번 계속되면 PG 실패 이력을 남긴다")
+    void fail_deposit_completion_after_three_transient_ticket_failures() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+        FeignException serverError = mock(FeignException.class);
+        given(serverError.status()).willReturn(503);
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any())).willThrow(serverError);
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED);
+        then(ticketPaymentClient).should(times(3)).completeVirtualAccountDeposit(any());
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should(times(2))
+                .save(any(DummyVirtualAccountPaymentHistory.class));
+    }
+
+    @Test
+    @DisplayName("명확한 ticket 요청 거절은 재시도하지 않는다")
+    void do_not_retry_deposit_completion_after_ticket_rejection() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+        FeignException badRequest = mock(FeignException.class);
+        given(badRequest.status()).willReturn(400);
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any())).willThrow(badRequest);
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED);
+        then(ticketPaymentClient).should().completeVirtualAccountDeposit(any());
+    }
+
+    @Test
+    @DisplayName("ticket의 200 응답도 결제번호와 금액이 다르면 PG 완료로 기록하지 않는다")
+    void reject_mismatched_ticket_deposit_completion_response() {
+        DummyVirtualAccount virtualAccount = virtualAccount();
+        GatewayVirtualAccountDepositRequest request = depositRequest(BigDecimal.valueOf(180000));
+        PaymentResponse mismatchedResponse = paymentResponse(PaymentStatus.PAID);
+        mismatchedResponse.setAmount(170000);
+        given(dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber()))
+                .willReturn(Optional.of(virtualAccount));
+        given(ticketPaymentClient.completeVirtualAccountDeposit(any())).willReturn(mismatchedResponse);
+
+        GatewayVirtualAccountDepositResponse response = gatewayVirtualAccountService.deposit(request);
+
+        assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED);
         then(ticketPaymentClient).should().completeVirtualAccountDeposit(any());
     }
 

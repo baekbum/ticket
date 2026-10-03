@@ -194,6 +194,7 @@ type CheckoutPrepareResponse = {
   idempotencyKey: string;
   prepared: boolean;
   preparedAt: string;
+  expiresAt: string;
 };
 
 type CouponDiscountType = 'FIXED_AMOUNT' | 'PERCENT' | string;
@@ -2608,6 +2609,7 @@ function BookingWindowPage() {
         coupons = [];
       }
 
+      setSeatHoldExpiresAt(prepareResult.expiresAt);
       setCheckoutPrepare(prepareResult);
       setUserCoupons(coupons.filter((coupon) => coupon.status === 'ISSUED'));
       setSelectedUserCouponId(null);
@@ -2618,6 +2620,10 @@ function BookingWindowPage() {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         alertSessionExpiredAndClose(error);
         return;
+      }
+
+      if (error instanceof ApiRequestError && error.code === 'SEAT_ALREADY_OCCUPIED' && selectedArea) {
+        await selectArea(selectedArea);
       }
 
       alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));

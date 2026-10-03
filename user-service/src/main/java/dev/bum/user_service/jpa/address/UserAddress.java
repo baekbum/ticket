@@ -1,6 +1,5 @@
 package dev.bum.user_service.jpa.address;
 
-import dev.bum.common.service.user.address.dto.InsertUserAddressRequest;
 import dev.bum.common.service.user.address.dto.UpdateUserAddressRequest;
 import dev.bum.common.service.user.address.dto.UserAddressResponse;
 import dev.bum.common.service.user.address.enums.AddressStatus;
@@ -66,18 +65,6 @@ public class UserAddress {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    public UserAddress(User user, InsertUserAddressRequest info, boolean defaultAddress) {
-        this.user = user;
-        this.alias = info.getAlias();
-        this.recipientName = info.getRecipientName();
-        this.recipientPhone = info.getRecipientPhone();
-        this.zipCode = info.getZipCode();
-        this.address = info.getAddress();
-        this.detailAddress = info.getDetailAddress();
-        this.defaultAddress = defaultAddress;
-        this.status = AddressStatus.ACTIVE;
-    }
 
     public void updateInfo(UpdateUserAddressRequest info) {
         if (StringUtils.hasText(info.getAlias())) {

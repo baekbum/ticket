@@ -124,6 +124,22 @@ class CardPaymentServiceTest {
     }
 
     @Test
+    void settlementRejectsApprovalAfterPaymentMethodChangedToBankTransfer() {
+        Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+        payment.switchToBankTransfer();
+        payment.waitDeposit("KB국민은행", "1111-2222-3333-4444", LocalDateTime.now().plusDays(1));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
+
+        CardPaymentSettlementResponse result = cardPaymentService.settleFromGateway(
+                cardCompleteRequest(BigDecimal.valueOf(180000)));
+
+        assertThat(result.outcome()).isEqualTo(CardPaymentSettlementResponse.Outcome.REJECTED);
+        assertThat(result.payment().getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+        assertThat(result.payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        then(paymentCompletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("payment-gateway 결제 완료 요청 시 카드 결제를 완료 처리한다")
     void complete_card_payment_from_gateway_success() {
         Reservation reservation = reservation(event(), "user01");

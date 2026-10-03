@@ -17,6 +17,8 @@ public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<Dumm
     @EntityGraph(attributePaths = "dummyCard")
     Optional<DummyCardPaymentHistory> findByPaymentNo(String paymentNo);
 
+    boolean existsByPaymentNo(String paymentNo);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<DummyCardPaymentHistory> findByPaymentNoAndTransactionId(String paymentNo, String transactionId);
 

@@ -2,6 +2,7 @@ package dev.bum.auth_service.controller.advice;
 
 import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
+import dev.bum.auth_service.exception.UserLoginLockedException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
@@ -20,6 +21,12 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(UserLoginLockedException.class)
+    public ResponseEntity<ErrorResponse> userLoginLocked(UserLoginLockedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.USER_LOGIN_LOCKED, ex.getMessage()));
+    }
 
     @ExceptionHandler(PasswordIncorrectException.class)
     public ResponseEntity<ErrorResponse> PasswordIncorrectException(PasswordIncorrectException ex) {

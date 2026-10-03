@@ -43,7 +43,7 @@ class ReservationDeliveryServiceTest {
     @Test
     @DisplayName("배송 ID로 배송 스냅샷을 조회한다")
     void select_by_id() {
-        ReservationDelivery delivery = new ReservationDelivery(reservation(1L, "user01"), deliveryRequest());
+        ReservationDelivery delivery = delivery(reservation(1L, "user01"), deliveryRequest());
         given(reservationDeliveryJpaRepository.findById(10L)).willReturn(Optional.of(delivery));
 
         ReservationDeliveryResponse response = reservationDeliveryService.selectById(10L);
@@ -56,7 +56,7 @@ class ReservationDeliveryServiceTest {
     @DisplayName("사용자는 본인 예약 배송 스냅샷만 조회한다")
     void select_my_by_reservation_id() {
         Reservation reservation = reservation(1L, "user01");
-        ReservationDelivery delivery = new ReservationDelivery(reservation, deliveryRequest());
+        ReservationDelivery delivery = delivery(reservation, deliveryRequest());
         given(reservationRepository.selectById(1L)).willReturn(reservation);
         given(reservationDeliveryJpaRepository.findByReservation(reservation)).willReturn(Optional.of(delivery));
 
@@ -96,6 +96,19 @@ class ReservationDeliveryServiceTest {
                 .address("Seoul Olympic-ro")
                 .detailAddress("101-1001")
                 .deliveryMessage("Leave at door")
+                .build();
+    }
+
+    private ReservationDelivery delivery(Reservation reservation, ReservationDeliveryRequest request) {
+        return ReservationDelivery.builder()
+                .reservation(reservation)
+                .recipientName(request.getRecipientName())
+                .recipientPhone(request.getRecipientPhone())
+                .zipCode(request.getZipCode())
+                .address(request.getAddress())
+                .detailAddress(request.getDetailAddress())
+                .deliveryMessage(request.getDeliveryMessage())
+                .status(ReservationDeliveryStatus.READY)
                 .build();
     }
 }

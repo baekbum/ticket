@@ -8,7 +8,6 @@ import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import jakarta.persistence.*;
 import lombok.*;
@@ -29,7 +28,6 @@ import java.util.List;
 @Builder
 public class Event {
 
-    // 🌟 가독성과 성능을 위해 포맷터를 상수로 분리
     private static final DateTimeFormatter EVENT_FORMATTER = DateTimeFormatter.ofPattern("yyyy년 M월 d일 HH시 mm분");
 
     @Id
@@ -148,35 +146,6 @@ public class Event {
                 .build();
     }
 
-    // 비즈니스 메서드: 생성자 수정
-    public Event(InsertEventRequest info) {
-        this.artistName = info.getArtistName();
-        this.title = info.getTitle();
-        this.eventGroupCode = StringUtils.hasText(info.getEventGroupCode())
-                ? info.getEventGroupCode()
-                : createDefaultEventGroupCode(info);
-        if (StringUtils.hasText(info.getDescription())) this.description = info.getDescription();
-        this.venue = info.getVenue();
-        if (StringUtils.hasText(info.getVenueAddress())) this.venueAddress = info.getVenueAddress();
-        if (StringUtils.hasText(info.getPosterUrl())) this.posterUrl = info.getPosterUrl();
-        this.eventDateTime = info.getEventDateTime();
-        this.saleStartAt = info.getSaleStartAt();
-        this.saleEndAt = info.getSaleEndAt();
-        this.cancelDeadlineAt = info.getCancelDeadlineAt();
-        this.runningMinutes = info.getRunningMinutes();
-        this.ageLimit = info.getAgeLimit();
-        this.totalSeats = info.getTotalSeats();
-        this.availableSeats = info.getTotalSeats();
-        this.status = EventStatus.ON_SALE;
-        this.maxTicketsPerPerson  = info.getMaxTicketsPerPerson();
-        this.ticketLimitScope = info.getTicketLimitScope() != null ? info.getTicketLimitScope() : TicketLimitScope.PER_EVENT;
-        this.genre = info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT;
-        this.region = info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL;
-        this.theme = info.getTheme() != null ? info.getTheme() : EventTheme.IDOL;
-        this.seats = new ArrayList<>();
-        this.areas = new ArrayList<>();
-    }
-
     // 비즈니스 메서드: 수정 로직 추가
     public void update(UpdateEventRequest info) {
         if (StringUtils.hasText(info.getArtistName())) this.artistName = info.getArtistName();
@@ -204,10 +173,5 @@ public class Event {
 
     public void updatePosterUrl(String posterUrl) {
         if (StringUtils.hasText(posterUrl)) this.posterUrl = posterUrl;
-    }
-
-    private String createDefaultEventGroupCode(InsertEventRequest info) {
-        String source = String.join("|", info.getArtistName(), info.getTitle(), info.getVenue());
-        return "EVENT-" + Integer.toHexString(source.hashCode()).toUpperCase();
     }
 }

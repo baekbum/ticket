@@ -204,6 +204,39 @@ class GatewayCardApprovalServiceTest {
     }
 
     @Test
+    @DisplayName("이미 승인된 결제번호에 다른 카드사로 재요청하면 기존 승인을 반환하지 않는다")
+    void reject_existing_approval_with_different_card_company() {
+        GatewayCardPaymentApproveRequest request = approveRequest();
+        request.setCardCompany(CardCompany.HYUNDAI);
+        DummyCardPaymentHistory existingHistory = DummyCardPaymentHistory.approved(
+                dummyCard(), "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+        existingHistory.completeTicketPayment(null);
+        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(existingHistory));
+
+        assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("기존 카드 승인에 사용된 카드와 요청 카드가 일치하지 않습니다.");
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("같은 카드사라도 카드번호가 다르면 기존 승인을 반환하지 않는다")
+    void reject_existing_approval_with_different_card_number() {
+        GatewayCardPaymentApproveRequest request = approveRequest();
+        request.setCardNumber("4111-1111-1111-2222");
+        DummyCardPaymentHistory existingHistory = DummyCardPaymentHistory.approved(
+                dummyCard(), "IU", request.getPaymentNo(), "CARD-1", "4111-****-****-1111", request.getAmount());
+        given(dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(existingHistory));
+
+        assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("기존 카드 승인에 사용된 카드와 요청 카드가 일치하지 않습니다.");
+        then(ticketPaymentClient).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("기존 카드 승인 이력이 있어도 사용자 인증 정보가 없으면 거부한다")
     void reject_existing_history_without_current_user() {
         GatewayCardPaymentApproveRequest request = approveRequest();

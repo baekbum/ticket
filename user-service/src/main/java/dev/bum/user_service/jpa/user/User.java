@@ -3,7 +3,6 @@ package dev.bum.user_service.jpa.user;
 import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
-import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.enums.UserStatus;
 import jakarta.persistence.*;
@@ -14,7 +13,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Locale;
 
 @Entity
 @Table(name = "users", indexes = {
@@ -82,30 +80,6 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    /**
-     * InsertInfo -> Entity
-     */
-    public User(InsertUserRequest info) {
-        this.userId = normalizeUserId(info.getUserId());
-        this.password = info.getPassword();
-        this.role = UserRole.ROLE_USER;
-        this.grade = UserGrade.GENERAL;
-        this.name = info.getName();
-        this.phoneNumber = info.getPhoneNumber();
-        this.email = info.getEmail();
-
-        if (info.getBirthDate() != null) {
-            this.birthDate = info.getBirthDate();
-        }
-
-        if (StringUtils.hasText(info.getAddress())) {
-            this.address = info.getAddress();
-        }
-
-        this.isBlacklisted = false;
-        this.status = UserStatus.ACTIVE;
-    }
 
     /**
      * 사용자 정보 수정
@@ -182,9 +156,5 @@ public class User {
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
                 .build();
-    }
-
-    private String normalizeUserId(String userId) {
-        return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 }

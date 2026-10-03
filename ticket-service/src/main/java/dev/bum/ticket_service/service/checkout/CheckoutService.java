@@ -5,8 +5,12 @@ import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
+import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
+import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
 import dev.bum.ticket_service.jpa.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -16,6 +20,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -37,22 +42,16 @@ import java.util.UUID;
 public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private static final List<PaymentStatus> REUSABLE_PAYMENT_STATUSES = List.of(
-            PaymentStatus.READY,
-            PaymentStatus.WAITING_DEPOSIT,
-            PaymentStatus.PAID
-    );
-
     private final SeatCacheService seatCacheService;
     private final QueueAccessService queueAccessService;
     private final ReservationRepository reservationRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
+    private final CheckoutAttemptJpaRepository checkoutAttemptJpaRepository;
     private final CheckoutPaymentService checkoutPaymentService;
-
-    @Value("${payment.expiration.ready-timeout-minutes:10}")
-    private long paymentReadyTimeoutMinutes = 10;
+    private final PaymentGatewayCardClient paymentGatewayCardClient;
+    private final CheckoutIdempotencyKeyGenerator idempotencyKeyGenerator;
 
     @Value("${app.checkout.reservation-fee-per-ticket:4000}")
     private int reservationFeePerTicket = 4000;
@@ -66,24 +65,34 @@ public class CheckoutService {
      */
     @AuditLog(action = "CHECKOUT_PREPARE", targetType = "CHECKOUT")
     public CheckoutPrepareResponse prepare(String currentUserId, String activeToken, CheckoutPrepareRequest request) {
-        String idempotencyKey = generateIdempotencyKey();
-
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
-        seatCacheService.validateOccupiedSeat(
+        LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
                 request.getSeats()
         );
 
+        LocalDateTime preparedAt = LocalDateTime.now();
+        CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
+                idempotencyKeyGenerator.generate(),
+                currentUserId,
+                request.getOrderId(),
+                request.getEventId(),
+                generatePaymentNo(),
+                expiresAt
+        );
+        checkoutAttemptJpaRepository.save(checkoutAttempt);
+
         return CheckoutPrepareResponse.builder()
                 .eventId(request.getEventId())
                 .orderId(request.getOrderId())
                 .seats(request.getSeats())
-                .idempotencyKey(idempotencyKey)
+                .idempotencyKey(checkoutAttempt.getIdempotencyKey())
                 .prepared(true)
-                .preparedAt(LocalDateTime.now())
+                .preparedAt(preparedAt)
+                .expiresAt(expiresAt)
                 .build();
     }
 
@@ -94,14 +103,25 @@ public class CheckoutService {
     @AuditLog(action = "CHECKOUT_CONFIRM", targetType = "CHECKOUT")
     public PaymentResponse confirm(String currentUserId, String activeToken, CheckoutConfirmRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
-        Payment existingPayment = findExistingPayment(currentUserId, idempotencyKey);
-        if (existingPayment != null) {
-            return existingPayment.toResponse();
+        CheckoutAttempt checkoutAttempt = checkoutAttemptJpaRepository
+                .findByIdempotencyKeyForUpdate(idempotencyKey)
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
+
+        validateRequestMatchesAttempt(currentUserId, request, checkoutAttempt);
+
+        if (checkoutAttempt.isConfirmed()) {
+            return handleConfirmedPayment(currentUserId, activeToken, request, checkoutAttempt);
+        }
+        if (!checkoutAttempt.isPrepared()) {
+            throw new IllegalStateException("결제를 진행할 수 없는 checkout 상태입니다.");
+        }
+        if (checkoutAttempt.isExpired(LocalDateTime.now())) {
+            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
-        seatCacheService.validateOccupiedSeat(
+        LocalDateTime seatExpiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
@@ -110,7 +130,17 @@ public class CheckoutService {
 
         Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
         if (request.getDelivery() != null) {
-            reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, request.getDelivery()));
+            ReservationDelivery delivery = ReservationDelivery.builder()
+                    .reservation(reservation)
+                    .recipientName(request.getDelivery().getRecipientName())
+                    .recipientPhone(request.getDelivery().getRecipientPhone())
+                    .zipCode(request.getDelivery().getZipCode())
+                    .address(request.getDelivery().getAddress())
+                    .detailAddress(request.getDelivery().getDetailAddress())
+                    .deliveryMessage(request.getDelivery().getDeliveryMessage())
+                    .status(ReservationDeliveryStatus.READY)
+                    .build();
+            reservationDeliveryJpaRepository.save(delivery);
         }
 
         int totalTicketAmount = calculateTotalTicketAmount(reservation);
@@ -122,7 +152,7 @@ public class CheckoutService {
 
         Payment payment = Payment.builder()
                 .reservation(reservation)
-                .paymentNo(generatePaymentNo())
+                .paymentNo(checkoutAttempt.getPaymentNo())
                 .method(request.getPaymentMethod())
                 .status(PaymentStatus.READY)
                 .amount(paymentAmount)
@@ -130,34 +160,90 @@ public class CheckoutService {
                 .deliveryFeeAmount(request.getDelivery() != null ? deliveryFee : 0)
                 .idempotencyKey(idempotencyKey)
                 .requestedAt(requestedAt)
-                .expiresAt(requestedAt.plusMinutes(paymentReadyTimeoutMinutes))
+                .expiresAt(seatExpiresAt)
                 .build();
 
         checkoutPaymentService.process(request, payment);
 
         Payment savedPayment = paymentJpaRepository.save(payment);
+        checkoutAttempt.confirm(savedPayment);
 
         return savedPayment.toResponse();
     }
 
-    private Payment findExistingPayment(String currentUserId, String idempotencyKey) {
-        if (!StringUtils.hasText(idempotencyKey)) {
-            return null;
+    private void validateRequestMatchesAttempt(
+            String currentUserId,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt
+    ) {
+        if (!currentUserId.equals(checkoutAttempt.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 요청 키입니다.");
+        }
+        if (!checkoutAttempt.getOrderId().equals(request.getOrderId())
+                || !checkoutAttempt.getEventId().equals(request.getEventId())) {
+            throw new IllegalArgumentException("prepare 요청과 결제 확정 정보가 일치하지 않습니다.");
+        }
+    }
+
+    private PaymentResponse handleConfirmedPayment(
+            String currentUserId,
+            String activeToken,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt
+    ) {
+        Payment confirmedPayment = checkoutAttempt.getPayment();
+
+        if (confirmedPayment == null) {
+            throw new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.");
         }
 
-        return paymentJpaRepository.findFirstByIdempotencyKeyAndStatusInOrderByPaymentIdDesc(
-                        idempotencyKey,
-                        REUSABLE_PAYMENT_STATUSES
-                )
-                .map(payment -> {
-                    Reservation reservation = payment.getReservation();
-                    if (reservation == null || !currentUserId.equals(reservation.getUserId())) {
-                        throw new AccessDeniedException("다른 사용자의 결제 요청 키입니다.");
-                    }
-                    return payment;
-                })
-                .orElse(null);
+        if (confirmedPayment.getMethod() == request.getPaymentMethod()) {
+            return confirmedPayment.toResponse();
+        }
+
+        return switchCardToBankTransfer(currentUserId, activeToken, request, checkoutAttempt, confirmedPayment);
     }
+
+    private PaymentResponse switchCardToBankTransfer(
+            String currentUserId,
+            String activeToken,
+            CheckoutConfirmRequest request,
+            CheckoutAttempt checkoutAttempt,
+            Payment confirmedPayment
+    ) {
+
+        if (confirmedPayment.getMethod() != PaymentMethod.CREDIT_CARD
+                || request.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalStateException("변경할 수 없는 결제 수단입니다.");
+        }
+
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(confirmedPayment.getPaymentNo())
+                .orElseThrow(() -> new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다."));
+
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD || payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (checkoutAttempt.isExpired(now) || payment.getExpiresAt() == null
+                || !payment.getExpiresAt().isAfter(now)) {
+            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
+        }
+
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        seatCacheService.validateOccupiedSeat(
+                request.getEventId(), currentUserId, request.getOrderId(), request.getSeats()
+        );
+
+        if (!Boolean.FALSE.equals(paymentGatewayCardClient.hasApprovalHistory(payment.getPaymentNo()))) {
+            throw new IllegalStateException("카드 승인 이력이 있어 결제 수단을 변경할 수 없습니다.");
+        }
+
+        payment.switchToBankTransfer();
+        checkoutPaymentService.process(request, payment);
+        return payment.toResponse();
+    }
+
 
     private InsertReservationRequest toReservationRequest(String currentUserId, CheckoutConfirmRequest request) {
         return InsertReservationRequest.builder()
@@ -197,10 +283,6 @@ public class CheckoutService {
         }
 
         return idempotencyKey.trim();
-    }
-
-    private String generateIdempotencyKey() {
-        return "CHK-" + UUID.randomUUID().toString().replace("-", "");
     }
 
 }

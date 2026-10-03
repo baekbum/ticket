@@ -15,6 +15,7 @@ import java.security.Key;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,6 +60,8 @@ public class JwtTokenProvider {
 
         String refreshToken = Jwts.builder()
                 .setClaims(refreshClaims)
+                // 같은 초에 발급해도 이전 토큰과 달라야 Redis의 토큰 교체가 재사용을 차단한다.
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(now)
                 .setExpiration(refreshValidity)
                 .signWith(key, SignatureAlgorithm.HS256)

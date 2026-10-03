@@ -179,7 +179,7 @@ Redis는 용도별로 장애 시 서비스 영향도가 다르다.
 | Redis | 사용 서비스 | 용도 | 장애 정책 |
 | --- | --- | --- | --- |
 | Refresh Token Redis | `auth-service` | Refresh Token 저장, 재발급, 로그아웃 | fail-closed |
-| Seat Redis | `ticket-service` | 좌석 캐시, 선점 락, 구매 수량 캐시 | fail-closed |
+| Seat Redis | `ticket-service` | 좌석 캐시, 선점 락 | fail-closed |
 | Queue Redis | `queue-service` | 대기열, active token | fail-closed |
 
 ### Refresh Token Redis
@@ -216,11 +216,17 @@ Redis는 용도별로 장애 시 서비스 영향도가 다르다.
 | 좌석 점유 중 Redis 장애 | 좌석 점유 실패. DB만으로 선점 진행하지 않는다. |
 | 일부 좌석 lock 후 실패 | 획득한 lock과 seat key를 가능한 범위에서 rollback한다. |
 | DB 커밋 후 Redis 동기화 실패 | DB를 진실 원천으로 유지하고 보정 작업 대상으로 남긴다. |
-| Redis 캐시 유실 | 좌석 조회는 DB 기준으로 복구 가능하나, 신규 점유 전 캐시 warm-up을 수행한다. |
-| 구매 수량 캐시 유실 | DB 기준 구매 제한 검증을 먼저 수행하고 Redis 카운터를 재적재한다. |
+| Redis 캐시 유실 | 좌석 조회와 신규 점유는 Redis 키가 없으면 DB 상태를 검증한다. 판매 시작 후 일반 덮어쓰기 예열은 금지하고, 필요한 경우 DB가 AVAILABLE이며 Redis 좌석·락 키가 모두 없는 좌석만 보충한다. |
+| 동일 사용자의 동시 예매 | 사용자와 공연 또는 공연 그룹의 공통 행을 비관적 락으로 잠근 뒤, 구매 카운트를 검증·증가하고 티켓을 저장한다. |
 
 좌석 선점은 동시성 제어 핵심이므로 Redis 장애 시 fail-closed가 맞다.
 단, Redis 캐시 miss는 장애로 보지 않고 DB 검증 후 캐시를 다시 채운다.
+
+구매 매수는 Redis에 저장하지 않는다. seat_occupy에서는 이번 선택 매수가 공연의 1인 최대 매수 이내인지 확인하고, prepare에서는 매수를 검증하지 않는다. confirm이 호출하는 예매 저장 단계에서 ticket_purchase_locks의 (user_id, limit_scope, scope_key) 행에 비관적 락을 걸고 ticket_count + 요청 매수를 검증한 뒤 카운트 증가와 티켓 생성을 같은 DB 트랜잭션으로 커밋한다. PER_EVENT는 이벤트 ID, PER_GROUP은 이벤트 그룹 코드를 범위 키로 사용한다. 카운트에는 PENDING_PAYMENT와 PAID 티켓을 포함하며, 카드 승인 또는 입금 완료 전환에서는 중복 증가시키지 않는다. 취소·결제 만료·부분 환불은 티켓 상태 변경 전에 최신 상태를 잠금으로 재조회하고 유효 매수만 차감한다. 관리자 상태 보정도 같은 구매 잠금에서 상태 전후 매수 차이를 반영한다. 최초 카운트 행은 0으로 생성하며, 기존 유효 예매 데이터가 없는 상태에서 적용한다. 기존 잠금 행은 배포 전에 add-ticket-purchase-count.sql로 매수를 보정해야 한다. 기존 Redis 구매 매수 키는 더 이상 사용하지 않고 기존 TTL로 만료된다.
+
+좌석 상태 동기화는 DB 커밋 이후 좌석별로 수행한다. 각 좌석의 상태 저장과 임시 lock 삭제는 Lua로 함께 실행하며, 한 좌석이 실패해도 나머지 좌석을 계속 처리한다. 실패한 좌석만 좌석당 한 건의 보정 이력으로 저장한다.
+
+관리자 재처리는 이력 및 대상 좌석을 DB 잠금으로 조회하고, 실패 당시 target value 대신 현재 DB 상태와 공연 종료 기준 TTL을 반영한다. Redis에 사용자 선점 값(`LOCKED:...`) 또는 `:lock` 키가 있으면 변경하지 않고 PENDING 및 실패 원인을 유지한다. 현재 이력에는 선점 소유 정보가 없으므로 남아 있는 잠금을 임의로 해제하지 않으며, 선점 종료 후 다시 처리한다. 기존 여러 좌석이 묶인 이력도 같은 검증으로 처리하며, 모든 좌석 처리에 성공한 경우에만 RESOLVED로 변경한다.
 
 ### Queue Redis
 
@@ -336,34 +342,21 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 3. `payment-completed` 후속 Consumer 도입 시 DLQ 처리 검증
 4. Outbox 패턴 도입
 
-## 좌석 배치도 실시간 상태 TODO
+## 좌석 배치도 상태 표시
 
-현재 사용자 좌석 조회는 DB 상태만 기준으로 응답한다.
-따라서 다른 사용자가 Redis에서 임시 선점한 좌석도 DB가 아직 `AVAILABLE`이면 포도알로 보일 수 있다.
-실제 선점 API에서는 Redis lock을 다시 검증하므로, 클릭 시 “이미 선점된 좌석입니다”가 발생할 수 있다.
+- 사용자 좌석 조회는 DB에서 좌석을 읽은 뒤 Redis seat key의 상태를 응답에 반영한다. Redis 값이 `LOCKED:{userId}:{orderId}`이면 DB가 아직 `AVAILABLE`이어도 `LOCKED`로 내려준다.
+- Redis 값이 `RESERVED`, `AVAILABLE` 등 좌석 상태이면 그 값을 반영하고, key가 없으면 DB 상태를 유지한다.
+- 클라이언트는 구역에 진입하거나 좌석 화면으로 돌아올 때 좌석 목록을 조회한다. 배치도를 보는 동안 주기적으로 갱신하지는 않는다.
+- 조회 후 다른 사용자가 좌석을 선점했더라도 선점 API가 Redis 상태와 lock을 검사하여 `SEAT_ALREADY_OCCUPIED`를 반환한다. 클라이언트는 이 오류를 받으면 선택을 초기화하고 좌석 목록을 다시 조회한다.
+- 따라서 자동 polling이나 SSE/WebSocket은 현재 좌석 선택의 정확성을 위한 필수 작업으로 두지 않는다.
 
-차후 실시간 티켓팅 UX를 개선하려면 아래 순서로 작업한다.
+DB 커밋 후 Redis 동기화 실패 이력(`seat_cache_sync_failures`)은 별도 보정 대상으로 유지한다. 보정은 DB 상태를 기준으로 Redis seat key와 lock key를 다시 맞춘다.
 
-1. 사용자 좌석 조회 API가 DB 상태와 Redis 임시 선점 상태를 합쳐 응답하도록 변경한다.
-2. 현재 관리자 테스트용 `selectByCondWithCacheStatus` 흐름을 사용자 API에 적용 가능한 형태로 분리한다.
-3. Redis 값이 `LOCKED:{userId}:{orderId}`이면 응답 상태를 `LOCKED`로 내려 포도알을 비활성화한다.
-4. Redis 값이 `RESERVED`, `AVAILABLE` 같은 `SeatStatus` 값이면 DB 응답 상태를 Redis 상태로 보정한다.
-5. Redis key가 없으면 DB 상태를 그대로 사용하되, 필요하면 좌석 캐시 warm-up 대상에 포함한다.
-6. Redis 장애 시 좌석 조회 정책을 결정한다.
-   - 보수적 정책: 좌석 조회 실패 또는 “잠시 후 다시 시도” 응답
-   - 완화 정책: DB 기준 조회는 허용하되 선점 API에서 Redis 검증은 반드시 수행
-7. 좌석 선점 성공/취소/결제 완료/예약 취소 후 프론트 갱신 방식을 정한다.
-   - 1차: 짧은 주기 polling
-   - 2차: SSE 또는 WebSocket 좌석 상태 이벤트
-8. 프론트는 선점 실패 응답을 받으면 해당 좌석을 즉시 비활성화하고 좌석 목록을 재조회한다.
-9. DB 커밋 후 Redis 동기화 실패 이력(`seat_cache_sync_failures`)을 주기적으로 재처리하는 보정 job을 추가한다.
-10. 보정 job은 DB 상태를 진실 원천으로 삼아 Redis seat key와 lock key를 다시 맞춘다.
-
-최종 목표 상태:
+현재 상태:
 
 ```text
 좌석 배치도 표시 = DB 확정 상태 + Redis 임시 선점 상태
 좌석 선점 확정 = Redis lock 성공 + DB 상태 검증
 장애 복구 기준 = DB 상태
-실시간 UX 개선 = polling 또는 SSE/WebSocket
+화면 재조회 = 구역 진입·좌석 화면 복귀·선점 실패 시
 ```

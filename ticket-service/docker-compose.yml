@@ -20,6 +20,8 @@ services:
 
       # 4. 필요시 활성 프로파일 지정 (선택 사항)
       - SPRING_PROFILES_ACTIVE=prod
+      - TOKEN_SECRET=${TOKEN_SECRET:?TOKEN_SECRET must be set}
+      - APP_INTERNAL_SERVICE_TOKEN=${APP_INTERNAL_SERVICE_TOKEN:?APP_INTERNAL_SERVICE_TOKEN must be set}
       - APP_QUEUE_ENABLED=true
       - APP_QUEUE_BASE_URL=http://queue-service:8080
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}

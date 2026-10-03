@@ -3,7 +3,6 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.BlacklistedUserException;
-import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
@@ -19,12 +18,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -34,7 +34,7 @@ import java.util.Locale;
 public class AuthService {
 
     private final AuthRepository repository;
-    private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptService loginAttemptService;
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
 
@@ -43,7 +43,8 @@ public class AuthService {
      * @param info
      * @return
      */
-    @Transactional(readOnly = true)
+    // 실패 횟수 저장용 트랜잭션을 기다리는 동안 외부 DB 연결을 점유하지 않는다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
         info.setUserId(normalizeUserId(info.getUserId()));
@@ -73,9 +74,7 @@ public class AuthService {
     }
 
     private void comparePassword(LoginRequest info, Auth auth) {
-        if (!passwordEncoder.matches(info.getPassword(), auth.getPassword())) {
-            throw new PasswordIncorrectException("사용자 정보가 일치하지 않습니다.");
-        }
+        loginAttemptService.validatePassword(auth.getId(), info.getPassword());
     }
 
     private Auth findByUserId(String userId) {
@@ -109,7 +108,7 @@ public class AuthService {
      */
     public void insertUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 추가] : {}", event.toString());
+        log.info("[유저 추가] userId={}", event.getUserId());
         repository.insert(event);
     }
 
@@ -119,7 +118,7 @@ public class AuthService {
      */
     public void updateUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 수정] : {}", event.toString());
+        log.info("[유저 수정] userId={}", event.getUserId());
         repository.update(event);
         if (UserStatus.WITHDRAWN.name().equals(event.getStatus())) {
             try {
@@ -136,7 +135,7 @@ public class AuthService {
      */
     public void deleteUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
-        log.info("[유저 삭제] : {}", event.toString());
+        log.info("[유저 삭제] userId={}", event.getUserId());
         repository.delete(event.getUserId());
     }
 
@@ -153,7 +152,7 @@ public class AuthService {
         // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
         String userId = tokenProvider.getUserId(refreshToken);
 
-        // 3. Redis에서 해당 유저의 RT 조회
+        // 3. 사전 검증을 위해 Redis 토큰을 조회한다. 실제 교체 시 Lua에서 다시 비교한다.
         String redisKey = buildRefreshTokenKey(userId);
         String savedRefreshToken;
         try {
@@ -186,17 +185,18 @@ public class AuthService {
 
         TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
 
-        // 7. Redis 토큰 교체 및 만료 시간(14일) 타이머 초기화
+        // 7. 요청 토큰과 일치할 때만 교체하고 TTL을 초기화한다. 동시 요청 중 하나만 성공한다.
         try {
-            redisTemplate.opsForValue().set(redisKey, newTokens.getRefreshToken(), Duration.ofDays(14));
+            Long result = redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of(redisKey),
+                    refreshToken, newTokens.getRefreshToken(), String.valueOf(Duration.ofDays(14).toMillis()));
+            validateTokenMutationResult(result);
         } catch (DataAccessException e) {
-            log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=set, keyPrefix=RT, redisKey={}, userId={}",
+            log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=rotate, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
             throw new RedisException("Redis 갱신 중 오류가 발생했습니다.");
         }
 
-        log.info("[기존 코인] : {}", refreshToken);
-        log.info("[새로운 코인] : {}", newTokens);
+        log.info("새로운 refreshToken을 발급하였습니다.");
 
         return newTokens;
     }
@@ -229,7 +229,9 @@ public class AuthService {
         }
 
         try {
-            redisTemplate.delete(redisKey);
+            // 사전 조회 후 토큰이 교체됐더라도 이전 요청으로 새 토큰을 삭제하지 않는다.
+            Long result = redisTemplate.execute(RefreshTokenScripts.DELETE, List.of(redisKey), refreshToken);
+            validateTokenMutationResult(result);
         } catch (DataAccessException e) {
             log.error("[REDIS-ERROR] Refresh Token 삭제 실패. operation=delete, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
@@ -239,6 +241,16 @@ public class AuthService {
 
     private String buildRefreshTokenKey(String userId) {
         return "RT:" + userId;
+    }
+
+    private void validateTokenMutationResult(Long result) {
+        if (Long.valueOf(0L).equals(result)) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH,
+                    "Refresh Token이 변경되었거나 이미 로그아웃되었습니다. 다시 로그인해 주세요.");
+        }
+        if (!Long.valueOf(1L).equals(result)) {
+            throw new RedisException("Redis Refresh Token 처리 결과를 확인할 수 없습니다.");
+        }
     }
 
     private String normalizeUserId(String userId) {

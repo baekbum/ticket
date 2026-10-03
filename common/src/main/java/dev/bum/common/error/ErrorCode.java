@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 public enum ErrorCode {
     // Auth-service
     LOGIN_FAILED("아이디 또는 비밀번호가 일치하지 않습니다."),
+    USER_LOGIN_LOCKED("로그인 시도 횟수 초과로 계정이 잠겼습니다. 비밀번호를 재설정해 주세요."),
     USER_BLACKLISTED("차단된 사용자입니다."),
     USER_WITHDRAWN("이미 탈퇴한 사용자입니다."),
     TOKEN_EXPIRED("토큰이 만료되었습니다."),

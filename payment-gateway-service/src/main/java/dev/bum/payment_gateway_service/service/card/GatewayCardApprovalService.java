@@ -154,6 +154,12 @@ public class GatewayCardApprovalService {
         if (paymentHistory.getAmount().compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("기존 카드 승인 금액과 요청 금액이 일치하지 않습니다.");
         }
+        if (paymentHistory.getDummyCard() == null
+                || paymentHistory.getCardCompany() != request.getCardCompany()
+                || !paymentHistory.getDummyCard().getCardNumberHash()
+                        .equals(sha256(normalizeCardNumber(request.getCardNumber())))) {
+            throw new IllegalArgumentException("기존 카드 승인에 사용된 카드와 요청 카드가 일치하지 않습니다.");
+        }
     }
 
     private void validateRefundableHistory(

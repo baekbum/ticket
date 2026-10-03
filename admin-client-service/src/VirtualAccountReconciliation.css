@@ -1,0 +1,63 @@
+.va-reconciliation { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; color: #202638; }
+.va-header { flex: none; padding: 24px 28px 0; margin-bottom: 24px; }
+.va-header h1 { margin: 0 0 3px; font-size: 17px; font-weight: 600; }
+.va-header p { margin: 0; color: #a09db8; font-size: 12.5px; }
+.va-toolbar { display: flex; align-items: center; flex: none; flex-wrap: wrap; gap: 8px; padding: 0 28px; margin-bottom: 16px; }
+.va-action label { font-size: 13px; font-weight: 700; }
+.va-toolbar input, .va-toolbar select, .va-action textarea { border: 1px solid #e6e4ef; border-radius: 8px; background: #fafafa; color: #202638; padding: 8px 12px; font-size: 13px; }
+.va-toolbar input { width: 185px; }
+.va-toolbar select { width: 170px; }
+.va-toolbar input:focus, .va-toolbar select:focus { outline: none; border-color: #7c4dff; box-shadow: 0 0 0 3px rgba(124, 77, 255, .16); }
+.va-reconciliation button { border: 0; border-radius: 8px; padding: 8px 14px; background: #7c4dff; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+.va-reconciliation button:disabled { opacity: .55; cursor: not-allowed; }
+.va-reconciliation .va-outline-button { border: 1px solid #e6e4ef; background: white; color: #6e6b85; }
+.va-error, .va-message { flex: none; padding: 12px 16px; margin: 0 28px 12px; border-radius: 8px; }
+.va-error { background: #fff0f0; color: #a52d3b !important; }
+.va-message { background: #eee8ff; color: #48338a !important; }
+.va-table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid #e6e4ef; border-radius: 12px; margin: 0 28px; background: white; }
+.va-table { width: 100%; min-width: 1310px; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.va-table th, .va-table td { padding: 9px 8px; text-align: left; vertical-align: middle; border-right: 1px solid rgba(230, 228, 239, .45); border-bottom: 1px solid #e6e4ef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.va-table th { position: sticky; top: 0; z-index: 2; background: #faf9fd; color: #6e6b85; font-size: 12px; font-weight: 600; }
+.va-table th:last-child, .va-table td:last-child { border-right: 0; }
+.va-clickable-row { cursor: pointer; }
+.va-clickable-row:hover td { background: rgba(124, 77, 255, .04); }
+.va-number-cell { text-align: center !important; }
+.va-payment-no { font-weight: 700; }
+.va-status { display: inline-block; min-width: 86px; border-radius: 20px; padding: 4px 8px; background: #fff8e8; color: #996b00; font-size: 11.5px; font-weight: 600; text-align: center; }
+.va-status[data-status="PAID"] { background: #e6fcf5; color: #0c8f5a; }
+.va-status[data-status="PARTIALLY_REFUNDED"] { background: #eef4ff; color: #2c69d4; }
+.va-status[data-status="CANCELLED"], .va-status[data-status="FAILED"] { background: #fff1f0; color: #d63b3b; }
+.va-status[data-status="EXPIRED"], .va-status[data-status="REFUNDED"] { background: #f4f3f8; color: #6e6b85; }
+.va-reconciliation .va-detail-button { padding: 5px 9px; background: #f0eef8; color: #6e6b85; font-size: 11.5px; white-space: nowrap; }
+.va-empty { padding: 42px 12px !important; text-align: center !important; color: #697286; }
+.va-pagination { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; flex: none; padding: 12px 28px 24px; color: #6e6b85; font-size: 12px; }
+.va-page-controls { grid-column: 2; display: flex; align-items: center; gap: 6px; }
+.va-reconciliation .va-page-controls button { min-width: 34px; padding: 6px 10px; border: 1px solid #e6e4ef; background: white; color: #6e6b85; font-size: 15px; }
+.va-page-summary { grid-column: 3; justify-self: end; }
+.va-page-summary strong { color: #202638; }
+.va-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(9, 12, 25, .68); }
+.va-modal { width: min(1080px, 100%); height: min(620px, 88vh); overflow-y: auto; border: 1px solid #d9dce5; border-radius: 16px; padding: 24px; background: #f8f9fc; box-shadow: 0 24px 70px rgba(0, 0, 0, .3); }
+.va-modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.va-modal-header h2 { margin: 0 0 6px; font-size: 21px; }
+.va-modal-header p { margin: 0; color: #697286; overflow-wrap: anywhere; }
+.va-reconciliation .va-close { padding: 3px 10px; background: transparent; color: inherit; font-size: 28px; line-height: 1; }
+.va-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.va-panels section, .va-action { border: 1px solid #e2e4eb; border-radius: 12px; padding: 20px; background: white; }
+.va-panels h3 { margin: 0 0 16px; font-size: 17px; }
+.va-panels dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; margin: 0; font-size: 13px; }
+.va-panels dt { color: #697286; }
+.va-panels dd { margin: 0; overflow-wrap: anywhere; }
+.va-action { display: grid; gap: 13px; margin-top: 18px; }
+.va-action textarea { min-height: 80px; resize: vertical; }
+.va-action button { justify-self: start; }
+.dark-mode .va-reconciliation { color: #e9eaf0; }
+.dark-mode .va-table-wrap, .dark-mode .va-panels section, .dark-mode .va-action { background: #202332; border-color: #343849; }
+.dark-mode .va-table th { background: #282c3a; color: #adb5c7; }
+.dark-mode .va-table th, .dark-mode .va-table td { border-color: #343849; }
+.dark-mode .va-clickable-row:hover td { background: #303047; }
+.dark-mode .va-modal { background: #181b27; border-color: #343849; }
+.dark-mode .va-panels dt, .dark-mode .va-header p, .dark-mode .va-pagination, .dark-mode .va-modal-header p { color: #adb5c7; }
+.dark-mode .va-toolbar input, .dark-mode .va-toolbar select, .dark-mode .va-action textarea { background: #292d3d; border-color: #454a5e; color: #f1f2f7; }
+.dark-mode .va-reconciliation .va-outline-button, .dark-mode .va-reconciliation .va-page-controls button { background: #202332; border-color: #454a5e; color: #d6d8e1; }
+.dark-mode .va-page-summary strong { color: #f1f2f7; }
+@media (max-width: 780px) { .va-header { padding: 18px 18px 0; } .va-toolbar { padding: 0 18px; } .va-table-wrap { margin: 0 18px; } .va-pagination { padding: 12px 18px 18px; } .va-modal-backdrop { padding: 10px; } .va-modal { padding: 16px; height: min(620px, 94vh); } .va-panels { grid-template-columns: 1fr; } }

@@ -19,7 +19,7 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 
 token:
-  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  secret: ${TOKEN_SECRET}
 
 app:
   kafka-dlq:

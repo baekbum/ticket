@@ -69,24 +69,12 @@ public class Ticket {
     }
 
     @Builder
-    public Ticket(Long ticketId, String userId, Reservation reservation, Event event, Seat seat, TicketStatus status) {
+    private Ticket(Long ticketId, String userId, Reservation reservation, Event event, Seat seat, TicketStatus status) {
         this.ticketId = ticketId;
         this.userId = userId;
         this.event = event;
         this.seat = seat;
         this.status = status != null ? status : TicketStatus.PENDING_PAYMENT;
-        this.price = resolvePrice(seat);
-
-        if (reservation != null) {
-            changeReservation(reservation);
-        }
-    }
-
-    public Ticket(String userId, Reservation reservation, Event event, Seat seat) {
-        this.userId = userId;
-        this.event = event;
-        this.seat = seat;
-        this.status = TicketStatus.PENDING_PAYMENT;
         this.price = resolvePrice(seat);
 
         if (reservation != null) {
