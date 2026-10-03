@@ -1,7 +1,6 @@
 package dev.bum.ticket_service.jpa.coupon.coupon;
 
 import dev.bum.common.service.ticket.coupon.coupon.dto.CouponResponse;
-import dev.bum.common.service.ticket.coupon.coupon.dto.InsertCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.dto.UpdateCouponRequest;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
@@ -97,20 +96,6 @@ public class Coupon {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
-
-    public Coupon(InsertCouponRequest info) {
-        this.name = info.getName();
-        this.code = info.getCode();
-        this.discountType = info.getDiscountType();
-        this.discountValue = info.getDiscountValue();
-        this.maxDiscountAmount = info.getMaxDiscountAmount();
-        this.minOrderAmount = info.getMinOrderAmount();
-        this.validFrom = info.getValidFrom();
-        this.validUntil = info.getValidUntil();
-        this.validDaysAfterIssue = normalizeValidDaysAfterIssue(info.getValidDaysAfterIssue());
-        if (this.validDaysAfterIssue != null) this.validUntil = null;
-        this.status = info.getStatus() != null ? info.getStatus() : CouponStatus.ACTIVE;
-    }
 
     public void update(UpdateCouponRequest info) {
         if (StringUtils.hasText(info.getName())) this.name = info.getName();

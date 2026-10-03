@@ -14,7 +14,7 @@ public class InternalServiceTokenValidator {
     private final String serviceToken;
 
     public InternalServiceTokenValidator(
-            @Value("${app.ticket.service-token:local-internal-service-token}") String serviceToken
+            @Value("${app.ticket.service-token}") String serviceToken
     ) {
         this.serviceToken = serviceToken;
     }

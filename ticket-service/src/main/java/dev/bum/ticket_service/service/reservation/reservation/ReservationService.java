@@ -25,6 +25,7 @@ import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,7 @@ public class ReservationService {
     private final ReservationRepository repository;
     private final ReservationManagementService reservationManagementService;
     private final SeatCacheService seatCacheService;
+    private final TicketPurchaseCountService ticketPurchaseCountService;
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundProcessService paymentRefundProcessService;
     private final CardPaymentRefundService cardPaymentRefundService;
@@ -125,19 +127,12 @@ public class ReservationService {
         Long paymentRefundProcessId = null;
         try {
             paymentRefundProcessId = refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
+            ticketPurchaseCountService.release(reservation, selectedTickets);
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
             applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
             registerRefundProcessCompletion(paymentRefundProcessId);
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
-            if (!cancelledSeats.isEmpty()) {
-                seatCacheService.updateUserPurchaseLimit(
-                        cancelledSeats.get(0).getEvent(),
-                        info.getUserId(),
-                        cancelledSeats.size(),
-                        "SUB"
-                );
-            }
         } catch (RuntimeException e) {
             markLocalFailed(paymentRefundProcessId, e);
             throw e;

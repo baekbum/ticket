@@ -14,3 +14,13 @@ spring:
   kafka:
     listener:
       auto-startup: false
+
+topic:
+  login:
+    log:
+      name: login-log
+
+app:
+  kafka:
+    login-log:
+      group-id: audit-login-log-group

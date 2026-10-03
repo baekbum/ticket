@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
@@ -98,6 +99,21 @@ class VirtualAccountCheckoutPaymentHandlerTest {
         assertThat(payment.getAccountNumber()).isNull();
     }
 
+    @Test
+    @DisplayName("PG 가상계좌가 만료 상태면 결제 대기 상태로 변경하지 않는다")
+    void reject_expired_virtual_account_without_marking_payment_waiting() {
+        Payment payment = payment(reservation(event()));
+        GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
+        response.setStatus(GatewayVirtualAccountStatus.EXPIRED);
+        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any())).willReturn(response);
+
+        assertThatThrownBy(() -> handler.process(request("KB"), payment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("가상계좌 발급에 실패했습니다.");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payment.getAccountNumber()).isNull();
+    }
+
     private GatewayVirtualAccountIssueResponse virtualAccountIssueResponse() {
         return GatewayVirtualAccountIssueResponse.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
@@ -106,6 +122,7 @@ class VirtualAccountCheckoutPaymentHandlerTest {
                 .accountNumber("1111-2222-3333-4444")
                 .amount(BigDecimal.valueOf(180000))
                 .expiresAt(LocalDateTime.of(2026, 9, 18, 23, 59, 59))
+                .status(GatewayVirtualAccountStatus.WAITING_DEPOSIT)
                 .issued(true)
                 .message("가상계좌가 발급되었습니다.")
                 .build();

@@ -68,10 +68,22 @@ class EventControllerTest {
     }
 
     @Test
-    @DisplayName("인증 없이 이벤트 목록 조회를 요청하면 4xx 응답")
-    void token_invalid() throws Exception {
+    @DisplayName("인증 없이 공개 이벤트 목록을 조회할 수 있다")
+    void anonymous_can_select_public_events() throws Exception {
+        CustomPageResponse<EventResponse> response = CustomPageResponse.of(
+                List.of(eventResponse(1L, "IU Concert")), 10, 0, 1, 1
+        );
+        given(eventService.selectVisibleByCond(any())).willReturn(response);
+
         mockMvc.perform(get(baseUrl + "/select"))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].eventId").value(1L))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        then(eventService).should().selectVisibleByCond(EventCondRequest.builder()
+                .page(0)
+                .size(10)
+                .build());
     }
 
     @WithMockUser(username = "user01", roles = {"USER"})

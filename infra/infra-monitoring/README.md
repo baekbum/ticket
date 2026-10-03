@@ -67,6 +67,10 @@ docker compose -f infra/infra-monitoring/docker-compose.yml up -d
 
 Prometheus는 `ticket-network` 내부 서비스명으로 수집합니다.
 
+운영 Prometheus의 호스트 `9090` 포트와 cAdvisor의 호스트 `8088` 포트는 `127.0.0.1`에만 바인딩하여 외부 직접 접근을 제한합니다. 컨테이너 간 수집과 Grafana 조회는 `ticket-network` 내부 주소를 사용합니다. 관리자 장애 지표는 admin-service가 내부 Prometheus 조회 API를 호출하여 전달하며, 해당 관리자 API에는 ADMIN 권한이 필요합니다.
+
+운영 ingress의 서비스별 `/actuator` 경로는 외부에서 접근할 수 없습니다. Prometheus 수집을 유지하기 위해 Spring Security의 수집 경로 허용은 유지하며, 운영 서비스 포트는 외부에 직접 공개하지 않습니다.
+
 컨테이너 수집 경로:
 
 - `auth-service:8080/actuator/prometheus`

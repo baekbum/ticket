@@ -11,7 +11,7 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - APP_QUEUE_ADMISSION_SIZE=100
       - APP_QUEUE_TOKEN_TTL=10m
-      - TOKEN_SECRET=ticket-project-secret-value-is-made-by-random
+      - TOKEN_SECRET=${TOKEN_SECRET:?TOKEN_SECRET must be set}
     networks:
       - ticket-network
 

@@ -30,6 +30,11 @@ public class GatewayCardPaymentController {
         return ResponseEntity.ok(gatewayCardPaymentService.status(currentUserId, paymentNo));
     }
 
+    @GetMapping("/internal/{paymentNo}/approval-exists")
+    public ResponseEntity<Boolean> approvalExists(@PathVariable String paymentNo) {
+        return ResponseEntity.ok(gatewayCardPaymentService.hasApprovalHistory(paymentNo));
+    }
+
     @PostMapping("/approve")
     public ResponseEntity<GatewayCardPaymentApproveResponse> approve(
             @AuthenticationPrincipal String currentUserId,

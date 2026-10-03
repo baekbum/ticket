@@ -6,9 +6,11 @@
 
 - 사용자는 `ticket-service`의 `CheckoutController.prepare`로 결제 화면 진입 가능 여부를 검증한다.
 - `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
-- 카드 승인과 가상계좌 입금 확인은 `payment-gateway-service`로 요청한다.
+- 카드 승인과 승인 상태 조회는 사용자 access token으로 `payment-gateway-service`에 직접 요청한다.
+- 가상계좌 발급과 카드/가상계좌 환불은 `ticket-service`가 `X-Service-Token`으로 `payment-gateway-service`에 요청한다.
+- 가상계좌 입금 통지는 결제 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
 - `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
-- `ticket-service` 내부 API는 `X-Service-Token` 헤더로 보호한다.
+- 서비스 간 내부 API는 `X-Service-Token` 헤더로 보호한다.
 
 ```text
 Authorization: Bearer {accessToken}
@@ -154,6 +156,7 @@ ticket-service가 카드 결제 완료 예매를 전체 취소할 때 사용한�
 
 ```http
 POST /payment-gateway/api/v1/payments/card/refund
+X-Service-Token: {internalServiceToken}
 Content-Type: application/json
 ```
 
@@ -180,7 +183,7 @@ Content-Type: application/json
 
 ```http
 POST /payment-gateway/api/v1/payments/virtual-account/deposit
-Authorization: Bearer {accessToken}
+X-Payment-Provider-Token: {paymentProviderToken}
 Content-Type: application/json
 ```
 
@@ -274,4 +277,8 @@ gateway scheduler
 - `READY`, `WAITING_DEPOSIT`, `PAID` 상태의 같은 `idempotencyKey`는 기존 결제를 반환한다.
 - `FAILED`, `CANCELLED`, `EXPIRED` 이후 같은 `idempotencyKey`로 `confirm`하면 새 `Payment` row와 새 `paymentNo`를 생성한다.
 - 카드 입력/사전 검증 실패는 신규 이력을 남기지 않으며 READY의 같은 paymentNo로 재시도한다. APPROVED/TICKET_PAYMENT_FAILED는 재승인 없이 완료 반영만 재시도한다. CANCELLED 또는 과거 APPROVAL_FAILED 이력은 새 결제번호가 필요하다.
-- `TICKET_PAYMENT_FAILED` 상태의 gateway 가상계좌 수동 재처리 API는 운영/정산 범위로 보고 현재 구현에서는 보류한다.
+- 관리자는 `GET /ticket/api/v1/manage/payment/virtual-account?page=0&paymentNo=PAY-&status=WAITING_DEPOSIT`로 Ticket의 가상계좌 결제를 최신 요청순(같은 시각이면 결제 ID 역순) 20건씩 조회한다. 결제번호와 상태 필터는 선택 사항이며, 목록 조회 중 PG는 호출하지 않는다.
+- 목록에서 결제 건을 선택하면 `GET /ticket/api/v1/manage/payment/virtual-account/{paymentNo}/reconciliation`로 Ticket·PG 상태를 함께 확인한다.
+- PG의 `GET /api/v1/payments/virtual-account/internal/{paymentNo}/status`는 내부 서비스 토큰으로만 호출한다.
+- 관리자 `POST /ticket/api/v1/manage/payment/virtual-account/{paymentNo}/complete`는 처리 사유를 받고 PG 상태를 다시 조회한다. Ticket이 `WAITING_DEPOSIT`이고 입금 정보와 예약·티켓·좌석 상태가 일치할 때만 전체 결제 완료 로직을 실행한다. 이미 만료·취소된 건은 자동 완료하지 않는다.
+- 배포 시 PG의 내부 상태 조회 API를 먼저 반영하고, 이후 Ticket API와 관리자 화면을 반영한다.

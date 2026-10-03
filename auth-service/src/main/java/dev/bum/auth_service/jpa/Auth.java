@@ -42,24 +42,15 @@ public class Auth {
     private LocalDate blacklistedUntil;
 
     @Builder
-    public Auth(Long id, String userId, String password, UserRole role) {
+    private Auth(Long id, String userId, String password, UserRole role,
+                 UserStatus status, Boolean isBlacklisted, LocalDate blacklistedUntil) {
         this.id = id;
         this.userId = normalizeUserId(userId);
         this.password = password;
         this.role = (role != null) ? role : UserRole.ROLE_USER;
-        this.status = UserStatus.ACTIVE;
-        this.isBlacklisted = false;
-    }
-
-    @Builder
-    public Auth(UserDtoForEvent event) {
-        this.id = event.getId();
-        this.userId = normalizeUserId(event.getUserId());
-        this.password = event.getPassword();
-        this.role = UserRole.valueOf(event.getRole());
-        this.status = event.getStatus() == null ? UserStatus.ACTIVE : UserStatus.valueOf(event.getStatus());
-        this.isBlacklisted = Boolean.TRUE.equals(event.getIsBlacklisted());
-        this.blacklistedUntil = this.isBlacklisted ? event.getBlacklistedUntil() : null;
+        this.status = status != null ? status : UserStatus.ACTIVE;
+        this.isBlacklisted = Boolean.TRUE.equals(isBlacklisted);
+        this.blacklistedUntil = this.isBlacklisted ? blacklistedUntil : null;
     }
 
     public void updateInfo(UserDtoForEvent event) {

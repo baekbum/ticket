@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.checkout.payment;
 
 import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueRequest;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
@@ -29,6 +30,7 @@ public class VirtualAccountCheckoutPaymentHandler implements CheckoutPaymentHand
     public void process(CheckoutConfirmRequest request, Payment payment) {
         GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
         if (virtualAccount == null || !Boolean.TRUE.equals(virtualAccount.getIssued())
+                || virtualAccount.getStatus() != GatewayVirtualAccountStatus.WAITING_DEPOSIT
                 || !StringUtils.hasText(virtualAccount.getBankName())
                 || !StringUtils.hasText(virtualAccount.getAccountNumber())
                 || virtualAccount.getExpiresAt() == null) {

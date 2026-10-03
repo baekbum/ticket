@@ -22,6 +22,7 @@ const aliases = {
   'payment-refund-process': 'paymentRefundProcess',
   'user-coupon': 'userCoupon',
   'audit-log': 'auditLog',
+  'login-log': 'loginLog',
   'redis': 'seatRedis',
   'redis-hub': 'redisHub',
   'queue-redis': 'queueRedis',

@@ -54,7 +54,7 @@ spring:
             loggerLevel: basic
 
 token:
-  secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
+  secret: ${TOKEN_SECRET}
 
 topic:
   payment:

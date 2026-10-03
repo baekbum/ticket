@@ -55,7 +55,14 @@ public class UserCouponService {
         LocalDateTime issuedAt = LocalDateTime.now();
         LocalDateTime expiresAt = resolveUserCouponExpiresAt(request, coupon, issuedAt);
 
-        return userCouponRepository.insert(new UserCoupon(request.getUserId(), coupon, issuedAt, expiresAt)).toResponse();
+        UserCoupon userCoupon = UserCoupon.builder()
+                .userId(request.getUserId())
+                .coupon(coupon)
+                .status(UserCouponStatus.ISSUED)
+                .issuedAt(issuedAt)
+                .expiresAt(expiresAt)
+                .build();
+        return userCouponRepository.insert(userCoupon).toResponse();
     }
 
     /**

@@ -47,7 +47,15 @@ public class AreaRepositoryImpl implements AreaRepository {
                 .build();
         isExist(cond);
 
-        return jpaRepository.save(new Area(info, event));
+        Area area = Area.builder()
+                .event(event)
+                .areaName(info.getAreaName())
+                .layoutKey(StringUtils.hasText(info.getLayoutKey()) ? info.getLayoutKey().trim() : info.getAreaName())
+                .grade(info.getGrade())
+                .price(info.getPrice())
+                .status(info.getStatus() != null ? info.getStatus() : AreaStatus.ACTIVE)
+                .build();
+        return jpaRepository.save(area);
     }
 
     @Override

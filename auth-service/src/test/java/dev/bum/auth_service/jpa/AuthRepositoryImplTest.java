@@ -96,13 +96,13 @@ class AuthRepositoryImplTest {
                 .role("ROLE_ADMIN")
                 .build();
 
-        given(jpaRepository.findByUserId("user01")).willReturn(Optional.of(auth));
+        given(jpaRepository.findByUserIdForUpdate("user01")).willReturn(Optional.of(auth));
 
         authRepository.update(event);
 
         assertThat(auth.getPassword()).isEqualTo("new-password");
         assertThat(auth.getRole()).isEqualTo(UserRole.ROLE_ADMIN);
-        then(jpaRepository).should().findByUserId("user01");
+        then(jpaRepository).should().findByUserIdForUpdate("user01");
     }
 
     @Test

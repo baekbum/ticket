@@ -84,7 +84,31 @@ public class EventRepositoryImpl implements EventRepository {
         // 공연 정보 중복 확인.
         isExist(cond);
 
-        return jpaRepository.save(new Event(info));
+        Event event = Event.builder()
+                .artistName(info.getArtistName())
+                .title(info.getTitle())
+                .eventGroupCode(StringUtils.hasText(info.getEventGroupCode())
+                        ? info.getEventGroupCode() : createDefaultEventGroupCode(info))
+                .description(StringUtils.hasText(info.getDescription()) ? info.getDescription() : null)
+                .venue(info.getVenue())
+                .venueAddress(StringUtils.hasText(info.getVenueAddress()) ? info.getVenueAddress() : null)
+                .posterUrl(StringUtils.hasText(info.getPosterUrl()) ? info.getPosterUrl() : null)
+                .eventDateTime(info.getEventDateTime())
+                .saleStartAt(info.getSaleStartAt())
+                .saleEndAt(info.getSaleEndAt())
+                .cancelDeadlineAt(info.getCancelDeadlineAt())
+                .runningMinutes(info.getRunningMinutes())
+                .ageLimit(info.getAgeLimit())
+                .totalSeats(info.getTotalSeats())
+                .availableSeats(info.getTotalSeats())
+                .status(EventStatus.ON_SALE)
+                .maxTicketsPerPerson(info.getMaxTicketsPerPerson())
+                .ticketLimitScope(info.getTicketLimitScope() != null ? info.getTicketLimitScope() : TicketLimitScope.PER_EVENT)
+                .genre(info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT)
+                .region(info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL)
+                .theme(info.getTheme() != null ? info.getTheme() : EventTheme.IDOL)
+                .build();
+        return jpaRepository.save(event);
     }
 
     @Override
@@ -569,5 +593,10 @@ public class EventRepositoryImpl implements EventRepository {
                 regionEq(cond.getRegion()),
                 themeEq(cond.getTheme())
         };
+    }
+
+    private String createDefaultEventGroupCode(InsertEventRequest info) {
+        String source = String.join("|", info.getArtistName(), info.getTitle(), info.getVenue());
+        return "EVENT-" + Integer.toHexString(source.hashCode()).toUpperCase();
     }
 }

@@ -1,7 +1,6 @@
 package dev.bum.ticket_service.jpa.area;
 
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
-import dev.bum.common.service.ticket.area.dto.InsertAreaRequest;
 import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
@@ -85,16 +84,6 @@ public class Area {
     @OneToMany(mappedBy = "area")
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
-
-    public Area(InsertAreaRequest info, Event event) {
-        this.event = event;
-        this.areaName = info.getAreaName();
-        this.layoutKey = resolveLayoutKey(info.getLayoutKey(), info.getAreaName());
-        this.grade = info.getGrade();
-        this.price = info.getPrice();
-        this.status = info.getStatus() != null ? info.getStatus() : AreaStatus.ACTIVE;
-        this.seats = new ArrayList<>();
-    }
 
     public AreaResponse toResponse() {
         return AreaResponse.builder()

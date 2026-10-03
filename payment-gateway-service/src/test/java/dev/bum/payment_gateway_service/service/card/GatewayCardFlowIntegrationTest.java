@@ -65,6 +65,7 @@ class GatewayCardFlowIntegrationTest {
 
     @Test
     void approvalIsCommittedBeforeTicketCompletionAndRepeatedApprovalIsIdempotent() {
+        assertThat(payments.hasApprovalHistory("PAY-1")).isFalse();
         when(ticket.settleCardPayment(any())).thenAnswer(invocation -> {
             CardPaymentCompleteRequest request = invocation.getArgument(0);
             TransactionTemplate independent = new TransactionTemplate(transactionManager);
@@ -76,6 +77,7 @@ class GatewayCardFlowIntegrationTest {
             return completed(request);
         });
         String transactionId = payments.approve("user", request()).getTransactionId();
+        assertThat(payments.hasApprovalHistory("PAY-1")).isTrue();
         assertThat(payments.approve("user", request()).getTransactionId()).isEqualTo(transactionId);
         assertThat(histories.findByPaymentNo("PAY-1").orElseThrow().getStatus())
                 .isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
@@ -127,6 +129,20 @@ class GatewayCardFlowIntegrationTest {
         assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
         assertThat(payments.settle("PAY-1")).isEqualTo(CardPaymentHistoryStatus.CANCELLED);
         verify(ticket, times(1)).settleCardPayment(any());
+    }
+
+    @Test
+    void switchedBankTransferCancelsLateCardApproval() {
+        doReturn(new CardPaymentSettlementResponse(
+                CardPaymentSettlementResponse.Outcome.REJECTED,
+                PaymentResponse.builder().paymentNo("PAY-1").amount(10000)
+                        .method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.WAITING_DEPOSIT).build()))
+                .when(ticket).settleCardPayment(any());
+
+        assertThatThrownBy(() -> payments.approve("user", request())).isInstanceOf(IllegalArgumentException.class);
+        assertThat(histories.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(CardPaymentHistoryStatus.CANCELLED);
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
     }
 
     @Test

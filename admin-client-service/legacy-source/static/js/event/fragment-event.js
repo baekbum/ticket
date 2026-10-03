@@ -97,8 +97,8 @@ const token = localStorage.getItem('accessToken');
 return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-/* Bulk selection */
-let selectedIds = new Set(); // Set of ev.eventId (Number)
+/* 일괄 선택 */
+let selectedIds = new Set(); // 선택한 공연 ID를 숫자로 보관하는 집합
 
 function updateBulkBar() {
 const bar = document.getElementById('bulk-action-bar');
@@ -232,7 +232,7 @@ document.getElementById('pagination-total').textContent = serverTotalPages;
 document.getElementById('pagination-current').value      = pageZeroIndexed + 1;
 document.getElementById('pagination-total-count').textContent = totalCount;
 
-// Reset selection on page change
+// 페이지가 바뀌면 선택 상태를 초기화한다
 updateBulkBar();
 const master = document.getElementById('select-all-checkbox');
 if (master) master.checked = false;

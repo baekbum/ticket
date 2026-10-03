@@ -224,7 +224,7 @@ CREATE TABLE payments (
     cancellation_fee_amount INTEGER NOT NULL DEFAULT 0,
     reservation_fee_amount INTEGER NOT NULL DEFAULT 0,
     delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
-    idempotency_key VARCHAR(100),
+    idempotency_key VARCHAR(100) NOT NULL,
     card_transaction_id VARCHAR(80),
     card_company VARCHAR(30),
     card_number_masked VARCHAR(30),
@@ -239,7 +239,8 @@ CREATE TABLE payments (
 
     CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
     CONSTRAINT uk_payments_payment_no UNIQUE (payment_no),
-    CONSTRAINT uk_payments_account_number UNIQUE (account_number)
+    CONSTRAINT uk_payments_account_number UNIQUE (account_number),
+    CONSTRAINT uk_payments_idempotency_key UNIQUE (idempotency_key)
 );
 
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
@@ -248,7 +249,30 @@ CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, st
 
 
 -- ==========================================
--- 11. Payment refund processes
+-- 11. Checkout attempts
+-- ==========================================
+CREATE TABLE checkout_attempts (
+    idempotency_key VARCHAR(100) PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    order_id VARCHAR(50) NOT NULL,
+    event_id BIGINT NOT NULL,
+    payment_no VARCHAR(60) NOT NULL,
+    payment_id BIGINT,
+    status VARCHAR(30) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_checkout_attempts_order_id UNIQUE (order_id),
+    CONSTRAINT uk_checkout_attempts_payment_no UNIQUE (payment_no),
+    CONSTRAINT uk_checkout_attempts_payment_id UNIQUE (payment_id)
+);
+
+CREATE INDEX idx_checkout_attempts_status_expires_at ON checkout_attempts(status, expires_at);
+
+
+-- ==========================================
+-- 12. Payment refund processes
 -- ==========================================
 CREATE TABLE payment_refund_processes (
     payment_refund_process_id BIGSERIAL PRIMARY KEY,
@@ -278,7 +302,7 @@ CREATE INDEX idx_payment_refund_processes_status ON payment_refund_processes(sta
 
 
 -- ==========================================
--- 12. Payment refund histories
+-- 13. Payment refund histories
 -- ==========================================
 CREATE TABLE payment_refund_histories (
     payment_refund_history_id BIGSERIAL PRIMARY KEY,
@@ -302,7 +326,7 @@ CREATE INDEX idx_payment_refund_histories_reservation_id ON payment_refund_histo
 
 
 -- ==========================================
--- 13. Payment refund history tickets
+-- 14. Payment refund history tickets
 -- ==========================================
 CREATE TABLE payment_refund_history_tickets (
     payment_refund_history_ticket_id BIGSERIAL PRIMARY KEY,
@@ -316,7 +340,7 @@ CREATE INDEX idx_payment_refund_history_tickets_ticket_id ON payment_refund_hist
 
 
 -- ==========================================
--- 14. Tickets
+-- 15. Tickets
 -- ==========================================
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,
@@ -335,7 +359,7 @@ CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
 
 
 -- ==========================================
--- 14. Seat cache sync failures
+-- 16. Seat cache sync failures
 -- ==========================================
 CREATE TABLE seat_cache_sync_failures (
     id BIGSERIAL PRIMARY KEY,
@@ -354,3 +378,21 @@ CREATE TABLE seat_cache_sync_failures (
 
 CREATE INDEX idx_seat_cache_sync_failure_status ON seat_cache_sync_failures(status);
 CREATE INDEX idx_seat_cache_sync_failure_status_created_at ON seat_cache_sync_failures(status, created_at);
+
+-- ==========================================
+-- 17. ticket_purchase_locks
+-- ==========================================
+CREATE TABLE ticket_purchase_locks (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    limit_scope VARCHAR(20) NOT NULL,
+    scope_key VARCHAR(100) NOT NULL,
+    ticket_count BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_ticket_purchase_locks_user_scope
+        UNIQUE (user_id, limit_scope, scope_key),
+    CONSTRAINT ck_ticket_purchase_locks_scope
+        CHECK (limit_scope IN ('PER_EVENT', 'PER_GROUP')),
+    CONSTRAINT ck_ticket_purchase_locks_count CHECK (ticket_count >= 0)
+);

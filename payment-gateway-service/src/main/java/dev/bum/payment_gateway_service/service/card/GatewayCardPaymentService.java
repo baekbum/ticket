@@ -44,6 +44,10 @@ public class GatewayCardPaymentService {
         return settlementService.status(userId, paymentNo);
     }
 
+    public boolean hasApprovalHistory(String paymentNo) {
+        return settlementService.hasApprovalHistory(paymentNo);
+    }
+
     public GatewayCardPaymentRefundResponse refund(GatewayCardPaymentRefundRequest request) {
         return approvalService.refund(request);
     }

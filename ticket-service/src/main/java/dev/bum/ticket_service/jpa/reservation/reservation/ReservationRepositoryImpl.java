@@ -9,11 +9,9 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.CouponDiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.CouponStatus;
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
-import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
-import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
@@ -27,6 +25,7 @@ import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.QTicket;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import jakarta.persistence.EntityManager;
@@ -54,6 +53,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     private final EventRepository eventRepository;
     private final SeatRepository seatRepository;
     private final TicketRepository ticketRepository;
+    private final TicketPurchaseCountService ticketPurchaseCountService;
     private final UserCouponJpaRepository userCouponJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final EntityManager em;
@@ -65,23 +65,26 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      */
     @Override
     public Reservation insert(InsertReservationRequest info) {
-        // 1. 추가적으로 티켓팅이 가능한지 확인
-        validateReservableFromDatabase(info.getUserId(), info.getEventId(), info.getSeats().size());
-
-        // 2. 공연 정보 조회
         Event event = eventRepository.selectById(info.getEventId());
+        // 사용자별 구매 카운트를 잠그고 증가시킨 뒤 같은 트랜잭션에서 티켓을 생성한다.
+        ticketPurchaseCountService.reserve(event, info.getUserId(), info.getSeats().size());
+        // 조회한 공연 정보를 통해 예매 정보(프레임)를 생성
+        Reservation reservation = Reservation.builder()
+                .orderId(info.getOrderId())
+                .userId(info.getUserId())
+                .event(event)
+                .status(ReservationStatus.PENDING_PAYMENT)
+                .reservedAt(LocalDateTime.now())
+                .build();
 
-        // 3. 조회한 공연 정보를 통해 예매 정보(프레임)를 생성
-        Reservation reservation = new Reservation(info, event);
-
-        // 4. 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
+        // 선택한 좌석 검증 및 비관적 락(NOWAIT)으로 안전하게 선점 조회
         // (개수 불일치, 락 획득 실패 시 내부에서 알아서 예외 발생 및 전역 처리)
         List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
         int totalTicketAmount = calculateTotalTicketAmount(seats);
         DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, reservation, totalTicketAmount);
 
-        // 5. 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 결제 대기 티켓 생성
+        // 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 결제 대기 티켓 생성
         for (Seat seat : seats) {
             seat.lock();
 
@@ -96,10 +99,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             tickets.add(ticket);
         }
 
-        // 6. 변경된 좌석 상태(LOCKED)를 DB에 즉시 반영하여 물리적 선점 확정
+        // 변경된 좌석 상태(LOCKED)를 DB에 즉시 반영하여 물리적 선점 확정
         em.flush();
 
-        // 7. 티켓과 예매 내역 저장
+        // 티켓과 예매 내역 저장
         Reservation savedReservation = jpaRepository.save(reservation);
         ticketRepository.insert(tickets);
         saveReservationDiscount(savedReservation, discountSnapshot);
@@ -317,28 +320,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     @Override
     public void validateReservableFromDatabase(String userId, long eventId, int selectedSeatCnt) {
         Event event = eventRepository.selectById(eventId);
-
-        // 선택한 좌석이 1인 제한 매수보다 큰 경우.
-        // ex) 매수 제한은 4매인데, 좌석을 5석 선택한 경우.
-        if (event.getMaxTicketsPerPerson() < selectedSeatCnt) {
-            throw new TicketLimitExceededException(
-                    String.format("1인당 최대 예매 가능 수량은 %d매입니다.", event.getMaxTicketsPerPerson())
-            );
-        }
-
-        boolean withinPurchaseLimit = event.getTicketLimitScope() == TicketLimitScope.PER_GROUP
-                ? ticketRepository.isWithinGroupPurchaseLimit(userId, event, selectedSeatCnt)
-                : ticketRepository.isWithinPurchaseLimit(userId, event, selectedSeatCnt);
-
-        // 매수 제한은 4매인데, 이미 2좌석을 선택했고 3좌석 이상을 추가적으로 티켓팅 하는 경우
-        if (!withinPurchaseLimit) {
-            throw new TicketLimitExceededException(
-                    String.format("이미 기존 예매 내역이 존재하여, 추가로 %d매를 초과하여 예매할 수 없습니다.", event.getMaxTicketsPerPerson())
-            );
-        }
-
+        ticketPurchaseCountService.validate(event, userId, selectedSeatCnt);
     }
-
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression userIdEq(String userId) {
         return StringUtils.hasText(userId) ? reservation.userId.eq(userId) : null;

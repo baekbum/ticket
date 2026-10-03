@@ -45,7 +45,7 @@ class ReservationDeliveryJpaRepositoryTest {
     @DisplayName("배송 스냅샷 저장 후 예약으로 조회한다")
     void save_and_find_by_reservation() {
         Reservation reservation = reservationJpaRepository.save(reservation("order-1", "user01"));
-        ReservationDelivery saved = reservationDeliveryJpaRepository.save(new ReservationDelivery(reservation, deliveryRequest()));
+        ReservationDelivery saved = reservationDeliveryJpaRepository.save(delivery(reservation, deliveryRequest()));
         entityManager.flush();
         entityManager.clear();
 
@@ -93,6 +93,19 @@ class ReservationDeliveryJpaRepositoryTest {
                 .address("Seoul Olympic-ro")
                 .detailAddress("101-1001")
                 .deliveryMessage("Leave at door")
+                .build();
+    }
+
+    private ReservationDelivery delivery(Reservation reservation, ReservationDeliveryRequest request) {
+        return ReservationDelivery.builder()
+                .reservation(reservation)
+                .recipientName(request.getRecipientName())
+                .recipientPhone(request.getRecipientPhone())
+                .zipCode(request.getZipCode())
+                .address(request.getAddress())
+                .detailAddress(request.getDetailAddress())
+                .deliveryMessage(request.getDeliveryMessage())
+                .status(ReservationDeliveryStatus.READY)
                 .build();
     }
 }
