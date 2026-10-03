@@ -6,6 +6,7 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDeliveryResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
 import dev.bum.ticket_service.controller.reservation.reservationDelivery.ReservationDeliveryManagementController;
+import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.reservation.reservationDelivery.ReservationDeliveryService;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,9 @@ class ReservationDeliveryManagementControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private InternalServiceTokenValidator internalServiceTokenValidator;
 
     @MockitoBean
     private ReservationDeliveryService reservationDeliveryService;
