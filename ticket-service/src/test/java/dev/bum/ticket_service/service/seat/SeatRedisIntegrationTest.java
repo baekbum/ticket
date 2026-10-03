@@ -48,6 +48,7 @@ class SeatRedisIntegrationTest {
     private final Set<String> testKeys = new HashSet<>();
     private final List<String> aclUsers = new ArrayList<>();
     private SeatRepository seats;
+    private SeatJpaRepository currentSeats;
     private EventRepository events;
     private TicketRepository tickets;
     private SeatCacheSyncFailureService failures;
@@ -59,6 +60,7 @@ class SeatRedisIntegrationTest {
         redis = new StringRedisTemplate(factory);
         assertThat(redis.execute((RedisCallback<String>) connection -> connection.ping())).isEqualTo("PONG");
         seats = mock(SeatRepository.class);
+        currentSeats = mock(SeatJpaRepository.class);
         events = mock(EventRepository.class);
         tickets = mock(TicketRepository.class);
         failures = mock(SeatCacheSyncFailureService.class);
@@ -240,7 +242,8 @@ class SeatRedisIntegrationTest {
     }
 
     private SeatCacheService service(StringRedisTemplate template) {
-        return new SeatCacheService(seats, events, template, failures);
+        return new SeatCacheService(seats, events, template, failures,
+                new SeatCacheMissOccupationService(currentSeats, template));
     }
     private Seat seat(int col, SeatStatus status) {
         return Seat.builder().seatId((long) col).event(event).zone("VIP").seatRow(1).seatCol(col).status(status).build();
@@ -294,5 +297,133 @@ class SeatRedisIntegrationTest {
                 LettuceClientConfiguration.builder().commandTimeout(Duration.ofSeconds(3)).shutdownTimeout(Duration.ZERO).build());
         connection.afterPropertiesSet();
         return connection;
+    }
+
+    @Test
+    @DisplayName("RESERVED 좌석은 잠금이 없어도 Lua가 선점을 거절한다")
+    void reserved_seat_without_lock_cannot_be_occupied() {
+        String seatKey = key(1);
+        redis.opsForValue().set(seatKey, "RESERVED");
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
+        assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
+        then(currentSeats).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("캐시가 없고 DB 좌석이 AVAILABLE이면 DB 검증 후 선점한다")
+    void missing_cache_uses_database_available_seat() {
+        String seatKey = key(1);
+        given(currentSeats.findByIdForUpdate(1L)).willReturn(Optional.of(seat(1, SeatStatus.AVAILABLE)));
+        var response = service(redis).occupySeat(request(1));
+        assertThat(redis.opsForValue().get(seatKey)).isEqualTo("LOCKED:user:" + response.getOrderId())
+                .isEqualTo(redis.opsForValue().get(seatKey + ":lock"));
+        assertThat(redis.getExpire(seatKey, TimeUnit.SECONDS)).isBetween(590L, 600L);
+    }
+
+    @Test
+    @DisplayName("캐시가 없어도 DB의 RESERVED 좌석은 선점하지 않는다")
+    void missing_cache_rejects_database_reserved_seat() {
+        String seatKey = key(1);
+        given(currentSeats.findByIdForUpdate(1L)).willReturn(Optional.of(seat(1, SeatStatus.RESERVED)));
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.hasKey(seatKey)).isFalse();
+        assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
+    }
+
+    @Test
+    @DisplayName("좌석 캐시가 없어도 기존 잠금이 있으면 DB 조회 없이 거절한다")
+    void missing_state_with_existing_lock_rejects_occupation() {
+        String seatKey = key(1);
+        redis.opsForValue().set(seatKey + ":lock", "LOCKED:other:order", Duration.ofMinutes(1));
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.opsForValue().get(seatKey + ":lock")).isEqualTo("LOCKED:other:order");
+        assertThat(redis.hasKey(seatKey)).isFalse();
+        then(currentSeats).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("DB 조회 중 Redis가 RESERVED로 바뀌면 재검사에서 거절한다")
+    void fallback_rechecks_state_after_database_lookup() {
+        String seatKey = key(1);
+        given(currentSeats.findByIdForUpdate(1L)).willAnswer(invocation -> {
+            redis.opsForValue().set(seatKey, "RESERVED");
+            return Optional.of(seat(1, SeatStatus.AVAILABLE));
+        });
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
+        assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
+    }
+
+    @Test
+    @DisplayName("부분 선점 실패 시 이미 RESERVED로 변경된 좌석은 롤백하지 않는다")
+    void partial_failure_preserves_completed_seat() {
+        assertPartialFailurePreservesNewState("RESERVED", false);
+    }
+
+    @Test
+    @DisplayName("부분 선점 실패 시 다른 요청이 획득한 잠금은 롤백하지 않는다")
+    void partial_failure_preserves_other_requests_lock() {
+        assertPartialFailurePreservesNewState("LOCKED:other:new-order", true);
+    }
+
+    private void assertPartialFailurePreservesNewState(String newState, boolean hasNewLock) {
+        String first = key(1);
+        key(2);
+        redis.opsForValue().set(first, "AVAILABLE");
+        given(currentSeats.findByIdForUpdate(2L)).willAnswer(invocation -> {
+            redis.opsForValue().set(first, newState);
+            if (hasNewLock) redis.opsForValue().set(first + ":lock", newState, Duration.ofMinutes(1));
+            else redis.delete(first + ":lock");
+            return Optional.of(seat(2, SeatStatus.RESERVED));
+        });
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1, 2)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.opsForValue().get(first)).isEqualTo(newState);
+        assertThat(redis.opsForValue().get(first + ":lock")).isEqualTo(hasNewLock ? newState : null);
+    }
+
+    @Test
+    @DisplayName("부분 선점 실패 시 본인 잠금과 상태만 AVAILABLE로 복구한다")
+    void partial_failure_releases_only_own_lock() {
+        String first = key(1);
+        String second = key(2);
+        redis.opsForValue().set(first, "AVAILABLE");
+        redis.opsForValue().set(second, "LOCKED:other:order");
+        redis.opsForValue().set(second + ":lock", "LOCKED:other:order");
+        assertThatThrownBy(() -> service(redis).occupySeat(request(1, 2)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+        assertThat(redis.opsForValue().get(first)).isEqualTo("AVAILABLE");
+        assertThat(redis.hasKey(first + ":lock")).isFalse();
+        assertThat(redis.opsForValue().get(second)).isEqualTo("LOCKED:other:order");
+        assertThat(redis.opsForValue().get(second + ":lock")).isEqualTo("LOCKED:other:order");
+    }
+
+    private SeatOccupyRequest request(int... columns) {
+        return SeatOccupyRequest.builder().eventId(event.getEventId()).userId("user")
+                .seats(Arrays.stream(columns).mapToObj(col ->
+                        SeatInfo.builder().id((long) col).zone("VIP").row(1).col(col).build()).toList()).build();
+    }
+
+    @Test
+    @DisplayName("선점은 실행됐지만 응답이 소실되면 이번 요청의 잠금을 정리한다")
+    void lost_occupation_response_releases_own_lock() {
+        String seatKey = key(1);
+        redis.opsForValue().set(seatKey, "AVAILABLE");
+        StringRedisTemplate unreliable = spy(redis);
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            throw new org.springframework.dao.DataAccessResourceFailureException("Redis 응답 소실");
+        }).when(unreliable).execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(seatKey, seatKey + ":lock")), anyString(), eq("600000"), eq("0"));
+
+        assertThatThrownBy(() -> service(unreliable).occupySeat(request(1)))
+                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatOccupationFailedException.class);
+        assertThat(redis.opsForValue().get(seatKey)).isEqualTo("AVAILABLE");
+        assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
     }
 }

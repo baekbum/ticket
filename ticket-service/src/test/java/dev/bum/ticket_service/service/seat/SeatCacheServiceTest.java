@@ -70,6 +70,9 @@ class SeatCacheServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private SeatCacheMissOccupationService seatCacheMissOccupationService;
+
     private SeatCacheService seatCacheService;
 
     @BeforeEach
@@ -78,7 +81,8 @@ class SeatCacheServiceTest {
                 repository,
                 eventRepository,
                 seatRedisTemplate,
-                seatCacheSyncFailureService
+                seatCacheSyncFailureService,
+                seatCacheMissOccupationService
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -165,17 +169,21 @@ class SeatCacheServiceTest {
 
         Event event = event();
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(valueOperations.get(FIRST_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
-        given(valueOperations.get(SECOND_SEAT_KEY)).willReturn(SeatStatus.AVAILABLE.name());
-        given(valueOperations.setIfAbsent(eq(FIRST_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(true);
-        given(valueOperations.setIfAbsent(eq(SECOND_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(false);
+        given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                .willReturn(1L);
+        given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(SECOND_SEAT_KEY, SECOND_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                .willReturn(0L);
 
         assertThatThrownBy(() -> seatCacheService.occupySeat(request))
                 .isInstanceOf(SeatAlreadyOccupiedException.class);
 
-        then(valueOperations).should().set(eq(FIRST_SEAT_KEY), eq(SeatStatus.AVAILABLE.name()), any(Duration.class));
-        then(seatRedisTemplate).should().delete(List.of(FIRST_SEAT_KEY + ":lock"));
-        then(valueOperations).should(never()).set(eq(SECOND_SEAT_KEY), anyString(), any(Duration.class));
+        then(seatRedisTemplate).should().execute(eq(SeatOccupationScripts.ROLLBACK),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("604800000"));
+        then(seatRedisTemplate).should().execute(eq(SeatOccupationScripts.ROLLBACK),
+                eq(List.of(SECOND_SEAT_KEY, SECOND_SEAT_KEY + ":lock")), anyString(), eq("604800000"));
+        then(valueOperations).shouldHaveNoInteractions();
     }
 
     @Test
@@ -193,8 +201,9 @@ class SeatCacheServiceTest {
         Event event = event(TicketLimitScope.PER_GROUP, 1);
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
         lenient().when(valueOperations.get(GROUP_PURCHASE_LIMIT_KEY)).thenReturn("99");
-        given(valueOperations.get(FIRST_SEAT_KEY)).willReturn("AVAILABLE");
-        given(valueOperations.setIfAbsent(eq(FIRST_SEAT_KEY + ":lock"), anyString(), any(Duration.class))).willReturn(true);
+        given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                .willReturn(1L);
 
         assertThat(seatCacheService.occupySeat(request).getOrderId()).isNotBlank();
 
@@ -228,14 +237,17 @@ class SeatCacheServiceTest {
         Event event = event();
 
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
-        given(valueOperations.get(FIRST_SEAT_KEY)).willThrow(new DataAccessException("redis error") {});
+        given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                .willThrow(new DataAccessException("redis error") {});
 
         assertThatThrownBy(() -> seatCacheService.occupySeat(request))
                 .isInstanceOf(SeatOccupationFailedException.class)
                 .hasMessage("잠시 후 다시 시도해주세요.");
 
-        then(valueOperations).should().get(FIRST_SEAT_KEY);
-        then(valueOperations).should(never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+        then(seatRedisTemplate).should().execute(eq(SeatOccupationScripts.ROLLBACK),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("604800000"));
+        then(valueOperations).shouldHaveNoInteractions();
     }
 
     @Test
@@ -377,5 +389,22 @@ class SeatCacheServiceTest {
                 .price(180000)
                 .status(SeatStatus.AVAILABLE)
                 .build();
+    }
+
+    @Test
+    @DisplayName("캐시 누락은 DB 잠금 검증을 수행하는 별도 서비스로 전달한다")
+    void cache_miss_uses_database_locked_fallback() {
+        SeatInfo info = SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build();
+        given(eventRepository.selectById(EVENT_ID)).willReturn(event());
+        given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                .willReturn(-1L);
+
+        assertThat(seatCacheService.occupySeat(SeatOccupyRequest.builder().eventId(EVENT_ID)
+                .userId(USER_ID).seats(List.of(info)).build()).getOrderId()).isNotBlank();
+
+        then(seatCacheMissOccupationService).should().occupy(eq(EVENT_ID), eq(info),
+                eq(FIRST_SEAT_KEY), anyString(), eq(Duration.ofMinutes(10)));
+        then(repository).shouldHaveNoInteractions();
     }
 }
