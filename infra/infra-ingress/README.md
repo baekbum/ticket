@@ -34,6 +34,10 @@ docker compose -f infra/infra-ingress/docker-compose.yml up -d --build
 
 관리자 화면은 `/admin/`에서 제공됩니다. 관리자 화면의 일반 API 요청은 서비스별 경로로 전달되며, Kafka DLQ와 장애 지표처럼 admin-service가 직접 처리하는 요청만 `/admin-api/`로 전달됩니다.
 
+운영 ingress는 `/ticket/actuator/prometheus`를 포함한 서비스별 `/actuator` 경로의 외부 접근을 `404`로 차단합니다. `/health`는 ingress 상태 확인용으로 제공됩니다. Prometheus는 ingress를 거치지 않고 `ticket-network`에서 각 서비스의 `/actuator/prometheus`를 직접 수집합니다. 운영 서비스의 포트를 외부에 직접 공개하지 않아야 이 접근 제한이 유지됩니다.
+
+관리자 장애 지표 화면은 ADMIN 권한으로 admin-service에 요청하고, admin-service가 내부 `http://prometheus:9090/api/v1/query`를 조회한 결과를 반환합니다.
+
 사용자 화면은 서비스별 API 경로를 사용합니다.
 
 두 Compose 파일은 같은 호스트 80번 포트와 컨테이너 이름을 사용하므로 한 번에 하나만 실행합니다. 환경을 바꿀 때는 현재 환경의 Compose 파일로 `down`을 실행한 뒤 다른 환경을 시작합니다.
