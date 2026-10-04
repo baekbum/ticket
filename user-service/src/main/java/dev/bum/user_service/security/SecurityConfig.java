@@ -72,7 +72,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/password/validate/me").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/password/change/me").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/withdraw/me").hasRole(ROLE_USER)
-                        .requestMatchers("/api/*/validate/info").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/address/insert/me").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/address/select/me").hasRole(ROLE_USER)
                         .requestMatchers("/api/*/address/update/me/**").hasRole(ROLE_USER)

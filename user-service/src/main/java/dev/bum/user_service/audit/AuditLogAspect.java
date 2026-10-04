@@ -3,6 +3,7 @@ package dev.bum.user_service.audit;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.kafka.audit.AuditLogProducer;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -131,6 +132,9 @@ public class AuditLogAspect {
         }
 
         for (Object arg : args) {
+            if (arg instanceof ValidatePasswordRequest request) {
+                return request.getUserId();
+            }
             if (arg instanceof String && StringUtils.hasText((String) arg)) {
                 return (String) arg;
             }

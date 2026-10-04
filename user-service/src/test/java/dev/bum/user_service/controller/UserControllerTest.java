@@ -6,7 +6,6 @@ import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
-import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.controller.user.UserController;
@@ -45,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserControllerTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"/select/me", "/update/me", "/password/validate/me", "/password/change/me", "/withdraw/me", "/validate/info"})
+    @ValueSource(strings = {"/select/me", "/update/me", "/password/validate/me", "/password/change/me", "/withdraw/me"})
     @DisplayName("관리자 토큰으로 사용자 계정 및 비밀번호 API에 접근할 수 없다")
     void admin_cannot_use_ticksy_account_api(String path) throws Exception {
         var admin = new UsernamePasswordAuthenticationToken("admin", null,
@@ -175,7 +174,7 @@ class UserControllerTest {
         mockMvc.perform(post(baseUrl + "/password/validate/me")
                         .with(authentication(userAuthentication("IU")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"current-password\"}"))
+                        .content("{\"userId\":\"other-user\",\"password\":\"current-password\"}"))
                 .andExpect(status().isOk());
 
         then(userService).should().validateMyPassword("IU", "current-password");
@@ -206,21 +205,24 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("사용자 비밀번호 검증은 요청의 대상 ID 대신 인증된 본인 ID를 사용한다")
-    void validate_info() throws Exception {
-        ValidatePasswordRequest info = ValidatePasswordRequest.builder()
-                .userId("admin")
-                .password("IU05160918")
-                .build();
-
+    void removed_validate_info_has_no_handler() throws Exception {
+        var admin = new UsernamePasswordAuthenticationToken("admin", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
         mockMvc.perform(post(baseUrl + "/validate/info")
-                        .with(authentication(userAuthentication("IU")))
+                        .with(authentication(admin))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk());
+                        .content("{\"password\":\"password\"}"))
+                .andExpect(status().isNotFound());
+        org.mockito.Mockito.verifyNoInteractions(userService);
+    }
 
-        then(userService).should().validateMyPassword("IU", info.getPassword());
-        org.mockito.Mockito.verify(userService, org.mockito.Mockito.never()).validateInfo(any());
+    @Test
+    void password_validation_requires_authentication() throws Exception {
+        mockMvc.perform(post(baseUrl + "/password/validate/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"password\"}"))
+                .andExpect(status().is4xxClientError());
+        org.mockito.Mockito.verifyNoInteractions(userService);
     }
 
     private InsertUserRequest insertUserRequest() {

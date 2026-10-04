@@ -107,6 +107,26 @@ Content-Type: application/json
 1. `accessToken`, `refreshToken` 저장
 2. 메인 또는 이벤트 목록 화면으로 이동
 
+### 로그인 후 비밀번호 변경
+
+변경 화면에서 현재 비밀번호, 새 비밀번호, 새 비밀번호 확인을 한 번에 입력한다. 사전 확인 요청 없이 아래 USER API만 호출한다.
+
+```http
+PUT /api/v1/password/change/me
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```json
+{
+  "currentPassword": "current-password",
+  "newPassword": "new-password",
+  "newPasswordConfirm": "new-password"
+}
+```
+
+USER가 JWT의 본인 계정과 현재 비밀번호를 검증한 뒤 변경한다. 현재 비밀번호가 틀리면 같은 화면에 오류를 표시하며 비밀번호를 변경하지 않는다. AUTH 검증 호출이나 로그인 실패 횟수 집계·잠금은 적용하지 않는다. AUTH의 5회 실패 잠금은 로그인 요청에만 적용한다. 변경 결과는 기존 Kafka 이벤트로 AUTH에 동기화한다.
+
 ### 3. 로그아웃
 
 ```http
