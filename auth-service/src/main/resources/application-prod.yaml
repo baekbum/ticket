@@ -38,7 +38,7 @@ spring:
 
 token:
   secret: ${TOKEN_SECRET}
-  accessTokenValidityInMilliseconds: 1800000
+  accessTokenValidityInMilliseconds: 900000
   refreshTokenValidityInMilliseconds: 1209600000
 
 topic:
@@ -77,3 +77,10 @@ app:
       enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}
       webhook-url: ${SLACK_WEBHOOK_URL:}
       admin-dlq-url: "${APP_ADMIN_DLQ_URL:}"
+
+token-state:
+  redis:
+    host: ${spring.data.redis.host}
+    port: ${spring.data.redis.port}
+    database: ${spring.data.redis.database:0}
+    password: ${spring.data.redis.password:}

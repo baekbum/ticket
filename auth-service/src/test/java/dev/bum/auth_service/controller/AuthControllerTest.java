@@ -37,6 +37,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 @WebMvcTest(AuthController.class)
 class AuthControllerTest {
+    @MockitoBean private dev.bum.common.security.TokenStateStore tokenStateStore;
+
+
+
+    @Test
+    @DisplayName("관리자 로그인 API는 인증 없이 호출하고 관리자 로그인 서비스로 위임한다")
+    void admin_login_success() throws Exception {
+        LoginRequest info = new LoginRequest("admin", "admin-password");
+        given(authService.adminLoginAndCreateToken(any()))
+                .willReturn(new TokenResponse("admin-access", "admin-refresh"));
+
+        mockMvc.perform(post("/api/v1/admin/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(info)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("admin-access"));
+
+        then(authService).should().adminLoginAndCreateToken(info);
+        then(authService).should(never()).LoginAndCreateToken(any());
+    }
 
     @Test
     @DisplayName("로그인 잠금 계정은 비밀번호 재설정 안내와 403 응답을 반환한다")
@@ -91,6 +111,9 @@ class AuthControllerTest {
         given(tokenProvider.validateToken(token)).willReturn(true);
         given(tokenProvider.getUserId(token)).willReturn("user01");
         given(tokenProvider.getRole(token)).willReturn("ROLE_USER");
+        given(tokenProvider.getTokenType(token)).willReturn("access");
+        given(tokenProvider.getTokenVersion(token)).willReturn(1L);
+        given(tokenStateStore.get("user01")).willReturn(dev.bum.common.security.TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
 
         mockMvc.perform(get("/api/" + apiVersion + "/validate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -101,6 +124,37 @@ class AuthControllerTest {
         then(tokenProvider).should().validateToken(token);
         then(tokenProvider).should().getUserId(token);
         then(tokenProvider).should().getRole(token);
+    }
+
+    @Test
+    void validate_rejects_revoked_access_token() throws Exception {
+        given(tokenProvider.validateToken("access")).willReturn(true);
+        given(tokenProvider.getTokenType("access")).willReturn("access");
+        given(tokenProvider.getUserId("access")).willReturn("user01");
+        given(tokenProvider.getRole("access")).willReturn("ROLE_USER");
+        given(tokenProvider.getTokenVersion("access")).willReturn(1L);
+        given(tokenStateStore.get("user01")).willReturn(dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+        mockMvc.perform(get("/api/v1/validate").header(HttpHeaders.AUTHORIZATION, "Bearer access"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validate_rejects_refresh_token_as_access_token() throws Exception {
+        given(tokenProvider.validateToken("refresh")).willReturn(true);
+        given(tokenProvider.getTokenType("refresh")).willReturn("refresh");
+        mockMvc.perform(get("/api/v1/validate").header(HttpHeaders.AUTHORIZATION, "Bearer refresh"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validate_fails_closed_when_state_store_is_unavailable() throws Exception {
+        given(tokenProvider.validateToken("access")).willReturn(true);
+        given(tokenProvider.getTokenType("access")).willReturn("access");
+        given(tokenProvider.getUserId("access")).willReturn("user01");
+        given(tokenProvider.getRole("access")).willReturn("ROLE_USER");
+        given(tokenStateStore.get("user01")).willThrow(new IllegalStateException("Redis unavailable"));
+        mockMvc.perform(get("/api/v1/validate").header(HttpHeaders.AUTHORIZATION, "Bearer access"))
+                .andExpect(status().isServiceUnavailable());
     }
 
     @Test

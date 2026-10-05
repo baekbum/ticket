@@ -7,7 +7,7 @@
     "sync:legacy": "node scripts/sync-legacy.mjs",
     "dev": "npm run sync:legacy && vite --host 0.0.0.0 --port 8999 --strictPort",
     "build": "npm run sync:legacy && tsc -b && vite build",
-    "test": "npm run sync:legacy && node --test scripts/bridge.test.mjs",
+    "test": "npm run sync:legacy && node --test scripts/*.test.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 8999 --strictPort"
   },
   "dependencies": {

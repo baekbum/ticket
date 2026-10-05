@@ -25,6 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AreaService {
 
+    private final SvgLayoutSanitizer svgLayoutSanitizer;
     private final AreaRepository repository;
     private final EventLayoutJpaRepository layoutJpaRepository;
 
@@ -35,7 +36,11 @@ public class AreaService {
     public EventLayoutResponse selectLayout(Long eventId) {
         log.info("[EVENT LAYOUT SELECT] eventId : {}", eventId);
         return layoutJpaRepository.findByEvent_EventId(eventId)
-                .map(EventLayout::toResponse)
+                .map(layout -> {
+                    EventLayoutResponse response = layout.toResponse();
+                    response.setSvgText(svgLayoutSanitizer.sanitizeForDisplay(layout.getSvgText()));
+                    return response;
+                })
                 .orElse(null);
     }
 

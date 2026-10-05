@@ -5,6 +5,6 @@ import dev.bum.common.kafka.user.UserDtoForEvent;
 public interface AuthRepository {
     void insert(UserDtoForEvent event);
     Auth findByUserId(String userId);
-    void update(UserDtoForEvent event);
+    Auth update(UserDtoForEvent event);
     void delete(String userId);
 }

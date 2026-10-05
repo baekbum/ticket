@@ -40,7 +40,7 @@ spring:
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
-  accessTokenValidityInMilliseconds: 1800000
+  accessTokenValidityInMilliseconds: 900000
   refreshTokenValidityInMilliseconds: 1209600000
 
 topic:
@@ -71,3 +71,10 @@ app:
       enabled: true
       webhook-url: ${SLACK_WEBHOOK_URL:}
       admin-dlq-url: "${APP_ADMIN_DLQ_URL:http://localhost/admin/?menu=kafkaDlq}"
+
+token-state:
+  redis:
+    host: ${spring.data.redis.host}
+    port: ${spring.data.redis.port}
+    database: ${spring.data.redis.database:0}
+    password: ${spring.data.redis.password:}

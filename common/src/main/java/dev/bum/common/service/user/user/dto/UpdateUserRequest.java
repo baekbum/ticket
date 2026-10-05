@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class UpdateUserRequest {
 
     @Size(min = 8, message = "비밀번호는 최소 여덟 글자 이상입니다.")
+    @ToString.Exclude
     private String password;
 
     private String phoneNumber;

@@ -1,5 +1,7 @@
 package dev.bum.admin_service.controller.monitoring;
 
+import dev.bum.common.security.TokenStateStore;
+
 import dev.bum.admin_service.monitoring.FailureMetricLevel;
 import dev.bum.admin_service.monitoring.FailureMetricResponse;
 import dev.bum.admin_service.monitoring.FailureMetricService;
@@ -28,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(AdminMonitoringController.class)
 class AdminMonitoringControllerTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
 
     @Autowired
     private MockMvc mockMvc;

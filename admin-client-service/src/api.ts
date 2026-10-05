@@ -56,7 +56,7 @@ export async function adminFetch(url: string, options: RequestInit = {}): Promis
 }
 
 export async function login(userId: string, password: string): Promise<AdminUser> {
-  const response = await fetch('/auth/api/v1/login', {
+  const response = await fetch('/auth/api/v1/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, password }),

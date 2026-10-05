@@ -48,6 +48,25 @@ import static org.mockito.Mockito.*;
 class UserServiceTest {
 
     @Test
+    void password_change_failures_do_not_lock_a_logged_in_user() {
+        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        User updated = User.builder().id(1L).userId("user01").password("new-hash").build();
+        given(userRepository.selectById("user01")).willReturn(current);
+        for (int index = 0; index < 7; index++) {
+            assertThatThrownBy(() -> userService.changeMyPassword("user01", "wrong-password", "new-password", "new-password"))
+                    .isInstanceOf(PasswordIncorrectException.class);
+        }
+        then(userRepository).should(never()).update(any(), any());
+        then(kafkaTemplate).should(never()).send(any(), any(), any());
+
+        given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
+        given(userRepository.update(eq("user01"), any())).willReturn(updated);
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
+        userService.changeMyPassword("user01", "old-password", "new-password", "new-password");
+        then(userRepository).should().update(eq("user01"), argThat(info -> "new-password".equals(info.getPassword())));
+    }
+
+    @Test
     @DisplayName("비밀번호 찾기로 재설정하면 로그인 잠금 해제를 위한 재설정 표시를 전파한다")
     void password_reset_publishes_reset_flag() {
         User user = User.builder().id(1L).userId("user01").name("홍길동")
@@ -574,7 +593,7 @@ class UserServiceTest {
     @Test
     @DisplayName("현재 비밀번호가 틀리면 변경 화면 진입 검증 실패")
     void validate_my_password_wrong_password() {
-        User current = User.builder().id(1L).userId("user01").password("old-hash").build();
+        User current = User.builder().id(1L).userId("user01").password("old-hash").role(UserRole.ROLE_USER).build();
         given(userRepository.selectById("user01")).willReturn(current);
         given(passwordEncoder.matches("wrong-password", "old-hash")).willReturn(false);
 

@@ -1,12 +1,13 @@
 package dev.bum.user_service.controller;
 
+import dev.bum.common.security.TokenStateStore;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
-import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.controller.user.UserController;
@@ -14,6 +15,8 @@ import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.user.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -41,6 +44,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/select/me", "/update/me", "/password/validate/me", "/password/change/me", "/withdraw/me"})
+    @DisplayName("관리자 토큰으로 사용자 계정 및 비밀번호 API에 접근할 수 없다")
+    void admin_cannot_use_ticksy_account_api(String path) throws Exception {
+        var admin = new UsernamePasswordAuthenticationToken("admin", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        var request = switch (path) {
+            case "/select/me" -> get(baseUrl + path);
+            case "/update/me", "/password/change/me" -> put(baseUrl + path);
+            default -> post(baseUrl + path);
+        };
+        mockMvc.perform(request.with(authentication(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(userService);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -156,7 +178,7 @@ class UserControllerTest {
         mockMvc.perform(post(baseUrl + "/password/validate/me")
                         .with(authentication(userAuthentication("IU")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"current-password\"}"))
+                        .content("{\"userId\":\"other-user\",\"password\":\"current-password\"}"))
                 .andExpect(status().isOk());
 
         then(userService).should().validateMyPassword("IU", "current-password");
@@ -187,20 +209,24 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("비밀번호 검증")
-    void validate_info() throws Exception {
-        ValidatePasswordRequest info = ValidatePasswordRequest.builder()
-                .userId("IU")
-                .password("IU05160918")
-                .build();
-
+    void removed_validate_info_has_no_handler() throws Exception {
+        var admin = new UsernamePasswordAuthenticationToken("admin", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
         mockMvc.perform(post(baseUrl + "/validate/info")
-                        .with(authentication(userAuthentication("IU")))
+                        .with(authentication(admin))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk());
+                        .content("{\"password\":\"password\"}"))
+                .andExpect(status().isNotFound());
+        org.mockito.Mockito.verifyNoInteractions(userService);
+    }
 
-        then(userService).should().validateInfo(info);
+    @Test
+    void password_validation_requires_authentication() throws Exception {
+        mockMvc.perform(post(baseUrl + "/password/validate/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"password\"}"))
+                .andExpect(status().is4xxClientError());
+        org.mockito.Mockito.verifyNoInteractions(userService);
     }
 
     private InsertUserRequest insertUserRequest() {

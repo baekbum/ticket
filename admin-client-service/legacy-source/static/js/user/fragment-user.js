@@ -125,7 +125,6 @@
         tbody.innerHTML = '';
 
         currentUserList.forEach((u, index) => {
-          const userIdAttr = escapeHtml(u.userId ?? '');
           const roleHtml   = u.role === 'ROLE_ADMIN'
             ? `<span class="badge badge-admin">ADMIN</span>`
             : `<span class="badge badge-user">USER</span>`;
@@ -136,32 +135,48 @@
               : `<span class="badge badge-ok">정상</span>`;
 
           const grade = u.grade || 'GENERAL';
-          const gradeHtml = `<span class="badge badge-grade badge-grade-${grade.toLowerCase()}">${escapeHtml(grade)}</span>`;
+          const gradeClass = ['GENERAL', 'GREEN', 'SILVER', 'GOLD', 'VIP', 'MVIP'].includes(grade)
+            ? grade.toLowerCase() : 'general';
 
           const rowOrder = (pageZeroIndexed * pageSize) + (index + 1);
           const tr = document.createElement('tr');
           tr.setAttribute('data-pk', u.id);
 
           tr.innerHTML = `
-            <td style="text-align:center;" onclick="event.stopPropagation()">
-              <input type="checkbox" class="row-checkbox" data-id="${u.id}"
-                     onclick="event.stopPropagation(); toggleRowCheckbox(this, ${u.id})">
+            <td style="text-align:center;">
+              <input type="checkbox" class="row-checkbox">
             </td>
             <td style="text-align:center; color:var(--text-muted); font-size:12px;">${rowOrder}</td>
-            <td><strong style="color:var(--text-primary);">${u.userId}</strong></td>
-            <td>${u.name}</td>
-            <td style="color:var(--text-secondary);">${u.email}</td>
+            <td><strong style="color:var(--text-primary);"></strong></td>
+            <td></td>
+            <td style="color:var(--text-secondary);"></td>
             <td>${roleHtml}</td>
             <td>${statusHtml}</td>
-            <td>${gradeHtml}</td>
-            <td class="actions" onclick="event.stopPropagation()">
-              <button type="button" class="btn btn-sm btn-address" data-user-id="${userIdAttr}" onclick="event.stopPropagation(); window.openUserAddressModal(this.dataset.userId)"><i class="ti ti-map-pin"></i>주소</button>
-              <button type="button" class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${u.id}')">수정</button>
-              <button type="button" class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${u.id}')">삭제</button>
+            <td><span class="badge badge-grade"></span></td>
+            <td class="actions">
+              <button type="button" class="btn btn-sm btn-address"><i class="ti ti-map-pin"></i>주소</button>
+              <button type="button" class="btn btn-sm btn-outline">수정</button>
+              <button type="button" class="btn btn-sm btn-danger">삭제</button>
             </td>
           `;
 
-          tr.onclick = () => window.openModalForView(u.id);
+          // 서버에서 받은 값은 HTML이나 실행 코드에 포함하지 않고 텍스트로만 표시한다.
+          tr.cells[2].querySelector('strong').textContent = u.userId ?? '';
+          tr.cells[3].textContent = u.name ?? '';
+          tr.cells[4].textContent = u.email ?? '';
+          const gradeBadge = tr.querySelector('.badge-grade');
+          gradeBadge.classList.add(`badge-grade-${gradeClass}`);
+          gradeBadge.textContent = grade;
+
+          const checkbox = tr.querySelector('.row-checkbox');
+          checkbox.dataset.id = u.id;
+          tr.cells[0].addEventListener('click', event => event.stopPropagation());
+          checkbox.addEventListener('click', () => window.toggleRowCheckbox(checkbox, u.id));
+          tr.querySelector('.actions').addEventListener('click', event => event.stopPropagation());
+          tr.querySelector('.btn-address').addEventListener('click', () => window.openUserAddressModal(u.userId));
+          tr.querySelector('.btn-outline').addEventListener('click', () => window.openModalForUpdate(u.id));
+          tr.querySelector('.btn-danger').addEventListener('click', () => window.openConfirmModalFromRow(u.id));
+          tr.addEventListener('click', () => window.openModalForView(u.id));
           tbody.appendChild(tr);
         });
 
@@ -417,19 +432,21 @@
         return;
       }
 
-      listEl.innerHTML = currentAddressList.map(address => {
+      listEl.replaceChildren();
+      currentAddressList.forEach(address => {
         const isDefault = address.defaultAddress === true;
         const isDeleted = address.status === 'DELETED';
         const fullAddress = `${address.address || ''} ${address.detailAddress || ''}`.trim();
         const defaultButton = !isDefault && !isDeleted
-          ? `<button class="btn btn-sm btn-outline" onclick="window.setDefaultUserAddress(${address.addressId})">기본 설정</button>`
+          ? '<button class="btn btn-sm btn-outline address-set-default">기본 설정</button>'
           : '';
         const disableButton = !isDeleted
-          ? `<button class="btn btn-sm btn-danger" onclick="window.disableUserAddress(${address.addressId})">사용 중지</button>`
+          ? '<button class="btn btn-sm btn-danger address-disable">사용 중지</button>'
           : '';
 
-        return `
-          <article class="address-card ${isDeleted ? 'is-deleted' : ''}">
+        const card = document.createElement('article');
+        card.className = `address-card ${isDeleted ? 'is-deleted' : ''}`;
+        card.innerHTML = `
             <div class="address-card-header">
               <div>
                 <strong class="address-card-title">${escapeHtml(address.alias || '배송지')}</strong>
@@ -447,13 +464,16 @@
               <div class="address-row address-full"><span>주소</span><strong>${escapeHtml(fullAddress || '-')}</strong></div>
             </div>
             <div class="address-card-actions">
-              <button class="btn btn-sm btn-outline" onclick="window.openUserAddressEditModal(${address.addressId})">수정</button>
+              <button class="btn btn-sm btn-outline address-edit">수정</button>
               ${defaultButton}
               ${disableButton}
             </div>
-          </article>
         `;
-      }).join('');
+        card.querySelector('.address-edit').addEventListener('click', () => window.openUserAddressEditModal(address.addressId));
+        card.querySelector('.address-set-default')?.addEventListener('click', () => window.setDefaultUserAddress(address.addressId));
+        card.querySelector('.address-disable')?.addEventListener('click', () => window.disableUserAddress(address.addressId));
+        listEl.appendChild(card);
+      });
     }
 
     window.openUserAddressEditModal = function (addressId) {

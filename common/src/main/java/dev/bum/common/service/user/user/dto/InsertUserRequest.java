@@ -18,6 +18,7 @@ public class InsertUserRequest {
 
     @NotBlank(message = "비밀번호는 필수 값입니다.")
     @Size(min = 8, message = "비밀번호는 최소 여덟 글자 이상입니다.")
+    @ToString.Exclude
     private String password;
 
     @NotBlank(message = "유저 이름은 필수 값입니다.")

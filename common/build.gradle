@@ -22,6 +22,7 @@ repositories {
 }
 
 dependencies {
+	api 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 1. JWT 관련: 'api'를 써야 auth/user 서비스에서도 JWT 클래스를 인식합니다.
 	api 'io.jsonwebtoken:jjwt-api:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'

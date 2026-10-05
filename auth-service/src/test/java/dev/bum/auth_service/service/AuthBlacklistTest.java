@@ -58,7 +58,7 @@ class AuthBlacklistTest {
         assertThatThrownBy(() -> service.LoginAndCreateToken(new LoginRequest("user", "password")))
                 .isInstanceOf(BlacklistedUserException.class)
                 .extracting("blacklistedUntil").isEqualTo(LocalDate.of(2026, 12, 31));
-        verify(tokenProvider, never()).createToken("user", "ROLE_USER");
+        verify(tokenProvider, never()).createToken(org.mockito.ArgumentMatchers.eq("user"), org.mockito.ArgumentMatchers.eq("ROLE_USER"), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -66,6 +66,7 @@ class AuthBlacklistTest {
         Auth auth = Auth.builder().id(1L).userId("user")
                 .password("encoded").role(UserRole.ROLE_USER).isBlacklisted(true).build();
         given(tokenProvider.validateToken("refresh")).willReturn(true);
+        given(tokenProvider.getTokenType("refresh")).willReturn("refresh");
         given(tokenProvider.getUserId("refresh")).willReturn("user");
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get("RT:user")).willReturn("refresh");
@@ -73,6 +74,6 @@ class AuthBlacklistTest {
 
         assertThatThrownBy(() -> service.reissueToken("refresh"))
                 .isInstanceOf(BlacklistedUserException.class);
-        verify(tokenProvider, never()).createToken("user", "ROLE_USER");
+        verify(tokenProvider, never()).createToken(org.mockito.ArgumentMatchers.eq("user"), org.mockito.ArgumentMatchers.eq("ROLE_USER"), org.mockito.ArgumentMatchers.anyLong());
     }
 }
