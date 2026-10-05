@@ -1,5 +1,7 @@
 package dev.bum.ticket_service.controller;
 
+import dev.bum.common.security.TokenStateStore;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
@@ -28,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(ReservationDeliveryManagementController.class)
 class ReservationDeliveryManagementControllerTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
 
     @Autowired
     private MockMvc mockMvc;

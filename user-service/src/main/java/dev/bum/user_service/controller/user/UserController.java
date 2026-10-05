@@ -8,7 +8,6 @@ import dev.bum.common.service.user.user.dto.FindUserIdResponse;
 import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
-import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.dto.WithdrawUserRequest;
 import dev.bum.common.service.user.user.dto.VerifyMyPasswordRequest;
 import dev.bum.common.service.user.user.dto.ChangeMyPasswordRequest;
@@ -117,9 +116,4 @@ public class UserController {
         return ResponseEntity.ok(userService.withdraw(currentUserId, request.getPassword()));
     }
 
-    @PostMapping("/validate/info")
-    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
-        userService.validateInfo(info);
-        return ResponseEntity.ok().build();
-    }
 }

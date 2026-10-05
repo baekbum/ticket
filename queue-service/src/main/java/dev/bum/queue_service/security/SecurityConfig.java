@@ -3,6 +3,7 @@ package dev.bum.queue_service.security;
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.security.TokenStateStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,7 @@ public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenStateStore tokenStateStore;
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String[] ROLE_ADMIN_OR_USER = {"ADMIN", "USER"};
 
@@ -40,7 +42,7 @@ public class SecurityConfig {
                         .anyRequest().hasRole(ROLE_ADMIN)
                 );
 
-        http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, tokenStateStore), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

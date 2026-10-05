@@ -17,4 +17,6 @@ auth-service/docs/bruno
 2. 로그인 응답의 `accessToken`, `refreshToken`이 선택한 환경변수에 저장됩니다.
 3. 저장된 토큰으로 `Validate Token`, `Reissue Token` 요청을 실행할 수 있습니다.
 
+`User Login`(`/login`)은 일반 회원 계정만, `Admin Login`(`/admin/login`)은 관리자 계정만 허용합니다.
+
 새 컬렉션을 만들 필요 없이 Bruno의 `Open Collection`으로 이 폴더를 열면 됩니다.

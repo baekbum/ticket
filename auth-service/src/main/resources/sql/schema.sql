@@ -8,6 +8,7 @@ CREATE TABLE auth (
     role VARCHAR(20) NOT NULL DEFAULT 'ROLE_USER',
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     is_blacklisted BOOLEAN NOT NULL DEFAULT FALSE,
+    token_version BIGINT NOT NULL DEFAULT 1 CHECK (token_version >= 1),
     blacklisted_until DATE
 );
 

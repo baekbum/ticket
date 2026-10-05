@@ -6,6 +6,8 @@ import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.security.TokenState;
+import dev.bum.common.security.TokenStateStore;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,10 +23,16 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider tokenProvider;
+    private final TokenStateStore tokenStateStore;
 
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest info) {
         return ResponseEntity.ok(authService.LoginAndCreateToken(info));
+    }
+
+    @PostMapping("/admin/login")
+    public ResponseEntity<TokenResponse> adminLogin(@Valid @RequestBody LoginRequest info) {
+        return ResponseEntity.ok(authService.adminLoginAndCreateToken(info));
     }
 
     /**
@@ -46,11 +54,32 @@ public class AuthController {
         try {
             // 2. JwtTokenProvider를 통해 토큰 검증
             // 💡 이제 validateToken이 내부에서 예외를 던지므로(throw), try-catch로 잡아냅니다!
-            tokenProvider.validateToken(token);
+            if (!tokenProvider.validateToken(token) || !"access".equals(tokenProvider.getTokenType(token))) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ErrorResponse.of(ErrorCode.UNAUTHORIZED, "Access Token이 필요합니다."));
+            }
 
             // 3. 토큰이 완벽히 유효하다면 내부에서 클레임(ID, Role) 추출
             String userId = tokenProvider.getUserId(token);
             String role = tokenProvider.getRole(token);
+
+            TokenState state;
+
+            try {
+                state = tokenStateStore.get(userId);
+
+            } catch (RuntimeException e) {
+
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(ErrorResponse.of(ErrorCode.REDIS_ERROR, "인증 상태를 확인할 수 없습니다."));
+            }
+
+            if (state == null || !state.active()
+                    || state.version() != tokenProvider.getTokenVersion(token)
+                    || !state.role().equals(role)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ErrorResponse.of(ErrorCode.UNAUTHORIZED, "폐기된 토큰입니다. 다시 로그인해 주세요."));
+            }
 
             // Nginx가 뒷단 서비스(user, ticket 등)로 포워딩할 수 있도록 헤더에 꽂아서 200 OK 리턴
             return ResponseEntity.ok()

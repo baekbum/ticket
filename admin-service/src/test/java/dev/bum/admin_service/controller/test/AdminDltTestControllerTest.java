@@ -1,5 +1,7 @@
 package dev.bum.admin_service.controller.test;
 
+import dev.bum.common.security.TokenStateStore;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.config.KafkaDlqProperties;
 import dev.bum.admin_service.security.SecurityConfig;
@@ -36,6 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(AdminDltTestController.class)
 class AdminDltTestControllerTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
 
     @Autowired
     private MockMvc mockMvc;

@@ -3,6 +3,7 @@ package dev.bum.auth_service.service;
 import dev.bum.auth_service.audit.AuditLog;
 import dev.bum.auth_service.audit.AuditContext;
 import dev.bum.auth_service.exception.BlacklistedUserException;
+import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
@@ -12,8 +13,13 @@ import dev.bum.common.error.ErrorCode;
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.security.TokenState;
+import dev.bum.common.security.TokenStateStore;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.enums.UserStatus;
+import dev.bum.common.service.user.user.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -37,6 +43,7 @@ public class AuthService {
     private final LoginAttemptService loginAttemptService;
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
+    private final TokenStateStore tokenStateStore;
 
     /**
      * 토큰을 발급하는 메서드.
@@ -47,10 +54,25 @@ public class AuthService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
+        return loginAndCreateToken(info, UserRole.ROLE_USER);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @AuditLog(action = "LOGIN", targetType = "AUTH")
+    public TokenResponse adminLoginAndCreateToken(LoginRequest info) {
+        return loginAndCreateToken(info, UserRole.ROLE_ADMIN);
+    }
+
+    private TokenResponse loginAndCreateToken(LoginRequest info, UserRole requiredRole) {
         info.setUserId(normalizeUserId(info.getUserId()));
         log.info("Login attempt. userId={}", info.getUserId());
         Auth auth = findByUserId(info.getUserId());
         AuditContext.setActor(auth);
+
+        // 인자로 들어온 권한과 실제 사용자의 권한이 다를 경우 에러를 발생시킨다.
+        if (auth.getRole() != requiredRole) {
+            throw new PasswordIncorrectException(ErrorCode.LOGIN_FAILED.getMessage());
+        }
 
         log.info("id : {}", auth.getId());
         log.info("user id : {}", auth.getUserId());
@@ -58,6 +80,7 @@ public class AuthService {
 
         // 비밀번호 검증
         comparePassword(info, auth);
+
         if (auth.getStatus() != UserStatus.ACTIVE) {
             throw new WithdrawnUserException();
         }
@@ -66,9 +89,10 @@ public class AuthService {
             throw new BlacklistedUserException(auth.getBlacklistedUntil());
         }
 
-        TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
+        TokenResponse tokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name(), auth.getTokenVersion());
 
-        addRefreshTokenToRedis(auth.getUserId(), tokens.getRefreshToken());
+        publishState(auth.getUserId(), stateOf(auth));
+        addRefreshTokenToRedis(auth, tokens.getRefreshToken());
 
         return tokens;
     }
@@ -84,17 +108,17 @@ public class AuthService {
 
     /**
      * refresh 토큰을 redis에 저장
-     * @param userId
+     * @param auth
      * @param refreshToken
      */
-    private void addRefreshTokenToRedis(String userId, String refreshToken) {
+    private void addRefreshTokenToRedis(Auth auth, String refreshToken) {
+        String userId = auth.getUserId();
         String redisKey = buildRefreshTokenKey(userId);
         try {
-            redisTemplate.opsForValue().set(
-                    redisKey,
-                    refreshToken,
-                    Duration.ofDays(14)
-            );
+            Long result = redisTemplate.execute(RefreshTokenScripts.SAVE,
+                    List.of(redisKey, TokenStateStore.key(userId)),
+                    refreshToken, String.valueOf(Duration.ofDays(14).toMillis()), stateOf(auth).encode());
+            validateTokenMutationResult(result);
         } catch (DataAccessException e) {
             log.error("[REDIS-ERROR] Refresh Token 저장 실패. operation=set, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
@@ -110,6 +134,10 @@ public class AuthService {
         event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 추가] userId={}", event.getUserId());
         repository.insert(event);
+        Auth auth = repository.findByUserId(event.getUserId());
+        TokenState previous = tokenStateStore.get(auth.getUserId());
+        if (previous != null) auth.startAfterPreviousAccount(previous.version());
+        publishAfterCommit(auth.getUserId(), stateOf(auth));
     }
 
     /**
@@ -119,14 +147,8 @@ public class AuthService {
     public void updateUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 수정] userId={}", event.getUserId());
-        repository.update(event);
-        if (UserStatus.WITHDRAWN.name().equals(event.getStatus())) {
-            try {
-                redisTemplate.delete(buildRefreshTokenKey(event.getUserId()));
-            } catch (DataAccessException e) {
-                throw new RedisException("탈퇴 계정의 Refresh Token 삭제에 실패했습니다.");
-            }
-        }
+        Auth auth = repository.update(event);
+        publishAfterCommit(auth.getUserId(), stateOf(auth));
     }
 
     /**
@@ -136,7 +158,27 @@ public class AuthService {
     public void deleteUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 삭제] userId={}", event.getUserId());
-        repository.delete(event.getUserId());
+        try {
+            Auth auth = repository.findByUserId(event.getUserId());
+            // 삭제 이벤트가 재전달돼도 같은 ID로 새로 가입한 계정은 삭제하지 않는다.
+            if (event.getId() != null && !event.getId().equals(auth.getId())) return;
+            repository.delete(event.getUserId());
+            publishAfterCommit(auth.getUserId(), TokenState.builder()
+                    .version(Math.addExact(auth.getTokenVersion(), 1L))
+                    .active(false)
+                    .role(auth.getRole().name())
+                    .build());
+        } catch (UserNotExistException e) {
+            // DB 삭제 후 Redis 갱신 실패로 재전달된 경우에도 폐기를 완료한다.
+            TokenState current = tokenStateStore.get(event.getUserId());
+            if (current != null) {
+                publishAfterCommit(event.getUserId(), TokenState.builder()
+                        .version(current.active() ? Math.addExact(current.version(), 1L) : current.version())
+                        .active(false)
+                        .role(current.role())
+                        .build());
+            }
+        }
     }
 
     /**
@@ -147,6 +189,10 @@ public class AuthService {
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
+        }
+
+        if (!"refresh".equals(tokenProvider.getTokenType(refreshToken))) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "Refresh Token이 필요합니다.");
         }
 
         // 2. 토큰에서 유저 ID 추출 (JwtTokenProvider에 주입해둔 getUserId 메서드 사용)
@@ -183,12 +229,16 @@ public class AuthService {
             throw new BlacklistedUserException(auth.getBlacklistedUntil());
         }
 
-        TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name());
+        if (tokenProvider.getTokenVersion(refreshToken) != auth.getTokenVersion()) {
+            throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH, "폐기된 토큰입니다. 다시 로그인해 주세요.");
+        }
+
+        TokenResponse newTokens = tokenProvider.createToken(auth.getUserId(), auth.getRole().name(), auth.getTokenVersion());
 
         // 7. 요청 토큰과 일치할 때만 교체하고 TTL을 초기화한다. 동시 요청 중 하나만 성공한다.
         try {
-            Long result = redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of(redisKey),
-                    refreshToken, newTokens.getRefreshToken(), String.valueOf(Duration.ofDays(14).toMillis()));
+            Long result = redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of(redisKey, TokenStateStore.key(userId)),
+                    refreshToken, newTokens.getRefreshToken(), String.valueOf(Duration.ofDays(14).toMillis()), stateOf(auth).encode());
             validateTokenMutationResult(result);
         } catch (DataAccessException e) {
             log.error("[REDIS-ERROR] Refresh Token 갱신 실패. operation=rotate, keyPrefix=RT, redisKey={}, userId={}",
@@ -236,6 +286,36 @@ public class AuthService {
             log.error("[REDIS-ERROR] Refresh Token 삭제 실패. operation=delete, keyPrefix=RT, redisKey={}, userId={}",
                     redisKey, userId, e);
             throw new RedisException("Redis Refresh Token 삭제 중 오류가 발생했습니다.");
+        }
+    }
+
+    private TokenState stateOf(Auth auth) {
+        return TokenState.builder()
+                .version(auth.getTokenVersion())
+                .active(auth.getStatus() == UserStatus.ACTIVE && !auth.isCurrentlyBlacklisted())
+                .role(auth.getRole().name())
+                .build();
+    }
+
+    private void publishAfterCommit(String userId, TokenState state) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishState(userId, state);
+                }
+            });
+        } else {
+            publishState(userId, state);
+        }
+    }
+
+    private void publishState(String userId, TokenState state) {
+        try {
+            tokenStateStore.publish(userId, state);
+        } catch (RuntimeException e) {
+            // DB 커밋 이후 실패해도 Kafka가 재전달하면 현재 버전을 다시 게시한다.
+            throw new RedisException("인증 상태 갱신에 실패했습니다.");
         }
     }
 

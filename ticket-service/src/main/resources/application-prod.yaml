@@ -107,3 +107,11 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+# 모든 서비스는 AUTH의 Refresh Token과 같은 Redis/DB를 조회한다.
+token-state:
+  redis:
+    host: ${TOKEN_STATE_REDIS_HOST:refresh-redis}
+    port: ${TOKEN_STATE_REDIS_PORT:6379}
+    database: ${TOKEN_STATE_REDIS_DATABASE:0}
+    password: ${TOKEN_STATE_REDIS_PASSWORD:}

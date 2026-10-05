@@ -31,6 +31,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/*/login").permitAll()
+                        .requestMatchers("/api/*/admin/login").permitAll()
                         .requestMatchers("/api/*/reissue").permitAll()
                         .requestMatchers("/api/*/logout").permitAll()
                         .requestMatchers("/api/*/validate").permitAll()

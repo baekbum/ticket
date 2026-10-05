@@ -2,6 +2,12 @@ server:
   port: 8081
 
 spring:
+  data:
+    redis:
+      host: ${TOKEN_STATE_REDIS_HOST:localhost}
+      port: ${TOKEN_STATE_REDIS_PORT:6390}
+      database: ${TOKEN_STATE_REDIS_DATABASE:0}
+      password: ${TOKEN_STATE_REDIS_PASSWORD:}
   profiles:
     default: local
   application:

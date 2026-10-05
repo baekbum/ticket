@@ -2,8 +2,11 @@ token:
   secret: test-token-secret-value-that-is-long-enough-for-tests
 
 app:
+  payment-provider:
+    token: test-payment-provider-token
   ticket:
     base-url: http://localhost:8082
+    service-token: test-internal-service-token
   virtual-account:
     expiration:
       cron: "*/5 * * * * *"

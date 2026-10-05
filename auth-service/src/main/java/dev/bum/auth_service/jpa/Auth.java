@@ -41,6 +41,9 @@ public class Auth {
     @Column(name = "blacklisted_until")
     private LocalDate blacklistedUntil;
 
+    @Column(name = "token_version", nullable = false)
+    private long tokenVersion = 1L;
+
     @Builder
     private Auth(Long id, String userId, String password, UserRole role,
                  UserStatus status, Boolean isBlacklisted, LocalDate blacklistedUntil) {
@@ -53,7 +56,16 @@ public class Auth {
         this.blacklistedUntil = this.isBlacklisted ? blacklistedUntil : null;
     }
 
+    public void startAfterPreviousAccount(long previousVersion) {
+        tokenVersion = Math.max(tokenVersion, Math.addExact(previousVersion, 1L));
+    }
+
     public void updateInfo(UserDtoForEvent event) {
+        String previousPassword = password;
+        UserRole previousRole = role;
+        UserStatus previousStatus = status;
+        Boolean previousBlacklist = isBlacklisted;
+        LocalDate previousBlacklistUntil = blacklistedUntil;
         if (StringUtils.hasText(event.getPassword())) {
             this.password = event.getPassword();
         }
@@ -69,6 +81,12 @@ public class Auth {
 
         if (StringUtils.hasText(event.getStatus())) {
             this.status = UserStatus.valueOf(event.getStatus());
+        }
+        if (!java.util.Objects.equals(previousPassword, password)
+                || previousRole != role || previousStatus != status
+                || !java.util.Objects.equals(previousBlacklist, isBlacklisted)
+                || !java.util.Objects.equals(previousBlacklistUntil, blacklistedUntil)) {
+            tokenVersion = Math.addExact(tokenVersion, 1L);
         }
     }
 

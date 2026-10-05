@@ -49,19 +49,21 @@ class RefreshTokenRedisIntegrationTest {
         assertThat(redis.execute((RedisCallback<String>) connection -> connection.ping())).isEqualTo("PONG");
         user = "refresh-integration-" + UUID.randomUUID();
         key = "RT:" + user;
-        provider = spy(new JwtTokenProvider("refresh-integration-secret-012345678901234567890123456789", 1800000L, 1209600000L));
+        provider = spy(new JwtTokenProvider("refresh-integration-secret-012345678901234567890123456789", 900000L, 1209600000L));
+        redis.opsForValue().set("AUTH:STATE:" + user, "1:1:ROLE_USER");
         oldToken = provider.createToken(user, "ROLE_USER").getRefreshToken();
         redis.opsForValue().set(key, oldToken, Duration.ofMinutes(1));
         repository = mock(AuthRepository.class);
         auth = Auth.builder().id(1L).userId(user).role(UserRole.ROLE_USER).password("encoded").build();
         given(repository.findByUserId(user)).willReturn(auth);
-        service = new AuthService(repository, mock(LoginAttemptService.class), provider, redis);
+        service = new AuthService(repository, mock(LoginAttemptService.class), provider, redis, new dev.bum.common.security.RedisTokenStateStore(redis));
     }
 
     @AfterEach
     void cleanUp() {
         try {
             if (redis != null && key != null) redis.delete(key);
+            if (redis != null && user != null) redis.delete("AUTH:STATE:" + user);
         } finally {
             if (factory != null) factory.destroy();
         }
@@ -74,7 +76,7 @@ class RefreshTokenRedisIntegrationTest {
         doAnswer(invocation -> {
             readyToRotate.await(10, TimeUnit.SECONDS);
             return invocation.callRealMethod();
-        }).when(provider).createToken(user, "ROLE_USER");
+        }).when(provider).createToken(user, "ROLE_USER", 1L);
         List<Boolean> results = concurrent(16, () -> attempt(() -> service.reissueToken(oldToken)));
         assertThat(results).filteredOn(Boolean::booleanValue).hasSize(1);
         String saved = redis.opsForValue().get(key);
@@ -143,6 +145,85 @@ class RefreshTokenRedisIntegrationTest {
         });
         assertThat(attempt(() -> service.reissueToken(oldToken))).isFalse();
         assertThat(redis.hasKey(key)).isFalse();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"password", "reset", "role", "withdrawal", "blacklist"})
+    void security_events_revoke_both_tokens(String change) throws Exception {
+        String access = provider.createToken(user, "ROLE_USER", 1L).getAccessToken();
+        var event = dev.bum.common.kafka.user.UserDtoForEvent.builder().userId(user).id(1L).build();
+        switch (change) {
+            case "password" -> event.setPassword("new-hash");
+            case "reset" -> { event.setPassword("new-hash"); event.setPasswordReset(true); }
+            case "role" -> event.setRole("ROLE_ADMIN");
+            case "withdrawal" -> event.setStatus("WITHDRAWN");
+            case "blacklist" -> event.setIsBlacklisted(true);
+        }
+        given(repository.update(event)).willAnswer(invocation -> { auth.updateInfo(event); return auth; });
+        service.updateUserTopic(event);
+        assertThat(auth.getTokenVersion()).isEqualTo(2L);
+        assertThat(redis.hasKey(key)).isFalse();
+        assertThat(attempt(() -> service.reissueToken(oldToken))).isFalse();
+        var request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + access);
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        var chain = mock(jakarta.servlet.FilterChain.class);
+        new dev.bum.common.security.JwtAuthenticationFilter(provider,
+                new dev.bum.common.security.RedisTokenStateStore(redis)).doFilter(request, response, chain);
+        assertThat(response.getStatus()).isEqualTo(401);
+        verifyNoInteractions(chain);
+    }
+
+    @Test
+    void duplicate_event_preserves_new_login_and_reissue_keeps_version() {
+        var event = dev.bum.common.kafka.user.UserDtoForEvent.builder().userId(user).password("new-hash").build();
+        given(repository.update(event)).willAnswer(invocation -> { auth.updateInfo(event); return auth; });
+        service.updateUserTopic(event);
+        var tokens = service.LoginAndCreateToken(new dev.bum.common.service.auth.dto.LoginRequest(user, "password"));
+        assertThat(provider.getTokenVersion(tokens.getAccessToken())).isEqualTo(2L);
+        assertThat(provider.getTokenVersion(tokens.getRefreshToken())).isEqualTo(2L);
+        service.updateUserTopic(event);
+        assertThat(redis.opsForValue().get(key)).isEqualTo(tokens.getRefreshToken());
+        var rotated = service.reissueToken(tokens.getRefreshToken());
+        assertThat(provider.getTokenVersion(rotated.getAccessToken())).isEqualTo(2L);
+        assertThat(provider.getTokenVersion(rotated.getRefreshToken())).isEqualTo(2L);
+    }
+
+    @Test
+    void revocation_during_rotation_cannot_restore_old_session() throws Exception {
+        CountDownLatch created = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            var tokens = invocation.callRealMethod();
+            created.countDown();
+            assertThat(resume.await(10, TimeUnit.SECONDS)).isTrue();
+            return tokens;
+        }).when(provider).createToken(user, "ROLE_USER", 1L);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> rotated = executor.submit(() -> attempt(() -> service.reissueToken(oldToken)));
+            assertThat(created.await(10, TimeUnit.SECONDS)).isTrue();
+            new dev.bum.common.security.RedisTokenStateStore(redis)
+                    .publish(user, dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+            resume.countDown();
+            assertThat(rotated.get(15, TimeUnit.SECONDS)).isFalse();
+            assertThat(redis.hasKey(key)).isFalse();
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void stale_state_cannot_overwrite_new_version() {
+        var states = new dev.bum.common.security.RedisTokenStateStore(redis);
+        states.publish(user, dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+        String newToken = provider.createToken(user, "ROLE_USER", 2L).getRefreshToken();
+        redis.opsForValue().set(key, newToken);
+        assertThatThrownBy(() -> states.publish(user, dev.bum.common.security.TokenState.builder().version(1L).active(true).role("ROLE_USER").build()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(states.get(user).version()).isEqualTo(2L);
+        assertThat(redis.opsForValue().get(key)).isEqualTo(newToken);
     }
 
     private String replaceSessionDuringUserLookup() {

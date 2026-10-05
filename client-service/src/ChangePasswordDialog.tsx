@@ -4,7 +4,7 @@ import type { createAuthenticatedRequest } from './authenticatedRequest';
 import { ApiRequestError } from './authenticatedRequest';
 
 type Request = ReturnType<typeof createAuthenticatedRequest>;
-type Step = 'verify' | 'change' | 'done';
+type Step = 'change' | 'done';
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiRequestError && error.code === 'LOGIN_FAILED') {
@@ -15,7 +15,7 @@ function errorMessage(error: unknown) {
 
 export default function ChangePasswordDialog({ request, onClose, onPasswordChanged }: { request: Request; onClose: () => void; onPasswordChanged: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [step, setStep] = useState<Step>('verify');
+  const [step, setStep] = useState<Step>('change');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -35,29 +35,14 @@ export default function ChangePasswordDialog({ request, onClose, onPasswordChang
     };
   }, []);
 
-  async function verifyPassword(event: FormEvent<HTMLFormElement>) {
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting) return;
+    setError('');
     if (!currentPassword) {
       setError('현재 비밀번호를 입력해 주세요.');
       return;
     }
-    setSubmitting(true);
-    setError('');
-    try {
-      await request('/user/api/v1/password/validate/me', {
-        method: 'POST', body: JSON.stringify({ password: currentPassword }),
-      });
-      setStep('change');
-    } catch (failure) {
-      setError(errorMessage(failure));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function changePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError('');
     if (!newPassword) {
       setError('새 비밀번호를 입력해 주세요.');
       return;
@@ -98,15 +83,11 @@ export default function ChangePasswordDialog({ request, onClose, onPasswordChang
   return <dialog ref={dialogRef} className="my-ticket-withdraw-dialog my-ticket-password-dialog" aria-labelledby="my-ticket-password-title"
     onCancel={(event) => { event.preventDefault(); if (!submitting) (step === 'done' ? onPasswordChanged : onClose)(); }}>
     <h2 id="my-ticket-password-title">비밀번호 변경</h2>
-    {step === 'verify' && <p>먼저 현재 비밀번호를 확인해 주세요.</p>}
-    {step === 'change' && <p>새 비밀번호를 입력해 주세요.</p>}
+    {step === 'change' && <p>현재 비밀번호와 새 비밀번호를 입력해 주세요.</p>}
     {error && <p className="my-ticket-management-error" role="alert">{error}</p>}
-    {step === 'verify' && <form noValidate onSubmit={verifyPassword}>
-      <label>현재 비밀번호<input autoFocus required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
-      <div className="my-ticket-management-form-actions"><button type="button" disabled={submitting} onClick={onClose}>취소</button><button type="submit" disabled={submitting}>{submitting ? '확인 중…' : '확인'}</button></div>
-    </form>}
     {step === 'change' && <form noValidate onSubmit={changePassword}>
-      <label>새로운 비밀번호<input autoFocus required type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+      <label>현재 비밀번호<input autoFocus required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
+      <label>새로운 비밀번호<input required type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
       <label>새로운 비밀번호 확인<input required type="password" autoComplete="new-password" value={newPasswordConfirm} onChange={(event) => setNewPasswordConfirm(event.target.value)} /></label>
       <div className="my-ticket-management-form-actions"><button type="button" disabled={submitting} onClick={onClose}>취소</button><button type="submit" disabled={submitting}>{submitting ? '변경 중…' : '비밀번호 변경'}</button></div>
     </form>}

@@ -51,6 +51,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AreaManagementService {
 
+    private final SvgLayoutSanitizer svgLayoutSanitizer;
     private final AreaRepository repository;
     private final AreaJpaRepository areaJpaRepository;
     private final EventRepository eventRepository;
@@ -69,7 +70,7 @@ public class AreaManagementService {
         }
 
         List<Event> events = eventRepository.selectByEventGroupCode(eventGroupCode);
-        String svgText = normalizeSvgFile(svgFile);
+        String svgText = svgLayoutSanitizer.sanitize(normalizeSvgFile(svgFile));
         List<AreaResponse> responses = new ArrayList<>();
 
         for (Event event : events) {
@@ -119,7 +120,11 @@ public class AreaManagementService {
     public EventLayoutResponse selectLayout(Long eventId) {
         log.info("[EVENT LAYOUT SELECT] eventId : {}", eventId);
         return layoutJpaRepository.findByEvent_EventId(eventId)
-                .map(EventLayout::toResponse)
+                .map(layout -> {
+                    EventLayoutResponse response = layout.toResponse();
+                    response.setSvgText(svgLayoutSanitizer.sanitizeForDisplay(layout.getSvgText()));
+                    return response;
+                })
                 .orElse(null);
     }
 
@@ -220,7 +225,7 @@ public class AreaManagementService {
     }
 
     /**
-     * 이벤트별 원본 SVG 배치도 스냅샷을 저장하거나 교체한다.
+     * 이벤트별 정제된 SVG 배치도 스냅샷을 저장하거나 교체한다.
      */
     private void saveEventLayout(Long eventId, String originalFileName, String svgText) {
         Event event = eventRepository.selectById(eventId);
@@ -387,15 +392,6 @@ public class AreaManagementService {
                 text = java.net.URLDecoder.decode(payload, StandardCharsets.UTF_8);
             }
             text = text.stripLeading().replaceFirst("^\\uFEFF", "");
-        }
-
-        int svgStart = text.indexOf("<svg");
-        if (svgStart > 0) {
-            text = text.substring(svgStart);
-        }
-
-        if (!text.startsWith("<svg")) {
-            throw new IllegalArgumentException("SVG 루트 태그를 찾을 수 없습니다.");
         }
 
         return text;

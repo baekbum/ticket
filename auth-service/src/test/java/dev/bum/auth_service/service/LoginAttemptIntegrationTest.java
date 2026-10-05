@@ -48,6 +48,7 @@ class LoginAttemptIntegrationTest {
     @Autowired private PlatformTransactionManager transactionManager;
     @MockitoBean private JwtTokenProvider tokenProvider;
     @MockitoBean private StringRedisTemplate redis;
+    @MockitoBean private dev.bum.common.security.TokenStateStore tokenStateStore;
 
     @TestConfiguration
     static class PasswordConfiguration {
@@ -131,6 +132,60 @@ class LoginAttemptIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void recreated_account_uses_higher_version_and_ignores_old_delete_event() {
+        var deleted = UserDtoForEvent.builder().id(1L).userId("user01").build();
+        authService.deleteUserTopic(deleted);
+        org.mockito.Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
+        authService.insertUserTopic(UserDtoForEvent.builder().id(2L).userId("user01")
+                .password(encoder.encode("new-password")).role("ROLE_USER").build());
+        assertThat(auths.findById(2L).orElseThrow().getTokenVersion()).isEqualTo(3L);
+        org.mockito.Mockito.clearInvocations(tokenStateStore);
+        authService.deleteUserTopic(deleted);
+        assertThat(auths.existsById(2L)).isTrue();
+        org.mockito.Mockito.verifyNoInteractions(tokenStateStore);
+    }
+
+    @Test
+    void deleted_account_revocation_is_retried_after_redis_failure() {
+        var event = UserDtoForEvent.builder().id(1L).userId("user01").build();
+        org.mockito.Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
+                .when(tokenStateStore).publish(org.mockito.ArgumentMatchers.eq("user01"), org.mockito.ArgumentMatchers.any());
+        assertThatThrownBy(() -> authService.deleteUserTopic(event))
+                .isInstanceOf(dev.bum.auth_service.exception.RedisException.class);
+        assertThat(auths.existsById(1L)).isFalse();
+        org.mockito.Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(dev.bum.common.security.TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
+        authService.deleteUserTopic(event);
+        org.mockito.Mockito.verify(tokenStateStore, org.mockito.Mockito.times(2))
+                .publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
+    }
+
+    @Test
+    void redis_failure_after_commit_can_be_retried_without_incrementing_version_again() {
+        var event = resetEvent();
+        org.mockito.Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
+                .when(tokenStateStore).publish(org.mockito.ArgumentMatchers.eq("user01"), org.mockito.ArgumentMatchers.any());
+        assertThatThrownBy(() -> authService.updateUserTopic(event))
+                .isInstanceOf(dev.bum.auth_service.exception.RedisException.class);
+        assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(2L);
+        authService.updateUserTopic(event);
+        assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(2L);
+        org.mockito.Mockito.verify(tokenStateStore, org.mockito.Mockito.times(2))
+                .publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+    }
+
+    @Test
+    void rollback_does_not_publish_token_revocation() {
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            authService.updateUserTopic(resetEvent());
+            throw new IllegalStateException("rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(1L);
+        org.mockito.Mockito.verifyNoInteractions(tokenStateStore);
     }
 
     @Test
