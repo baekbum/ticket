@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import dev.bum.ticket_service.service.area.SvgLayoutSanitizer;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,6 +39,9 @@ class AreaServiceTest {
     @InjectMocks
     private AreaService areaService;
 
+    @Spy
+    private SvgLayoutSanitizer svgLayoutSanitizer = new SvgLayoutSanitizer();
+
     @Mock
     private AreaRepository repository;
 
@@ -50,7 +55,7 @@ class AreaServiceTest {
                 .layoutId(1L)
                 .event(event())
                 .originalFileName("layout.svg")
-                .svgText("<svg/>")
+                .svgText("<svg onload=\"alert(1)\"><script>alert(1)</script><rect class=\"area\"/></svg>")
                 .build();
 
         given(layoutJpaRepository.findByEvent_EventId(1L)).willReturn(Optional.of(layout));
@@ -58,7 +63,8 @@ class AreaServiceTest {
         EventLayoutResponse response = areaService.selectLayout(1L);
 
         assertThat(response.getLayoutId()).isEqualTo(1L);
-        assertThat(response.getSvgText()).isEqualTo("<svg/>");
+        assertThat(response.getSvgText()).contains("<rect", "class=\"area\"")
+                .doesNotContain("onload", "script", "alert");
         then(layoutJpaRepository).should().findByEvent_EventId(1L);
     }
 

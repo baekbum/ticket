@@ -12,6 +12,7 @@ import type { CardApprovalResponse, CardCompany } from './cardPayment';
 import CustomerServicePage from './CustomerServicePage';
 import type { CustomerServiceTab, GuideTab } from './CustomerServicePage';
 import { ticketAssetUrl } from './ticketAssetUrl';
+import { sanitizeLayoutSvg } from './sanitizeLayoutSvg';
 
 type Page =
   | 'search'
@@ -3703,7 +3704,7 @@ function buildBookingLayoutSvg(svgText: string, areas: AreaResponse[], selectedA
   }
 
   const parser = new DOMParser();
-  const documentElement = parser.parseFromString(svgText, 'image/svg+xml');
+  const documentElement = parser.parseFromString(sanitizeLayoutSvg(svgText), 'image/svg+xml');
   const svgElement = documentElement.querySelector('svg');
 
   if (!svgElement) {
@@ -3742,7 +3743,7 @@ function buildBookingLayoutSvg(svgText: string, areas: AreaResponse[], selectedA
     element.appendChild(titleElement);
   });
 
-  return svgElement.outerHTML;
+  return sanitizeLayoutSvg(svgElement.outerHTML);
 }
 
 function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {

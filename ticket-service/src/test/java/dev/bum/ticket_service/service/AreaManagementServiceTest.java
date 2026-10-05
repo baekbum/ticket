@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import dev.bum.ticket_service.service.area.SvgLayoutSanitizer;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -49,6 +51,9 @@ class AreaManagementServiceTest {
     @InjectMocks
     private AreaManagementService areaManagementService;
 
+    @Spy
+    private SvgLayoutSanitizer svgLayoutSanitizer = new SvgLayoutSanitizer();
+
     @Mock
     private AreaRepository repository;
 
@@ -66,8 +71,11 @@ class AreaManagementServiceTest {
 
     @Test
     @DisplayName("SVG 파일로 이벤트 그룹 구역 등록")
-    void insert_svg() {
-        MockMultipartFile svgFile = svgFile();
+    void insert_svg() throws Exception {
+        MockMultipartFile svgFile = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml",
+                new String(svgFile().getBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                        .replace("</svg>", "<script>alert(1)</script><image href='https://evil.test'/></svg>")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         Event event = event();
 
         given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event));
@@ -85,7 +93,10 @@ class AreaManagementServiceTest {
         assertThat(response).extracting(AreaResponse::getAreaName).containsExactly("VIP", "R");
         assertThat(response).extracting(AreaResponse::getLayoutKey).containsExactly("vip-main", "R");
         then(eventRepository).should().selectById(1L);
-        then(layoutJpaRepository).should().save(any(EventLayout.class));
+        then(layoutJpaRepository).should().save(argThat(layout -> layout != null
+                && layout.getSvgText().contains("data-layout-key=\"vip-main\"")
+                && !layout.getSvgText().contains("script")
+                && !layout.getSvgText().contains("evil.test")));
         then(repository).should().insert(argThat(area -> area != null && "VIP".equals(area.getAreaName())
                 && "vip-main".equals(area.getLayoutKey())
                 && area.getGrade() == SeatGrade.VIP
@@ -94,6 +105,18 @@ class AreaManagementServiceTest {
                 && "R".equals(area.getLayoutKey())
                 && area.getGrade() == SeatGrade.R
                 && area.getPrice().equals(120000)));
+    }
+
+    @Test
+    @DisplayName("DOCTYPE가 포함된 업로드는 기존 배치도를 삭제하거나 저장하기 전에 거부")
+    void rejects_doctype_before_replacing_layout() {
+        given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event()));
+        MockMultipartFile file = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml",
+                "<!DOCTYPE svg SYSTEM 'https://evil.test/svg.dtd'><svg/>".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> areaManagementService.insertSvgByEventGroupCode("IU_2026", file, true))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.mockito.Mockito.verifyNoInteractions(layoutJpaRepository, areaJpaRepository, seatJpaRepository, repository);
     }
 
     @Test
@@ -136,7 +159,7 @@ class AreaManagementServiceTest {
                 .layoutId(1L)
                 .event(event())
                 .originalFileName("layout.svg")
-                .svgText("<svg/>")
+                .svgText("<svg onload=\"alert(1)\"><script>alert(1)</script><rect class=\"area\"/></svg>")
                 .build();
 
         given(layoutJpaRepository.findByEvent_EventId(1L)).willReturn(Optional.of(layout));
@@ -144,7 +167,8 @@ class AreaManagementServiceTest {
         EventLayoutResponse response = areaManagementService.selectLayout(1L);
 
         assertThat(response.getLayoutId()).isEqualTo(1L);
-        assertThat(response.getSvgText()).isEqualTo("<svg/>");
+        assertThat(response.getSvgText()).contains("<rect", "class=\"area\"")
+                .doesNotContain("onload", "script", "alert");
         then(layoutJpaRepository).should().findByEvent_EventId(1L);
     }
 
