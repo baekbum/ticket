@@ -10,11 +10,15 @@ public record TokenState(long version, boolean active, String role) {
 
     public static TokenState decode(String value) {
         String[] parts = value.split(":", -1);
+
         if (parts.length != 3 || !(parts[1].equals("0") || parts[1].equals("1"))) {
             throw new IllegalArgumentException("Invalid token state");
         }
+
         long version = Long.parseLong(parts[0]);
+
         if (version < 1) throw new IllegalArgumentException("Invalid token version");
+
         return TokenState.builder()
                 .version(version)
                 .active(parts[1].equals("1"))

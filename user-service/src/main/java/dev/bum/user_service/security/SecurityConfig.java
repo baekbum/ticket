@@ -4,10 +4,8 @@ import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.common.config.TokenStateConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,7 +24,6 @@ import java.util.Optional;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@Import(TokenStateConfig.class)
 public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;

@@ -3,9 +3,7 @@ package dev.bum.support_service.security;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.common.config.TokenStateConfig;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,7 +16,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@Import({JwtTokenProvider.class, TokenStateConfig.class})
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;

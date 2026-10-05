@@ -42,7 +42,7 @@ class JwtAuthenticationFilterTest {
 
     @Test void previous_admin_authority_is_rejected() throws Exception {
         when(store.get("user")).thenReturn(TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
-        assertThat(request(provider.createToken("user", "ROLE_ADMIN", 1L).getAccessToken())).isEqualTo(401);
+        assertThat(request(provider.createToken("user", "ROLE_ADMIN", 2L).getAccessToken())).isEqualTo(401);
         verifyNoInteractions(chain);
     }
 
