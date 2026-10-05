@@ -51,7 +51,8 @@ public class LoginAttemptService {
         if (auth.isCurrentlyBlacklisted()) {
             throw new BlacklistedUserException(auth.getBlacklistedUntil());
         }
-        // 잠기기 전에 정상 인증한 경우 연속 실패 횟수를 초기화한다.
+
+        // 잠기기 전에 로그인 성공 시, 연속 실패 횟수를 초기화한다.
         loginLock.recordSuccess();
     }
 }

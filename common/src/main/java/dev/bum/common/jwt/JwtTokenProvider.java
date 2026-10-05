@@ -29,7 +29,7 @@ public class JwtTokenProvider {
     // 생성자에서 주입받아 처리하면 final 키워드를 유지할 수 있습니다.
     public JwtTokenProvider(
             @Value("${token.secret}") String secret,
-            @Value("${token.accessTokenValidityInMilliseconds:1800000}") long accessValidity,
+            @Value("${token.accessTokenValidityInMilliseconds:900000}") long accessValidity,
             @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity) {
 
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
@@ -39,7 +39,13 @@ public class JwtTokenProvider {
 
     // 1. 토큰 생성
     public TokenResponse createToken(String userId, String role) {
+        return createToken(userId, role, 1L);
+    }
+
+    public TokenResponse createToken(String userId, String role, long tokenVersion) {
         Claims claims = Jwts.claims().setSubject(userId);
+        claims.put("tokenVersion", tokenVersion);
+        claims.put("tokenType", "access");
         claims.put("auth", role); // 권한 정보 추가
 
         Date now = new Date();
@@ -57,6 +63,8 @@ public class JwtTokenProvider {
         Date refreshValidity = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
 
         Claims refreshClaims = Jwts.claims().setSubject(userId);
+        refreshClaims.put("tokenVersion", tokenVersion);
+        refreshClaims.put("tokenType", "refresh");
 
         String refreshToken = Jwts.builder()
                 .setClaims(refreshClaims)
@@ -115,6 +123,22 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public long getTokenVersion(String token) {
+        Number version = readClaims(token).get("tokenVersion", Number.class);
+        if (version == null || version.longValue() < 1) {
+            throw new JwtException("Missing token version");
+        }
+        return version.longValue();
+    }
+
+    public String getTokenType(String token) {
+        return readClaims(token).get("tokenType", String.class);
+    }
+
+    private Claims readClaims(String token) {
+        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
     }
 
     // [추가] 토큰에서 Role(auth) 추출

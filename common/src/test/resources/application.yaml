@@ -4,5 +4,5 @@ spring:
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
-  accessTokenValidityInMilliseconds: 1800000
+  accessTokenValidityInMilliseconds: 900000
   refreshTokenValidityInMilliseconds: 1209600000

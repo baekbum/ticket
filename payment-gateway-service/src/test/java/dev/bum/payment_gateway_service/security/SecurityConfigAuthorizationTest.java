@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.security;
 
+import dev.bum.common.security.TokenStateStore;
+
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.payment_gateway_service.controller.card.GatewayCardPaymentController;
 import dev.bum.payment_gateway_service.controller.virtualAccount.GatewayVirtualAccountController;
@@ -23,6 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Import(SecurityConfig.class)
 class SecurityConfigAuthorizationTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
 
     @Autowired
     private MockMvc mockMvc;

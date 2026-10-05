@@ -21,6 +21,7 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenStateStore tokenStateStore;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -32,6 +33,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             // 2. 토큰 유효성 검사
             if (token != null && jwtTokenProvider.validateToken(token)) {
+                if (!"access".equals(jwtTokenProvider.getTokenType(token))) {
+                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Access Token Required");
+                    return;
+                }
+                TokenState state;
+                try {
+                    state = tokenStateStore.get(jwtTokenProvider.getUserId(token));
+                } catch (RuntimeException e) {
+                    SecurityContextHolder.clearContext();
+                    sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Authentication State Unavailable");
+                    return;
+                }
+                if (state == null || !state.active()
+                        || state.version() != jwtTokenProvider.getTokenVersion(token)
+                        || !state.role().equals(jwtTokenProvider.getRole(token))) {
+                    SecurityContextHolder.clearContext();
+                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token Revoked");
+                    return;
+                }
                 // 3. 토큰이 유효하면 인증 객체(Authentication)를 시큐리티 컨텍스트에 저장
                 Authentication auth = jwtTokenProvider.getAuthentication(token);
                 SecurityContextHolder.getContext().setAuthentication(auth);

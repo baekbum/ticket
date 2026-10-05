@@ -51,10 +51,13 @@ public class AuthRepositoryImpl implements AuthRepository {
     }
 
     @Override
-    public void update(UserDtoForEvent event) {
+    public Auth update(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
         Auth auth = jpaRepository.findByUserIdForUpdate(event.getUserId())
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
+        if (event.getId() != null && !event.getId().equals(auth.getId())) {
+            throw new UserNotExistException("이전 계정의 수정 이벤트입니다.");
+        }
         boolean passwordReset = Boolean.TRUE.equals(event.getPasswordReset())
                 && StringUtils.hasText(event.getPassword())
                 && !Objects.equals(auth.getPassword(), event.getPassword());
@@ -63,6 +66,7 @@ public class AuthRepositoryImpl implements AuthRepository {
         if (passwordReset) {
             loginLocks.findByAuthId(auth.getId()).ifPresent(UserLoginLock::reset);
         }
+        return auth;
     }
 
     @Override

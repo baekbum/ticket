@@ -1,5 +1,7 @@
 package dev.bum.user_service.controller;
 
+import dev.bum.common.security.TokenStateStore;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
@@ -42,6 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+    @MockitoBean
+    private TokenStateStore tokenStateStore;
 
     @ParameterizedTest
     @ValueSource(strings = {"/select/me", "/update/me", "/password/validate/me", "/password/change/me", "/withdraw/me"})

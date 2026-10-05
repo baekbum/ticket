@@ -39,6 +39,24 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
+    @Mock private dev.bum.common.security.TokenStateStore tokenStateStore;
+
+    @org.junit.jupiter.api.BeforeEach
+    void tokenStateDefaults() {
+        org.mockito.Mockito.lenient().when(tokenProvider.getTokenType(anyString())).thenReturn("refresh");
+        org.mockito.Mockito.lenient().when(tokenProvider.getTokenVersion(anyString())).thenReturn(1L);
+        org.mockito.Mockito.lenient().when(authRepository.update(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    UserDtoForEvent event = invocation.getArgument(0);
+                    Auth auth = auth(event.getUserId());
+                    auth.updateInfo(event);
+                    return auth;
+                });
+        org.mockito.Mockito.lenient().when(authRepository.findByUserId("user01")).thenReturn(auth("user01"));
+        org.mockito.Mockito.lenient().when(redisTemplate.execute(eq(RefreshTokenScripts.SAVE), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+    }
+
 
     @Test
     @DisplayName("관리자는 사용자 로그인으로 토큰을 발급받거나 로그인 실패 횟수를 변경할 수 없다")
@@ -71,13 +89,12 @@ class AuthServiceTest {
         Auth admin = Auth.builder().id(1L).userId("admin").role(UserRole.ROLE_ADMIN).build();
         TokenResponse tokens = new TokenResponse("admin-access", "admin-refresh");
         given(authRepository.findByUserId("admin")).willReturn(admin);
-        given(tokenProvider.createToken("admin", "ROLE_ADMIN")).willReturn(tokens);
-        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(tokenProvider.createToken("admin", "ROLE_ADMIN", 1L)).willReturn(tokens);
 
         assertThat(authService.adminLoginAndCreateToken(new LoginRequest("Admin", "password"))).isSameAs(tokens);
 
         then(loginAttemptService).should().validatePassword(1L, "password");
-        then(valueOperations).should().set("RT:admin", "admin-refresh", Duration.ofDays(14));
+        then(redisTemplate).should().execute(RefreshTokenScripts.SAVE, List.of("RT:admin", "AUTH:STATE:admin"), "admin-refresh", "1209600000", "1:1:ROLE_ADMIN");
     }
 
     @InjectMocks
@@ -107,8 +124,7 @@ class AuthServiceTest {
 
         given(authRepository.findByUserId("user01")).willReturn(auth);
 
-        given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(tokens);
-        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(tokenProvider.createToken("user01", "ROLE_USER", 1L)).willReturn(tokens);
 
         TokenResponse response = authService.LoginAndCreateToken(info);
 
@@ -116,8 +132,8 @@ class AuthServiceTest {
         assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         then(authRepository).should().findByUserId("user01");
         then(loginAttemptService).should().validatePassword(1L, "plain-password");
-        then(tokenProvider).should().createToken("user01", "ROLE_USER");
-        then(valueOperations).should().set("RT:user01", "refresh-token", Duration.ofDays(14));
+        then(tokenProvider).should().createToken("user01", "ROLE_USER", 1L);
+        then(redisTemplate).should().execute(RefreshTokenScripts.SAVE, List.of("RT:user01", "AUTH:STATE:user01"), "refresh-token", "1209600000", "1:1:ROLE_USER");
     }
 
     @Test
@@ -134,7 +150,7 @@ class AuthServiceTest {
 
         then(authRepository).should().findByUserId("user01");
         then(loginAttemptService).should().validatePassword(1L, "wrong-password");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -146,16 +162,15 @@ class AuthServiceTest {
 
         given(authRepository.findByUserId("user01")).willReturn(auth);
 
-        given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(tokens);
-        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(tokenProvider.createToken("user01", "ROLE_USER", 1L)).willReturn(tokens);
         willThrow(new DataAccessException("redis error") {})
-                .given(valueOperations)
-                .set("RT:user01", "refresh-token", Duration.ofDays(14));
+                .given(redisTemplate)
+                .execute(RefreshTokenScripts.SAVE, List.of("RT:user01", "AUTH:STATE:user01"), "refresh-token", "1209600000", "1:1:ROLE_USER");
 
         assertThatThrownBy(() -> authService.LoginAndCreateToken(info))
                 .isInstanceOf(RedisException.class);
 
-        then(valueOperations).should().set("RT:user01", "refresh-token", Duration.ofDays(14));
+        then(redisTemplate).should().execute(RefreshTokenScripts.SAVE, List.of("RT:user01", "AUTH:STATE:user01"), "refresh-token", "1209600000", "1:1:ROLE_USER");
     }
 
     @Test
@@ -200,10 +215,10 @@ class AuthServiceTest {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get("RT:user01")).willReturn(refreshToken);
         given(authRepository.findByUserId("user01")).willReturn(auth);
-        given(tokenProvider.createToken("user01", "ROLE_USER")).willReturn(newTokens);
+        given(tokenProvider.createToken("user01", "ROLE_USER", 1L)).willReturn(newTokens);
 
-        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
-                refreshToken, "new-refresh-token", "1209600000")).willReturn(1L);
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01", "AUTH:STATE:user01"),
+                refreshToken, "new-refresh-token", "1209600000", "1:1:ROLE_USER")).willReturn(1L);
 
         TokenResponse response = authService.reissueToken(refreshToken);
 
@@ -213,9 +228,9 @@ class AuthServiceTest {
         then(tokenProvider).should().getUserId(refreshToken);
         then(valueOperations).should().get("RT:user01");
         then(authRepository).should().findByUserId("user01");
-        then(tokenProvider).should().createToken("user01", "ROLE_USER");
-        then(redisTemplate).should().execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
-                refreshToken, "new-refresh-token", "1209600000");
+        then(tokenProvider).should().createToken("user01", "ROLE_USER", 1L);
+        then(redisTemplate).should().execute(RefreshTokenScripts.ROTATE, List.of("RT:user01", "AUTH:STATE:user01"),
+                refreshToken, "new-refresh-token", "1209600000", "1:1:ROLE_USER");
     }
 
     @Test
@@ -231,7 +246,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class);
-        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -282,7 +297,7 @@ class AuthServiceTest {
                 .isInstanceOf(UserNotExistException.class);
 
         then(authRepository).should().findByUserId("user01");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -296,7 +311,7 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest("user01", "plain-password")))
                 .isInstanceOf(WithdrawnUserException.class)
                 .hasMessage("이미 탈퇴한 사용자입니다.");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -308,7 +323,7 @@ class AuthServiceTest {
         authService.updateUserTopic(event);
 
         then(authRepository).should().update(event);
-        then(redisTemplate).should().delete("RT:user01");
+        then(tokenStateStore).should().publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
     }
 
     @Test
@@ -411,8 +426,8 @@ class AuthServiceTest {
     @DisplayName("사전 검증 후 다른 요청이 토큰을 교체하면 재발급을 거절한다")
     void reissue_rejects_token_changed_after_precheck() {
         prepareReissue();
-        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
-                "refresh-token", "new-refresh-token", "1209600000")).willReturn(0L);
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01", "AUTH:STATE:user01"),
+                "refresh-token", "new-refresh-token", "1209600000", "1:1:ROLE_USER")).willReturn(0L);
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REFRESH_TOKEN_MISMATCH);
     }
@@ -421,8 +436,8 @@ class AuthServiceTest {
     @DisplayName("Lua 교체 결과를 확인하지 못하면 새 토큰을 반환하지 않는다")
     void reissue_rejects_unknown_script_result() {
         prepareReissue();
-        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
-                "refresh-token", "new-refresh-token", "1209600000")).willReturn(null);
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01", "AUTH:STATE:user01"),
+                "refresh-token", "new-refresh-token", "1209600000", "1:1:ROLE_USER")).willReturn(null);
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REDIS_ERROR);
     }
@@ -431,8 +446,8 @@ class AuthServiceTest {
     @DisplayName("Lua 토큰 교체 중 Redis 장애는 Redis 오류로 전달한다")
     void reissue_wraps_rotation_error() {
         prepareReissue();
-        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01"),
-                "refresh-token", "new-refresh-token", "1209600000"))
+        given(redisTemplate.execute(RefreshTokenScripts.ROTATE, List.of("RT:user01", "AUTH:STATE:user01"),
+                "refresh-token", "new-refresh-token", "1209600000", "1:1:ROLE_USER"))
                 .willThrow(new DataAccessException("Redis 장애") {});
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REDIS_ERROR);
@@ -452,13 +467,27 @@ class AuthServiceTest {
         then(redisTemplate).should(never()).delete(anyString());
     }
 
+    @Test
+    void reissue_rejects_previous_version_even_if_refresh_key_remains() {
+        given(tokenProvider.validateToken("refresh-token")).willReturn(true);
+        given(tokenProvider.getUserId("refresh-token")).willReturn("user01");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get("RT:user01")).willReturn("refresh-token");
+        Auth current = auth("user01");
+        current.updateInfo(UserDtoForEvent.builder().password("new-hash").build());
+        given(authRepository.findByUserId("user01")).willReturn(current);
+        assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
+                .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REFRESH_TOKEN_MISMATCH);
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
     private void prepareReissue() {
         given(tokenProvider.validateToken("refresh-token")).willReturn(true);
         given(tokenProvider.getUserId("refresh-token")).willReturn("user01");
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.get("RT:user01")).willReturn("refresh-token");
         given(authRepository.findByUserId("user01")).willReturn(auth("user01"));
-        given(tokenProvider.createToken("user01", "ROLE_USER"))
+        given(tokenProvider.createToken("user01", "ROLE_USER", 1L))
                 .willReturn(new TokenResponse("new-access-token", "new-refresh-token"));
     }
 }

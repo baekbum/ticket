@@ -3,8 +3,11 @@ package dev.bum.payment_gateway_service.security;
 import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.security.TokenStateStore;
+import dev.bum.common.config.TokenStateConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,10 +22,12 @@ import java.util.Optional;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
+@Import(TokenStateConfig.class)
 public class SecurityConfig {
 
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenStateStore tokenStateStore;
     private final InternalServiceTokenValidator internalServiceTokenValidator;
     private final PaymentProviderTokenValidator paymentProviderTokenValidator;
     private static final String ROLE_USER = "USER";
@@ -57,7 +62,7 @@ public class SecurityConfig {
     }
 
     private void configureAuthenticationFilters(HttpSecurity http) {
-        JwtAuthenticationFilter clientAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider);
+        JwtAuthenticationFilter clientAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider, tokenStateStore);
 
         // 일반 인증 필터를 기준점으로 등록한 뒤 내부 서비스 필터가 먼저 실행되도록 순서를 고정한다.
         http.addFilterBefore(clientAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
