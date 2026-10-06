@@ -1,6 +1,6 @@
 # Ingress
 
-브라우저는 `http://localhost`의 ingress에 요청합니다. ingress는 URL의 서비스 접두사로 목적지를 정하고, `Authorization` 헤더를 해당 서비스에 전달합니다. 인증·권한 검사는 각 서비스가 담당합니다.
+로컬 브라우저는 `https://localhost`의 ingress에 요청합니다. `http://localhost` 접속도 유지합니다. 운영은 현재 HTTP만 제공합니다. ingress는 URL의 서비스 접두사로 목적지를 정하고, `Authorization` 헤더를 해당 서비스에 전달합니다. 인증·권한 검사는 각 서비스가 담당합니다.
 
 로컬과 운영에서 브라우저가 사용하는 API URL 및 Spring Boot 서비스에 전달되는 경로는 같습니다. API 라우팅에서 달라지는 부분은 ingress가 서비스를 찾는 주소입니다.
 
@@ -13,7 +13,7 @@
 
 로컬과 운영 ingress는 80번 포트에서 HTTP/1.1과 평문 HTTP/2(h2c)를 받습니다. `http2 on`은 Nginx 1.25.1 이상에서 지원되므로 해당 버전 이상이며 HTTP/2 모듈이 포함된 이미지를 사용해야 합니다. ingress에서 서비스 및 로컬 Vite 서버로 전달하는 연결은 `proxy_http_version 1.1`로 고정합니다.
 
-현재는 TLS 인증서와 HTTPS 리스너를 설정하지 않았습니다. 일반 브라우저는 `http://localhost`에서 HTTP/1.1을 사용하며, 관리자·사용자 화면에서 HTTP/2를 사용하려면 후속 단계에서 HTTPS를 적용해야 합니다. h2c는 HTTP/2 지원을 미리 알고 연결하는 prior knowledge 방식으로 검증합니다. HTTP/1.1의 `Upgrade: h2c` 협상 방식은 사용하지 않습니다.
+로컬은 TLS 인증서와 443번 HTTPS 리스너를 사용하므로 일반 브라우저도 `https://localhost`에서 HTTP/2를 사용할 수 있습니다. `http://localhost`에서는 일반 브라우저가 HTTP/1.1을 사용합니다. 운영 HTTPS는 실제 도메인용 인증서와 갱신 절차를 마련한 뒤 적용합니다. h2c는 HTTP/2 지원을 미리 알고 연결하는 prior knowledge 방식으로 검증합니다. HTTP/1.1의 `Upgrade: h2c` 협상 방식은 사용하지 않습니다.
 
 실행 중인 ingress의 설정을 검사하고, HTTP/2를 지원하는 curl로 두 프로토콜을 각각 확인합니다.
 
@@ -28,6 +28,20 @@ curl --http2-prior-knowledge -i http://localhost/health
 로컬 설정을 변경한 뒤에는 `docker exec ingress-nginx nginx -t`가 성공한 것을 확인하고 `docker exec ingress-nginx nginx -s reload`로 반영합니다. 운영은 아래 실행 명령의 `--build`로 이미지를 다시 빌드해 반영합니다.
 
 ## 로컬
+
+먼저 Windows 호스트에 mkcert를 설치하고 프로젝트 루트에서 로컬 인증서를 생성합니다. `mkcert -install`로 브라우저가 사용하는 호스트의 신뢰 저장소에 로컬 CA를 등록합니다.
+
+```powershell
+New-Item -ItemType Directory -Force infra/infra-ingress/certs
+mkcert -install
+mkcert -cert-file infra/infra-ingress/certs/localhost.pem -key-file infra/infra-ingress/certs/localhost-key.pem localhost 127.0.0.1 ::1
+```
+
+mkcert 실행 파일을 직접 다운로드한 경우 `mkcert` 대신 실제 실행 파일 경로를 사용합니다. 인증서와 개인 키는 Git에서 제외되며, 컨테이너의 `/etc/nginx/certs`에 읽기 전용으로 마운트됩니다. 인증서가 없으면 Nginx가 시작되지 않습니다.
+
+인증서 마운트와 443번 포트 추가는 재로드만으로 반영되지 않습니다. 아래 Compose 실행 명령으로 컨테이너를 다시 생성합니다. 실행 후 `https://localhost/`와 `https://localhost/admin/`에 접속하고, 브라우저 개발자 도구의 Network → Protocol 열에서 `h2`를 확인합니다. `https://localhost/health`는 `ok`를 반환해야 합니다. 화면과 API 요청, Vite HMR WebSocket 연결도 함께 확인합니다.
+
+로컬 Spring 서비스는 공통 `LocalCorsConfig`에서 인그레스의 HTTP·HTTPS 출처를 허용합니다. TLS 종료 후 백엔드 연결은 HTTP지만 브라우저의 `Origin`은 HTTPS로 유지되기 때문입니다. HTTPS 로그인에서 `403 Invalid CORS request`가 반환되면 변경된 common 모듈을 반영해 auth-service를 다시 실행합니다. 다른 API에도 같은 설정을 적용하려면 공통 CORS 설정을 사용하는 로컬 서비스들을 다시 실행합니다. Nginx 재로드만으로 Spring CORS 변경이 반영되지는 않습니다.
 
 호스트에서 auth-service(8080), user-service(8081), ticket-service(8082), queue-service(8083), audit-service(8084), support-service(8085), admin-service 운영 API(8998), payment-gateway-service(8099), client-service Vite(3000), admin-client-service Vite(8999)를 실행한 후:
 

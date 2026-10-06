@@ -21,6 +21,14 @@ public class LocalCorsConfig {
         configuration.addAllowedOrigin("http://localhost:8999");
         configuration.addAllowedOrigin("http://127.0.0.1:8999");
 
+        // 인그레스가 TLS를 종료한 뒤 HTTP로 전달해도 브라우저의 Origin은 유지됩니다.
+        configuration.addAllowedOrigin("http://localhost");
+        configuration.addAllowedOrigin("https://localhost");
+        configuration.addAllowedOrigin("http://127.0.0.1");
+        configuration.addAllowedOrigin("https://127.0.0.1");
+        configuration.addAllowedOrigin("http://[::1]");
+        configuration.addAllowedOrigin("https://[::1]");
+
         // 2. 허용할 HTTP Method
         // GET, POST뿐만 아니라 브라우저가 미리 찔러보는 OPTIONS까지 모두 허용합니다.
         configuration.addAllowedMethod("*");
