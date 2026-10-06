@@ -9,6 +9,24 @@
 | 로컬 | `docker-compose-local.yml` | `host.docker.internal:8082` | `/api/v1/...` |
 | 운영 | `docker-compose.yml` | `ticket-service:8080` | `/api/v1/...` |
 
+## HTTP 버전
+
+로컬과 운영 ingress는 80번 포트에서 HTTP/1.1과 평문 HTTP/2(h2c)를 받습니다. `http2 on`은 Nginx 1.25.1 이상에서 지원되므로 해당 버전 이상이며 HTTP/2 모듈이 포함된 이미지를 사용해야 합니다. ingress에서 서비스 및 로컬 Vite 서버로 전달하는 연결은 `proxy_http_version 1.1`로 고정합니다.
+
+현재는 TLS 인증서와 HTTPS 리스너를 설정하지 않았습니다. 일반 브라우저는 `http://localhost`에서 HTTP/1.1을 사용하며, 관리자·사용자 화면에서 HTTP/2를 사용하려면 후속 단계에서 HTTPS를 적용해야 합니다. h2c는 HTTP/2 지원을 미리 알고 연결하는 prior knowledge 방식으로 검증합니다. HTTP/1.1의 `Upgrade: h2c` 협상 방식은 사용하지 않습니다.
+
+실행 중인 ingress의 설정을 검사하고, HTTP/2를 지원하는 curl로 두 프로토콜을 각각 확인합니다.
+
+```bash
+docker exec ingress-nginx nginx -t
+curl --http1.1 -i http://localhost/health
+curl --http2-prior-knowledge -i http://localhost/health
+```
+
+각 응답에 `HTTP/1.1 200`과 `HTTP/2 200`, 본문 `ok`가 표시되어야 합니다. `curl --version`의 Features에 `HTTP2`가 있어야 두 번째 명령을 실행할 수 있습니다. Windows 기본 curl 등 HTTP/2가 없는 경우에는 HTTP/2 지원 curl을 사용합니다.
+
+로컬 설정을 변경한 뒤에는 `docker exec ingress-nginx nginx -t`가 성공한 것을 확인하고 `docker exec ingress-nginx nginx -s reload`로 반영합니다. 운영은 아래 실행 명령의 `--build`로 이미지를 다시 빌드해 반영합니다.
+
 ## 로컬
 
 호스트에서 auth-service(8080), user-service(8081), ticket-service(8082), queue-service(8083), audit-service(8084), support-service(8085), admin-service 운영 API(8998), payment-gateway-service(8099), client-service Vite(3000), admin-client-service Vite(8999)를 실행한 후:
