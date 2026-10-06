@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 870" role="img" aria-label="Concert area layout sample">
+  <defs>
+    <style>
+      .bg { fill: #cfe7f4; }
+      .title-box { fill: #eef6fb; filter: drop-shadow(0 0 16px rgba(255,255,255,0.65)); }
+      .title { fill: #69a8d1; font: 700 38px Arial, sans-serif; }
+      .stage { fill: #9a9a9d; }
+      .stage-text { fill: #fff; font: 700 26px Arial, sans-serif; }
+      .floor-label { fill: #72899a; font: 700 16px Arial, sans-serif; }
+      .area { stroke: #d9edf6; stroke-width: 4; cursor: pointer; }
+      .label { fill: #fff; font: 700 15px Arial, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+      .label-dark { fill: rgba(90, 100, 90, 0.62); font: 700 15px Arial, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+      .legend-label { fill: #536879; font: 700 14px Arial, sans-serif; }
+      .console { fill: #a8a9ad; }
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="850" height="870"/>
+  <rect class="title-box" x="210" y="36" width="430" height="78" rx="8"/>
+  <text class="title" x="425" y="84" text-anchor="middle" dominant-baseline="middle">좌석 배치도</text>
+  <path class="stage" d="M 258 218 Q 425 112 592 218 L 592 240 L 258 240 Z"/>
+  <text class="stage-text" x="425" y="212" text-anchor="middle" dominant-baseline="middle">STAGE</text>
+  <text class="floor-label" x="425" y="266" text-anchor="middle">Floor</text>
+  <g id="floor-areas">
+    <rect id="area-floor-A" class="area vip" data-layout-key="A" data-area-name="A" data-grade="VIP" data-price="180000" fill="#456bd7" x="326" y="278" width="58" height="58" rx="5"/>
+    <text class="label" x="355" y="307">A</text>
+    <rect id="area-floor-B" class="area vip" data-layout-key="B" data-area-name="B" data-grade="VIP" data-price="180000" fill="#456bd7" x="396" y="278" width="58" height="58" rx="5"/>
+    <text class="label" x="425" y="307">B</text>
+    <rect id="area-floor-C" class="area vip" data-layout-key="C" data-area-name="C" data-grade="VIP" data-price="180000" fill="#456bd7" x="466" y="278" width="58" height="58" rx="5"/>
+    <text class="label" x="495" y="307">C</text>
+    <rect id="area-floor-D" class="area vip" data-layout-key="D" data-area-name="D" data-grade="VIP" data-price="180000" fill="#456bd7" x="296" y="346" width="28" height="58" rx="5"/>
+    <text class="label" x="310" y="375">D</text>
+    <rect id="area-floor-E" class="area vip" data-layout-key="E" data-area-name="E" data-grade="VIP" data-price="180000" fill="#456bd7" x="326" y="346" width="58" height="58" rx="5"/>
+    <text class="label" x="355" y="375">E</text>
+    <rect id="area-floor-F" class="area vip" data-layout-key="F" data-area-name="F" data-grade="VIP" data-price="180000" fill="#456bd7" x="396" y="346" width="58" height="58" rx="5"/>
+    <text class="label" x="425" y="375">F</text>
+    <rect id="area-floor-G" class="area vip" data-layout-key="G" data-area-name="G" data-grade="VIP" data-price="180000" fill="#456bd7" x="466" y="346" width="58" height="58" rx="5"/>
+    <text class="label" x="495" y="375">G</text>
+    <rect id="area-floor-H" class="area vip" data-layout-key="H" data-area-name="H" data-grade="VIP" data-price="180000" fill="#456bd7" x="526" y="346" width="28" height="58" rx="5"/>
+    <text class="label" x="540" y="375">H</text>
+    <rect id="area-floor-I" class="area vip" data-layout-key="I" data-area-name="I" data-grade="VIP" data-price="180000" fill="#456bd7" x="296" y="414" width="28" height="58" rx="5"/>
+    <text class="label" x="310" y="443">I</text>
+    <rect id="area-floor-J" class="area vip" data-layout-key="J" data-area-name="J" data-grade="VIP" data-price="180000" fill="#456bd7" x="326" y="414" width="58" height="58" rx="5"/>
+    <text class="label" x="355" y="443">J</text>
+    <rect id="area-floor-K" class="area vip" data-layout-key="K" data-area-name="K" data-grade="VIP" data-price="180000" fill="#456bd7" x="396" y="414" width="58" height="58" rx="5"/>
+    <text class="label" x="425" y="443">K</text>
+    <rect id="area-floor-L" class="area vip" data-layout-key="L" data-area-name="L" data-grade="VIP" data-price="180000" fill="#456bd7" x="466" y="414" width="58" height="58" rx="5"/>
+    <text class="label" x="495" y="443">L</text>
+    <rect id="area-floor-M" class="area vip" data-layout-key="M" data-area-name="M" data-grade="VIP" data-price="180000" fill="#456bd7" x="526" y="414" width="28" height="58" rx="5"/>
+    <text class="label" x="540" y="443">M</text>
+    <rect id="area-floor-N" class="area vip" data-layout-key="N" data-area-name="N" data-grade="VIP" data-price="180000" fill="#456bd7" x="326" y="480" width="58" height="30" rx="5"/>
+    <text class="label" x="355" y="495">N</text>
+    <rect id="area-floor-O" class="area vip" data-layout-key="O" data-area-name="O" data-grade="VIP" data-price="180000" fill="#456bd7" x="396" y="480" width="58" height="30" rx="5"/>
+    <text class="label" x="425" y="495">O</text>
+    <rect id="area-floor-P" class="area vip" data-layout-key="P" data-area-name="P" data-grade="VIP" data-price="180000" fill="#456bd7" x="466" y="480" width="58" height="30" rx="5"/>
+    <text class="label" x="495" y="495">P</text>
+  </g>
+  <g id="second-floor-areas">
+    <text class="floor-label" x="158" y="228" text-anchor="middle">2F</text>
+    <text class="floor-label" x="692" y="228" text-anchor="middle">2F</text>
+    <!-- 2F S ring uses 243~224 as data IDs, but displays 43~24 on the map. -->
+    <g class="area-debug-wrap">
+      <path id="area-2f-243" class="area s" data-layout-key="243" data-area-name="243" data-grade="S" data-price="130000" fill="#f6e744" d="M 122.6 237.7 A 348.0 348.0 0 0 0 94.7 300.6 L 145.9 317.5 A 294.0 294.0 0 0 1 169.5 264.5 Z"/>
+      <text class="label-dark" x="131.8" y="279.4">43</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-242" class="area s" data-layout-key="242" data-area-name="242" data-grade="S" data-price="130000" fill="#f6e744" d="M 93.4 304.4 A 348.0 348.0 0 0 0 79.1 371.6 L 132.8 377.6 A 294.0 294.0 0 0 1 144.9 320.8 Z"/>
+      <text class="label-dark" x="111.0" y="343.3">42</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-241" class="area s" data-layout-key="241" data-area-name="241" data-grade="S" data-price="130000" fill="#f6e744" d="M 78.7 375.6 A 348.0 348.0 0 0 0 78.7 444.4 L 132.4 439.0 A 294.0 294.0 0 0 1 132.4 381.0 Z"/>
+      <text class="label-dark" x="104.0" y="410.0">41</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-240" class="area s" data-layout-key="240" data-area-name="240" data-grade="S" data-price="130000" fill="#f6e744" d="M 79.1 448.4 A 348.0 348.0 0 0 0 93.4 515.6 L 144.9 499.2 A 294.0 294.0 0 0 1 132.8 442.4 Z"/>
+      <text class="label-dark" x="111.0" y="476.7">40</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-239" class="area s" data-layout-key="239" data-area-name="239" data-grade="S" data-price="130000" fill="#f6e744" d="M 94.7 519.4 A 348.0 348.0 0 0 0 122.6 582.3 L 169.5 555.5 A 294.0 294.0 0 0 1 145.9 502.5 Z"/>
+      <text class="label-dark" x="131.8" y="540.6">39</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-238" class="area s" data-layout-key="238" data-area-name="238" data-grade="S" data-price="130000" fill="#f6e744" d="M 124.6 585.7 A 348.0 348.0 0 0 0 165.0 641.4 L 205.4 605.5 A 294.0 294.0 0 0 1 171.2 558.5 Z"/>
+      <text class="label-dark" x="165.3" y="598.7">38</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-237" class="area s" data-layout-key="237" data-area-name="237" data-grade="S" data-price="130000" fill="#f6e744" d="M 167.7 644.3 A 348.0 348.0 0 0 0 218.8 690.4 L 250.8 646.9 A 294.0 294.0 0 0 1 207.7 608.0 Z"/>
+      <text class="label-dark" x="210.2" y="648.5">37</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-236" class="area s" data-layout-key="236" data-area-name="236" data-grade="S" data-price="130000" fill="#f6e744" d="M 222.1 692.7 A 348.0 348.0 0 0 0 281.6 727.1 L 303.9 677.9 A 294.0 294.0 0 0 1 253.6 648.8 Z"/>
+      <text class="label-dark" x="264.5" y="688.0">36</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-235" class="area s" data-layout-key="235" data-area-name="235" data-grade="S" data-price="130000" fill="#f6e744" d="M 285.3 728.7 A 348.0 348.0 0 0 0 350.7 750.0 L 362.2 697.2 A 294.0 294.0 0 0 1 307.0 679.3 Z"/>
+      <text class="label-dark" x="325.8" y="715.3">35</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-234" class="area s" data-layout-key="234" data-area-name="234" data-grade="S" data-price="130000" fill="#f6e744" d="M 354.6 750.8 A 348.0 348.0 0 0 0 423.0 758.0 L 423.3 704.0 A 294.0 294.0 0 0 1 365.5 697.9 Z"/>
+      <text class="label-dark" x="391.4" y="729.2">34</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-233" class="area s" data-layout-key="233" data-area-name="233" data-grade="S" data-price="130000" fill="#f6e744" d="M 427.0 758.0 A 348.0 348.0 0 0 0 495.4 750.8 L 484.5 697.9 A 294.0 294.0 0 0 1 426.7 704.0 Z"/>
+      <text class="label-dark" x="458.6" y="729.2">33</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-232" class="area s" data-layout-key="232" data-area-name="232" data-grade="S" data-price="130000" fill="#f6e744" d="M 499.3 750.0 A 348.0 348.0 0 0 0 564.7 728.7 L 543.0 679.3 A 294.0 294.0 0 0 1 487.8 697.2 Z"/>
+      <text class="label-dark" x="524.2" y="715.3">32</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-231" class="area s" data-layout-key="231" data-area-name="231" data-grade="S" data-price="130000" fill="#f6e744" d="M 568.4 727.1 A 348.0 348.0 0 0 0 627.9 692.7 L 596.4 648.8 A 294.0 294.0 0 0 1 546.1 677.9 Z"/>
+      <text class="label-dark" x="585.5" y="688.0">31</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-230" class="area s" data-layout-key="230" data-area-name="230" data-grade="S" data-price="130000" fill="#f6e744" d="M 631.2 690.4 A 348.0 348.0 0 0 0 682.3 644.3 L 642.3 608.0 A 294.0 294.0 0 0 1 599.2 646.9 Z"/>
+      <text class="label-dark" x="639.8" y="648.5">30</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-229" class="area s" data-layout-key="229" data-area-name="229" data-grade="S" data-price="130000" fill="#f6e744" d="M 685.0 641.4 A 348.0 348.0 0 0 0 725.4 585.7 L 678.8 558.5 A 294.0 294.0 0 0 1 644.6 605.5 Z"/>
+      <text class="label-dark" x="684.7" y="598.7">29</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-228" class="area s" data-layout-key="228" data-area-name="228" data-grade="S" data-price="130000" fill="#f6e744" d="M 727.4 582.3 A 348.0 348.0 0 0 0 755.3 519.4 L 704.1 502.5 A 294.0 294.0 0 0 1 680.5 555.5 Z"/>
+      <text class="label-dark" x="718.2" y="540.6">28</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-227" class="area s" data-layout-key="227" data-area-name="227" data-grade="S" data-price="130000" fill="#f6e744" d="M 756.6 515.6 A 348.0 348.0 0 0 0 770.9 448.4 L 717.2 442.4 A 294.0 294.0 0 0 1 705.1 499.2 Z"/>
+      <text class="label-dark" x="739.0" y="476.7">27</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-226" class="area s" data-layout-key="226" data-area-name="226" data-grade="S" data-price="130000" fill="#f6e744" d="M 771.3 444.4 A 348.0 348.0 0 0 0 771.3 375.6 L 717.6 381.0 A 294.0 294.0 0 0 1 717.6 439.0 Z"/>
+      <text class="label-dark" x="746.0" y="410.0">26</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-225" class="area s" data-layout-key="225" data-area-name="225" data-grade="S" data-price="130000" fill="#f6e744" d="M 770.9 371.6 A 348.0 348.0 0 0 0 756.6 304.4 L 705.1 320.8 A 294.0 294.0 0 0 1 717.2 377.6 Z"/>
+      <text class="label-dark" x="739.0" y="343.3">25</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-2f-224" class="area s" data-layout-key="224" data-area-name="224" data-grade="S" data-price="130000" fill="#f6e744" d="M 755.3 300.6 A 348.0 348.0 0 0 0 727.4 237.7 L 680.5 264.5 A 294.0 294.0 0 0 1 704.1 317.5 Z"/>
+      <text class="label-dark" x="718.2" y="279.4">24</text>
+    </g>  </g>
+
+
+  <g id="first-floor-areas">
+    <text class="floor-label" x="242" y="278" text-anchor="middle">1F</text>
+    <text class="floor-label" x="608" y="278" text-anchor="middle">1F</text>
+    <!-- 1F R ring uses 115~101 as data IDs, but displays 15~1 on the map. -->
+    <g class="area-debug-wrap">
+      <path id="area-1f-115" class="area r" data-layout-key="115" data-area-name="115" data-grade="R" data-price="150000" fill="#d866d1" d="M 189.9 277.2 A 270.0 270.0 0 0 0 164.9 337.7 L 207.3 349.5 A 226.0 226.0 0 0 1 228.2 298.8 Z"/>
+      <text class="label" x="195.9" y="315.1">15</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-114" class="area r" data-layout-key="114" data-area-name="114" data-grade="R" data-price="150000" fill="#d866d1" d="M 163.6 342.6 A 270.0 270.0 0 0 0 155.0 407.5 L 199.0 407.9 A 226.0 226.0 0 0 1 206.2 353.6 Z"/>
+      <text class="label" x="179.1" y="377.6">14</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-113" class="area r" data-layout-key="113" data-area-name="113" data-grade="R" data-price="150000" fill="#d866d1" d="M 155.0 412.5 A 270.0 270.0 0 0 0 163.6 477.4 L 206.2 466.4 A 226.0 226.0 0 0 1 199.0 412.1 Z"/>
+      <text class="label" x="179.1" y="442.4">13</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-112" class="area r" data-layout-key="112" data-area-name="112" data-grade="R" data-price="150000" fill="#d866d1" d="M 164.9 482.3 A 270.0 270.0 0 0 0 189.9 542.8 L 228.2 521.2 A 226.0 226.0 0 0 1 207.3 470.5 Z"/>
+      <text class="label" x="195.9" y="504.9">12</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-111" class="area r" data-layout-key="111" data-area-name="111" data-grade="R" data-price="150000" fill="#d866d1" d="M 235.9 602.7 A 270.0 270.0 0 0 0 279.2 637.3 L 303.0 600.2 A 226.0 226.0 0 0 1 266.7 571.3 Z"/>
+      <text class="label" x="270.4" y="603.9">11</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-110" class="area r" data-layout-key="110" data-area-name="110" data-grade="R" data-price="150000" fill="#d866d1" d="M 283.5 640.0 A 270.0 270.0 0 0 0 333.4 664.0 L 348.3 622.6 A 226.0 226.0 0 0 1 306.6 602.5 Z"/>
+      <text class="label" x="317.4" y="633.4">10</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-109" class="area r" data-layout-key="109" data-area-name="109" data-grade="R" data-price="150000" fill="#d866d1" d="M 338.2 665.7 A 270.0 270.0 0 0 0 392.2 678.0 L 397.6 634.3 A 226.0 226.0 0 0 1 352.4 624.0 Z"/>
+      <text class="label" x="369.8" y="651.8">9</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-108" class="area r" data-layout-key="108" data-area-name="108" data-grade="R" data-price="150000" fill="#d866d1" d="M 397.3 678.6 A 270.0 270.0 0 0 0 452.7 678.6 L 448.2 634.8 A 226.0 226.0 0 0 1 401.8 634.8 Z"/>
+      <text class="label" x="425.0" y="658.0">8</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-107" class="area r" data-layout-key="107" data-area-name="107" data-grade="R" data-price="150000" fill="#d866d1" d="M 457.8 678.0 A 270.0 270.0 0 0 0 511.8 665.7 L 497.6 624.0 A 226.0 226.0 0 0 1 452.4 634.3 Z"/>
+      <text class="label" x="480.2" y="651.8">7</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-106" class="area r" data-layout-key="106" data-area-name="106" data-grade="R" data-price="150000" fill="#d866d1" d="M 516.6 664.0 A 270.0 270.0 0 0 0 566.5 640.0 L 543.4 602.5 A 226.0 226.0 0 0 1 501.7 622.6 Z"/>
+      <text class="label" x="532.6" y="633.4">6</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-105" class="area r" data-layout-key="105" data-area-name="105" data-grade="R" data-price="150000" fill="#d866d1" d="M 570.8 637.3 A 270.0 270.0 0 0 0 614.1 602.7 L 583.3 571.3 A 226.0 226.0 0 0 1 547.0 600.2 Z"/>
+      <text class="label" x="579.6" y="603.9">5</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-104" class="area r" data-layout-key="104" data-area-name="104" data-grade="R" data-price="150000" fill="#d866d1" d="M 660.1 542.8 A 270.0 270.0 0 0 0 685.1 482.3 L 642.7 470.5 A 226.0 226.0 0 0 1 621.8 521.2 Z"/>
+      <text class="label" x="654.1" y="504.9">4</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-103" class="area r" data-layout-key="103" data-area-name="103" data-grade="R" data-price="150000" fill="#d866d1" d="M 686.4 477.4 A 270.0 270.0 0 0 0 695.0 412.5 L 651.0 412.1 A 226.0 226.0 0 0 1 643.8 466.4 Z"/>
+      <text class="label" x="670.9" y="442.4">3</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-102" class="area r" data-layout-key="102" data-area-name="102" data-grade="R" data-price="150000" fill="#d866d1" d="M 695.0 407.5 A 270.0 270.0 0 0 0 686.4 342.6 L 643.8 353.6 A 226.0 226.0 0 0 1 651.0 407.9 Z"/>
+      <text class="label" x="670.9" y="377.6">2</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-1f-101" class="area r" data-layout-key="101" data-area-name="101" data-grade="R" data-price="150000" fill="#d866d1" d="M 685.1 337.7 A 270.0 270.0 0 0 0 660.1 277.2 L 621.8 298.8 A 226.0 226.0 0 0 1 642.7 349.5 Z"/>
+      <text class="label" x="654.1" y="315.1">1</text>
+    </g>  </g>
+
+  <g id="inner-vip-areas">
+    <g class="area-debug-wrap">
+      <path id="area-vip-15" class="area vip" data-layout-key="15" data-area-name="15" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 233.1 302.5 A 220.0 220.0 0 0 0 213.3 350.3 L 255.6 362.2 A 176.0 176.0 0 0 1 271.4 324.0 Z"/>
+      <text class="label" x="242.1" y="334.2">15</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-14" class="area vip" data-layout-key="14" data-area-name="14" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 211.8 355.8 A 220.0 220.0 0 0 0 205.0 407.1 L 249.0 407.7 A 176.0 176.0 0 0 1 254.4 366.7 Z"/>
+      <text class="label" x="228.7" y="384.2">14</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-13" class="area vip" data-layout-key="13" data-area-name="13" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 205.0 412.9 A 220.0 220.0 0 0 0 211.8 464.2 L 254.4 453.3 A 176.0 176.0 0 0 1 249.0 412.3 Z"/>
+      <text class="label" x="228.7" y="435.8">13</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-12" class="area vip" data-layout-key="12" data-area-name="12" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 213.3 469.7 A 220.0 220.0 0 0 0 233.1 517.5 L 271.4 496.0 A 176.0 176.0 0 0 1 255.6 457.8 Z"/>
+      <text class="label" x="242.1" y="485.8">12</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-11" class="area vip" data-layout-key="11" data-area-name="11" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 270.9 567.0 A 220.0 220.0 0 0 0 306.2 595.2 L 330.0 558.1 A 176.0 176.0 0 0 1 301.7 535.6 Z"/>
+      <text class="label" x="301.5" y="564.8">11</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-10" class="area vip" data-layout-key="10" data-area-name="10" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 309.7 597.4 A 220.0 220.0 0 0 0 350.4 617.0 L 365.3 575.6 A 176.0 176.0 0 0 1 332.8 559.9 Z"/>
+      <text class="label" x="339.1" y="588.4">10</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-9" class="area vip" data-layout-key="9" data-area-name="9" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 354.3 618.3 A 220.0 220.0 0 0 0 398.3 628.4 L 403.6 584.7 A 176.0 176.0 0 0 1 368.4 576.7 Z"/>
+      <text class="label" x="380.9" y="603.0">9</text>
+    </g>
+    <g id="console" class="area-debug-wrap">
+      <path id="area-console" class="area console" data-layout-key="CONSOLE" data-area-name="CONSOLE" data-grade="A" data-price="0" fill="#a8a9ad" d="M 402.4 628.8 A 220.0 220.0 0 0 0 447.6 628.8 L 443.1 585.1 A 176.0 176.0 0 0 1 406.9 585.1 Z"/>
+      <text class="label" x="425.0" y="608.0" style="font-size: 10px;">CONSOLE</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-7" class="area vip" data-layout-key="7" data-area-name="7" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 451.7 628.4 A 220.0 220.0 0 0 0 495.7 618.3 L 481.6 576.7 A 176.0 176.0 0 0 1 446.4 584.7 Z"/>
+      <text class="label" x="469.1" y="603.0">7</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-6" class="area vip" data-layout-key="6" data-area-name="6" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 499.6 617.0 A 220.0 220.0 0 0 0 540.3 597.4 L 517.2 559.9 A 176.0 176.0 0 0 1 484.7 575.6 Z"/>
+      <text class="label" x="510.9" y="588.4">6</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-5" class="area vip" data-layout-key="5" data-area-name="5" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 543.8 595.2 A 220.0 220.0 0 0 0 579.1 567.0 L 548.3 535.6 A 176.0 176.0 0 0 1 520.0 558.1 Z"/>
+      <text class="label" x="548.5" y="564.8">5</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-4" class="area vip" data-layout-key="4" data-area-name="4" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 616.9 517.5 A 220.0 220.0 0 0 0 636.7 469.7 L 594.4 457.8 A 176.0 176.0 0 0 1 578.6 496.0 Z"/>
+      <text class="label" x="607.9" y="485.8">4</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-3" class="area vip" data-layout-key="3" data-area-name="3" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 638.2 464.2 A 220.0 220.0 0 0 0 645.0 412.9 L 601.0 412.3 A 176.0 176.0 0 0 1 595.6 453.3 Z"/>
+      <text class="label" x="621.3" y="435.8">3</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-2" class="area vip" data-layout-key="2" data-area-name="2" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 645.0 407.1 A 220.0 220.0 0 0 0 638.2 355.8 L 595.6 366.7 A 176.0 176.0 0 0 1 601.0 407.7 Z"/>
+      <text class="label" x="621.3" y="384.2">2</text>
+    </g>
+    <g class="area-debug-wrap">
+      <path id="area-vip-1" class="area vip" data-layout-key="1" data-area-name="1" data-grade="VIP" data-price="180000" fill="#456bd7" d="M 636.7 350.3 A 220.0 220.0 0 0 0 616.9 302.5 L 578.6 324.0 A 176.0 176.0 0 0 1 594.4 362.2 Z"/>
+      <text class="label" x="607.9" y="334.2">1</text>
+    </g>  </g>
+
+  <g id="legend">
+    <rect fill="#456bd7" x="325" y="825" width="18" height="18" rx="2"/>
+    <text class="legend-label" x="354" y="839">VIP</text>
+    <rect fill="#d866d1" x="410" y="825" width="18" height="18" rx="2"/>
+    <text class="legend-label" x="439" y="839">R</text>
+    <rect fill="#f6e744" x="482" y="825" width="18" height="18" rx="2"/>
+    <text class="legend-label" x="511" y="839">S</text>
+  </g>
+</svg>
+

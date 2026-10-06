@@ -16,10 +16,15 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Rebuilds a static SVG from allowed elements; uploaded scripts, CSS and URLs are never copied. */
+/** Rebuilds a static SVG; simple local CSS is flattened into validated presentation attributes. */
 @Component
 public class SvgLayoutSanitizer {
     private static final String SVG_NS = "http://www.w3.org/2000/svg";
@@ -35,7 +40,7 @@ public class SvgLayoutSanitizer {
             "fill-opacity", "stroke-opacity", "opacity", "fill-rule", "clip-rule", "clip-path",
             "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset",
             "font-size", "font-family", "font-weight", "font-style", "text-anchor", "dominant-baseline",
-            "letter-spacing", "word-spacing", "visibility", "display", "vector-effect",
+            "letter-spacing", "word-spacing", "visibility", "display", "vector-effect", "pointer-events",
             "gradientUnits", "gradientTransform", "spreadMethod", "fx", "fy", "fr", "offset",
             "stop-color", "stop-opacity", "clipPathUnits",
             "data-layout-key", "data-area-name", "data-grade", "data-price");
@@ -43,9 +48,29 @@ public class SvgLayoutSanitizer {
             "fill", "stroke", "stroke-width", "fill-opacity", "stroke-opacity", "opacity",
             "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
             "font-size", "font-family", "font-weight", "font-style", "text-anchor", "dominant-baseline",
-            "letter-spacing", "word-spacing", "visibility", "display", "stop-color", "stop-opacity");
+            "letter-spacing", "word-spacing", "visibility", "display", "stop-color", "stop-opacity",
+            "clip-path", "pointer-events");
     private static final Pattern LOCAL_REFERENCE = Pattern.compile("url\\(#[A-Za-z_][A-Za-z0-9_.-]*\\)");
     private static final Pattern PRESENTATION_VALUE = Pattern.compile("[A-Za-z0-9#.,%+\\-\\s]+|(?:rgb|rgba|hsl|hsla)\\([0-9.,%+\\-\\s]+\\)");
+    private static final Pattern CSS_RULE = Pattern.compile("([^{}]+)\\{([^{}]*)}");
+    private static final Pattern SIMPLE_SELECTOR = Pattern.compile("(?:[.#][A-Za-z_][A-Za-z0-9_-]*|[A-Za-z][A-Za-z0-9]*)");
+    private static final Pattern FONT = Pattern.compile(
+            "(?:(normal|italic|oblique)\\s+)?(?:(normal|bold|[1-9]00)\\s+)?([0-9]+(?:\\.[0-9]+)?(?:px|pt|em|rem|%))\\s+([A-Za-z][A-Za-z0-9 ,_-]*)");
+
+    private record StyleRule(String selector, Map<String, String> properties) {
+        int specificity() {
+            return selector.startsWith("#") ? 100 : selector.startsWith(".") ? 10 : 1;
+        }
+
+        boolean matches(Element element) {
+            if (selector.startsWith("#")) return selector.substring(1).equals(element.getAttribute("id"));
+            if (selector.startsWith(".")) {
+                return List.of(element.getAttribute("class").trim().split("\\s+"))
+                        .contains(selector.substring(1));
+            }
+            return selector.equals(element.getLocalName());
+        }
+    }
 
     public String sanitizeForDisplay(String svg) {
         try {
@@ -79,7 +104,7 @@ public class SvgLayoutSanitizer {
                 throw new IllegalArgumentException("SVG 루트 태그가 올바르지 않습니다.");
             }
             Document clean = builder.newDocument();
-            clean.appendChild(copyElement(root, clean, 0));
+            clean.appendChild(copyElement(root, clean, 0, readStyleRules(root)));
 
             TransformerFactory transformers = TransformerFactory.newInstance();
             transformers.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
@@ -95,7 +120,7 @@ public class SvgLayoutSanitizer {
         }
     }
 
-    private Element copyElement(Element source, Document target, int depth) {
+    private Element copyElement(Element source, Document target, int depth, List<StyleRule> rules) {
         if (depth > MAX_DEPTH) throw new IllegalArgumentException("SVG 중첩 깊이를 초과했습니다.");
         Element clean = target.createElementNS(SVG_NS, source.getLocalName());
         NamedNodeMap attributes = source.getAttributes();
@@ -104,16 +129,19 @@ public class SvgLayoutSanitizer {
             if (attribute.getNamespaceURI() != null) continue;
             String name = attribute.getNodeName();
             String value = attribute.getNodeValue();
-            if ("style".equals(name)) {
-                copyPresentationStyle(value, clean);
-            } else if (ATTRIBUTES.contains(name) && allowedValue(name, value)) {
+            if (ATTRIBUTES.contains(name) && allowedValue(name, value)) {
                 clean.setAttribute(name, value);
             }
         }
+        // CSS overrides presentation attributes; inline declarations override local CSS.
+        for (StyleRule rule : rules) {
+            if (rule.matches(source)) rule.properties().forEach(clean::setAttribute);
+        }
+        readPresentationStyle(source.getAttribute("style")).forEach(clean::setAttribute);
         for (Node child = source.getFirstChild(); child != null; child = child.getNextSibling()) {
             if (child instanceof Element element) {
                 if (allowedNamespace(element) && ELEMENTS.contains(element.getLocalName())) {
-                    clean.appendChild(copyElement(element, target, depth + 1));
+                    clean.appendChild(copyElement(element, target, depth + 1, rules));
                 }
             } else if (child.getNodeType() == Node.TEXT_NODE || child.getNodeType() == Node.CDATA_SECTION_NODE) {
                 clean.appendChild(target.createTextNode(child.getNodeValue()));
@@ -133,16 +161,54 @@ public class SvgLayoutSanitizer {
         return true;
     }
 
-    // Convert only simple presentation declarations to attributes. No stylesheet or raw style survives.
-    private void copyPresentationStyle(String style, Element target) {
+    // Never retain a stylesheet: accept only local class, ID or element selectors and safe values.
+    private List<StyleRule> readStyleRules(Element root) {
+        List<StyleRule> rules = new ArrayList<>();
+        var styles = root.getElementsByTagNameNS("*", "style");
+        for (int i = 0; i < styles.getLength(); i++) {
+            Element style = (Element) styles.item(i);
+            if (!allowedNamespace(style)) continue;
+            String css = style.getTextContent().replaceAll("(?s)/\\*.*?\\*/", "");
+            // Imports, conditional rules and font-face are outside the static subset.
+            if (css.contains("@")) continue;
+            var matcher = CSS_RULE.matcher(css);
+            while (matcher.find()) {
+                Map<String, String> properties = readPresentationStyle(matcher.group(2));
+                for (String selector : matcher.group(1).split(",")) {
+                    selector = selector.trim();
+                    if (SIMPLE_SELECTOR.matcher(selector).matches()) {
+                        // Bound work for untrusted uploads, in addition to document size and depth limits.
+                        if (rules.size() >= 256) throw new IllegalArgumentException("SVG 스타일 규칙 수를 초과했습니다.");
+                        rules.add(new StyleRule(selector, properties));
+                    }
+                }
+            }
+        }
+        rules.sort(Comparator.comparingInt(StyleRule::specificity));
+        return rules;
+    }
+
+    private Map<String, String> readPresentationStyle(String style) {
+        Map<String, String> properties = new LinkedHashMap<>();
         for (String declaration : style.split(";")) {
             int colon = declaration.indexOf(':');
             if (colon < 0) continue;
             String name = declaration.substring(0, colon).trim();
             String value = declaration.substring(colon + 1).trim();
-            if (STYLE_PROPERTIES.contains(name) && PRESENTATION_VALUE.matcher(value).matches()) {
-                target.setAttribute(name, value);
+            if ("font".equals(name)) {
+                var font = FONT.matcher(value);
+                if (font.matches()) {
+                    properties.put("font-style", font.group(1) == null ? "normal" : font.group(1));
+                    properties.put("font-weight", font.group(2) == null ? "normal" : font.group(2));
+                    properties.put("font-size", font.group(3));
+                    properties.put("font-family", font.group(4));
+                }
+            } else if (STYLE_PROPERTIES.contains(name)
+                    && (PRESENTATION_VALUE.matcher(value).matches()
+                    || (Set.of("fill", "stroke", "clip-path").contains(name) && LOCAL_REFERENCE.matcher(value).matches()))) {
+                properties.put(name, value);
             }
         }
+        return properties;
     }
 }
