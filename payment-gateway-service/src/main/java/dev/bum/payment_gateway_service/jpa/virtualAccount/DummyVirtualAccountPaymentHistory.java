@@ -1,5 +1,6 @@
 package dev.bum.payment_gateway_service.jpa.virtualAccount;
 
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -39,7 +41,7 @@ public class DummyVirtualAccountPaymentHistory {
     @Column(name = "history_id")
     private Long historyId;
 
-    // 상태 변경이 발생한 더미 가상계좌.
+    // 결제 또는 환불 이력이 발생한 더미 가상계좌.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "virtual_account_id", nullable = false)
     private DummyVirtualAccount virtualAccount;
@@ -48,7 +50,7 @@ public class DummyVirtualAccountPaymentHistory {
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
-    // 가상계좌 상태 변경 이벤트 유형.
+    // 가상계좌 결제 또는 환불 이벤트 유형.
     @Enumerated(EnumType.STRING)
     @Column(name = "history_type", nullable = false, length = 40)
     private VirtualAccountPaymentHistoryType historyType;
@@ -86,6 +88,24 @@ public class DummyVirtualAccountPaymentHistory {
                 .paymentNo(virtualAccount.getPaymentNo())
                 .historyType(VirtualAccountPaymentHistoryType.EXPIRED)
                 .message("가상계좌 입금 기한이 만료되었습니다.")
+                .build();
+    }
+
+    public static DummyVirtualAccountPaymentHistory refunded(
+            DummyVirtualAccount virtualAccount,
+            BankCompany refundBankCompany,
+            String refundAccountNumber,
+            String refundAccountHolder,
+            BigDecimal refundAmount
+    ) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.REFUNDED)
+                .message(String.format(
+                        "무통장 환불이 완료되었습니다. 환불 은행: %s, 계좌번호: %s, 예금주: %s, 환불 금액: %s원",
+                        refundBankCompany, refundAccountNumber, refundAccountHolder, refundAmount.toPlainString()
+                ))
                 .build();
     }
 

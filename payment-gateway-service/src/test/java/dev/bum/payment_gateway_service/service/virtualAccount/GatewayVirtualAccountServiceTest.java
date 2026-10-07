@@ -16,6 +16,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
+import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentHistoryType;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import feign.FeignException;
 import org.junit.jupiter.api.DisplayName;
@@ -294,7 +295,7 @@ class GatewayVirtualAccountServiceTest {
     }
 
     @Test
-    @DisplayName("무통장 환불 요청은 성공 로그 기준으로 환불 완료 응답을 반환한다")
+    @DisplayName("무통장 전액 환불 이력을 저장하고 환불 완료 응답을 반환한다")
     void refund_virtual_account() {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180000));
@@ -310,10 +311,12 @@ class GatewayVirtualAccountServiceTest {
         assertThat(response.getRefundAccountHolder()).isEqualTo("홍길동");
         assertThat(response.getRefundedAmount()).isEqualByComparingTo("180000");
         assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
+        assertRefundHistorySaved(virtualAccount, request);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
     }
 
     @Test
-    @DisplayName("무통장 부분 환불 요청은 성공 로그 기준으로 환불 완료 응답을 반환한다")
+    @DisplayName("무통장 부분 환불 이력을 저장하고 환불 완료 응답을 반환한다")
     void refund_partial_virtual_account() {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
@@ -326,6 +329,38 @@ class GatewayVirtualAccountServiceTest {
         assertThat(response.getPaymentNo()).isEqualTo("PAY-20260727120000-abcdef123456");
         assertThat(response.getRefundedAmount()).isEqualByComparingTo("90000");
         assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
+        assertRefundHistorySaved(virtualAccount, request);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("결제 금액을 초과한 환불 요청은 성공 이력을 저장하지 않는다")
+    void reject_refund_amount_exceeding_payment() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180001));
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("환불 금액이 결제 금액을 초과했습니다.");
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("환불 이력 저장에 실패하면 성공 응답 대신 오류를 전달한다")
+    void propagate_refund_history_save_failure() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
+        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+        given(dummyVirtualAccountPaymentHistoryJpaRepository.save(any(DummyVirtualAccountPaymentHistory.class)))
+                .willThrow(new IllegalStateException("이력 저장 실패"));
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("이력 저장 실패");
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
     }
 
     @Test
@@ -340,6 +375,7 @@ class GatewayVirtualAccountServiceTest {
         assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불할 수 없는 가상계좌 상태입니다.");
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -411,6 +447,19 @@ class GatewayVirtualAccountServiceTest {
                 .amount(amount)
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
                 .build();
+    }
+
+    private void assertRefundHistorySaved(DummyVirtualAccount virtualAccount, GatewayVirtualAccountRefundRequest request) {
+        ArgumentCaptor<DummyVirtualAccountPaymentHistory> captor = ArgumentCaptor.forClass(DummyVirtualAccountPaymentHistory.class);
+        then(dummyVirtualAccountPaymentHistoryJpaRepository).should().save(captor.capture());
+        DummyVirtualAccountPaymentHistory history = captor.getValue();
+        assertThat(history.getVirtualAccount()).isSameAs(virtualAccount);
+        assertThat(history.getPaymentNo()).isEqualTo(request.getPaymentNo());
+        assertThat(history.getHistoryType()).isEqualTo(VirtualAccountPaymentHistoryType.REFUNDED);
+        assertThat(history.getMessage()).contains(
+                request.getRefundBankCompany().name(), request.getRefundAccountNumber(),
+                request.getRefundAccountHolder(), request.getRefundAmount().toPlainString() + "원"
+        );
     }
 
     private GatewayVirtualAccountRefundRequest refundRequest(BigDecimal amount) {
