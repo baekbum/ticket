@@ -48,8 +48,11 @@ public class TicketPurchaseCountService {
 
     public void applyStatusAdjustment(Reservation reservation, long beforeCount, List<Ticket> changedTickets) {
         long delta = activeCount(changedTickets) - beforeCount;
+
         if (delta == 0) return;
+
         TicketPurchaseLock count = lock(reservation.getEvent(), reservation.getUserId());
+
         if (delta > 0) count.increase(delta, reservation.getEvent().getMaxTicketsPerPerson());
         else count.decrease(-delta);
     }

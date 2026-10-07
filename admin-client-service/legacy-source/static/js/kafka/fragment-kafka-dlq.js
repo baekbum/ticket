@@ -156,14 +156,12 @@
   }
 
   function renderTopics() {
-    const grid = document.getElementById('dlq-topic-grid');
     const select = document.getElementById('dlq-topic-select');
-
-    grid.innerHTML = '';
     select.innerHTML = '<option value="">DLT topic 선택</option>';
+    select.disabled = currentTopics.length === 0;
 
     if (currentTopics.length === 0) {
-      grid.innerHTML = '<div class="dlq-topic-card"><strong>DLT topic 없음</strong><span>허용된 DLT mapping이 없습니다.</span></div>';
+      select.innerHTML = '<option value="">등록된 DLT topic 없음</option>';
       return;
     }
 
@@ -172,32 +170,8 @@
       option.value = topic.dltTopic;
       option.textContent = `${topic.dltTopic} → ${topic.targetTopic}`;
       select.appendChild(option);
-
-      const card = document.createElement('button');
-      card.className = 'dlq-topic-card';
-      card.type = 'button';
-      card.dataset.topic = topic.dltTopic;
-      card.onclick = () => selectDlqTopic(topic.dltTopic);
-      card.innerHTML = `
-        <strong>${escapeHtml(topic.dltTopic)}</strong>
-        <span>원본 topic: ${escapeHtml(topic.targetTopic)}</span>
-      `;
-      grid.appendChild(card);
     });
   }
-
-  function syncTopicCards() {
-    const selectedTopic = inputValue('dlq-topic-select');
-    document.querySelectorAll('.dlq-topic-card').forEach(card => {
-      card.classList.toggle('active', card.dataset.topic === selectedTopic);
-    });
-  }
-
-  window.selectDlqTopic = function (dltTopic) {
-    setValue('dlq-topic-select', dltTopic);
-    syncTopicCards();
-    loadDlqMessages();
-  };
 
   window.loadDlqTopics = async function () {
     try {
@@ -218,7 +192,6 @@
   window.loadDlqMessages = async function () {
     const dltTopic = inputValue('dlq-topic-select');
     const tbody = document.getElementById('dlq-message-table-body');
-    syncTopicCards();
 
     if (!dltTopic) {
       tbody.innerHTML = '<tr><td colspan="9" class="dlq-empty-cell">DLT topic을 선택하세요.</td></tr>';
@@ -466,7 +439,6 @@
     setValue('dlq-from-offset-input', '');
     setValue('dlq-size-input', '20');
     currentMessages = [];
-    syncTopicCards();
     document.getElementById('dlq-message-table-body').innerHTML =
       '<tr><td colspan="9" class="dlq-empty-cell">DLT topic을 선택하고 조회하세요.</td></tr>';
   };

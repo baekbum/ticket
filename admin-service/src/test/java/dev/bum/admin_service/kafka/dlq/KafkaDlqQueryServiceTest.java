@@ -37,7 +37,10 @@ class KafkaDlqQueryServiceTest {
         KafkaDlqProperties properties = new KafkaDlqProperties();
         properties.setMappings(Map.of(
                 "user-event.DLT", "user-event",
-                "audit-log.DLT", "audit-log"
+                "audit-log.DLT", "audit-log",
+                "login-log.DLT", "login-log",
+                "payment-completed.DLT", "payment-completed",
+                "virtual-account-expired.DLT", "virtual-account-expired"
         ));
         service = new KafkaDlqQueryService(properties, consumerFactory, historyRepository);
     }
@@ -48,9 +51,9 @@ class KafkaDlqQueryServiceTest {
         List<DlqTopicResponse> topics = service.topics();
 
         assertThat(topics).extracting(DlqTopicResponse::getDltTopic)
-                .containsExactly("audit-log.DLT", "user-event.DLT");
+                .containsExactly("audit-log.DLT", "login-log.DLT", "payment-completed.DLT", "user-event.DLT", "virtual-account-expired.DLT");
         assertThat(topics).extracting(DlqTopicResponse::getTargetTopic)
-                .containsExactly("audit-log", "user-event");
+                .containsExactly("audit-log", "login-log", "payment-completed", "user-event", "virtual-account-expired");
     }
 
     @Test
