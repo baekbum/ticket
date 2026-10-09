@@ -1,0 +1,39 @@
+package dev.bum.queue_service.config;
+
+import dev.bum.queue_service.security.ReactiveTokenStateStore;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+
+import java.time.Duration;
+
+@Configuration(proxyBeanMethods = false)
+public class ReactiveTokenStateConfig {
+    @Bean(destroyMethod = "close")
+    public ReactiveTokenStateStore reactiveTokenStateStore(
+            @Value("${token-state.redis.host:${TOKEN_STATE_REDIS_HOST:localhost}}") String host,
+            @Value("${token-state.redis.port:${TOKEN_STATE_REDIS_PORT:6390}}") int port,
+            @Value("${token-state.redis.database:${TOKEN_STATE_REDIS_DATABASE:0}}") int database,
+            @Value("${token-state.redis.password:${TOKEN_STATE_REDIS_PASSWORD:}}") String password) {
+
+        RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration(host, port);
+        configuration.setDatabase(database);
+
+        if (!password.isBlank()) {
+            configuration.setPassword(password);
+        }
+
+        // 인증용 연결을 빈으로 등록하면 Boot의 대기열 Redis 연결을 대체하므로 별도로 관리한다.
+        LettuceConnectionFactory factory = new LettuceConnectionFactory(configuration,
+                LettuceClientConfiguration.builder()
+                        .commandTimeout(Duration.ofSeconds(2))
+                        .shutdownTimeout(Duration.ZERO)
+                        .build());
+        factory.afterPropertiesSet();
+
+        return new ReactiveTokenStateStore(factory);
+    }
+}

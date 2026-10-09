@@ -3,7 +3,7 @@ param(
     [ValidatePattern('^[a-zA-Z0-9-]+$')][string]$RunId = "mvc-baseline"
 )
 $ErrorActionPreference = 'Stop'
-# Only the disposable Redis created by this baseline runbook is addressed.
+# 기준 측정 절차에서 생성한 일회용 테스트 Redis만 사용한다.
 $commands = for ($index = 1; $index -le $Users; $index++) {
     "SET AUTH:STATE:${RunId}-${index} 1:1:ROLE_USER EX 7200"
 }

@@ -58,12 +58,12 @@ export default function () {
   polling.add(response.timings.duration);
   const data = parsed(response);
   if (!check(response, { 'status valid': r => r.status === 200 && ['WAITING', 'READY'].includes(data.status) && !!data.token })) {
-    // Do not hide failed transitions by force-entering or retrying mutations.
+    // 강제 진입이나 상태 변경 재시도로 실패를 감추지 않는다.
     sleep(pollSeconds); return;
   }
   if (data.status === 'READY') {
     admitted.add(1);
-    // In waiting mode admitted users hold slots for the rest of the run.
+    // waiting 모드에서는 입장한 사용자가 테스트 종료까지 슬롯을 유지한다.
     if (mode === 'waiting') { sleep(3600); return; }
     sleep(holdSeconds);
     const done = request('POST', '/complete', {

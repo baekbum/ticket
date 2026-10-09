@@ -30,7 +30,9 @@ dependencies {
 
 	// 2. 스프링 부트 기본 의존성
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// 실행 앱이 MVC 또는 WebFlux 서버를 선택한다.
+	implementation 'org.springframework:spring-web'
+	compileOnly 'jakarta.servlet:jakarta.servlet-api'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.kafka:spring-kafka'
 
@@ -39,6 +41,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-web'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

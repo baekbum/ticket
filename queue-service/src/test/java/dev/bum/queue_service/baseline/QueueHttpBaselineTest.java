@@ -19,7 +19,7 @@ import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Real HTTP + JWT + Redis contract. Run only against an explicitly supplied test Redis. */
+/** 실제 HTTP·JWT·Redis 동작을 검증한다. 명시적으로 지정한 테스트 Redis에서만 실행한다. */
 @EnabledIfEnvironmentVariable(named = "QUEUE_TEST_REDIS_PORT", matches = "\\d+")
 @SpringBootTest(classes = QueueServiceApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -40,6 +40,8 @@ class QueueHttpBaselineTest {
     @Autowired JwtTokenProvider jwt;
     @Autowired TokenStateStore tokenStates;
     @Autowired StringRedisTemplate redis;
+    @Autowired org.springframework.data.redis.core.ReactiveStringRedisTemplate reactiveRedis;
+    @Autowired dev.bum.queue_service.security.ReactiveTokenStateStore reactiveTokenStates;
     private long event;
     private String user;
     private String bearer;
@@ -103,7 +105,7 @@ class QueueHttpBaselineTest {
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + active)).isNull();
         assertThat(call(HttpMethod.POST, "/complete", null, Map.of(), body).getStatusCode().value()).isEqualTo(400);
         assertThat(call(HttpMethod.POST, "/validate", null, Map.of(), body).getBody().path("allowed").asBoolean()).isFalse();
-        // Current behavior: promotion consumes the waiting token; replay is not idempotent.
+        // 현재는 승격 시 waiting 토큰을 제거하므로 같은 토큰으로 재요청해도 같은 결과를 보장하지 않는다.
         assertThat(status(bearer, waiting).getStatusCode().value()).isEqualTo(400);
     }
 
@@ -187,6 +189,42 @@ class QueueHttpBaselineTest {
                 HttpMethod.POST, new HttpEntity<>(null, headers), String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
+
+    @Test
+    void reactive_queue_operations_share_the_existing_queue_database_and_support_lua() {
+        String key = "baseline:reactive:" + UUID.randomUUID();
+        reactor.test.StepVerifier.create(reactiveRedis.opsForValue()
+                .set(key, "queue-value", java.time.Duration.ofSeconds(30)))
+                .expectNext(true).verifyComplete();
+        assertThat(redis.opsForValue().get(key)).isEqualTo("queue-value");
+        var script = new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "return redis.call('GET', KEYS[1])", String.class);
+        reactor.test.StepVerifier.create(reactiveRedis.execute(script, List.of(key)))
+                .expectNext("queue-value").verifyComplete();
+        reactor.test.StepVerifier.create(reactiveRedis.delete(key)).expectNext(1L).verifyComplete();
+        assertThat(redis.hasKey(key)).isFalse();
+    }
+
+    @Test
+    void reactive_authentication_reads_auth_database_and_observes_revocation() {
+        // 대기열 DB에 같은 키가 있어도 별도 인증 DB의 상태를 조회해야 한다.
+        String key = TokenStateStore.key(user);
+        redis.opsForValue().set(key, "99:0:ROLE_ADMIN", java.time.Duration.ofSeconds(30));
+        reactor.test.StepVerifier.create(reactiveTokenStates.get(user))
+                .expectNext(new TokenState(1L, true, "ROLE_USER")).verifyComplete();
+        tokenStates.publish(user, new TokenState(2L, false, "ROLE_USER"));
+        reactor.test.StepVerifier.create(reactiveTokenStates.get(user))
+                .expectNext(new TokenState(2L, false, "ROLE_USER")).verifyComplete();
+        assertThat(redis.opsForValue().get(key)).isEqualTo("99:0:ROLE_ADMIN");
+        redis.delete(key);
+    }
+
+    @Test
+    void reactive_authentication_completes_empty_for_unknown_user() {
+        reactor.test.StepVerifier.create(reactiveTokenStates.get("baseline-missing-" + UUID.randomUUID()))
+                .verifyComplete();
+    }
+
     @Test
     void concurrent_status_calls_do_not_exceed_admission_capacity() throws Exception {
         int clients = 12;
