@@ -3,12 +3,68 @@ package dev.bum.ticket_service.service.area;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SvgLayoutSanitizerTest {
     private final SvgLayoutSanitizer sanitizer = new SvgLayoutSanitizer();
+
+    @Test
+    void preserves_legacy_layout_background_labels_and_fonts_without_stylesheets() throws Exception {
+        String original;
+        try (var input = getClass().getResourceAsStream("/layouts/kspo-layout-sample.svg")) {
+            assertThat(input).isNotNull();
+            original = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String clean = sanitizer.sanitize(original);
+        var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new org.xml.sax.InputSource(new java.io.StringReader(clean)));
+        var xpath = javax.xml.xpath.XPathFactory.newInstance().newXPath();
+        assertThat(xpath.evaluate("//rect[@class='bg']/@fill", document)).isEqualTo("#cfe7f4");
+        assertThat(xpath.evaluate("//text[@class='title']/@fill", document)).isEqualTo("#69a8d1");
+        assertThat(xpath.evaluate("//text[@class='title']/@font-size", document)).isEqualTo("38px");
+        assertThat(xpath.evaluate("//text[@class='title']/@font-weight", document)).isEqualTo("700");
+        assertThat(xpath.evaluate("//text[@class='label'][1]/@fill", document)).isEqualTo("#fff");
+        assertThat(xpath.evaluate("//text[@class='label'][1]/@pointer-events", document)).isEqualTo("none");
+        assertThat(xpath.evaluate("//rect[@id='area-floor-A']/@fill", document)).isEqualTo("#456bd7");
+        assertThat(clean).contains("좌석 배치도", "STAGE", "data-layout-key=\"A\"");
+        assertThat(clean).doesNotContain("<style", " style=", "filter=", "drop-shadow");
+        assertThat(sanitizer.sanitize(clean)).isEqualTo(clean);
+    }
+
+    @Test
+    void flattens_only_safe_local_css_with_correct_precedence() {
+        String clean = sanitizer.sanitize("""
+                <svg xmlns="http://www.w3.org/2000/svg"><style>
+                  #label { fill: #123456; }
+                  .label { fill: #ffffff; font: 700 15px Arial, sans-serif; }
+                  text { fill: #000000; }
+                  .area { fill: url(https://evil.test/x); stroke: url(#paint); }
+                  .label { filter: url(https://evil.test/x); background: url(https://evil.test/x); }
+                </style><text id="label" class="label" fill="#aaaaaa">A</text>
+                <text class="label" style="fill:#bbbbbb">B</text>
+                <path class="area" d="M0 0L10 10"/></svg>
+                """);
+        assertThat(clean).contains("fill=\"#123456\"", "fill=\"#bbbbbb\"", "font-size=\"15px\"",
+                "font-weight=\"700\"", "font-family=\"Arial, sans-serif\"", "stroke=\"url(#paint)\"");
+        assertThat(clean).doesNotContain("<style", " style=", "evil.test", "filter=", "background=");
+    }
+
+    @Test
+    void drops_imports_escaped_css_and_executable_font_values() {
+        String clean = sanitizer.sanitize("""
+                <svg xmlns="http://www.w3.org/2000/svg"><style>
+                  @import url(https://evil.test/style);
+                  .label { fill: red; }
+                </style><style>
+                  .label { fill: u\\rl(https://evil.test/paint); font: 15px url(https://evil.test/font); }
+                </style><text class="label">Safe text</text></svg>
+                """);
+        assertThat(clean).contains("Safe text");
+        assertThat(clean).doesNotContain("evil.test", "<style", "fill=", "font-family=", "url(");
+    }
 
     @Test
     void removes_active_content_and_preserves_area_geometry() {

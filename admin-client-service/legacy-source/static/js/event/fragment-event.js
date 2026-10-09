@@ -258,6 +258,7 @@ tr.innerHTML = `
          onclick="event.stopPropagation(); toggleRowCheckbox(this, ${ev.eventId})">
 </td>
 <td style="text-align:center; color:var(--text-muted); font-size:12px;">${rowOrder}</td>
+<td>${statusHtml}</td>
 <td onclick="event.stopPropagation()">${ev.posterUrl ? `<button type="button" class="event-poster-thumb-button" onclick="event.stopPropagation(); openPosterPreviewModal(${ev.eventId})" title="포스터 크게 보기"><span class="event-poster-thumb" style="background-image:url('${resolvePosterUrl(ev.posterUrl)}');"></span></button>` : ''}</td>
 <td><strong style="color:var(--text-primary);">${ev.eventId}</strong></td>
 <td title="${ev.eventGroupCode || ''}">${ev.eventGroupCode || ''}</td>
@@ -276,7 +277,7 @@ tr.innerHTML = `
 <td>${ev.ageLimit != null ? ev.ageLimit + '+' : ''}</td>
 <td>${ev.totalSeats != null ? Number(ev.totalSeats).toLocaleString() : ''}</td>
 <td>${ev.availableSeats != null ? Number(ev.availableSeats).toLocaleString() : ''}</td>
-<td>${statusHtml}</td>
+
 <td class="actions">
 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
 <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
@@ -907,12 +908,13 @@ else         { showToast('웜업 실패: 백엔드 처리 중 오류가 발생�
 
 /* Search */
 window.triggerNormalSearch = function () {
+document.getElementById('cond-status').value = inputValue('search-status');
 currentSearchFilters = {
 eventId: null, title: document.getElementById('search-id').value.trim() || null, eventGroupCode: null, artistName: null,
 venue: null, venueAddress: null, posterUrl: null, eventDate: null, saleStartDate: null, saleEndDate: null,
 cancelDeadlineDate: null, eventDateFrom: null, eventDateTo: null, saleStartDateFrom: null, saleStartDateTo: null,
 saleEndDateFrom: null, saleEndDateTo: null, cancelDeadlineDateFrom: null, cancelDeadlineDateTo: null,
-runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: null,
+runningMinutes: null, ageLimit: null, totalSeats: null, availableSeats: null, status: inputValue('search-status') || null,
 genre: null, region: null, theme: null
 };
 loadEventList(0);
@@ -922,6 +924,7 @@ window.closeSearchModal = function () { document.getElementById('search-modal').
 
 window.resetEventSearch = function () {
 document.getElementById('search-id').value = '';
+document.getElementById('search-status').value = '';
 resetDetailedSearchForm();
 currentSearchFilters = {
 eventId: null, title: null, eventGroupCode: null, artistName: null,
@@ -1514,6 +1517,8 @@ genre:      document.getElementById('cond-genre').value             || null,
 region:     document.getElementById('cond-region').value            || null,
 theme:      document.getElementById('cond-theme').value             || null,
 };
+document.getElementById('search-status').value = currentSearchFilters.status || '';
+document.getElementById('search-id').value = currentSearchFilters.title || '';
 loadEventList(0);
 closeSearchModal();
 };

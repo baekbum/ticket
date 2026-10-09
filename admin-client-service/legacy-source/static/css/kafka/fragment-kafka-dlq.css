@@ -2,42 +2,6 @@
 .frag-header h2 { font-size: 17px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
 .sub-txt { font-size: 12.5px; color: var(--text-muted); }
 
-.dlq-topic-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0 1.75rem 1rem;
-}
-
-.dlq-topic-card {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--card-bg);
-  color: var(--text-primary);
-  padding: 16px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s, box-shadow .15s, transform .15s;
-}
-
-.dlq-topic-card:hover,
-.dlq-topic-card.active {
-  border-color: rgba(124,77,255,0.42);
-  box-shadow: 0 0 0 3px var(--purple-ring);
-  transform: translateY(-1px);
-}
-
-.dlq-topic-card strong {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.dlq-topic-card span {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
 .toolbar {
   display: flex;
   justify-content: space-between;

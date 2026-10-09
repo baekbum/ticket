@@ -15,6 +15,7 @@ purifier.addHook('uponSanitizeAttribute', (_node, attribute) => {
 export function sanitizeLayoutSvg(svg: string): string {
   return purifier.sanitize(svg, {
     ALLOWED_TAGS: [
+      '#text',
       'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
       'text', 'tspan', 'title', 'desc', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath',
     ],
@@ -25,7 +26,7 @@ export function sanitizeLayoutSvg(svg: string): string {
       'fill-opacity', 'stroke-opacity', 'opacity', 'fill-rule', 'clip-rule', 'clip-path',
       'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset',
       'font-size', 'font-family', 'font-weight', 'font-style', 'text-anchor', 'dominant-baseline',
-      'letter-spacing', 'word-spacing', 'visibility', 'display', 'vector-effect',
+      'letter-spacing', 'word-spacing', 'visibility', 'display', 'vector-effect', 'pointer-events',
       'gradientUnits', 'gradientTransform', 'spreadMethod', 'fx', 'fy', 'fr', 'offset',
       'stop-color', 'stop-opacity', 'clipPathUnits', 'data-layout-key', 'data-area-name',
       'data-grade', 'data-price', 'data-area-id', 'tabindex', 'role', 'aria-label',

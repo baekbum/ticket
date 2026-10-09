@@ -89,6 +89,15 @@ public class GatewayVirtualAccountService {
                     .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
 
             validateRefund(virtualAccount, request);
+            dummyVirtualAccountPaymentHistoryJpaRepository.save(
+                    DummyVirtualAccountPaymentHistory.refunded(
+                            virtualAccount,
+                            request.getRefundBankCompany(),
+                            request.getRefundAccountNumber(),
+                            request.getRefundAccountHolder(),
+                            request.getRefundAmount()
+                    )
+            );
             log.info(
                     "무통장 환불 성공: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}",
                     request.getPaymentNo(),

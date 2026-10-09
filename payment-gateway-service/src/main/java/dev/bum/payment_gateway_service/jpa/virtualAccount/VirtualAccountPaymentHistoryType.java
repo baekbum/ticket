@@ -14,6 +14,9 @@ public enum VirtualAccountPaymentHistoryType {
     // ticket-service 결제 완료 반영에 실패한 이력.
     TICKET_PAYMENT_FAILED,
 
+    // 무통장 결제의 전액 또는 부분 환불 완료 이력.
+    REFUNDED,
+
     // 입금 기한 만료 이력.
     EXPIRED,
 
