@@ -29,7 +29,7 @@ spring:
       observation-enabled: true
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: dev.bum.ticket_service.config.TicketKafkaValueSerializer
     consumer:
       group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:ticket-service-group}
       auto-offset-reset: earliest

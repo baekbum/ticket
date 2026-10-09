@@ -12,6 +12,14 @@
 <div class="toolbar">
   <div class="toolbar-left">
     <input type="text" class="search-input" id="search-id" placeholder="공연명 검색">
+    <select class="search-input" id="search-status" aria-label="이벤트 상태" onchange="triggerNormalSearch()">
+      <option value="">전체 상태</option>
+      <option value="ON_SALE">판매중</option>
+      <option value="SALE_ENDED">판매 종료</option>
+      <option value="SOLD_OUT">매진</option>
+      <option value="CLOSED">마감</option>
+      <option value="CANCELLED">취소</option>
+    </select>
     <button class="btn" onclick="triggerNormalSearch()"><i class="ti ti-search"></i>검색</button>
     <button class="btn btn-outline" onclick="openSearchModal()"><i class="ti ti-adjustments-horizontal"></i>상세 검색</button>
     <button class="btn btn-outline" onclick="resetEventSearch()"><i class="ti ti-refresh"></i>검색 조건 초기화</button>
@@ -37,6 +45,7 @@
       <col style="width:60px;">
       <col style="width:90px;">
       <col style="width:90px;">
+      <col style="width:90px;">
       <col style="width:140px;">
       <col style="width:120px;">
       <col style="width:220px;">
@@ -53,7 +62,6 @@
       <col style="width:80px;">
       <col style="width:100px;">
       <col style="width:100px;">
-      <col style="width:90px;">
       <col style="width:260px;">
     </colgroup>
     <thead>
@@ -62,6 +70,7 @@
         <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this)" title="전체 선택">
       </th>
       <th>순서</th>
+      <th>상태</th>
       <th>포스터</th>
       <th class="sortable" data-sort-field="eventId" onclick="handleSortClick(this, event)">이벤트 ID <i class="sort-icon">-</i></th>
       <th>그룹 코드</th>
@@ -80,7 +89,6 @@
       <th>연령</th>
       <th>총 좌석</th>
       <th>잔여석</th>
-      <th>상태</th>
       <th class="actions">관리</th>
     </tr>
     </thead>

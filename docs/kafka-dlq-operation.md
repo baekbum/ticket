@@ -8,7 +8,9 @@
 | --- | --- | --- | --- | --- |
 | `user-event` | `user-event.DLT` | `user-service` | `auth-service` | 사용자 인증 DB 동기화 |
 | `audit-log` | `audit-log.DLT` | `common` `AuditLogProducer` | `audit-service` | 감사 로그 저장 |
+| `login-log` | `login-log.DLT` | `auth-service` | `audit-service` | 로그인 로그 저장 |
 | `payment-completed` | `payment-completed.DLT` | `ticket-service` | 없음 | 결제 완료 후속 Consumer 추가 시 사용 |
+| `virtual-account-expired` | `virtual-account-expired.DLT` | `payment-gateway-service` Outbox | `ticket-service` | 가상계좌 만료에 따른 결제·예매 만료 반영 |
 
 ## 발생 흐름
 

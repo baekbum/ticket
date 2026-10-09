@@ -45,7 +45,20 @@ test('geometry, gradients and area interaction attributes survive sanitization',
   assert.equal(area.getAttribute('fill'), 'url(#paint)');
   assert.equal(host.querySelector('svg').getAttribute('viewBox'), '0 0 420 180');
   assert.ok(host.querySelector('linearGradient'));
+  assert.equal(area.querySelector('title').textContent, 'VIP A · 165,000원');
   assert.equal(sanitizeLayoutSvg(clean), clean);
+});
+
+test('allowed text remains escaped while forbidden wrapper content is discarded', () => {
+  const clean = sanitizeLayoutSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+    <text>&lt;img src=x onerror=alert(1)&gt;</text>
+    <a href="javascript:alert(1)"><text>discarded link content</text></a>
+  </svg>`);
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = clean;
+  assert.equal(host.querySelector('img, a'), null);
+  assert.equal(host.querySelector('text').textContent, '<img src=x onerror=alert(1)>');
+  assert.doesNotMatch(clean, /discarded link content/);
 });
 
 test('external paint references, namespaced handlers and SVG animation are removed', () => {
@@ -57,4 +70,22 @@ test('external paint references, namespaced handlers and SVG animation are remov
     <set attributeName="onload" to="alert(1)"/><svg xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></svg>
     <path xlink:href="javascript:alert(1)" onpointerenter="alert(1)"/></svg>`);
   assert.doesNotMatch(clean, /<set|<script|onpointerenter|javascript:/);
+});
+
+test('flattened layout colors, labels, fonts and click-through survive repeated sanitization', () => {
+  const clean = sanitizeLayoutSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 870">
+    <rect class="bg" width="850" height="870" fill="#cfe7f4"/>
+    <text class="title" fill="#69a8d1" font-size="38px" font-weight="700" font-family="Arial, sans-serif">좌석 배치도</text>
+    <rect class="area vip" data-layout-key="A" fill="#456bd7"/>
+    <text class="label" fill="#fff" font-size="15px" text-anchor="middle" pointer-events="none">A</text>
+  </svg>`);
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = sanitizeLayoutSvg(clean);
+  assert.equal(host.querySelector('.bg').getAttribute('fill'), '#cfe7f4');
+  assert.equal(host.querySelector('.title').getAttribute('font-size'), '38px');
+  assert.equal(host.querySelector('.title').textContent, '좌석 배치도');
+  assert.equal(host.querySelector('.label').getAttribute('fill'), '#fff');
+  assert.equal(host.querySelector('.label').getAttribute('pointer-events'), 'none');
+  assert.equal(host.querySelector('.area').getAttribute('data-layout-key'), 'A');
+  assert.equal(sanitizeLayoutSvg(clean), clean);
 });

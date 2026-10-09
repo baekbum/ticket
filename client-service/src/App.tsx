@@ -2901,7 +2901,7 @@ function BookingWindowPage() {
                 <div><dt>결제 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
               </> : <>
               <div><dt>입금 은행</dt><dd>{completedPayment.bankName}</dd></div>
-              <div><dt>계좌번호</dt><dd>{completedPayment.accountNumber}</dd></div>
+              <div><dt>계좌번호</dt><dd><BookingAccountNumber accountNumber={completedPayment.accountNumber} /></dd></div>
               <div><dt>입금 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
               <div><dt>입금 기한 (한국시간)</dt><dd>{completedPayment.expiresAt?.replace('T', ' ')}</dd></div>
               </>}
@@ -3162,6 +3162,58 @@ function BookingWindowPage() {
         </aside>
       </main>
     </section>
+  );
+}
+
+function BookingAccountNumber({ accountNumber }: { accountNumber?: string | null }) {
+  const [copyMessage, setCopyMessage] = useState('');
+  const [isCopying, setIsCopying] = useState(false);
+  const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (copyToastTimer.current !== null) clearTimeout(copyToastTimer.current);
+  }, []);
+
+  function showCopyToast(message: string, duration: number) {
+    if (copyToastTimer.current !== null) clearTimeout(copyToastTimer.current);
+    setCopyMessage(message);
+    copyToastTimer.current = setTimeout(() => {
+      setCopyMessage('');
+      copyToastTimer.current = null;
+    }, duration);
+  }
+
+  async function copyAccountNumber() {
+    if (!accountNumber) return;
+    setIsCopying(true);
+    if (copyToastTimer.current !== null) clearTimeout(copyToastTimer.current);
+    setCopyMessage('');
+    try {
+      await navigator.clipboard.writeText(accountNumber);
+      showCopyToast('복사 됐습니다.', 1000);
+    } catch {
+      showCopyToast('복사하지 못했습니다. 다시 시도해주세요.', 3000);
+    } finally {
+      setIsCopying(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="booking-account-number">
+        <span>{accountNumber}</span>
+        <button
+          className="booking-account-copy-button"
+          type="button"
+          aria-label="계좌번호 복사"
+          disabled={!accountNumber || isCopying}
+          onClick={copyAccountNumber}
+        >
+          {isCopying ? '복사 중' : '복사'}
+        </button>
+      </div>
+      {copyMessage && <div className="booking-account-copy-toast" role="status">{copyMessage}</div>}
+    </div>
   );
 }
 

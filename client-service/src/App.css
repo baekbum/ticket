@@ -2115,6 +2115,44 @@ button {
 .booking-deposit-details dt { color: #666; }
 .booking-deposit-details dd { margin: 0; overflow-wrap: anywhere; }
 .booking-deposit-details strong { color: #008a32; font-size: 22px; }
+.booking-account-number {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.booking-account-copy-button {
+  padding: 5px 12px;
+  border: 1px solid #cdd9d0;
+  border-radius: 6px;
+  background: #f4f8f5;
+  color: #176b32;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-account-copy-button:hover:not(:disabled) { background: #e6f1e9; }
+.booking-account-copy-button:focus-visible { outline: 2px solid #176b32; outline-offset: 2px; }
+.booking-account-copy-button:disabled { opacity: 0.5; cursor: default; }
+.booking-account-copy-toast {
+  position: fixed;
+  top: 66.6667%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: rgba(24, 37, 28, 0.95);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
 
 .booking-agreement-list {
   display: grid;

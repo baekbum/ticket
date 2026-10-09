@@ -55,3 +55,7 @@ output/
 .env
 *.env
 !*.env.example
+
+### Local ingress certificates and tools ###
+/infra/infra-ingress/certs/
+/infra/infra-ingress/mkcert*.exe
