@@ -3,10 +3,12 @@ package dev.bum.queue_service.scheduler;
 import dev.bum.queue_service.service.QueueService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.queue.cleanup-mode", havingValue = "blocking", matchIfMissing = true)
 public class QueueCleanupScheduler {
 
     private final QueueService queueService;
