@@ -4,6 +4,8 @@ import dev.bum.common.service.queue.dto.*;
 import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import dev.bum.queue_service.service.QueueSessionType;
+import io.micrometer.observation.ObservationRegistry;
+import reactor.core.observability.micrometer.Micrometer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -22,6 +24,7 @@ import java.util.function.Supplier;
 public class ReactiveQueueService {
     private static final String STATUS_SESSION_LIMIT_CONFIRM_REQUIRED = "SESSION_LIMIT_CONFIRM_REQUIRED";
     private final ReactiveStringRedisTemplate redis;
+    private final ObservationRegistry observationRegistry;
     private final QueueProperties properties;
     private final ReactiveWaitingQueueService waiting;
     private final ReactiveActiveQueueService active;
@@ -123,9 +126,13 @@ public class ReactiveQueueService {
 
     private <T> Mono<T> logged(String operation, Long eventId, String userId, Supplier<Mono<T>> action) {
         // 구독 시 발생하는 Redis 오류까지 기록하고 호출자에게 그대로 전달한다.
-        return Mono.defer(action).doOnError(DataAccessException.class, error ->
-                log.error("[REDIS-ERROR] Queue Redis 처리 실패. operation={}, eventId={}, userId={}",
-                        operation, eventId, userId, error));
+        return Mono.defer(action)
+                .doOnError(DataAccessException.class, error ->
+                        log.error("[REDIS-ERROR] Queue Redis 처리 실패. operation={}, eventId={}, userId={}", operation, eventId, userId, error)
+                )
+                // Mono 생성 시간이 아니라 구독부터 완료·오류·취소까지 관측한다.
+                .name("queue." + ("validate".equals(operation) ? "validate-token" : operation))
+                .tap(Micrometer.observation(observationRegistry));
     }
 
     private QueueTokenInvalidException invalidToken() {

@@ -1,5 +1,7 @@
 # WebFlux 전환 3단계: Reactive 대기열 서비스
 
+> 이 문서는 해당 단계 당시의 기록이다. 현재 실행 경로는 [4단계 실행 앱 전환](webflux-runtime.md)을 참고한다.
+
 ## 변경 내용과 실행 경로
 
 기존 MVC 컨트롤러는 기존 동기 서비스를 계속 사용한다. 같은 queue-service 앱 안에 아래 Reactive 서비스를 추가해 실제 Redis에서 동작을 검증했다.

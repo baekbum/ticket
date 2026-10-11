@@ -22,7 +22,7 @@ class ReactiveQueueServiceErrorTest {
         when(waiting.pruneExpiredWaitingTokens(1L, "user")).thenReturn(Mono.error(failure));
         when(active.pruneExpiredActiveTokens(1L)).thenReturn(Mono.empty());
         when(waiting.isWaitingTokenValid(1L, "user", "token")).thenReturn(Mono.just(true));
-        var queue = new ReactiveQueueService(redis, new QueueProperties(), waiting, active, sessions);
+        var queue = new ReactiveQueueService(redis, io.micrometer.observation.ObservationRegistry.NOOP, new QueueProperties(), waiting, active, sessions);
         var request = queue.status(1L, "user", "token");
         clearInvocations(waiting, active);
         verifyNoInteractions(waiting, active, sessions, redis);

@@ -5,7 +5,7 @@ import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.aop.ObservedAspect;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.server.observation.ServerRequestObservationContext;
+import org.springframework.http.server.reactive.observation.ServerRequestObservationContext;
 
 @Configuration
 public class ObservabilityConfig {
@@ -17,7 +17,7 @@ public class ObservabilityConfig {
                 return false;
             }
             if (context instanceof ServerRequestObservationContext serverContext) {
-                return !serverContext.getCarrier().getRequestURI().contains("/actuator");
+                return !serverContext.getCarrier().getURI().getPath().contains("/actuator");
             }
             return true;
         };

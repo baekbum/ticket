@@ -2,6 +2,9 @@ server:
   port: 8083
 
 spring:
+  reactor:
+    # 스레드가 바뀌어도 관측 정보와 traceId를 이어서 전달한다.
+    context-propagation: auto
   profiles:
     default: local
   application:
@@ -21,6 +24,7 @@ app:
     max-sessions-per-user: 4
     active-token-ttl: 20m
     waiting-token-ttl: 1m
+    cleanup-mode: reactive
     cleanup-fixed-delay-ms: 20000
     cleanup-scan-count: 1000
 

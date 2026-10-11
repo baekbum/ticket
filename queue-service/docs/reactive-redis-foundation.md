@@ -1,5 +1,7 @@
 # WebFlux 전환 2단계: Reactive Redis 기반
 
+> 이 문서는 해당 단계 당시의 기록이다. 현재 실행 경로는 [4단계 실행 앱 전환](webflux-runtime.md)을 참고한다.
+
 ## 변경 내용
 
 - queue-service에 spring-boot-starter-data-redis-reactive와 reactor-test를 추가했다.

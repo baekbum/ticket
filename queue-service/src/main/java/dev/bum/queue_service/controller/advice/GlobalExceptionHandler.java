@@ -5,7 +5,7 @@ import dev.bum.common.error.ErrorResponse;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,8 +27,8 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(ErrorCode.QUEUE_TOKEN_INVALID, ex.getMessage()));
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+    @ExceptionHandler(WebExchangeBindException.class)
+    public ResponseEntity<ErrorResponse> handleWebExchangeBindException(WebExchangeBindException ex) {
         Map<String, String> details = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         fieldError -> fieldError.getField(),
