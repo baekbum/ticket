@@ -39,17 +39,24 @@ public class ReactiveWaitingQueueService {
                             List.of(token, tokenValue(eventId, userId), String.valueOf(now), String.valueOf(now + ttl),
                                     String.valueOf(ttl), String.valueOf(properties.getMaxSessionsPerUser()),
                                     keys.waitingSessionMember(token)))
-                    .next().filter(result -> result == 1L).map(result -> token);
+                    .next()
+                    .filter(result -> result == 1L)
+                    .map(result -> token);
         });
     }
+
     public Mono<QueueStatusResponse> waitingStatusResponse(Long eventId, String userId, String token) {
-        return redis.opsForZSet().rank(keys.waitingKey(eventId), token).map(rank -> Optional.of(rank + 1))
-                .defaultIfEmpty(Optional.empty()).flatMap(rank -> estimatedEntryAt(eventId, rank.orElse(null))
-                        .map(Optional::of).defaultIfEmpty(Optional.empty())
-                        .flatMap(eta -> waitingCount(eventId).map(count -> new QueueStatusResponse(
-                                eventId, STATUS_WAITING, rank.orElse(null), count, token,
-                                properties.getWaitingTokenTtl().toSeconds(), eta.orElse(null),
-                                eta.map(time -> time.plus(properties.getActiveTokenTtl())).orElse(null)))));
+        return redis.opsForZSet().rank(keys.waitingKey(eventId), token)
+                .map(rank -> Optional.of(rank + 1))
+                .defaultIfEmpty(Optional.empty())
+                .flatMap(rank -> estimatedEntryAt(eventId, rank.orElse(null))
+                        .map(Optional::of)
+                        .defaultIfEmpty(Optional.empty())
+                        .flatMap(eta -> waitingCount(eventId)
+                                .map(count -> new QueueStatusResponse(
+                                        eventId, STATUS_WAITING, rank.orElse(null), count, token,
+                                        properties.getWaitingTokenTtl().toSeconds(), eta.orElse(null),
+                                        eta.map(time -> time.plus(properties.getActiveTokenTtl())).orElse(null)))));
     }
 
     public Mono<Boolean> isWaitingTokenValid(Long eventId, String userId, String token) {
@@ -57,7 +64,8 @@ public class ReactiveWaitingQueueService {
             if (!StringUtils.hasText(token)) return Mono.just(false);
             return redis.opsForValue().get(keys.waitingTokenKey(token))
                     .filter(value -> tokenValue(eventId, userId).equals(value))
-                    .flatMap(value -> redis.opsForZSet().score(keys.waitingKey(eventId), token).hasElement())
+                    .flatMap(value -> redis.opsForZSet().score(keys.waitingKey(eventId), token)
+                            .hasElement())
                     .defaultIfEmpty(false);
         });
     }
@@ -69,15 +77,18 @@ public class ReactiveWaitingQueueService {
     private Mono<Void> removeWaiting(Long eventId, String userId, String token, long cutoff) {
         boolean hasUser = StringUtils.hasText(userId);
         return redis.execute(QueueRedisScripts.REMOVE_TOKEN, waitingKeys(eventId, userId, token),
-                List.of(token, keys.waitingSessionMember(token), String.valueOf(cutoff), hasUser ? "1" : "0")).then();
+                        List.of(token, keys.waitingSessionMember(token), String.valueOf(cutoff), hasUser ? "1" : "0"))
+                .then();
     }
 
     private List<String> waitingKeys(Long eventId, String userId, String token) {
         return List.of(keys.waitingKey(eventId), keys.waitingExpiryKey(eventId),
                 keys.waitingTokenKey(token), keys.userSessionsKey(userId == null ? "" : userId));
     }
+
     public Mono<Long> waitingCount(Long eventId) {
-        return redis.opsForZSet().size(keys.waitingKey(eventId)).defaultIfEmpty(0L);
+        return redis.opsForZSet().size(keys.waitingKey(eventId))
+                .defaultIfEmpty(0L);
     }
 
     public Mono<Void> pruneExpiredWaitingTokens(Long eventId) {
@@ -89,9 +100,12 @@ public class ReactiveWaitingQueueService {
             long cutoff = nowMillis();
             return redis.opsForZSet().rangeByScore(keys.waitingExpiryKey(eventId), Range.closed(0.0, (double) cutoff))
                     .concatMap(token -> redis.opsForValue().get(keys.waitingTokenKey(token))
-                            .map(value -> value.split(":", 2)).filter(parts -> parts.length == 2)
-                            .map(parts -> Optional.of(parts[1])).defaultIfEmpty(Optional.empty())
-                            .flatMap(owner -> removeWaiting(eventId, owner.orElse(null), token, cutoff))).then();
+                            .map(value -> value.split(":", 2))
+                            .filter(parts -> parts.length == 2)
+                            .map(parts -> Optional.of(parts[1]))
+                            .defaultIfEmpty(Optional.empty())
+                            .flatMap(owner -> removeWaiting(eventId, owner.orElse(null), token, cutoff)))
+                    .then();
         });
     }
 
@@ -101,11 +115,13 @@ public class ReactiveWaitingQueueService {
             return redis.execute(QueueRedisScripts.REFRESH_WAITING, waitingKeys(eventId, userId, token),
                             List.of(token, tokenValue(eventId, userId), String.valueOf(ttl),
                                     String.valueOf(nowMillis() + ttl), keys.waitingSessionMember(token)))
-                    .next().filter(result -> result == 1L)
+                    .next()
+                    .filter(result -> result == 1L)
                     .switchIfEmpty(Mono.error(new QueueTokenInvalidException("대기 토큰이 만료되었거나 이미 처리되었습니다.")))
                     .then();
         });
     }
+
     private Mono<Instant> estimatedEntryAt(Long eventId, Long rank) {
         if (rank == null || rank <= 0) return Mono.empty();
         return Mono.defer(() -> {
@@ -127,7 +143,11 @@ public class ReactiveWaitingQueueService {
         return Instant.ofEpochMilli(eta);
     }
 
-    private String tokenValue(Long eventId, String userId) { return eventId + ":" + userId; }
+    private String tokenValue(Long eventId, String userId) {
+        return eventId + ":" + userId;
+    }
 
-    private long nowMillis() { return Instant.now().toEpochMilli(); }
+    private long nowMillis() {
+        return Instant.now().toEpochMilli();
+    }
 }

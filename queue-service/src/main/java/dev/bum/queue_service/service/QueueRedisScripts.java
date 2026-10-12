@@ -11,16 +11,25 @@ public final class QueueRedisScripts {
     public static final RedisScript<Long> ADMIT_IF_SLOT_AVAILABLE =
             load("redis/queue-admit.lua");
 
+    public static final RedisScript<String> STATUS_WITH_IDEMPOTENCY =
+            RedisScript.of(read("redis/queue-status.lua"), String.class);
+
     public static final RedisScript<Long> REGISTER_WAITING =
             load("redis/queue-register.lua");
     public static final RedisScript<Long> REFRESH_WAITING =
             load("redis/queue-refresh.lua");
+    public static final RedisScript<Long> CLEAR_EVENT =
+            load("redis/queue-clear-event.lua");
     public static final RedisScript<Long> REMOVE_TOKEN =
             load("redis/queue-remove.lua");
 
     private static RedisScript<Long> load(String path) {
+        return RedisScript.of(read(path), Long.class);
+    }
+
+    private static String read(String path) {
         try (var input = new ClassPathResource(path).getInputStream()) {
-            return RedisScript.of(new String(input.readAllBytes(), StandardCharsets.UTF_8), Long.class);
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException error) {
             throw new UncheckedIOException("대기열 Redis 스크립트를 읽을 수 없습니다: " + path, error);
         }

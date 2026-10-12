@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$Jar,
-    [string]$OutputDirectory = "$PSScriptRoot/results/step5/validation"
+    [string]$OutputDirectory = "$PSScriptRoot/results/idempotency/validation"
 )
 $ErrorActionPreference = 'Stop'
 $Jar = (Resolve-Path $Jar).Path
@@ -26,7 +26,8 @@ function Jwt([string]$User) {
 }
 function Request([string]$Method, [string]$Path, [hashtable]$Headers, [string]$Body) {
     $response = Invoke-WebRequest "http://127.0.0.1:18084$Path" -Method $Method -Headers $Headers -Body $Body -ContentType 'application/json' -SkipHttpErrorCheck -TimeoutSec 10
-    return @{ status=[int]$response.StatusCode; data=($response.Content | ConvertFrom-Json) }
+    $data = if ([string]::IsNullOrWhiteSpace($response.Content)) { $null } else { $response.Content | ConvertFrom-Json }
+    return @{ status=[int]$response.StatusCode; data=$data }
 }
 & docker run --rm -d --name $redisName -p "127.0.0.1:${redisPort}:6379" redis:7.4-alpine | Set-Content "$OutputDirectory/redis-container.txt"
 if ($LASTEXITCODE -ne 0) { throw 'Redis 시작 실패' }
@@ -47,8 +48,8 @@ try {
         }
         if (!$ready) { throw "앱 준비 실패: $port" }
     }
-    $commands = @('SET AUTH:STATE:cluster-shared 1:1:ROLE_USER EX 7200','SET AUTH:STATE:cluster-fault 1:1:ROLE_USER EX 7200')
-    $commands += 1..36 | ForEach-Object { "SET AUTH:STATE:cluster-user-$_ 1:1:ROLE_USER EX 7200" }
+    $commands = @('SET AUTH:STATE:cluster-shared 1:1:ROLE_USER EX 7200','SET AUTH:STATE:cluster-fault 1:1:ROLE_USER EX 7200','SET AUTH:STATE:cluster-replay 1:1:ROLE_USER EX 7200')
+    $commands += 1..60 | ForEach-Object { "SET AUTH:STATE:cluster-user-$_ 1:1:ROLE_USER EX 7200" }
     $commands | docker exec -i $redisName redis-cli -n 0 --raw | Out-Null
     & docker run --rm --add-host=host.docker.internal:host-gateway -v "${PSScriptRoot}:/scripts:ro" -v "${OutputDirectory}:/results" grafana/k6:0.57.0 run --quiet /scripts/multi-instance-load.js 2>&1 | Out-File "$OutputDirectory/k6.log"
     if ($LASTEXITCODE -ne 0) { throw '다중 인스턴스 HTTP 검증 실패' }
@@ -57,6 +58,11 @@ try {
         ready=$summary.metrics.distinct_ready.values.count; waiting=$summary.metrics.distinct_waiting.values.count }
     if ($counts.registered -ne 2 -or $counts.limited -ne 22 -or $counts.ready -ne 2 -or $counts.waiting -ne 10) {
         throw "동시성 불변식 실패: $($counts | ConvertTo-Json -Compress)"
+    }
+    $counts.replays = $summary.metrics.replay_ready.values.count
+    $counts.replaySlots = [int](docker exec $redisName redis-cli -n 2 ZCARD queue:event:930004:active)
+    if ($counts.replays -ne 24 -or $counts.replaySlots -ne 1) {
+        throw '두 인스턴스에서 같은 활성 토큰을 복구하지 못했습니다.'
     }
     $counts.sharedSessions = [int](docker exec $redisName redis-cli -n 2 ZCARD queue:user-sessions:cluster-shared)
     $counts.activeSlots = [int](docker exec $redisName redis-cli -n 2 ZCARD queue:event:930002:active)
@@ -84,11 +90,21 @@ try {
     # 첫 승격 응답을 받지 못한 클라이언트의 같은 대기 토큰 재시도를 재현한다.
     $promoted = Request 'GET' '/api/v1/queue/events/930003/status' $headers $null
     $retry = Request 'GET' '/api/v1/queue/events/930003/status' $headers $null
-    if ($promoted.data.status -ne 'READY' -or $retry.status -ne 400) { throw '응답 유실 시 현재 계약 검증 실패' }
+    if ($promoted.data.status -ne 'READY' -or $retry.status -ne 200 -or $retry.data.token -ne $promoted.data.token -or
+            $retry.data.activeTokenExpiresAt -ne $promoted.data.activeTokenExpiresAt) {
+        throw '응답 유실 후 같은 활성 토큰 복구 실패'
+    }
     $activeCount = docker exec $redisName redis-cli -n 2 ZCARD queue:event:930003:active
     $activeTtl = docker exec $redisName redis-cli -n 2 TTL "queue:active-token:$($promoted.data.token)"
     if ([int]$activeCount -ne 1 -or [int]$activeTtl -le 0) { throw '응답 유실 후 세션 정합성 실패' }
-    @{ processes=@($apps | ForEach-Object Id); concurrency=$counts; authenticationFailure=$authFailure;
+    $completeBody = @{eventId=930003;userId='cluster-fault';token=$promoted.data.token} | ConvertTo-Json -Compress
+    $completed = Request 'POST' '/api/v1/queue/complete' @{} $completeBody
+    $completedRetry = Request 'GET' '/api/v1/queue/events/930003/status' $headers $null
+    $mappingCount = [int](docker exec $redisName redis-cli -n 2 EXISTS "queue:waiting-active:$($entered.data.token)" "queue:active-waiting:$($promoted.data.token)")
+    if ($completed.status -ne 204 -or $completedRetry.status -ne 400 -or $mappingCount -ne 0) {
+        throw '완료 후 멱등 매핑 폐기 검증 실패'
+    }
+    @{ completedRetryStatus=$completedRetry.status;mappingKeyCountAfterCompletion=$mappingCount; processes=@($apps | ForEach-Object Id); concurrency=$counts; authenticationFailure=$authFailure;
         authenticationFailureSeconds=$authSeconds; queueFailure=$queueFailure; queueFailureSeconds=$queueSeconds;
         recoveredStatus=$entered.status; lostResponseRetryStatus=$retry.status; activeCount=[int]$activeCount; activeTtl=[int]$activeTtl } |
         ConvertTo-Json -Depth 6 | Set-Content "$OutputDirectory/validation.json"

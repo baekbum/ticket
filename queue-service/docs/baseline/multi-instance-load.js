@@ -8,10 +8,12 @@ const registered = new Counter('shared_registered');
 const rejected = new Counter('shared_limited');
 const ready = new Counter('distinct_ready');
 const waiting = new Counter('distinct_waiting');
+const replays = new Counter('replay_ready');
 const ports = [18084, 18085];
 export const options = {
   scenarios: {
     shared: { executor: 'per-vu-iterations', vus: 24, iterations: 1, exec: 'shared', maxDuration: '30s' },
+    replay: { executor: 'per-vu-iterations', vus: 24, iterations: 1, exec: 'replay', maxDuration: '30s' },
     distinct: { executor: 'per-vu-iterations', vus: 12, iterations: 1, exec: 'distinct', maxDuration: '30s' },
   },
   thresholds: { checks: ['rate==1'], http_req_failed: ['rate==0'] },
@@ -32,6 +34,28 @@ function enter(user, event) {
   const response = http.post(base + '/enter', null, { headers });
   check(response, { 'registration HTTP 200': r => r.status === 200 });
   return { response, headers, other: 'http://host.docker.internal:' + ports[1 - index] + '/api/v1/queue/events/' + event };
+}
+export function setup() {
+  const headers = { Authorization: bearer('cluster-replay') };
+  const base = 'http://host.docker.internal:18084/api/v1/queue/events/930004';
+  const entered = http.post(base + '/enter', null, { headers });
+  if (!check(entered, { 'replay registration': r => r.status === 200 && r.json().status === 'WAITING' })) {
+    throw new Error('멱등 조회 준비 실패');
+  }
+  const token = entered.json().token;
+  const promoted = http.get(base + '/status', { headers: Object.assign({}, headers, { 'X-Waiting-Token': token }) });
+  if (!check(promoted, { 'replay first promotion': r => r.status === 200 && r.json().status === 'READY' })) {
+    throw new Error('첫 승격 준비 실패');
+  }
+  return { waitingToken: token, activeToken: promoted.json().token, expiresAt: promoted.json().activeTokenExpiresAt };
+}
+export function replay(data) {
+  const response = http.get('http://host.docker.internal:' + ports[__VU % 2] + '/api/v1/queue/events/930004/status', {
+    headers: { Authorization: bearer('cluster-replay'), 'X-Waiting-Token': data.waitingToken },
+  });
+  if (check(response, { 'both instances return the same active token and expiry': r =>
+    r.status === 200 && r.json().status === 'READY' && r.json().token === data.activeToken &&
+    r.json().activeTokenExpiresAt === data.expiresAt })) replays.add(1);
 }
 export function shared() {
   const entered = enter('cluster-shared', 930001);

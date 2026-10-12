@@ -33,14 +33,16 @@ public class ReactiveJwtAuthenticationFilter implements WebFilter {
                 return chain.filter(exchange);
             }
 
-            return authenticate(bearer.substring(7)).flatMap(result -> {
-                if (result.authentication() == null) {
-                    return writeError(exchange, result.status(), result.message());
-                }
-                // 스레드 로컬 대신 Reactor Context를 통해 후속 필터와 컨트롤러에 전달한다.
-                return chain.filter(exchange).contextWrite(
-                        ReactiveSecurityContextHolder.withAuthentication(result.authentication()));
-            });
+            return authenticate(bearer.substring(7))
+                    .flatMap(result -> {
+                        if (result.authentication() == null) {
+                            return writeError(exchange, result.status(), result.message());
+                        }
+                        // 스레드 로컬 대신 Reactor Context를 통해 후속 필터와 컨트롤러에 전달한다.
+                        return chain.filter(exchange)
+                                .contextWrite(
+                                        ReactiveSecurityContextHolder.withAuthentication(result.authentication()));
+                    });
         });
     }
 

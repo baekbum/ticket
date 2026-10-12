@@ -29,22 +29,26 @@ public class ReactiveQueueAdminService {
             userIds.forEach(userId -> {
                 if (!StringUtils.hasText(userId)) throw new IllegalArgumentException("인증 정보가 올바르지 않습니다.");
             });
-            return Flux.fromIterable(userIds).concatMap(sessions::prune).then(active.activeTokenByUserId(eventId, userIds))
-                    .flatMap(activeTokens -> Flux.fromIterable(userIds).concatMap(userId -> {
-                        String token = activeTokens.get(userId);
-                        if (token != null) return active.readyStatusResponse(eventId, token);
-                        return waitingStatus(eventId, userId, tokens == null ? null : tokens.get(userId));
-                    }).collectList());
-        }).doOnError(DataAccessException.class, error ->
-                log.error("[REDIS-ERROR] 관리자 대기열 조회 실패. eventId={}", eventId, error)).name("queue.admin.statuses").tap(Micrometer.observation(observationRegistry));
+            return Flux.fromIterable(userIds)
+                    .concatMap(sessions::prune)
+                    .then(active.activeTokenByUserId(eventId, userIds))
+                    .flatMap(activeTokens -> Flux.fromIterable(userIds)
+                            .concatMap(userId -> {
+                                String token = activeTokens.get(userId);
+                                if (token != null) return active.readyStatusResponse(eventId, token);
+                                return waitingStatus(eventId, userId, tokens == null ? null : tokens.get(userId));
+                            })
+                            .collectList());
+        })
+                .doOnError(DataAccessException.class, error ->
+                        log.error("[REDIS-ERROR] 관리자 대기열 조회 실패. eventId={}", eventId, error))
+                .name("queue.admin.statuses")
+                .tap(Micrometer.observation(observationRegistry));
     }
 
     private Mono<QueueStatusResponse> waitingStatus(Long eventId, String userId, String token) {
-        return waiting.isWaitingTokenValid(eventId, userId, token).flatMap(valid -> {
-            if (!valid) return Mono.error(new QueueTokenInvalidException("올바르지 않은 시도입니다. 다시 시도해주세요."));
-            return waiting.refreshWaitingToken(eventId, userId, token).then(active.admit(eventId, userId, token))
-                    .flatMap(activeToken -> active.readyStatusResponse(eventId, activeToken))
-                    .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, userId, token)));
-        });
+        return active.admit(eventId, userId, token)
+                .flatMap(activeToken -> active.readyStatusResponse(eventId, activeToken))
+                .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, userId, token)));
     }
 }

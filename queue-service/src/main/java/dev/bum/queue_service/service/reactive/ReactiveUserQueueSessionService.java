@@ -16,7 +16,8 @@ public class ReactiveUserQueueSessionService {
     private final QueueRedisKeys keys;
 
     public Mono<Void> addWaiting(String userId, String token, long expiresAt) {
-        return redis.opsForZSet().add(keys.userSessionsKey(userId), keys.waitingSessionMember(token), expiresAt).then();
+        return redis.opsForZSet().add(keys.userSessionsKey(userId), keys.waitingSessionMember(token), expiresAt)
+                .then();
     }
 
     public Mono<Void> removeWaiting(String userId, String token) {
@@ -29,40 +30,50 @@ public class ReactiveUserQueueSessionService {
 
     private Mono<Void> removeMember(String userId, String member) {
         return Mono.defer(() -> StringUtils.hasText(userId)
-                ? redis.opsForZSet().remove(keys.userSessionsKey(userId), member).then() : Mono.empty());
+                ? redis.opsForZSet().remove(keys.userSessionsKey(userId), member)
+                        .then() : Mono.empty());
     }
 
     public Mono<Long> count(String userId) {
-        return redis.opsForZSet().size(keys.userSessionsKey(userId)).defaultIfEmpty(0L);
+        return redis.opsForZSet().size(keys.userSessionsKey(userId))
+                .defaultIfEmpty(0L);
     }
 
     public Mono<QueueUserSession> activeSession(String userId) {
         return redis.opsForZSet().range(keys.userSessionsKey(userId), Range.closed(0L, -1L))
-                .filter(member -> member.startsWith("active:")).next().flatMap(this::toUserSession);
+                .filter(member -> member.startsWith("active:"))
+                .next()
+                .flatMap(this::toUserSession);
     }
 
     public Mono<QueueUserSession> firstExpiringSession(String userId) {
         return redis.opsForZSet().range(keys.userSessionsKey(userId), Range.closed(0L, 0L))
-                .next().flatMap(this::toUserSession);
+                .next()
+                .flatMap(this::toUserSession);
     }
 
     public Mono<Long> eventIdForSession(String userId, QueueUserSession session) {
         String tokenKey = session.type() == QueueSessionType.WAITING
                 ? keys.waitingTokenKey(session.token()) : keys.activeTokenKey(session.token());
-        return redis.opsForValue().get(tokenKey).flatMap(value -> {
-            String[] parts = value.split(":", 2);
-            if (parts.length != 2 || !parts[1].equals(userId)) return Mono.empty();
-            try {
-                return Mono.just(Long.valueOf(parts[0]));
-            } catch (NumberFormatException ignored) {
-                return Mono.empty();
-            }
-        });
+
+        return redis.opsForValue().get(tokenKey)
+                .flatMap(value -> {
+                    String[] parts = value.split(":", 2);
+
+                    if (parts.length != 2 || !parts[1].equals(userId)) return Mono.empty();
+
+                    try {
+                        return Mono.just(Long.valueOf(parts[0]));
+                    } catch (NumberFormatException ignored) {
+                        return Mono.empty();
+                    }
+                });
     }
 
     public Mono<Void> prune(String userId) {
         return redis.opsForZSet().range(keys.userSessionsKey(userId), Range.closed(0L, -1L))
-                .collectList().flatMap(members -> {
+                .collectList()
+                .flatMap(members -> {
                     if (members.isEmpty()) return Mono.empty();
 
                     return redis.opsForValue().multiGet(members.stream().map(this::tokenKey).toList())
@@ -85,8 +96,10 @@ public class ReactiveUserQueueSessionService {
         } else {
             return Mono.empty();
         }
-        return redis.getExpire(tokenKey(member)).map(ReactiveQueueRedisSupport::ttlSeconds)
-                .defaultIfEmpty(-1L).map(ttl -> new QueueUserSession(type, token, ttl));
+        return redis.getExpire(tokenKey(member))
+                .map(ReactiveQueueRedisSupport::ttlSeconds)
+                .defaultIfEmpty(-1L)
+                .map(ttl -> new QueueUserSession(type, token, ttl));
     }
 
     private String tokenKey(String member) {

@@ -112,3 +112,5 @@ Prometheus 테스트는 Spring Boot 테스트의 기본 내보내기 비활성�
 AutoConfigureObservability를 명시한 뒤 통과했다. 이 두 건 때문에 운영 CORS나 인증 규칙을 완화하지 않았다.
 
 5단계의 동시성·장애·블로킹 탐지 및 반복 부하 비교 결과는 [webflux-validation.md](webflux-validation.md)에 기록했다.
+
+승격 응답 유실 시 같은 대기 토큰으로 활성 세션을 복구하는 현재 계약은 [queue-admission-idempotency.md](queue-admission-idempotency.md)에 기록했다.

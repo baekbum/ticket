@@ -17,7 +17,8 @@ public final class ReactiveTokenStateStore implements AutoCloseable {
     }
 
     public Mono<TokenState> get(String userId) {
-        return redis.opsForValue().get(TokenStateStore.key(userId)).map(TokenState::decode);
+        return redis.opsForValue().get(TokenStateStore.key(userId))
+                .map(TokenState::decode);
     }
 
     @Override

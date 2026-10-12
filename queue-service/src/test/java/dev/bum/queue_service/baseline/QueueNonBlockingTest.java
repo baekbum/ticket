@@ -65,6 +65,12 @@ class QueueNonBlockingTest {
                 .header("X-Waiting-Token", (String) entered.get("token"))
                 .exchange().expectStatus().isOk().expectBody(Map.class).returnResult().getResponseBody();
         org.assertj.core.api.Assertions.assertThat(ready.get("status")).isEqualTo("READY");
+        // 저장된 승격 결과를 복구하는 경로도 이벤트 루프를 블로킹하지 않아야 한다.
+        client.get().uri("/api/v1/queue/events/" + event + "/status")
+                .header("X-Waiting-Token", (String) entered.get("token"))
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.token").isEqualTo(ready.get("token"))
+                .jsonPath("$.activeTokenExpiresAt").isEqualTo(ready.get("activeTokenExpiresAt"));
         Map<?, ?> second = client.post().uri("/api/v1/queue/events/" + event + "/enter")
                 .exchange().expectStatus().isOk().expectBody(Map.class).returnResult().getResponseBody();
         Map<?, ?> secondReady = client.get().uri("/api/v1/queue/events/" + event + "/status")

@@ -268,10 +268,10 @@ class ReactiveQueueServiceIntegrationTest {
     }
 
     @Test
-    void test_management_deletes_the_same_event_keys_as_the_existing_endpoint() {
+    void test_management_deletes_event_keys_and_admission_mappings() {
         String activeToken = admit(user);
         enter(newUser());
-        assertThat(value(management.clearEventQueue(event))).isEqualTo(3L);
+        assertThat(value(management.clearEventQueue(event))).isEqualTo(5L);
         assertThat(redis.hasKey("queue:event:" + event + ":active")).isFalse();
         assertThat(redis.hasKey("queue:event:" + event + ":waiting")).isFalse();
         assertThat(redis.hasKey("queue:active-token:" + activeToken)).isFalse();

@@ -35,7 +35,7 @@ class ReactiveQueueObservationTest {
         when(waiting.pruneExpiredWaitingTokens(1L, "user"))
                 .thenReturn(Mono.delay(Duration.ofMillis(30)).then());
         when(active.pruneExpiredActiveTokens(1L)).thenReturn(Mono.empty());
-        when(waiting.isWaitingTokenValid(1L, "user", "missing")).thenReturn(Mono.just(false));
+        when(active.admit(1L, "user", "missing")).thenReturn(Mono.error(new QueueTokenInvalidException("유효하지 않은 토큰")));
         var queue = new ReactiveQueueService(mock(ReactiveStringRedisTemplate.class), registry,
                 new QueueProperties(), waiting, active, mock(ReactiveUserQueueSessionService.class));
         var operation = queue.status(1L, "user", "missing");

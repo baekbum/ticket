@@ -33,12 +33,17 @@ public class ReactiveQueueService {
     public Mono<QueueEnterResponse> enter(Long eventId, String userId, boolean force) {
         return logged("enter", eventId, userId, () -> {
             validateUserId(userId);
-            return cleanupEventQueue(eventId, userId).then(sessions.prune(userId))
-                    .then(sessions.count(userId)).flatMap(count -> {
+
+            return cleanupEventQueue(eventId, userId)
+                    .then(sessions.prune(userId))
+                    .then(sessions.count(userId))
+                    .flatMap(count -> {
                         if (count >= properties.getMaxSessionsPerUser()) {
                             if (!force) return sessionLimitResponse(eventId);
-                            return removeFirstExpiringSession(userId).then(createWaiting(eventId, userId));
+                            return removeFirstExpiringSession(userId)
+                                    .then(createWaiting(eventId, userId));
                         }
+
                         return createWaiting(eventId, userId);
                     }).map(QueueStatusResponse::toEnterResponse);
         });
@@ -47,13 +52,11 @@ public class ReactiveQueueService {
     public Mono<QueueStatusResponse> status(Long eventId, String userId, String waitingToken) {
         return logged("status", eventId, userId, () -> {
             validateUserId(userId);
+            // 대기 토큰 삭제 여부보다 Lua의 기존 승격 매핑·소유권 판단을 우선한다.
             return cleanupEventQueue(eventId, userId)
-                    .then(waiting.isWaitingTokenValid(eventId, userId, waitingToken))
-                    .flatMap(valid -> valid ? active.admit(eventId, userId, waitingToken)
+                    .then(Mono.defer(() -> active.admit(eventId, userId, waitingToken)
                             .flatMap(token -> active.readyStatusResponse(eventId, token))
-                            .switchIfEmpty(Mono.defer(() -> waiting.refreshWaitingToken(eventId, userId, waitingToken)
-                                    .then(waiting.waitingStatusResponse(eventId, userId, waitingToken))))
-                            : Mono.error(invalidToken()));
+                            .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, userId, waitingToken)))));
         });
     }
 
@@ -74,12 +77,14 @@ public class ReactiveQueueService {
     public Mono<Boolean> leave(Long eventId, String userId, String waitingToken, String activeToken) {
         return logged("leave", eventId, userId, () -> {
             validateUserId(userId);
-            return waiting.isWaitingTokenValid(eventId, userId, waitingToken).flatMap(valid -> {
-                if (valid) return waiting.removeWaitingToken(eventId, userId, waitingToken).thenReturn(true);
-                return active.isActiveTokenValid(eventId, userId, activeToken)
-                        .flatMap(activeValid -> activeValid
-                                ? active.removeActiveToken(eventId, userId, activeToken) : Mono.just(false));
-            });
+            return waiting.isWaitingTokenValid(eventId, userId, waitingToken)
+                    .flatMap(valid -> {
+                        if (valid) return waiting.removeWaitingToken(eventId, userId, waitingToken)
+                                .thenReturn(true);
+                        return active.isActiveTokenValid(eventId, userId, activeToken)
+                                .flatMap(activeValid -> activeValid
+                                        ? active.removeActiveToken(eventId, userId, activeToken) : Mono.just(false));
+                    });
         });
     }
 
@@ -88,7 +93,8 @@ public class ReactiveQueueService {
                 scanEventIds("queue:event:*:waiting-expiry", ":waiting-expiry")
                         .concatMap(waiting::pruneExpiredWaitingTokens)
                         .thenMany(scanEventIds("queue:event:*:active", ":active")
-                                .concatMap(active::pruneExpiredActiveTokens)).then());
+                                .concatMap(active::pruneExpiredActiveTokens))
+                        .then());
     }
 
     private Mono<QueueStatusResponse> createWaiting(Long eventId, String userId) {
@@ -98,21 +104,27 @@ public class ReactiveQueueService {
     }
 
     private Mono<Void> removeFirstExpiringSession(String userId) {
-        return sessions.firstExpiringSession(userId).flatMap(session ->
-                sessions.eventIdForSession(userId, session).flatMap(originalEventId ->
-                        (session.type() == QueueSessionType.WAITING
+        return sessions.firstExpiringSession(userId)
+                .flatMap(session -> sessions.eventIdForSession(userId, session)
+                        .flatMap(originalEventId -> (session.type() == QueueSessionType.WAITING
                                 ? waiting.removeWaitingToken(originalEventId, userId, session.token())
-                                : active.removeActiveToken(originalEventId, userId, session.token()).then())
+                                : active.removeActiveToken(originalEventId, userId, session.token())
+                                        .then())
                                 .thenReturn(true))
-                        .switchIfEmpty(sessions.prune(userId).thenReturn(false))).then();
+                        .switchIfEmpty(sessions.prune(userId)
+                                .thenReturn(false)))
+                .then();
     }
+
     private Mono<QueueStatusResponse> sessionLimitResponse(Long eventId) {
-        return waiting.waitingCount(eventId).map(count -> new QueueStatusResponse(
-                eventId, STATUS_SESSION_LIMIT_CONFIRM_REQUIRED, null, count, null, null, null, null));
+        return waiting.waitingCount(eventId)
+                .map(count -> new QueueStatusResponse(
+                        eventId, STATUS_SESSION_LIMIT_CONFIRM_REQUIRED, null, count, null, null, null, null));
     }
 
     private Mono<Void> cleanupEventQueue(Long eventId, String userId) {
-        return waiting.pruneExpiredWaitingTokens(eventId, userId).then(active.pruneExpiredActiveTokens(eventId));
+        return waiting.pruneExpiredWaitingTokens(eventId, userId)
+                .then(active.pruneExpiredActiveTokens(eventId));
     }
 
     private Flux<Long> scanEventIds(String pattern, String suffix) {

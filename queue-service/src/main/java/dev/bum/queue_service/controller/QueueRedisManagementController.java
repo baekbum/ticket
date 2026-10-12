@@ -20,12 +20,14 @@ public class QueueRedisManagementController {
             @PathVariable("eventId") Long eventId,
             @RequestParam(value = "mode", defaultValue = "WAITING") QueueRedisInspectMode mode,
             @RequestParam(value = "limit", defaultValue = "100") int limit) {
-        return queueRedisInspectService.inspectEventQueue(eventId, mode, limit).map(ResponseEntity::ok);
+        return queueRedisInspectService.inspectEventQueue(eventId, mode, limit)
+                .map(ResponseEntity::ok);
     }
 
     @GetMapping("/token/{token}")
     public Mono<ResponseEntity<QueueRedisInspectResponse>> inspectToken(@PathVariable("token") String token) {
-        return queueRedisInspectService.inspectToken(token).map(ResponseEntity::ok);
+        return queueRedisInspectService.inspectToken(token)
+                .map(ResponseEntity::ok);
     }
 
     @DeleteMapping("/event/{eventId}/token/{token}")
@@ -33,7 +35,8 @@ public class QueueRedisManagementController {
             @PathVariable("eventId") Long eventId,
             @PathVariable("token") String token,
             @RequestParam("mode") QueueRedisInspectMode mode) {
-        return queueRedisInspectService.removeToken(eventId, token, mode).map(removed -> removed
-                ? ResponseEntity.noContent().build() : ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        return queueRedisInspectService.removeToken(eventId, token, mode)
+                .map(removed -> removed
+                        ? ResponseEntity.noContent().build() : ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 }

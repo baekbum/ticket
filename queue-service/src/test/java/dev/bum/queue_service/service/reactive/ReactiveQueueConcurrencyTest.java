@@ -61,11 +61,10 @@ class ReactiveQueueConcurrencyTest {
     @Test
     void concurrent_status_consumes_a_waiting_token_only_once() {
         String token = value(queue.enter(event, user, false)).token();
-        var results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, token)
-                .map(response -> response.status())
-                .onErrorResume(QueueTokenInvalidException.class, error -> Mono.just("INVALID")), 24).collectList());
-        assertThat(results.stream().filter("READY"::equals).count()).isEqualTo(1);
-        assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isEqualTo(1L);
+        var results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, token), 24).collectList());
+        assertThat(results).hasSize(24);
+        assertThat(results).allSatisfy(response -> assertThat(response.status()).isEqualTo("READY"));
+        assertThat(results.stream().map(response -> response.token()).distinct().toList()).hasSize(1);        assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isEqualTo(1L);
         assertThat(redis.opsForZSet().zCard("queue:user-sessions:" + user)).isEqualTo(1L);
         assertThat(redis.hasKey("queue:waiting-token:" + token)).isFalse();
         assertThat(redis.opsForZSet().score("queue:event:" + event + ":waiting-expiry", token)).isNull();

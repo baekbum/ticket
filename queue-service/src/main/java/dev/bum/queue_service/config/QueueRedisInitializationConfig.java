@@ -32,7 +32,9 @@ public class QueueRedisInitializationConfig {
             QueueRedisScripts.REGISTER_WAITING.getSha1();
             QueueRedisScripts.REFRESH_WAITING.getSha1();
             QueueRedisScripts.ADMIT_IF_SLOT_AVAILABLE.getSha1();
+            QueueRedisScripts.STATUS_WITH_IDEMPOTENCY.getSha1();
             QueueRedisScripts.REMOVE_TOKEN.getSha1();
+            QueueRedisScripts.CLEAR_EVENT.getSha1();
         };
     }
 }

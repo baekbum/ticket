@@ -95,6 +95,13 @@ class QueueHttpBaselineTest {
         assertThat(ready.getBody().path("rank").asInt()).isZero();
         assertThat(ready.getBody().path("activeTokenExpiresAt").asText()).isNotBlank();
         String active = ready.getBody().path("token").asText();
+        // 승격 응답이 유실되어도 동일한 대기 토큰으로 기존 활성 토큰을 복구한다.
+        var replay = status(bearer, waiting);
+        assertThat(replay.getStatusCode().value()).isEqualTo(200);
+        assertThat(replay.getBody().path("status").asText()).isEqualTo("READY");
+        assertThat(replay.getBody().path("token").asText()).isEqualTo(active);
+        assertThat(replay.getBody().path("activeTokenExpiresAt"))
+                .isEqualTo(ready.getBody().path("activeTokenExpiresAt"));
         assertThat(redis.hasKey("queue:waiting-token:" + waiting)).isFalse();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + active)).isNotNull();
         var body = Map.of("eventId", event, "userId", user, "token", active);
@@ -108,7 +115,7 @@ class QueueHttpBaselineTest {
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + active)).isNull();
         assertThat(call(HttpMethod.POST, "/complete", null, Map.of(), body).getStatusCode().value()).isEqualTo(400);
         assertThat(call(HttpMethod.POST, "/validate", null, Map.of(), body).getBody().path("allowed").asBoolean()).isFalse();
-        // 현재는 승격 시 waiting 토큰을 제거하므로 같은 토큰으로 재요청해도 같은 결과를 보장하지 않는다.
+        // 완료된 세션의 대기 토큰은 재조회로 되살리지 않는다.
         assertThat(status(bearer, waiting).getStatusCode().value()).isEqualTo(400);
     }
 

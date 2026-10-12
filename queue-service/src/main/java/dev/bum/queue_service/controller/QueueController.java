@@ -20,7 +20,8 @@ public class QueueController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
             @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force) {
-        return queueService.enter(eventId, currentUserId, force).map(ResponseEntity::ok);
+        return queueService.enter(eventId, currentUserId, force)
+                .map(ResponseEntity::ok);
     }
 
     @GetMapping("/events/{eventId}/status")
@@ -28,7 +29,8 @@ public class QueueController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
             @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken) {
-        return queueService.status(eventId, currentUserId, waitingToken).map(ResponseEntity::ok);
+        return queueService.status(eventId, currentUserId, waitingToken)
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/events/{eventId}/leave")
@@ -43,7 +45,8 @@ public class QueueController {
 
     @PostMapping("/validate")
     public Mono<ResponseEntity<QueueValidateResponse>> validate(@Valid @RequestBody QueueValidateRequest request) {
-        return queueService.validate(request).map(ResponseEntity::ok);
+        return queueService.validate(request)
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/complete")
