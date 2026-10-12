@@ -3,6 +3,7 @@ package dev.bum.queue_service.controller.advice;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.support.WebExchangeBindException;
@@ -14,6 +15,12 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ErrorResponse> handleRedisException(DataAccessException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE));
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {

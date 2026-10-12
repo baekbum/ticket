@@ -16,9 +16,12 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "QUEUE_TEST_REDIS_PORT", matches = "\\d+")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "app.queue.cleanup-mode=disabled",
-        "spring.task.scheduling.pool.size=1"
+        "spring.task.scheduling.pool.size=1",
+        "spring.data.redis.host=127.0.0.1", "spring.data.redis.port=${QUEUE_TEST_REDIS_PORT}",
+        "token-state.redis.host=127.0.0.1", "token-state.redis.port=${QUEUE_TEST_REDIS_PORT}"
 })
 class QueueServiceApplicationTests {
     @Autowired ApplicationContext context;

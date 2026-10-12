@@ -41,9 +41,27 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'io.projectreactor:reactor-test'
+	testImplementation 'io.projectreactor.tools:blockhound:1.0.17.RELEASE'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
+	exclude '**/QueueNonBlockingTest.class'
 	useJUnitPlatform()
+}
+
+// 동기 비교 구현과 테스트용 Redis fixture에 영향을 주지 않도록 별도 JVM에서 검사한다.
+tasks.register('nonBlockingTest', Test) {
+    description = '실제 Netty 요청 경로의 블로킹 호출을 검사한다.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    include '**/QueueNonBlockingTest.class'
+    jvmArgs '-XX:+AllowRedefinitionToAddDeleteMethods'
+    maxParallelForks = 1
+    shouldRunAfter tasks.named('test')
+}
+tasks.named('check') {
+    dependsOn tasks.named('nonBlockingTest')
 }

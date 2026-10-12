@@ -3,6 +3,8 @@ package dev.bum.queue_service.service.reactive;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.service.QueueRedisKeys;
+import dev.bum.queue_service.service.QueueRedisScripts;
+import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
@@ -13,6 +15,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.UUID;
 
@@ -26,14 +29,19 @@ public class ReactiveWaitingQueueService {
     private final ReactiveActiveQueueService active;
     private final ReactiveUserQueueSessionService sessions;
 
+    /** 세션 한도에 도달하면 빈 Mono로 완료한다. */
     public Mono<String> createWaiting(Long eventId, String userId) {
         return Mono.defer(() -> {
             String token = UUID.randomUUID().toString();
-            return redis.opsForZSet().add(keys.waitingKey(eventId), token, nowMillis())
-                    .then(refreshWaitingToken(eventId, userId, token)).thenReturn(token);
+            long now = nowMillis();
+            long ttl = properties.getWaitingTokenTtl().toMillis();
+            return redis.execute(QueueRedisScripts.REGISTER_WAITING, waitingKeys(eventId, userId, token),
+                            List.of(token, tokenValue(eventId, userId), String.valueOf(now), String.valueOf(now + ttl),
+                                    String.valueOf(ttl), String.valueOf(properties.getMaxSessionsPerUser()),
+                                    keys.waitingSessionMember(token)))
+                    .next().filter(result -> result == 1L).map(result -> token);
         });
     }
-
     public Mono<QueueStatusResponse> waitingStatusResponse(Long eventId, String userId, String token) {
         return redis.opsForZSet().rank(keys.waitingKey(eventId), token).map(rank -> Optional.of(rank + 1))
                 .defaultIfEmpty(Optional.empty()).flatMap(rank -> estimatedEntryAt(eventId, rank.orElse(null))
@@ -55,11 +63,19 @@ public class ReactiveWaitingQueueService {
     }
 
     public Mono<Void> removeWaitingToken(Long eventId, String userId, String token) {
-        return redis.opsForZSet().remove(keys.waitingKey(eventId), token)
-                .then(redis.opsForZSet().remove(keys.waitingExpiryKey(eventId), token))
-                .then(sessions.removeWaiting(userId, token)).then(redis.delete(keys.waitingTokenKey(token))).then();
+        return removeWaiting(eventId, userId, token, -1L);
     }
 
+    private Mono<Void> removeWaiting(Long eventId, String userId, String token, long cutoff) {
+        boolean hasUser = StringUtils.hasText(userId);
+        return redis.execute(QueueRedisScripts.REMOVE_TOKEN, waitingKeys(eventId, userId, token),
+                List.of(token, keys.waitingSessionMember(token), String.valueOf(cutoff), hasUser ? "1" : "0")).then();
+    }
+
+    private List<String> waitingKeys(Long eventId, String userId, String token) {
+        return List.of(keys.waitingKey(eventId), keys.waitingExpiryKey(eventId),
+                keys.waitingTokenKey(token), keys.userSessionsKey(userId == null ? "" : userId));
+    }
     public Mono<Long> waitingCount(Long eventId) {
         return redis.opsForZSet().size(keys.waitingKey(eventId)).defaultIfEmpty(0L);
     }
@@ -69,24 +85,27 @@ public class ReactiveWaitingQueueService {
     }
 
     public Mono<Void> pruneExpiredWaitingTokens(Long eventId, String userId) {
-        return Mono.defer(() -> redis.opsForZSet().rangeByScore(keys.waitingExpiryKey(eventId),
-                        Range.closed(0.0, (double) nowMillis()))
-                .concatMap(token -> redis.opsForZSet().remove(keys.waitingKey(eventId), token)
-                        .then(redis.opsForZSet().remove(keys.waitingExpiryKey(eventId), token))
-                        .then(redis.delete(keys.waitingTokenKey(token)))
-                        .then(sessions.removeWaiting(userId, token))).then());
+        return Mono.defer(() -> {
+            long cutoff = nowMillis();
+            return redis.opsForZSet().rangeByScore(keys.waitingExpiryKey(eventId), Range.closed(0.0, (double) cutoff))
+                    .concatMap(token -> redis.opsForValue().get(keys.waitingTokenKey(token))
+                            .map(value -> value.split(":", 2)).filter(parts -> parts.length == 2)
+                            .map(parts -> Optional.of(parts[1])).defaultIfEmpty(Optional.empty())
+                            .flatMap(owner -> removeWaiting(eventId, owner.orElse(null), token, cutoff))).then();
+        });
     }
 
     public Mono<Void> refreshWaitingToken(Long eventId, String userId, String token) {
-        return Mono.defer(() -> redis.opsForValue().set(keys.waitingTokenKey(token),
-                        tokenValue(eventId, userId), properties.getWaitingTokenTtl())
-                .then(Mono.defer(() -> {
-                    long expiresAt = nowMillis() + properties.getWaitingTokenTtl().toMillis();
-                    return sessions.addWaiting(userId, token, expiresAt)
-                            .then(redis.opsForZSet().add(keys.waitingExpiryKey(eventId), token, expiresAt)).then();
-                })));
+        return Mono.defer(() -> {
+            long ttl = properties.getWaitingTokenTtl().toMillis();
+            return redis.execute(QueueRedisScripts.REFRESH_WAITING, waitingKeys(eventId, userId, token),
+                            List.of(token, tokenValue(eventId, userId), String.valueOf(ttl),
+                                    String.valueOf(nowMillis() + ttl), keys.waitingSessionMember(token)))
+                    .next().filter(result -> result == 1L)
+                    .switchIfEmpty(Mono.error(new QueueTokenInvalidException("대기 토큰이 만료되었거나 이미 처리되었습니다.")))
+                    .then();
+        });
     }
-
     private Mono<Instant> estimatedEntryAt(Long eventId, Long rank) {
         if (rank == null || rank <= 0) return Mono.empty();
         return Mono.defer(() -> {

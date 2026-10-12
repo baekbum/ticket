@@ -37,7 +37,7 @@ public class ReactiveQueueService {
                     .then(sessions.count(userId)).flatMap(count -> {
                         if (count >= properties.getMaxSessionsPerUser()) {
                             if (!force) return sessionLimitResponse(eventId);
-                            return removeFirstExpiringSession(eventId, userId).then(createWaiting(eventId, userId));
+                            return removeFirstExpiringSession(userId).then(createWaiting(eventId, userId));
                         }
                         return createWaiting(eventId, userId);
                     }).map(QueueStatusResponse::toEnterResponse);
@@ -92,16 +92,20 @@ public class ReactiveQueueService {
     }
 
     private Mono<QueueStatusResponse> createWaiting(Long eventId, String userId) {
-        return waiting.createWaiting(eventId, userId).flatMap(token -> waiting.waitingStatusResponse(eventId, userId, token));
+        return waiting.createWaiting(eventId, userId)
+                .flatMap(token -> waiting.waitingStatusResponse(eventId, userId, token))
+                .switchIfEmpty(Mono.defer(() -> sessionLimitResponse(eventId)));
     }
 
-    private Mono<Void> removeFirstExpiringSession(Long eventId, String userId) {
+    private Mono<Void> removeFirstExpiringSession(String userId) {
         return sessions.firstExpiringSession(userId).flatMap(session ->
-                session.type() == QueueSessionType.WAITING
-                        ? waiting.removeWaitingToken(eventId, userId, session.token())
-                        : active.removeActiveToken(eventId, userId, session.token()).then());
+                sessions.eventIdForSession(userId, session).flatMap(originalEventId ->
+                        (session.type() == QueueSessionType.WAITING
+                                ? waiting.removeWaitingToken(originalEventId, userId, session.token())
+                                : active.removeActiveToken(originalEventId, userId, session.token()).then())
+                                .thenReturn(true))
+                        .switchIfEmpty(sessions.prune(userId).thenReturn(false))).then();
     }
-
     private Mono<QueueStatusResponse> sessionLimitResponse(Long eventId) {
         return waiting.waitingCount(eventId).map(count -> new QueueStatusResponse(
                 eventId, STATUS_SESSION_LIMIT_CONFIRM_REQUIRED, null, count, null, null, null, null));

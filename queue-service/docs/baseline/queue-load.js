@@ -23,6 +23,7 @@ export const options = {
 };
 let token;
 let authorization;
+let reportedFailure = false;
 function auth() {
   if (!authorization) {
     const now = Math.floor(Date.now() / 1000);
@@ -37,10 +38,16 @@ function auth() {
   return authorization;
 }
 function request(method, action, body, extra = {}) {
-  return http.request(method, base + '/api/v1/queue' + action, body == null ? null : JSON.stringify(body), {
+  const response = http.request(method, base + '/api/v1/queue' + action, body == null ? null : JSON.stringify(body), {
     headers: Object.assign({ Authorization: auth(), 'Content-Type': 'application/json' }, extra),
     tags: { name: action.replace(String(eventId), ':eventId') }, timeout: '10s',
   });
+  // 실패 응답은 VU당 한 건만 기록한다.
+  if ((response.status >= 400 || response.status === 0) && !reportedFailure) {
+    console.error(JSON.stringify({ action, status: response.status, error: response.error, body: response.body }));
+    reportedFailure = true;
+  }
+  return response;
 }
 function parsed(response) {
   try { return response.json(); } catch (_) { return {}; }

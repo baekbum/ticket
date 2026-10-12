@@ -174,3 +174,5 @@ MODE=waiting 분기는 준비했으나 이번 실측은 lifecycle만 수행했�
 측정 후 전용 앱과 전용 Redis는 종료했다. Docker 이미지는 재실행을 위해 남겨두었다.
 
 다음 단계: 이 테스트를 유지하며 Reactive Redis 기반과 공통 모듈의 MVC 의존성 분리를 준비한다.
+
+WebFlux 전환 후 반복 비교와 다중 인스턴스·Redis 장애 검증은 [5단계 검증 문서](../webflux-validation.md) 및 compare-runtimes.ps1, validate-runtime.ps1을 참고한다.

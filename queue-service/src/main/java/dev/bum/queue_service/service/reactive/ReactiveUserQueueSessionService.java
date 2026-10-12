@@ -46,6 +46,20 @@ public class ReactiveUserQueueSessionService {
                 .next().flatMap(this::toUserSession);
     }
 
+    public Mono<Long> eventIdForSession(String userId, QueueUserSession session) {
+        String tokenKey = session.type() == QueueSessionType.WAITING
+                ? keys.waitingTokenKey(session.token()) : keys.activeTokenKey(session.token());
+        return redis.opsForValue().get(tokenKey).flatMap(value -> {
+            String[] parts = value.split(":", 2);
+            if (parts.length != 2 || !parts[1].equals(userId)) return Mono.empty();
+            try {
+                return Mono.just(Long.valueOf(parts[0]));
+            } catch (NumberFormatException ignored) {
+                return Mono.empty();
+            }
+        });
+    }
+
     public Mono<Void> prune(String userId) {
         return redis.opsForZSet().range(keys.userSessionsKey(userId), Range.closed(0L, -1L))
                 .collectList().flatMap(members -> {

@@ -70,31 +70,27 @@ public class ReactiveActiveQueueService {
     }
 
     public Mono<Boolean> removeActiveToken(Long eventId, String userId, String token) {
-        return redis.opsForZSet().remove(keys.activeKey(eventId), token)
-                .then(sessions.removeActive(userId, token))
-                .then(redis.delete(keys.activeTokenKey(token))).thenReturn(true);
+        return removeActive(eventId, userId, token, -1L).thenReturn(true);
+    }
+
+    private Mono<Void> removeActive(Long eventId, String userId, String token, long cutoff) {
+        return redis.execute(QueueRedisScripts.REMOVE_TOKEN,
+                List.of(keys.activeKey(eventId), keys.activeKey(eventId), keys.activeTokenKey(token),
+                        keys.userSessionsKey(userId == null ? "" : userId)),
+                List.of(token, keys.activeSessionMember(token), String.valueOf(cutoff),
+                        StringUtils.hasText(userId) ? "1" : "0")).then();
     }
 
     public Mono<Void> pruneExpiredActiveTokens(Long eventId) {
-        return Mono.defer(() -> redis.opsForZSet().rangeByScore(keys.activeKey(eventId), Range.closed(0.0, (double) nowMillis()))
-                .collectList().flatMap(tokens -> {
-                    if (tokens.isEmpty()) return Mono.empty();
-                    return redis.opsForZSet().removeRangeByScore(keys.activeKey(eventId), Range.closed(0.0, (double) nowMillis()))
-                            .thenMany(Flux.fromIterable(tokens).concatMap(token ->
-                                    redis.opsForValue().get(keys.activeTokenKey(token)).map(Optional::of)
-                                            .defaultIfEmpty(Optional.empty())
-                                            .flatMap(value -> redis.delete(keys.activeTokenKey(token))
-                                                    .then(Mono.defer(() -> removeUserSession(value.orElse(null), token))))))
-                            .then();
-                }));
+        return Mono.defer(() -> {
+            long cutoff = nowMillis();
+            return redis.opsForZSet().rangeByScore(keys.activeKey(eventId), Range.closed(0.0, (double) cutoff))
+                    .concatMap(token -> redis.opsForValue().get(keys.activeTokenKey(token))
+                            .map(value -> value.split(":", 2)).filter(parts -> parts.length == 2)
+                            .map(parts -> Optional.of(parts[1])).defaultIfEmpty(Optional.empty())
+                            .flatMap(owner -> removeActive(eventId, owner.orElse(null), token, cutoff))).then();
+        });
     }
-
-    private Mono<Void> removeUserSession(String value, String token) {
-        if (!StringUtils.hasText(value)) return Mono.empty();
-        String[] parts = value.split(":", 2);
-        return parts.length == 2 ? sessions.removeActive(parts[1], token) : Mono.empty();
-    }
-
     public Mono<PriorityQueue<Long>> activeSlotAvailableTimes(Long eventId, long now) {
         return redis.opsForZSet().rangeWithScores(keys.activeKey(eventId), Range.closed(0L, -1L))
                 .filter(tuple -> tuple.getScore() != null).map(tuple -> Math.max(now, tuple.getScore().longValue()))

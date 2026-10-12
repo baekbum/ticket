@@ -32,6 +32,8 @@ public class ReactiveTokenStateConfig {
                         .commandTimeout(Duration.ofSeconds(2))
                         .shutdownTimeout(Duration.ZERO)
                         .build());
+        // 첫 요청에서 동기 연결 수립이 발생하지 않도록 시작할 때 연결한다.
+        factory.setEagerInitialization(true);
         factory.afterPropertiesSet();
 
         return new ReactiveTokenStateStore(factory);

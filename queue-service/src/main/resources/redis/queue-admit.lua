@@ -1,3 +1,11 @@
+-- 키 타입을 먼저 확인해 잘못된 데이터로 인한 부분 쓰기를 방지한다.
+local expected = {'zset', 'zset', 'string', 'zset', 'string', 'zset'}
+for index, key in ipairs(KEYS) do
+    local actual = redis.call('TYPE', key).ok
+    if actual ~= 'none' and actual ~= expected[index] then
+        return redis.error_reply('QUEUE_WRONG_KEY_TYPE')
+    end
+end
 local waitingKey = KEYS[1]
 local activeKey = KEYS[2]
 local activeTokenKey = KEYS[3]

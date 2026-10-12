@@ -110,3 +110,5 @@ Prometheus 테스트에는 AutoConfigureObservability를 명시해 테스트 환
 초기 CORS 테스트는 상대 URI로 만든 모의 요청 때문에 실패했으며, 실제 서버 주소로 전송하도록 테스트를 수정했다.
 Prometheus 테스트는 Spring Boot 테스트의 기본 내보내기 비활성화로 404가 발생했으며,
 AutoConfigureObservability를 명시한 뒤 통과했다. 이 두 건 때문에 운영 CORS나 인증 규칙을 완화하지 않았다.
+
+5단계의 동시성·장애·블로킹 탐지 및 반복 부하 비교 결과는 [webflux-validation.md](webflux-validation.md)에 기록했다.
