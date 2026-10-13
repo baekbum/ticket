@@ -52,3 +52,4 @@ token-state:
     port: ${TOKEN_STATE_REDIS_PORT:6379}
     database: ${TOKEN_STATE_REDIS_DATABASE:0}
     password: ${TOKEN_STATE_REDIS_PASSWORD:}
+    timeout: ${TOKEN_STATE_REDIS_TIMEOUT:2s}

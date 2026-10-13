@@ -96,7 +96,7 @@ public class ReservationService {
         Object beforeStatus = reservation.getStatus();
         validateOwner(currentUserId, reservation);
         info.setUserId(currentUserId);
-        cancel(id, reservation, info);
+        cancel(reservation, info);
         AuditDataMapper.setFieldChange("status", beforeStatus, "CANCELLED");
     }
 
@@ -114,8 +114,9 @@ public class ReservationService {
         );
     }
 
-    private void cancel(long id, Reservation reservation, CancelReservationRequest info) {
+    private void cancel(Reservation reservation, CancelReservationRequest info) {
         validateCancelableReservation(reservation);
+
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
