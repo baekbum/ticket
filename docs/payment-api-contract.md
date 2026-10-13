@@ -162,6 +162,7 @@ Content-Type: application/json
 
 ```json
 {
+  "paymentRefundProcessId": 123,
   "paymentNo": "PAY-...",
   "transactionId": "CARD-...",
   "refundAmount": 250000
@@ -170,14 +171,14 @@ Content-Type: application/json
 
 처리 규칙:
 
-```text
-1. paymentNo + transactionId로 gateway 카드 승인 이력 조회
-2. gateway card history = TICKET_PAYMENT_COMPLETED 상태 검증
-3. 전체 환불 금액이 승인 금액과 일치하는지 검증
-4. DummyCard.currentMonthUsedAmount에서 환불 금액 차감
-5. gateway card history = REFUNDED
-6. ticket-service는 환불 성공 후 Payment.status=REFUNDED, 예매/티켓=CANCELLED, 좌석=AVAILABLE 반영
-```
+1. paymentRefundProcessId가 없거나 양수가 아니면 거부한다.
+2. 같은 ID의 성공 기록이 있으면 결제번호·금액·거래번호 일치를 검증하고 최초 응답을 반환한다.
+3. 신규 요청은 카드 승인 이력을 잠근 뒤 같은 ID의 성공 기록을 다시 확인한다.
+4. 환불 가능한 결제 상태와 남은 환불 금액을 검증한다. 부분 환불도 허용한다.
+5. 카드 사용액 차감, 누적 환불액 변경, gateway_refunds 기록을 같은 트랜잭션으로 커밋한다.
+6. ticket-service는 PG 성공 후 결제·예매·티켓·좌석의 취소를 반영한다.
+
+가상계좌 환불도 같은 프로세스 ID를 사용하고 환불 은행·계좌번호·예금주 일치를 검증한다. 상세 동시성·배포 규칙은 [환불 멱등성](refund-idempotency.md)을 참고한다.
 
 ## Gateway 가상계좌 입금
 

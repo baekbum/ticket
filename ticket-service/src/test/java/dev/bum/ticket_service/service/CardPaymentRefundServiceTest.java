@@ -36,11 +36,12 @@ class CardPaymentRefundServiceTest {
     void refund_all_card_payment() {
         Payment payment = cardPayment();
 
-        cardPaymentRefundService.refundAll(payment);
+        cardPaymentRefundService.refundAll(payment, 1L);
 
         ArgumentCaptor<GatewayCardPaymentRefundRequest> captor = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
         then(paymentGatewayCardClient).should().refund(captor.capture());
         assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getPaymentRefundProcessId()).isEqualTo(1L);
         assertThat(captor.getValue().getTransactionId()).isEqualTo("CARD-1");
         assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("250000");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
@@ -53,11 +54,12 @@ class CardPaymentRefundServiceTest {
     void refund_partial_card_payment() {
         Payment payment = cardPayment();
 
-        cardPaymentRefundService.refundPartial(payment, 125000);
+        cardPaymentRefundService.refundPartial(payment, 125000, 1L);
 
         ArgumentCaptor<GatewayCardPaymentRefundRequest> captor = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
         then(paymentGatewayCardClient).should().refund(captor.capture());
         assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getPaymentRefundProcessId()).isEqualTo(1L);
         assertThat(captor.getValue().getTransactionId()).isEqualTo("CARD-1");
         assertThat(captor.getValue().getRefundAmount()).isEqualByComparingTo("125000");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
@@ -70,7 +72,7 @@ class CardPaymentRefundServiceTest {
     void reject_not_paid_card_payment() {
         Payment payment = cardPayment(PaymentStatus.FAILED);
 
-        assertThatThrownBy(() -> cardPaymentRefundService.refundAll(payment))
+        assertThatThrownBy(() -> cardPaymentRefundService.refundAll(payment, 1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불할 수 없는 결제 상태입니다.");
 

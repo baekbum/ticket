@@ -21,6 +21,8 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpa
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,7 @@ public class GatewayVirtualAccountService {
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
+    private final GatewayRefundJpaRepository refunds;
 
     @Transactional(readOnly = true)
     public GatewayVirtualAccountStatusResponse status(String paymentNo) {
@@ -84,10 +87,18 @@ public class GatewayVirtualAccountService {
     }
 
     public GatewayVirtualAccountRefundResponse refund(GatewayVirtualAccountRefundRequest request) {
+        if (request.getPaymentRefundProcessId() == null || request.getPaymentRefundProcessId() <= 0) {
+            throw new IllegalArgumentException("환불 프로세스 ID가 필요합니다.");
+        }
+        GatewayRefund existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
+        if (existing != null) return existing.replay(request);
+
         try {
-            DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())
+            DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                     .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
 
+            existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
+            if (existing != null) return existing.replay(request);
             validateRefund(virtualAccount, request);
             dummyVirtualAccountPaymentHistoryJpaRepository.save(
                     DummyVirtualAccountPaymentHistory.refunded(
@@ -107,14 +118,16 @@ public class GatewayVirtualAccountService {
                     request.getRefundAmount()
             );
 
-            return GatewayVirtualAccountRefundResponse.builder()
+            GatewayVirtualAccountRefundResponse response = GatewayVirtualAccountRefundResponse.builder()
                     .paymentNo(request.getPaymentNo())
                     .refundBankCompany(request.getRefundBankCompany())
                     .refundAccountNumber(request.getRefundAccountNumber())
                     .refundAccountHolder(request.getRefundAccountHolder())
-                    .refundedAmount(request.getRefundAmount())
+                    .refundedAmount(request.getRefundAmount().setScale(2, java.math.RoundingMode.UNNECESSARY))
                     .message("무통장 환불 입금이 완료되었습니다.")
                     .build();
+            refunds.saveAndFlush(GatewayRefund.virtualAccount(request, response));
+            return response;
         } catch (RuntimeException e) {
             log.warn(
                     "무통장 환불 실패: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}, reason={}",
@@ -315,7 +328,12 @@ public class GatewayVirtualAccountService {
         if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
             throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
         }
-        if (request.getRefundAmount().compareTo(virtualAccount.getAmount()) > 0) {
+        BigDecimal refunded = refunds.sumRefundAmount(virtualAccount.getPaymentNo(), PaymentMethod.BANK_TRANSFER);
+        if (refunded == null) refunded = BigDecimal.ZERO;
+        if (request.getRefundAmount() == null || request.getRefundAmount().signum() <= 0) {
+            throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
+        }
+        if (request.getRefundAmount().compareTo(virtualAccount.getAmount().subtract(refunded)) > 0) {
             throw new IllegalArgumentException("환불 금액이 결제 금액을 초과했습니다.");
         }
     }

@@ -50,6 +50,9 @@ class GatewayCardApprovalServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository refunds;
+
     @InjectMocks
     private GatewayCardApprovalService gatewayCardPaymentService;
 
@@ -310,6 +313,7 @@ assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
 
     private GatewayCardPaymentRefundRequest refundRequest(BigDecimal amount) {
         return GatewayCardPaymentRefundRequest.builder()
+                .paymentRefundProcessId(1L)
                 .paymentNo("PAY-1")
                 .transactionId("CARD-1")
                 .refundAmount(amount)

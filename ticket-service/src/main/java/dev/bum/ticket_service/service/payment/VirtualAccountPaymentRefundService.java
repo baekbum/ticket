@@ -22,12 +22,14 @@ public class VirtualAccountPaymentRefundService {
 
     public int refundAll(
             Payment payment,
-            RefundAccountRequest refundAccount
+            RefundAccountRequest refundAccount,
+            Long paymentRefundProcessId
     ) {
         validateRefundableVirtualAccountPayment(payment, refundAccount);
         int refundAmount = payment.getRefundableAmount();
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
+                        .paymentRefundProcessId(paymentRefundProcessId)
                         .paymentNo(payment.getPaymentNo())
                         .refundBankCompany(refundAccount.getBankCompany())
                         .refundAccountNumber(refundAccount.getAccountNumber())
@@ -42,11 +44,13 @@ public class VirtualAccountPaymentRefundService {
     public int refundPartial(
             Payment payment,
             int refundAmount,
-            RefundAccountRequest refundAccount
+            RefundAccountRequest refundAccount,
+            Long paymentRefundProcessId
     ) {
         validateRefundableVirtualAccountPayment(payment, refundAccount);
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
+                        .paymentRefundProcessId(paymentRefundProcessId)
                         .paymentNo(payment.getPaymentNo())
                         .refundBankCompany(refundAccount.getBankCompany())
                         .refundAccountNumber(refundAccount.getAccountNumber())

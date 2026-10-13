@@ -53,6 +53,9 @@ class GatewayVirtualAccountServiceTest {
     @Mock
     private TicketPaymentClient ticketPaymentClient;
 
+    @Mock
+    private dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository refunds;
+
     @InjectMocks
     private GatewayVirtualAccountService gatewayVirtualAccountService;
 
@@ -300,7 +303,7 @@ class GatewayVirtualAccountServiceTest {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180000));
 
-        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
                 .willReturn(Optional.of(virtualAccount));
 
         GatewayVirtualAccountRefundResponse response = gatewayVirtualAccountService.refund(request);
@@ -321,7 +324,7 @@ class GatewayVirtualAccountServiceTest {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
 
-        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
                 .willReturn(Optional.of(virtualAccount));
 
         GatewayVirtualAccountRefundResponse response = gatewayVirtualAccountService.refund(request);
@@ -338,7 +341,7 @@ class GatewayVirtualAccountServiceTest {
     void reject_refund_amount_exceeding_payment() {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180001));
-        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
                 .willReturn(Optional.of(virtualAccount));
 
         assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
@@ -352,7 +355,7 @@ class GatewayVirtualAccountServiceTest {
     void propagate_refund_history_save_failure() {
         DummyVirtualAccount virtualAccount = completedVirtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
-        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
                 .willReturn(Optional.of(virtualAccount));
         given(dummyVirtualAccountPaymentHistoryJpaRepository.save(any(DummyVirtualAccountPaymentHistory.class)))
                 .willThrow(new IllegalStateException("이력 저장 실패"));
@@ -369,7 +372,7 @@ class GatewayVirtualAccountServiceTest {
         DummyVirtualAccount virtualAccount = virtualAccount();
         GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(180000));
 
-        given(dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo()))
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
                 .willReturn(Optional.of(virtualAccount));
 
         assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request))
@@ -464,6 +467,7 @@ class GatewayVirtualAccountServiceTest {
 
     private GatewayVirtualAccountRefundRequest refundRequest(BigDecimal amount) {
         return GatewayVirtualAccountRefundRequest.builder()
+                .paymentRefundProcessId(1L)
                 .paymentNo("PAY-20260727120000-abcdef123456")
                 .refundBankCompany(BankCompany.KB)
                 .refundAccountNumber("123-456-7890")

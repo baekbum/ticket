@@ -126,6 +126,7 @@ public class ReservationService {
                 || reservation.getStatus() == ReservationStatus.PARTIALLY_CANCELLED);
 
         Long paymentRefundProcessId = null;
+
         try {
             paymentRefundProcessId = refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
             ticketPurchaseCountService.release(reservation, selectedTickets);
@@ -167,11 +168,13 @@ public class ReservationService {
                                 calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
                         int refundAmount = calculation.refundAmount();
                         int cancellationFeeAmount = calculation.cancellationFeeAmount();
+
                         if (refundAmount == 0) {
                             payment.applyCancellation(0, cancellationFeeAmount);
                             restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
                             return null;
                         }
+
                         boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
 
                         PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
@@ -186,19 +189,23 @@ public class ReservationService {
 
                         savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
+
                         return paymentRefundProcessId;
                     }
 
                     if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
                         CancellationFeeCalculator.CancellationRefundCalculation calculation =
                                 calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
+
                         int refundAmount = calculation.refundAmount();
                         int cancellationFeeAmount = calculation.cancellationFeeAmount();
+
                         if (refundAmount == 0) {
                             payment.applyCancellation(0, cancellationFeeAmount);
                             restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
                             return null;
                         }
+
                         boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
 
                         PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
@@ -213,6 +220,7 @@ public class ReservationService {
 
                         savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
                         restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
+
                         return paymentRefundProcessId;
                     }
 
@@ -229,9 +237,9 @@ public class ReservationService {
     ) {
         try {
             if (fullCancellation) {
-                cardPaymentRefundService.refundAll(payment);
+                cardPaymentRefundService.refundAll(payment, paymentRefundProcessId);
             } else {
-                cardPaymentRefundService.refundPartial(payment, refundAmount);
+                cardPaymentRefundService.refundPartial(payment, refundAmount, paymentRefundProcessId);
             }
             payment.applyCancellationFee(cancellationFeeAmount);
 
@@ -252,9 +260,9 @@ public class ReservationService {
     ) {
         try {
             if (fullCancellation) {
-                virtualAccountPaymentRefundService.refundAll(payment, info.getRefundAccount());
+                virtualAccountPaymentRefundService.refundAll(payment, info.getRefundAccount(), paymentRefundProcessId);
             } else {
-                virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount());
+                virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount(), paymentRefundProcessId);
             }
             payment.applyCancellationFee(cancellationFeeAmount);
 

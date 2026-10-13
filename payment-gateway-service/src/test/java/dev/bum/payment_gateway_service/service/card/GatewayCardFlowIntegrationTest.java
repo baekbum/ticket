@@ -40,9 +40,10 @@ import static org.mockito.Mockito.*;
 class GatewayCardFlowIntegrationTest {
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = DummyCard.class)
-    @EnableJpaRepositories(basePackageClasses = DummyCardJpaRepository.class)
+    @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
+    @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
     static class PersistenceConfig { }
+    @Autowired dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository refunds;
     @Autowired GatewayCardPaymentService payments;
     @Autowired DummyCardJpaRepository cards;
     @Autowired DummyCardPaymentHistoryJpaRepository histories;
@@ -52,6 +53,7 @@ class GatewayCardFlowIntegrationTest {
 
     @BeforeEach
     void setup() {
+        refunds.deleteAll();
         histories.deleteAll();
         cards.deleteAll();
         cards.save(DummyCard.builder().userId("user").cardCompany(CardCompany.SHINHAN)
@@ -263,7 +265,7 @@ class GatewayCardFlowIntegrationTest {
         assertThatThrownBy(() -> payments.status("user", "PAY-1"))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
         assertThatThrownBy(() -> payments.approve("user", request())).isInstanceOf(IllegalArgumentException.class);
-        payments.refund(dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest.builder()
+        payments.refund(dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest.builder().paymentRefundProcessId(1L)
                 .paymentNo("PAY-1").transactionId(response.getTransactionId()).refundAmount(BigDecimal.valueOf(10000)).build());
         assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
         verify(ticket, times(1)).settleCardPayment(any());

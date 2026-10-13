@@ -242,9 +242,9 @@ public class ReservationManagementService {
     ) {
         try {
             if (fullCancellation) {
-                cardPaymentRefundService.refundAll(payment);
+                cardPaymentRefundService.refundAll(payment, paymentRefundProcessId);
             } else {
-                cardPaymentRefundService.refundPartial(payment, refundAmount);
+                cardPaymentRefundService.refundPartial(payment, refundAmount, paymentRefundProcessId);
             }
             payment.applyCancellationFee(cancellationFeeAmount);
             markGatewaySucceeded(paymentRefundProcessId);
@@ -264,9 +264,9 @@ public class ReservationManagementService {
     ) {
         try {
             if (fullCancellation) {
-                virtualAccountPaymentRefundService.refundAll(payment, info.getRefundAccount());
+                virtualAccountPaymentRefundService.refundAll(payment, info.getRefundAccount(), paymentRefundProcessId);
             } else {
-                virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount());
+                virtualAccountPaymentRefundService.refundPartial(payment, refundAmount, info.getRefundAccount(), paymentRefundProcessId);
             }
             payment.applyCancellationFee(cancellationFeeAmount);
             markGatewaySucceeded(paymentRefundProcessId);

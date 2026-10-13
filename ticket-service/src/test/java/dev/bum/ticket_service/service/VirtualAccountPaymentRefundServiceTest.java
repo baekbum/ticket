@@ -36,11 +36,12 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_all_virtual_account_payment() {
         Payment payment = virtualAccountPayment();
 
-        virtualAccountPaymentRefundService.refundAll(payment, refundAccount());
+        virtualAccountPaymentRefundService.refundAll(payment, refundAccount(), 1L);
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
         assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getPaymentRefundProcessId()).isEqualTo(1L);
         assertThat(captor.getValue().getRefundBankCompany()).isEqualTo(BankCompany.KB);
         assertThat(captor.getValue().getRefundAccountNumber()).isEqualTo("123-456-7890");
         assertThat(captor.getValue().getRefundAccountHolder()).isEqualTo("홍길동");
@@ -55,11 +56,12 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_partial_virtual_account_payment() {
         Payment payment = virtualAccountPayment();
 
-        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount());
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount(), 1L);
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
         assertThat(captor.getValue().getPaymentNo()).isEqualTo("PAY-1");
+        assertThat(captor.getValue().getPaymentRefundProcessId()).isEqualTo(1L);
         assertThat(captor.getValue().getRefundBankCompany()).isEqualTo(BankCompany.KB);
         assertThat(captor.getValue().getRefundAccountNumber()).isEqualTo("123-456-7890");
         assertThat(captor.getValue().getRefundAccountHolder()).isEqualTo("홍길동");
@@ -74,7 +76,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_all_remaining_virtual_account_payment() {
         Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
 
-        virtualAccountPaymentRefundService.refundAll(payment, refundAccount());
+        virtualAccountPaymentRefundService.refundAll(payment, refundAccount(), 1L);
 
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> captor = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         then(paymentGatewayVirtualAccountClient).should().refund(captor.capture());
@@ -89,7 +91,7 @@ class VirtualAccountPaymentRefundServiceTest {
     void refund_partial_remaining_virtual_account_payment() {
         Payment payment = virtualAccountPayment(PaymentStatus.PARTIALLY_REFUNDED, 125000);
 
-        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount());
+        virtualAccountPaymentRefundService.refundPartial(payment, 125000, refundAccount(), 1L);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundedAmount()).isEqualTo(250000);
@@ -106,7 +108,7 @@ class VirtualAccountPaymentRefundServiceTest {
                 RefundAccountRequest.builder()
                         .bankCompany(BankCompany.KB)
                         .accountHolder("홍길동")
-                        .build()
+                        .build(), 1L
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불 계좌번호를 입력해야 합니다.");
@@ -124,7 +126,7 @@ class VirtualAccountPaymentRefundServiceTest {
                 RefundAccountRequest.builder()
                         .bankCompany(BankCompany.KB)
                         .accountNumber("123-456-7890")
-                        .build()
+                        .build(), 1L
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("환불 계좌 예금주명을 입력해야 합니다.");

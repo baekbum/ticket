@@ -19,11 +19,12 @@ public class CardPaymentRefundService {
 
     private final PaymentGatewayCardClient paymentGatewayCardClient;
 
-    public int refundAll(Payment payment) {
+    public int refundAll(Payment payment, Long paymentRefundProcessId) {
         validateRefundableCardPayment(payment);
         int refundAmount = payment.getRefundableAmount();
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
+                        .paymentRefundProcessId(paymentRefundProcessId)
                         .paymentNo(payment.getPaymentNo())
                         .transactionId(payment.getCardTransactionId())
                         .refundAmount(BigDecimal.valueOf(refundAmount))
@@ -33,10 +34,11 @@ public class CardPaymentRefundService {
         return refundAmount;
     }
 
-    public int refundPartial(Payment payment, int refundAmount) {
+    public int refundPartial(Payment payment, int refundAmount, Long paymentRefundProcessId) {
         validateRefundableCardPayment(payment);
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
+                        .paymentRefundProcessId(paymentRefundProcessId)
                         .paymentNo(payment.getPaymentNo())
                         .transactionId(payment.getCardTransactionId())
                         .refundAmount(BigDecimal.valueOf(refundAmount))

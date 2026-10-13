@@ -13,6 +13,10 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     Optional<DummyVirtualAccount> findByPaymentNo(String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo")
+    Optional<DummyVirtualAccount> findByPaymentNoForUpdate(@org.springframework.data.repository.query.Param("paymentNo") String paymentNo);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<DummyVirtualAccount> findByAccountNumber(String accountNumber);
 
     boolean existsByAccountNumber(String accountNumber);
