@@ -1,5 +1,7 @@
 # WebFlux 전환 2단계: Reactive Redis 기반
 
+> 이 문서는 전환 당시의 기록이다. 현재 구현과 배포 준비 상태는 [6단계 정리](webflux-finalization.md)를 참고한다.
+
 > 이 문서는 해당 단계 당시의 기록이다. 현재 실행 경로는 [4단계 실행 앱 전환](webflux-runtime.md)을 참고한다.
 
 ## 변경 내용

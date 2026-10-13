@@ -9,7 +9,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.queue.cleanup-mode", havingValue = "reactive")
+@ConditionalOnProperty(name = "app.queue.cleanup-mode", havingValue = "reactive", matchIfMissing = true)
 public class ReactiveQueueCleanupScheduler {
     private final ReactiveQueueService queueService;
 

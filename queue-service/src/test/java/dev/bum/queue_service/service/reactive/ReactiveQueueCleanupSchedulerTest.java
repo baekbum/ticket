@@ -1,8 +1,6 @@
 package dev.bum.queue_service.service.reactive;
 
-import dev.bum.queue_service.scheduler.QueueCleanupScheduler;
 import dev.bum.queue_service.scheduler.ReactiveQueueCleanupScheduler;
-import dev.bum.queue_service.service.QueueService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +25,6 @@ class ReactiveQueueCleanupSchedulerTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ReactiveQueueCleanupScheduler.class);
-                    assertThat(context).doesNotHaveBean(QueueCleanupScheduler.class);
                     AtomicInteger started = new AtomicInteger();
                     AtomicInteger finished = new AtomicInteger();
                     AtomicInteger running = new AtomicInteger();
@@ -46,19 +43,30 @@ class ReactiveQueueCleanupSchedulerTest {
                     }));
                     await().atMost(Duration.ofSeconds(5)).until(() -> finished.get() >= 3);
                     assertThat(maximum.get()).isEqualTo(1);
-                    verifyNoInteractions(context.getBean(QueueService.class));
                 });
+    }
+
+    @Test
+    void reactive_scheduler_is_enabled_by_default() {
+        new ApplicationContextRunner().withUserConfiguration(SchedulingTestConfig.class)
+                .run(context -> assertThat(context).hasSingleBean(ReactiveQueueCleanupScheduler.class));
+    }
+
+    @Test
+    void scheduler_can_be_disabled_for_tests_and_maintenance() {
+        new ApplicationContextRunner().withUserConfiguration(SchedulingTestConfig.class)
+                .withPropertyValues("app.queue.cleanup-mode=disabled")
+                .run(context -> assertThat(context).doesNotHaveBean(ReactiveQueueCleanupScheduler.class));
     }
 
     @Configuration(proxyBeanMethods = false)
     @EnableScheduling
-    @Import({QueueCleanupScheduler.class, ReactiveQueueCleanupScheduler.class})
+    @Import(ReactiveQueueCleanupScheduler.class)
     static class SchedulingTestConfig {
         @Bean ReactiveQueueService reactiveQueueService() {
             var queue = mock(ReactiveQueueService.class);
             when(queue.cleanupExpiredTokens()).thenReturn(Mono.empty());
             return queue;
         }
-        @Bean QueueService queueService() { return mock(QueueService.class); }
     }
 }

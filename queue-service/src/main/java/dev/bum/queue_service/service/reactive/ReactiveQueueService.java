@@ -2,7 +2,6 @@ package dev.bum.queue_service.service.reactive;
 
 import dev.bum.common.service.queue.dto.*;
 import dev.bum.queue_service.config.QueueProperties;
-import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import dev.bum.queue_service.service.QueueSessionType;
 import io.micrometer.observation.ObservationRegistry;
 import reactor.core.observability.micrometer.Micrometer;
@@ -149,10 +148,6 @@ public class ReactiveQueueService {
                 // Mono 생성 시간이 아니라 구독부터 완료·오류·취소까지 관측한다.
                 .name("queue." + ("validate".equals(operation) ? "validate-token" : operation))
                 .tap(Micrometer.observation(observationRegistry));
-    }
-
-    private QueueTokenInvalidException invalidToken() {
-        return new QueueTokenInvalidException("올바르지 않은 시도입니다. 다시 시도해주세요.");
     }
 
     private void validateUserId(String userId) {

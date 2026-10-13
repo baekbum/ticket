@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$Jar,
+    [ValidateSet("baseline", "prod")][string]$Profile = "baseline",
     [string]$OutputDirectory = "$PSScriptRoot/results/idempotency/validation"
 )
 $ErrorActionPreference = 'Stop'
@@ -33,7 +34,7 @@ function Request([string]$Method, [string]$Path, [hashtable]$Headers, [string]$B
 if ($LASTEXITCODE -ne 0) { throw 'Redis 시작 실패' }
 try {
     foreach ($port in @(18084,18085)) {
-        $arguments = @('-Xms256m','-Xmx512m','-jar',('"' + $Jar + '"'),"--server.port=$port",'--spring.profiles.active=baseline',
+        $arguments = @('-Xms256m','-Xmx512m','-jar',('"' + $Jar + '"'),"--server.port=$port","--spring.profiles.active=$Profile",
             '--spring.data.redis.host=127.0.0.1',"--spring.data.redis.port=$redisPort",'--spring.data.redis.database=2',
             '--token-state.redis.host=127.0.0.1',"--token-state.redis.port=$redisPort",'--token-state.redis.database=0',
             '--token.secret=queue-baseline-only-secret-at-least-32-bytes-long','--app.queue.admission-size=2',
@@ -104,7 +105,7 @@ try {
     if ($completed.status -ne 204 -or $completedRetry.status -ne 400 -or $mappingCount -ne 0) {
         throw '완료 후 멱등 매핑 폐기 검증 실패'
     }
-    @{ completedRetryStatus=$completedRetry.status;mappingKeyCountAfterCompletion=$mappingCount; processes=@($apps | ForEach-Object Id); concurrency=$counts; authenticationFailure=$authFailure;
+    @{ profile=$Profile; completedRetryStatus=$completedRetry.status;mappingKeyCountAfterCompletion=$mappingCount; processes=@($apps | ForEach-Object Id); concurrency=$counts; authenticationFailure=$authFailure;
         authenticationFailureSeconds=$authSeconds; queueFailure=$queueFailure; queueFailureSeconds=$queueSeconds;
         recoveredStatus=$entered.status; lostResponseRetryStatus=$retry.status; activeCount=[int]$activeCount; activeTtl=[int]$activeTtl } |
         ConvertTo-Json -Depth 6 | Set-Content "$OutputDirectory/validation.json"

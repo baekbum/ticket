@@ -60,7 +60,7 @@ queue.admin.statuses 이름을 유지한다.
 
 Reactive 메서드에 단순히 @Observed를 붙이면 Mono를 구성하고 반환하는 시간만 관측할 수 있으므로,
 Reactor 관측 연산자를 사용해 구독에서 완료·오류·취소까지 측정한다.
-기존 동기 서비스의 ObservedAspect는 비교 검증용 구현이 남아 있는 동안 유지한다.
+6단계에서 동기 서비스와 ObservedAspect를 제거했다. Reactive 관측은 Micrometer tap으로 유지한다.
 
 참고:
 - https://projectreactor.io/docs/core/release/reference/metrics.html
@@ -88,8 +88,8 @@ Prometheus 테스트에는 AutoConfigureObservability를 명시해 테스트 환
 
 ## 남은 단계
 
-기존 동기 서비스는 비교 테스트를 위해 남아 있지만 기본 HTTP·인증·정리 경로에서는 사용하지 않는다.
-동기 Redis 라이브러리도 이 비교 구현과 테스트 때문에 아직 유지한다.
+4단계 당시 기존 동기 서비스는 비교 테스트를 위해 남겨 뒀지만, 6단계에서 제거했다.
+queue-service의 중복 동기 Redis starter 선언은 제거했다. 다른 서비스가 사용하는 common의 Redis API 의존성은 유지한다.
 
 5단계에서 부하 비교, 요청 취소·응답 유실·Redis 장애와 복구, 여러 인스턴스의 정합성을 검증한다.
 만료 정리의 부분 실패, 세션 인덱스 정리, 이벤트 간 강제 세션 교체 등 기존 제약은 이 전환에서 수정하지 않았다.
@@ -114,3 +114,5 @@ AutoConfigureObservability를 명시한 뒤 통과했다. 이 두 건 때문에 
 5단계의 동시성·장애·블로킹 탐지 및 반복 부하 비교 결과는 [webflux-validation.md](webflux-validation.md)에 기록했다.
 
 승격 응답 유실 시 같은 대기 토큰으로 활성 세션을 복구하는 현재 계약은 [queue-admission-idempotency.md](queue-admission-idempotency.md)에 기록했다.
+
+현재 동기 구현 제거와 배포 준비 상태는 [6단계 정리](webflux-finalization.md)에 기록했다.

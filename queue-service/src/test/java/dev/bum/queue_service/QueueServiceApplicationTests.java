@@ -1,7 +1,6 @@
 package dev.bum.queue_service;
 
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.queue_service.scheduler.QueueCleanupScheduler;
 import dev.bum.queue_service.scheduler.ReactiveQueueCleanupScheduler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,6 @@ class QueueServiceApplicationTests {
         assertThat(context).isInstanceOf(ReactiveWebServerApplicationContext.class);
         assertThat(((ReactiveWebServerApplicationContext) context).getWebServer()).isInstanceOf(NettyWebServer.class);
         assertThat(context.getBeansOfType(ReactiveQueueCleanupScheduler.class)).isEmpty();
-        assertThat(context.getBeansOfType(QueueCleanupScheduler.class)).isEmpty();
         assertThat(context.getBeansOfType(TokenStateStore.class)).isEmpty();
     }
 

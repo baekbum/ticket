@@ -6,11 +6,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
-/** 동기·Reactive 구현이 동일한 입장 승인 규칙을 사용한다. */
+/** Reactive 대기열의 원자적 Redis 상태 전이에 사용하는 스크립트. */
 public final class QueueRedisScripts {
-    public static final RedisScript<Long> ADMIT_IF_SLOT_AVAILABLE =
-            load("redis/queue-admit.lua");
-
     public static final RedisScript<String> STATUS_WITH_IDEMPOTENCY =
             RedisScript.of(read("redis/queue-status.lua"), String.class);
 

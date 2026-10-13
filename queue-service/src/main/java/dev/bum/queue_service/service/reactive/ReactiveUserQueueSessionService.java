@@ -15,11 +15,6 @@ public class ReactiveUserQueueSessionService {
     private final ReactiveStringRedisTemplate redis;
     private final QueueRedisKeys keys;
 
-    public Mono<Void> addWaiting(String userId, String token, long expiresAt) {
-        return redis.opsForZSet().add(keys.userSessionsKey(userId), keys.waitingSessionMember(token), expiresAt)
-                .then();
-    }
-
     public Mono<Void> removeWaiting(String userId, String token) {
         return removeMember(userId, keys.waitingSessionMember(token));
     }

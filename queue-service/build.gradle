@@ -26,9 +26,7 @@ dependencies {
 	implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	implementation 'io.projectreactor:reactor-core-micrometer'
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
@@ -50,7 +48,7 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
-// 동기 비교 구현과 테스트용 Redis fixture에 영향을 주지 않도록 별도 JVM에서 검사한다.
+// 테스트용 동기 Redis fixture와 블로킹 탐지기를 분리하도록 별도 JVM에서 검사한다.
 tasks.register('nonBlockingTest', Test) {
     description = '실제 Netty 요청 경로의 블로킹 호출을 검사한다.'
     group = 'verification'

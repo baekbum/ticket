@@ -40,9 +40,6 @@ class ReactiveQueueServiceIntegrationTest {
     @Autowired ReactiveQueueAdminService admin;
     @Autowired ReactiveQueueRedisInspectService inspect;
     @Autowired ReactiveQueueTestManagementService management;
-    @Autowired QueueService original;
-    @Autowired QueueAdminService originalAdmin;
-    @Autowired QueueRedisInspectService originalInspect;
     @Autowired StringRedisTemplate redis;
     private long event;
     private String user;
@@ -93,7 +90,13 @@ class ReactiveQueueServiceIntegrationTest {
 
     @Test
     void lifecycle_accepts_existing_mvc_tokens_and_preserves_redis_transitions() {
-        String waitingToken = original.enter(event, user, false).token();
+        String waitingToken = UUID.randomUUID().toString();
+        long now = System.currentTimeMillis();
+        // MVC에서 사용하던 키와 값 형식을 직접 구성해 전환 전 토큰의 호환성을 검증한다.
+        redis.opsForValue().set("queue:waiting-token:" + waitingToken, event + ":" + user, Duration.ofMinutes(1));
+        redis.opsForZSet().add("queue:event:" + event + ":waiting", waitingToken, now);
+        redis.opsForZSet().add("queue:event:" + event + ":waiting-expiry", waitingToken, now + 60_000);
+        redis.opsForZSet().add("queue:user-sessions:" + user, "waiting:" + waitingToken, now + 60_000);
         var ready = value(queue.status(event, user, waitingToken));
         assertThat(ready.status()).isEqualTo("READY");
         assertThat(ready.rank()).isZero();
@@ -103,7 +106,7 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "waiting:" + waitingToken)).isNull();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + ready.token())).isNotNull();
         var request = new QueueValidateRequest(event, user, ready.token());
-        assertThat(value(queue.validate(request))).isEqualTo(original.validate(request));
+        assertThat(value(queue.validate(request))).isEqualTo(new QueueValidateResponse(true, "OK"));
         assertThat(value(queue.complete(event, user, ready.token()))).isTrue();
         assertThat(value(queue.complete(event, user, ready.token()))).isFalse();
         assertThat(value(queue.validate(request)).reason()).isEqualTo("INVALID_QUEUE_TOKEN");
@@ -114,11 +117,16 @@ class ReactiveQueueServiceIntegrationTest {
     }
 
     @Test
-    void mvc_service_can_promote_a_reactive_waiting_token() {
-        String token = enter(user);
-        var ready = original.status(event, user, token);
-        assertThat(ready.status()).isEqualTo("READY");
-        assertThat(value(queue.validate(new QueueValidateRequest(event, user, ready.token()))).allowed()).isTrue();
+    void legacy_active_token_without_admission_mapping_can_be_validated_and_completed() {
+        String token = UUID.randomUUID().toString();
+        long expiresAt = System.currentTimeMillis() + 60_000;
+        redis.opsForValue().set("queue:active-token:" + token, event + ":" + user, Duration.ofMinutes(1));
+        redis.opsForZSet().add("queue:event:" + event + ":active", token, expiresAt);
+        redis.opsForZSet().add("queue:user-sessions:" + user, "active:" + token, expiresAt);
+        assertThat(value(queue.validate(new QueueValidateRequest(event, user, token))).allowed()).isTrue();
+        assertThat(value(queue.complete(event, user, token))).isTrue();
+        assertThat(redis.hasKey("queue:active-token:" + token)).isFalse();
+        assertThat(value(sessions.count(user))).isZero();
     }
 
     @Test
@@ -228,10 +236,9 @@ class ReactiveQueueServiceIntegrationTest {
         List<String> users = List.of(waitingUser, user);
         Map<String, String> tokens = Map.of(waitingUser, waitingToken);
         var actual = value(admin.statuses(event, users, tokens));
-        var expected = originalAdmin.statuses(event, users, tokens);
         assertThat(actual).extracting(QueueStatusResponse::status).containsExactly("WAITING", "READY");
         assertThat(actual).extracting(QueueStatusResponse::token)
-                .containsExactlyElementsOf(expected.stream().map(QueueStatusResponse::token).toList());
+                .containsExactly(waitingToken, activeToken);
         assertThat(actual.get(1).token()).isEqualTo(activeToken);
     }
 
@@ -239,9 +246,8 @@ class ReactiveQueueServiceIntegrationTest {
     void inspection_preserves_missing_values_negative_ttl_and_removal_results() {
         String token = enter(user);
         var actual = value(inspect.inspectEventQueue(event, null, 0));
-        var expected = originalInspect.inspectEventQueue(event, null, 0);
         assertThat(actual.getLimit()).isEqualTo(100);
-        assertThat(actual.getEntries().getFirst().getValue()).isEqualTo(expected.getEntries().getFirst().getValue());
+        assertThat(actual.getEntries().getFirst().getValue()).isEqualTo(event + ":" + user);
         assertThat(actual.getEntries().getFirst().getRank()).isEqualTo(1L);
         redis.delete("queue:waiting-token:" + token);
         var orphan = value(inspect.inspectEventQueue(event, QueueRedisInspectMode.WAITING, 1000));
@@ -250,7 +256,9 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(orphan.getEntries().getFirst().getValue()).isNull();
         assertThat(orphan.getEntries().getFirst().getTtlSeconds()).isEqualTo(-2L);
         var missing = value(inspect.inspectToken("missing"));
-        assertThat(missing).isEqualTo(originalInspect.inspectToken("missing"));
+        assertThat(missing.getEntries()).hasSize(1);
+        assertThat(missing.getEntries().getFirst().getValue()).isNull();
+        assertThat(missing.getEntries().getFirst().getTtlSeconds()).isEqualTo(-2L);
         assertThat(value(inspect.removeToken(event, token, QueueRedisInspectMode.WAITING))).isTrue();
         assertThat(value(inspect.removeToken(event, token, QueueRedisInspectMode.WAITING))).isFalse();
         assertThat(value(inspect.removeToken(event, token, QueueRedisInspectMode.TOKEN))).isFalse();

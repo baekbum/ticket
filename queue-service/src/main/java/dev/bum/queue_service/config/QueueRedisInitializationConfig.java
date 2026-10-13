@@ -31,7 +31,6 @@ public class QueueRedisInitializationConfig {
             // 파일 읽기와 SHA 계산을 요청 이벤트 루프에서 수행하지 않는다.
             QueueRedisScripts.REGISTER_WAITING.getSha1();
             QueueRedisScripts.REFRESH_WAITING.getSha1();
-            QueueRedisScripts.ADMIT_IF_SLOT_AVAILABLE.getSha1();
             QueueRedisScripts.STATUS_WITH_IDEMPOTENCY.getSha1();
             QueueRedisScripts.REMOVE_TOKEN.getSha1();
             QueueRedisScripts.CLEAR_EVENT.getSha1();
