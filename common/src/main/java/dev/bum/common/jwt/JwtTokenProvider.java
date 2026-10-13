@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 public class JwtTokenProvider {
 
     private final Key key;
+    private final JwtParser parser;
     private final long accessTokenValidityInMilliseconds;
     private final long refreshTokenValidityInMilliseconds;
 
@@ -33,6 +34,8 @@ public class JwtTokenProvider {
             @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity) {
 
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        // 구현체 탐색의 파일 I/O는 앱 시작 시 수행하고 불변 파서를 요청 간 재사용한다.
+        this.parser = Jwts.parserBuilder().setSigningKey(key).build();
         this.accessTokenValidityInMilliseconds = accessValidity;
         this.refreshTokenValidityInMilliseconds = refreshValidity;
     }
@@ -80,10 +83,7 @@ public class JwtTokenProvider {
 
     // 2. 토큰에서 인증 정보 조회 (SecurityContext에 저장하기 위함)
     public Authentication getAuthentication(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
+        Claims claims = parser.parseClaimsJws(token)
                 .getBody();
 
         Collection<? extends GrantedAuthority> authorities =
@@ -98,7 +98,7 @@ public class JwtTokenProvider {
     // 3. 토큰의 유효성 + 만료일자 확인
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            parser.parseClaimsJws(token);
             return true;
         } catch (ExpiredJwtException e) {
             log.info("만료된 JWT 토큰입니다.");
@@ -117,10 +117,7 @@ public class JwtTokenProvider {
 
     // [추가] 토큰에서 userId(Subject) 추출
     public String getUserId(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
+        return parser.parseClaimsJws(token)
                 .getBody()
                 .getSubject();
     }
@@ -138,15 +135,12 @@ public class JwtTokenProvider {
     }
 
     private Claims readClaims(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return parser.parseClaimsJws(token).getBody();
     }
 
     // [추가] 토큰에서 Role(auth) 추출
     public String getRole(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
+        Claims claims = parser.parseClaimsJws(token)
                 .getBody();
 
         // "ROLE_USER" 같은 형태로 저장된 문자열 그대로 반환

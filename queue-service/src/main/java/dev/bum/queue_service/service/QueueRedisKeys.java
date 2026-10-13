@@ -33,6 +33,14 @@ public class QueueRedisKeys {
         return "queue:active-token:" + activeToken;
     }
 
+    public String waitingActiveMappingKey(String waitingToken) {
+        return "queue:waiting-active:" + waitingToken;
+    }
+
+    public String activeWaitingMappingKey(String activeToken) {
+        return "queue:active-waiting:" + activeToken;
+    }
+
     public String activeSessionMember(String activeToken) {
         return "active:" + activeToken;
     }

@@ -1,69 +1,58 @@
 package dev.bum.queue_service.controller;
 
-import dev.bum.common.service.queue.dto.QueueCompleteRequest;
-import dev.bum.common.service.queue.dto.QueueEnterResponse;
-import dev.bum.common.service.queue.dto.QueueStatusResponse;
-import dev.bum.common.service.queue.dto.QueueValidateRequest;
-import dev.bum.common.service.queue.dto.QueueValidateResponse;
-import dev.bum.queue_service.service.QueueService;
+import dev.bum.common.service.queue.dto.*;
+import dev.bum.queue_service.service.reactive.ReactiveQueueService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/v1/queue")
 @RequiredArgsConstructor
 public class QueueController {
-
-    private final QueueService queueService;
+    private final ReactiveQueueService queueService;
 
     @PostMapping("/events/{eventId}/enter")
-    public ResponseEntity<QueueEnterResponse> enter(
+    public Mono<ResponseEntity<QueueEnterResponse>> enter(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
-            @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force
-    ) {
-        return ResponseEntity.ok(queueService.enter(eventId, currentUserId, force));
+            @RequestHeader(value = "X-Queue-Force-Enter", defaultValue = "false") boolean force) {
+        return queueService.enter(eventId, currentUserId, force)
+                .map(ResponseEntity::ok);
     }
 
     @GetMapping("/events/{eventId}/status")
-    public ResponseEntity<QueueStatusResponse> status(
+    public Mono<ResponseEntity<QueueStatusResponse>> status(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
-            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken
-    ) {
-        return ResponseEntity.ok(queueService.status(eventId, currentUserId, waitingToken));
+            @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken) {
+        return queueService.status(eventId, currentUserId, waitingToken)
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/events/{eventId}/leave")
-    public ResponseEntity<Void> leave(
+    public Mono<ResponseEntity<Void>> leave(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable Long eventId,
             @RequestHeader(value = "X-Waiting-Token", required = false) String waitingToken,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken
-    ) {
-        queueService.leave(eventId, currentUserId, waitingToken, activeToken);
-        return ResponseEntity.noContent().build();
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken) {
+        return queueService.leave(eventId, currentUserId, waitingToken, activeToken)
+                .thenReturn(ResponseEntity.noContent().build());
     }
 
     @PostMapping("/validate")
-    public ResponseEntity<QueueValidateResponse> validate(@Valid @RequestBody QueueValidateRequest request) {
-        return ResponseEntity.ok(queueService.validate(request));
+    public Mono<ResponseEntity<QueueValidateResponse>> validate(@Valid @RequestBody QueueValidateRequest request) {
+        return queueService.validate(request)
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/complete")
-    public ResponseEntity<Void> complete(@Valid @RequestBody QueueCompleteRequest request) {
-        boolean completed = queueService.complete(request.eventId(), request.userId(), request.token());
-        return completed
-                ? ResponseEntity.noContent().build()
-                : ResponseEntity.badRequest().build();
+    public Mono<ResponseEntity<Void>> complete(@Valid @RequestBody QueueCompleteRequest request) {
+        return queueService.complete(request.eventId(), request.userId(), request.token())
+                .map(completed -> completed
+                        ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build());
     }
 }

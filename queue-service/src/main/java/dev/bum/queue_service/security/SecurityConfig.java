@@ -1,59 +1,54 @@
 package dev.bum.queue_service.security;
 
-import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
-import dev.bum.common.security.JwtAuthenticationFilter;
-import dev.bum.common.security.TokenStateStore;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import java.util.Optional;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
+import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
+import org.springframework.security.web.server.savedrequest.NoOpServerRequestCache;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
 @Configuration
-@EnableWebSecurity
+@EnableWebFluxSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-
-    private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
-    private final TokenStateStore tokenStateStore;
-    private static final String ROLE_ADMIN = "ADMIN";
-    private static final String[] ROLE_ADMIN_OR_USER = {"ADMIN", "USER"};
+    private final ReactiveTokenStateStore tokenStateStore;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityWebFilterChain filterChain(ServerHttpSecurity http, ObjectProvider<CorsConfigurationSource> corsSources) {
         http
-                .csrf(csrf -> csrf.disable())
-                .cors(this::configureCors)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/v1/queue/validate").permitAll()
-                        .requestMatchers("/api/v1/queue/complete").permitAll()
-                        .requestMatchers("/api/v1/manage/queue/**").hasRole(ROLE_ADMIN)
-                        .requestMatchers("/api/v1/queue/**").hasAnyRole(ROLE_ADMIN_OR_USER)
-                        .anyRequest().hasRole(ROLE_ADMIN)
-                );
-
-        http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, tokenStateStore), UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
-
-    private void configureCors(CorsConfigurer<HttpSecurity> cors) {
-        localCorsConfig.ifPresent(config ->
-                cors.configurationSource(config.corsConfigurationSource())
-        );
-
-        if (localCorsConfig.isEmpty()) {
-            cors.disable();
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                .logout(ServerHttpSecurity.LogoutSpec::disable)
+                .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
+                .requestCache(cache -> cache.requestCache(NoOpServerRequestCache.getInstance()))
+                // 기존처럼 인증 정보가 없는 보호 경로는 403으로 응답한다.
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(
+                        new HttpStatusServerEntryPoint(HttpStatus.FORBIDDEN)))
+                .authorizeExchange(auth -> auth
+                        .pathMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        .pathMatchers("/api/v1/queue/validate", "/api/v1/queue/complete").permitAll()
+                        .pathMatchers("/api/v1/manage/queue/**").hasRole("ADMIN")
+                        .pathMatchers("/api/v1/queue/**").hasAnyRole("ADMIN", "USER")
+                        .anyExchange().hasRole("ADMIN"));
+        CorsConfigurationSource corsSource = corsSources.getIfAvailable();
+        if (corsSource == null) {
+            http.cors(ServerHttpSecurity.CorsSpec::disable);
+        } else {
+            http.cors(cors -> cors.configurationSource(corsSource));
         }
+        // 전역 WebFilter 빈으로 등록하지 않아 인증 필터가 두 번 실행되지 않도록 한다.
+        http.addFilterAt(new ReactiveJwtAuthenticationFilter(jwtTokenProvider, tokenStateStore),
+                SecurityWebFiltersOrder.AUTHENTICATION);
+        return http.build();
     }
 }
