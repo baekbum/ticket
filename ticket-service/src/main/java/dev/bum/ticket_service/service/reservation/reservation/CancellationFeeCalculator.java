@@ -1,7 +1,7 @@
 package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
-import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.ticket.Ticket;

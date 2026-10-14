@@ -6,7 +6,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountRefundRequest;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
-import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

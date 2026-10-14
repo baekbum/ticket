@@ -4,7 +4,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayCardPaymentRefundRequest;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
-import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +21,7 @@ public class CardPaymentRefundService {
 
     public int refundAll(Payment payment, Long paymentRefundProcessId) {
         validateRefundableCardPayment(payment);
+
         int refundAmount = payment.getRefundableAmount();
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
@@ -36,6 +37,7 @@ public class CardPaymentRefundService {
 
     public int refundPartial(Payment payment, int refundAmount, Long paymentRefundProcessId) {
         validateRefundableCardPayment(payment);
+
         paymentGatewayCardClient.refund(
                 GatewayCardPaymentRefundRequest.builder()
                         .paymentRefundProcessId(paymentRefundProcessId)

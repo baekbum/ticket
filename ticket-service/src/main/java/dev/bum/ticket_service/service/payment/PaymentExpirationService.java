@@ -2,8 +2,8 @@ package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;

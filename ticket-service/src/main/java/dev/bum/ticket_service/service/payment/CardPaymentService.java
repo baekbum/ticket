@@ -7,8 +7,8 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -44,6 +44,7 @@ public class CardPaymentService {
         if (isExpired(payment)) {
             throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
         }
+        payment.approvalRequested();
         return payment.toResponse();
     }
 
@@ -150,7 +151,7 @@ public class CardPaymentService {
             return payment.toResponse();
         }
 
-        payment.fail();
+        payment.fail(request.getFailureReason());
         return payment.toResponse();
     }
 

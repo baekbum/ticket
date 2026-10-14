@@ -1,5 +1,9 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
+
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;

@@ -1,0 +1,65 @@
+package dev.bum.ticket_service.service.checkout.payment;
+
+import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
+import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueRequest;
+import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.math.BigDecimal;
+import java.util.Locale;
+
+@Service
+@RequiredArgsConstructor
+public class CheckoutVirtualAccountService {
+
+    private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
+
+    public void issue(CheckoutConfirmRequest request, Payment payment) {
+        GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
+        if (virtualAccount == null || !Boolean.TRUE.equals(virtualAccount.getIssued())
+                || virtualAccount.getStatus() != GatewayVirtualAccountStatus.WAITING_DEPOSIT
+                || !StringUtils.hasText(virtualAccount.getBankName())
+                || !StringUtils.hasText(virtualAccount.getAccountNumber())
+                || virtualAccount.getExpiresAt() == null) {
+            throw new IllegalStateException("가상계좌 발급에 실패했습니다.");
+        }
+        payment.waitDeposit(
+                virtualAccount.getBankName(),
+                virtualAccount.getAccountNumber(),
+                virtualAccount.getExpiresAt()
+        );
+    }
+
+    private GatewayVirtualAccountIssueResponse issueVirtualAccountFromGateway(
+            CheckoutConfirmRequest request,
+            Payment payment
+    ) {
+        BankCompany bankCompany = resolveBankCompany(request);
+        return paymentGatewayVirtualAccountClient.issue(
+                GatewayVirtualAccountIssueRequest.builder()
+                        .paymentNo(payment.getPaymentNo())
+                        .bankCompany(bankCompany)
+                        .amount(BigDecimal.valueOf(payment.getAmount()))
+                        .eventDateTime(payment.getReservation().getEvent().getEventDateTime())
+                        .ticketPaymentApplyRequired(false)
+                        .build()
+        );
+    }
+
+    private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
+        if (!StringUtils.hasText(request.getBankCode())) {
+            throw new IllegalArgumentException("은행 코드가 필요합니다.");
+        }
+        try {
+            return BankCompany.valueOf(request.getBankCode().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("지원하지 않는 은행 코드입니다.");
+        }
+    }
+}

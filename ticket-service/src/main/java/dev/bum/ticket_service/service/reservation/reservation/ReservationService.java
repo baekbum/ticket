@@ -11,8 +11,8 @@ import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
@@ -158,8 +158,7 @@ public class ReservationService {
 
         return paymentJpaRepository.findByReservation(reservation)
                 .map(payment -> {
-                    if (payment.getStatus() != PaymentStatus.PAID
-                            && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
+                    if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
                         return null;
                     }
 
@@ -178,7 +177,8 @@ public class ReservationService {
                         boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
 
                         PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
-                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, null);
+                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, null
+                        );
                         Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
 
                         if (gatewayAttempt.isGatewayRequired()) {

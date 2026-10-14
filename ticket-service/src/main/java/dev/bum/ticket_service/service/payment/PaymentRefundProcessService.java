@@ -10,12 +10,12 @@ import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcess;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcessJpaRepository;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcessStatus;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
@@ -24,8 +24,11 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
 import jakarta.persistence.criteria.JoinType;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -51,8 +54,10 @@ public class PaymentRefundProcessService {
     private final TicketPurchaseCountService ticketPurchaseCountService;
 
     @Transactional(readOnly = true)
-    public CustomPageResponse<PaymentRefundProcessResponse> selectByCond(PaymentRefundProcessCondRequest cond) {
-        PaymentRefundProcessCondRequest normalizedCond = cond != null ? cond : new PaymentRefundProcessCondRequest();
+    public CustomPageResponse<PaymentRefundProcessResponse> selectByCond(
+            PaymentRefundProcessCondRequest cond) {
+        PaymentRefundProcessCondRequest normalizedCond =
+                cond != null ? cond : new PaymentRefundProcessCondRequest();
         PageRequest pageable = PageRequest.of(
                 normalizedCond.getPage() != null ? normalizedCond.getPage() : 0,
                 normalizedCond.getSize() != null ? normalizedCond.getSize() : 10,
@@ -68,8 +73,7 @@ public class PaymentRefundProcessService {
                 page.getSize(),
                 page.getNumber(),
                 page.getTotalElements(),
-                page.getTotalPages()
-        );
+                page.getTotalPages());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -78,8 +82,7 @@ public class PaymentRefundProcessService {
             List<Ticket> selectedTickets,
             int refundAmount,
             boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
+            RefundAccountRequest refundAccount) {
         return create(payment, selectedTickets, refundAmount, 0, fullCancellation, refundAccount);
     }
 
@@ -90,11 +93,18 @@ public class PaymentRefundProcessService {
             int refundAmount,
             int cancellationFeeAmount,
             boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
+            RefundAccountRequest refundAccount) {
         PaymentRefundProcess process = paymentRefundProcessJpaRepository.save(
-                PaymentRefundProcess.create(payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, refundAccount)
+                PaymentRefundProcess.create(
+                        payment,
+                        selectedTickets,
+                        refundAmount,
+                        cancellationFeeAmount,
+                        fullCancellation,
+                        refundAccount
+                )
         );
+
         return process.getPaymentRefundProcessId();
     }
 
@@ -104,9 +114,9 @@ public class PaymentRefundProcessService {
             List<Ticket> selectedTickets,
             int refundAmount,
             boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
-        return startGatewayAttempt(payment, selectedTickets, refundAmount, 0, fullCancellation, refundAccount);
+            RefundAccountRequest refundAccount) {
+        return startGatewayAttempt(
+                payment, selectedTickets, refundAmount, 0, fullCancellation, refundAccount);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -116,23 +126,37 @@ public class PaymentRefundProcessService {
             int refundAmount,
             int cancellationFeeAmount,
             boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
-        return paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
+            RefundAccountRequest refundAccount) {
+        return paymentRefundProcessJpaRepository
+                .findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
                         payment.getReservation(),
                         List.of(
                                 PaymentRefundProcessStatus.REQUESTED,
                                 PaymentRefundProcessStatus.GATEWAY_FAILED,
                                 PaymentRefundProcessStatus.GATEWAY_SUCCEEDED,
-                                PaymentRefundProcessStatus.LOCAL_FAILED
-                        )
-                )
-                .map(process -> prepareGatewayAttempt(process, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, refundAccount))
-                .orElseGet(() -> new PaymentRefundProcessGatewayAttempt(
-                        create(payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, refundAccount),
-                        true,
-                        false
-                ));
+                                PaymentRefundProcessStatus.LOCAL_FAILED))
+                .map(
+                        process ->
+                                prepareGatewayAttempt(
+                                        process,
+                                        selectedTickets,
+                                        refundAmount,
+                                        cancellationFeeAmount,
+                                        fullCancellation,
+                                        refundAccount))
+                .orElseGet(
+                        () ->
+                                new PaymentRefundProcessGatewayAttempt(
+                                        create(
+                                                payment,
+                                                selectedTickets,
+                                                refundAmount,
+                                                cancellationFeeAmount,
+                                                fullCancellation,
+                                                refundAccount
+                                        ),
+                                        true,
+                                        false));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -140,7 +164,8 @@ public class PaymentRefundProcessService {
         if (paymentRefundProcessId == null) {
             return;
         }
-        paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
+        paymentRefundProcessJpaRepository
+                .findById(paymentRefundProcessId)
                 .ifPresent(PaymentRefundProcess::gatewaySucceeded);
     }
 
@@ -149,7 +174,8 @@ public class PaymentRefundProcessService {
         if (paymentRefundProcessId == null) {
             return;
         }
-        paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
+        paymentRefundProcessJpaRepository
+                .findById(paymentRefundProcessId)
                 .ifPresent(process -> process.gatewayFailed(messageOf(throwable)));
     }
 
@@ -158,7 +184,8 @@ public class PaymentRefundProcessService {
         if (paymentRefundProcessId == null) {
             return;
         }
-        paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
+        paymentRefundProcessJpaRepository
+                .findById(paymentRefundProcessId)
                 .ifPresent(PaymentRefundProcess::localSucceeded);
     }
 
@@ -167,7 +194,8 @@ public class PaymentRefundProcessService {
         if (paymentRefundProcessId == null) {
             return;
         }
-        paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
+        paymentRefundProcessJpaRepository
+                .findById(paymentRefundProcessId)
                 .ifPresent(process -> process.localFailed(messageOf(throwable)));
     }
 
@@ -177,8 +205,8 @@ public class PaymentRefundProcessService {
             Payment payment,
             List<Ticket> selectedTickets,
             int refundAmount,
-            boolean fullCancellation
-    ) {
+            boolean fullCancellation) {
+
         if (paymentRefundProcessId == null) {
             return;
         }
@@ -187,13 +215,16 @@ public class PaymentRefundProcessService {
         savePaymentRefundHistory(process, payment, selectedTickets, refundAmount, fullCancellation);
     }
 
-    @AuditLog(action = "PAYMENT_REFUND_PROCESS_LOCAL_COMPLETE", targetType = "PAYMENT_REFUND_PROCESS")
+    @AuditLog(
+            action = "PAYMENT_REFUND_PROCESS_LOCAL_COMPLETE",
+            targetType = "PAYMENT_REFUND_PROCESS")
     @Transactional
     public PaymentRefundProcessResponse completeLocal(Long paymentRefundProcessId) {
         PaymentRefundProcess process = findById(paymentRefundProcessId);
         if (process.getStatus() != PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
                 && process.getStatus() != PaymentRefundProcessStatus.LOCAL_FAILED) {
-            throw new IllegalArgumentException("gateway 환불 성공 이후 로컬 반영이 완료되지 않은 환불 처리만 수동 완료 처리할 수 있습니다.");
+            throw new IllegalArgumentException(
+                    "gateway 환불 성공 이후 로컬 반영이 완료되지 않은 환불 처리만 수동 완료 처리할 수 있습니다.");
         }
 
         PaymentRefundProcessStatus beforeStatus = process.getStatus();
@@ -206,11 +237,14 @@ public class PaymentRefundProcessService {
         if (throwable == null) {
             return null;
         }
-        return throwable.getMessage() != null ? throwable.getMessage() : throwable.getClass().getSimpleName();
+        return throwable.getMessage() != null
+                ? throwable.getMessage()
+                : throwable.getClass().getSimpleName();
     }
 
     private PaymentRefundProcess findById(Long paymentRefundProcessId) {
-        return paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
+        return paymentRefundProcessJpaRepository
+                .findById(paymentRefundProcessId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
     }
 
@@ -220,18 +254,20 @@ public class PaymentRefundProcessService {
             int refundAmount,
             int cancellationFeeAmount,
             boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
-        validateSameRefundProcess(process, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation);
+            RefundAccountRequest refundAccount) {
+        validateSameRefundProcess(
+                process, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation);
+        process.validateRefundAccount(refundAccount);
 
         if (process.getStatus() == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
                 || process.getStatus() == PaymentRefundProcessStatus.LOCAL_FAILED) {
-            return new PaymentRefundProcessGatewayAttempt(process.getPaymentRefundProcessId(), false, true);
+            return new PaymentRefundProcessGatewayAttempt(
+                    process.getPaymentRefundProcessId(), false, true);
         }
 
         process.gatewayRetryRequested();
-        process.updateRefundAccount(refundAccount);
-        return new PaymentRefundProcessGatewayAttempt(process.getPaymentRefundProcessId(), true, false);
+        return new PaymentRefundProcessGatewayAttempt(
+                process.getPaymentRefundProcessId(), true, false);
     }
 
     private void validateSameRefundProcess(
@@ -239,8 +275,7 @@ public class PaymentRefundProcessService {
             List<Ticket> selectedTickets,
             int refundAmount,
             int cancellationFeeAmount,
-            boolean fullCancellation
-    ) {
+            boolean fullCancellation) {
         String selectedTicketIds = selectedTickets.stream()
                 .map(Ticket::getTicketId)
                 .map(String::valueOf)
@@ -261,12 +296,19 @@ public class PaymentRefundProcessService {
                 applyPaymentRefund(payment, process);
             }
             List<Ticket> selectedTickets = selectProcessTickets(process, reservation);
-            boolean restoreCouponOnCancel = process.isFullCancellation() && reservation.getStatus() == ReservationStatus.PAID;
+            boolean restoreCouponOnCancel = process.isFullCancellation()
+                    && reservation.getStatus() == ReservationStatus.PAID;
 
             ticketPurchaseCountService.release(reservation, selectedTickets);
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
-            applyReservationCancelStatus(reservation, process.isFullCancellation(), restoreCouponOnCancel);
-            savePaymentRefundHistory(process, payment, selectedTickets, process.getRefundAmount(), process.isFullCancellation());
+            applyReservationCancelStatus(
+                    reservation, process.isFullCancellation(), restoreCouponOnCancel);
+            savePaymentRefundHistory(
+                    process,
+                    payment,
+                    selectedTickets,
+                    process.getRefundAmount(),
+                    process.isFullCancellation());
             process.localSucceeded();
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
@@ -280,8 +322,10 @@ public class PaymentRefundProcessService {
         if (payment.getStatus() == PaymentStatus.REFUNDED) {
             return;
         }
-        if (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED) {
-            payment.applyCancellation(process.getRefundAmount(), process.getCancellationFeeAmount());
+        if (payment.getStatus() == PaymentStatus.PAID
+                || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED) {
+            payment.applyCancellation(
+                    process.getRefundAmount(), process.getCancellationFeeAmount());
         }
     }
 
@@ -290,24 +334,45 @@ public class PaymentRefundProcessService {
             Payment payment,
             List<Ticket> selectedTickets,
             int refundAmount,
-            boolean fullCancellation
-    ) {
+            boolean fullCancellation) {
         if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)) {
             throw new IllegalStateException("이미 환불 이력이 저장된 환불 처리입니다.");
         }
 
         paymentRefundHistoryJpaRepository.save(
-                PaymentRefundHistory.create(process, payment, selectedTickets, refundAmount, fullCancellation)
-        );
+                PaymentRefundHistory.create(
+                        process, payment, selectedTickets, refundAmount, fullCancellation));
+        // 본문 실행 중에는 독립 실패 기록 트랜잭션과 잠금이 충돌하지 않도록 완료 상태를 커밋 직전에 반영한다.
+        // 성공 이력과 완료 상태는 여전히 예매·결제 변경과 같은 트랜잭션으로 커밋된다.
+        if (org.springframework.transaction.support.TransactionSynchronizationManager
+                .isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .registerSynchronization(
+                            new org.springframework.transaction.support
+                                    .TransactionSynchronization() {
+                                @Override
+                                public void beforeCommit(boolean readOnly) {
+                                    process.localSucceeded();
+                                }
+                            });
+        } else {
+            process.localSucceeded();
+        }
     }
 
-    private List<Ticket> selectProcessTickets(PaymentRefundProcess process, Reservation reservation) {
+    private List<Ticket> selectProcessTickets(
+            PaymentRefundProcess process, Reservation reservation) {
         List<Long> ticketIds = parseTicketIds(process.getSelectedTicketIds());
         List<Ticket> tickets = ticketJpaRepository.findAllByTicketIdIn(ticketIds);
         if (tickets.size() != ticketIds.size()) {
             throw new IllegalArgumentException("환불 처리 대상 티켓을 찾을 수 없습니다.");
         }
-        if (tickets.stream().anyMatch(ticket -> !ticket.getReservation().getReservationId().equals(reservation.getReservationId()))) {
+        if (tickets.stream()
+                .anyMatch(
+                        ticket ->
+                                !ticket.getReservation()
+                                        .getReservationId()
+                                        .equals(reservation.getReservationId()))) {
             throw new IllegalArgumentException("환불 처리 대상 티켓이 예매 정보와 일치하지 않습니다.");
         }
         return tickets;
@@ -325,14 +390,15 @@ public class PaymentRefundProcessService {
     }
 
     private List<Seat> cancelTickets(List<Ticket> selectedTickets) {
-        selectedTickets.forEach(ticket -> {
-            if (ticket.getStatus() != TicketStatus.CANCELLED) {
-                ticket.cancel();
-            }
-            if (ticket.getSeat() != null) {
-                ticket.getSeat().available();
-            }
-        });
+        selectedTickets.forEach(
+                ticket -> {
+                    if (ticket.getStatus() != TicketStatus.CANCELLED) {
+                        ticket.cancel();
+                    }
+                    if (ticket.getSeat() != null) {
+                        ticket.getSeat().available();
+                    }
+                });
 
         return selectedTickets.stream()
                 .map(Ticket::getSeat)
@@ -340,7 +406,8 @@ public class PaymentRefundProcessService {
                 .toList();
     }
 
-    private void applyReservationCancelStatus(Reservation reservation, boolean fullCancellation, boolean restoreCouponOnCancel) {
+    private void applyReservationCancelStatus(
+            Reservation reservation, boolean fullCancellation, boolean restoreCouponOnCancel) {
         if (!fullCancellation) {
             reservation.partial_cancel();
             return;
@@ -357,7 +424,8 @@ public class PaymentRefundProcessService {
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
 
         for (ReservationDiscount discount : discounts) {
-            if (discount.getUserCoupon() != null && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
+            if (discount.getUserCoupon() != null
+                    && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
                 discount.getUserCoupon().restore(now);
             }
         }
@@ -367,27 +435,48 @@ public class PaymentRefundProcessService {
         return (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
-                root.fetch("payment", JoinType.LEFT);
-                root.fetch("reservation", JoinType.LEFT);
+                root.fetch("refund", JoinType.LEFT)
+                        .fetch("payment", JoinType.LEFT)
+                        .fetch("reservation", JoinType.LEFT);
             }
 
             if (cond.getPaymentRefundProcessId() != null && cond.getPaymentRefundProcessId() > 0) {
-                predicates.add(cb.equal(root.get("paymentRefundProcessId"), cond.getPaymentRefundProcessId()));
+                predicates.add(
+                        cb.equal(
+                                root.get("paymentRefundProcessId"),
+                                cond.getPaymentRefundProcessId()));
             }
             if (cond.getReservationId() != null && cond.getReservationId() > 0) {
-                predicates.add(cb.equal(root.get("reservation").get("reservationId"), cond.getReservationId()));
+                predicates.add(
+                        cb.equal(
+                                root.get("refund")
+                                        .get("payment")
+                                        .get("reservation")
+                                        .get("reservationId"),
+                                cond.getReservationId()));
             }
             if (cond.getPaymentId() != null && cond.getPaymentId() > 0) {
-                predicates.add(cb.equal(root.get("payment").get("paymentId"), cond.getPaymentId()));
+                predicates.add(
+                        cb.equal(
+                                root.get("refund").get("payment").get("paymentId"),
+                                cond.getPaymentId()));
             }
             if (StringUtils.hasText(cond.getPaymentNo())) {
-                predicates.add(cb.like(root.get("paymentNo"), "%" + cond.getPaymentNo() + "%"));
+                predicates.add(
+                        cb.like(
+                                root.get("refund").get("payment").get("paymentNo"),
+                                "%" + cond.getPaymentNo() + "%"));
             }
             if (cond.getMethod() != null) {
-                predicates.add(cb.equal(root.get("method"), cond.getMethod()));
+                predicates.add(
+                        cb.equal(
+                                root.get("refund").get("payment").get("method"), cond.getMethod()));
             }
             if (StringUtils.hasText(cond.getStatus())) {
-                predicates.add(cb.equal(root.get("status"), PaymentRefundProcessStatus.valueOf(cond.getStatus())));
+                predicates.add(
+                        cb.equal(
+                                root.get("status"),
+                                PaymentRefundProcessStatus.valueOf(cond.getStatus())));
             }
 
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
@@ -403,10 +492,21 @@ public class PaymentRefundProcessService {
         for (String sort : sorts) {
             String[] parts = sort.split("-");
             if (parts.length == 2) {
-                orders.add(new Sort.Order(Sort.Direction.fromString(parts[1]), parts[0]));
+                String property =
+                        switch (parts[0]) {
+                            case "paymentId" -> "refund.payment.paymentId";
+                            case "reservationId" -> "refund.payment.reservation.reservationId";
+                            case "paymentNo", "method" -> "refund.payment." + parts[0];
+                            case "refundAmount", "cancellationFeeAmount", "fullCancellation" ->
+                                    "refund.snapshot." + parts[0];
+                            default -> parts[0];
+                        };
+                orders.add(new Sort.Order(Sort.Direction.fromString(parts[1]), property));
             }
         }
 
-        return orders.isEmpty() ? Sort.by(Sort.Direction.DESC, "paymentRefundProcessId") : Sort.by(orders);
+        return orders.isEmpty()
+                ? Sort.by(Sort.Direction.DESC, "paymentRefundProcessId")
+                : Sort.by(orders);
     }
 }

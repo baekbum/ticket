@@ -12,13 +12,13 @@ import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditContext;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.event.event.Event;
-import dev.bum.ticket_service.jpa.payment.CardPaymentInfo;
-import dev.bum.ticket_service.jpa.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistory;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundHistoryJpaRepository;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcess;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcessJpaRepository;
-import dev.bum.ticket_service.jpa.payment.PaymentRefundProcessStatus;
+import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -104,11 +104,17 @@ class PaymentRefundProcessServiceTest {
         Reservation reservation = reservation(ReservationStatus.PAID);
         Payment payment = virtualAccountPayment(reservation);
         Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
-        PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_FAILED);
         RefundAccountRequest refundAccount = RefundAccountRequest.builder()
                 .bankCompany(BankCompany.SHINHAN)
                 .accountNumber("9876543210")
                 .accountHolder("김환불")
+                .build();
+        PaymentRefundProcess process = PaymentRefundProcess.builder()
+                .paymentRefundProcessId(1L)
+                .refund(new dev.bum.ticket_service.jpa.payment.refund.PaymentRefund(payment,
+                        new dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot(
+                                payment, List.of(ticket), 100000, 0, false, refundAccount)))
+                .status(PaymentRefundProcessStatus.GATEWAY_FAILED)
                 .build();
 
         given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
