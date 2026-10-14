@@ -17,7 +17,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.payment.PaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

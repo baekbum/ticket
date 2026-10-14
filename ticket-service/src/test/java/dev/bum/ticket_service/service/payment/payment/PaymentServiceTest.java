@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
@@ -10,9 +10,8 @@ import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.service.payment.CardPaymentService;
-import dev.bum.ticket_service.service.payment.PaymentService;
-import dev.bum.ticket_service.service.payment.VirtualAccountPaymentService;
+import dev.bum.ticket_service.service.payment.card.CardPaymentService;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

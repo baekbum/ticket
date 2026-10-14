@@ -3,7 +3,7 @@ package dev.bum.ticket_service.controller.payment;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessCondRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

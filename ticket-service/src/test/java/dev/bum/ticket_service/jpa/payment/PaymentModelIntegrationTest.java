@@ -28,7 +28,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.*;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.seat.*;
 import dev.bum.ticket_service.jpa.ticket.*;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 

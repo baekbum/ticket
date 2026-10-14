@@ -1,10 +1,13 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

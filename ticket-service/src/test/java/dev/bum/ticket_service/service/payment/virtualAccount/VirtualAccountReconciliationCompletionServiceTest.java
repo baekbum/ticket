@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
@@ -16,7 +16,9 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

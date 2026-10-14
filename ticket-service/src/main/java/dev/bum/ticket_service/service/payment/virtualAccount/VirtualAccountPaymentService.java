@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.virtualAccount;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -9,7 +9,11 @@ import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;

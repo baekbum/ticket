@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -15,7 +15,6 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
-import dev.bum.ticket_service.service.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

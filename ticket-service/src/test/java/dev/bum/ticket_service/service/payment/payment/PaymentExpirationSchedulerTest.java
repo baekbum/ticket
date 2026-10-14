@@ -1,9 +1,7 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
-import dev.bum.ticket_service.service.payment.PaymentExpirationScheduler;
-import dev.bum.ticket_service.service.payment.PaymentExpirationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

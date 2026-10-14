@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;

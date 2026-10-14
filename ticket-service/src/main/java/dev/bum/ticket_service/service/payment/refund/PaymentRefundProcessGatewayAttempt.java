@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.refund;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service.payment;
+package dev.bum.ticket_service.service.payment.card;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
@@ -10,6 +10,8 @@ import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 
 import lombok.RequiredArgsConstructor;
 

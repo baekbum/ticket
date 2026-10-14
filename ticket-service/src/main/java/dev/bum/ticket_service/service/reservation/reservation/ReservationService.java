@@ -20,10 +20,10 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
-import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
-import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
+import dev.bum.ticket_service.service.payment.refund.CardPaymentRefundService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessGatewayAttempt;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;

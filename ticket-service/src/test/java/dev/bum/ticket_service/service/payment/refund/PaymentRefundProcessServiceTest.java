@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.refund;
 
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
@@ -26,10 +26,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
-import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
-import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 

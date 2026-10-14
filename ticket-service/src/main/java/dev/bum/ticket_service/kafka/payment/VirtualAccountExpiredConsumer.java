@@ -1,7 +1,7 @@
 package dev.bum.ticket_service.kafka.payment;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
-import dev.bum.ticket_service.service.payment.PaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

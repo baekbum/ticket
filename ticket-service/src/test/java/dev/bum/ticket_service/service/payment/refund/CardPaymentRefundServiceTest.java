@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.refund;
 
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -7,7 +7,6 @@ import dev.bum.ticket_service.feign.paymentgateway.GatewayCardPaymentRefundReque
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
-import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

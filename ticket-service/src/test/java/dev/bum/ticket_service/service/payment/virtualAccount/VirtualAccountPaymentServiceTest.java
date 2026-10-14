@@ -1,4 +1,4 @@
-package dev.bum.ticket_service.service;
+package dev.bum.ticket_service.service.payment.virtualAccount;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
@@ -14,9 +14,8 @@ import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountPaymentInfo;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.service.payment.PaymentCompletionService;
-import dev.bum.ticket_service.service.payment.PaymentExpirationService;
-import dev.bum.ticket_service.service.payment.VirtualAccountPaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
