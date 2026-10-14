@@ -2,15 +2,19 @@ package dev.bum.payment_gateway_service.service.card;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentStatusResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.card.*;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +43,7 @@ public class GatewayCardSettlementService {
         if (result == null || result.payment() == null
                 || !history.getPaymentNo().equals(result.payment().getPaymentNo())
                 || result.payment().getAmount() == null
-                || history.getAmount().compareTo(java.math.BigDecimal.valueOf(result.payment().getAmount())) != 0) {
+                || history.getAmount().compareTo(BigDecimal.valueOf(result.payment().getAmount())) != 0) {
             throw new IllegalStateException("ticket 결제 반영 응답을 확인할 수 없습니다.");
         }
 

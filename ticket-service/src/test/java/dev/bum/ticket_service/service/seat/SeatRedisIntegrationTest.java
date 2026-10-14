@@ -2,9 +2,11 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
-import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException;
+import dev.bum.ticket_service.exception.seat.SeatOccupationFailedException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -14,8 +16,12 @@ import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailure;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureJpaRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureStatus;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+
+import io.lettuce.core.api.async.RedisAsyncCommands;
+
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -25,7 +31,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
-import io.lettuce.core.api.async.RedisAsyncCommands;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -110,7 +115,7 @@ class SeatRedisIntegrationTest {
                         service.occupySeat(SeatOccupyRequest.builder().eventId(event.getEventId()).userId(user)
                                 .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build())).build());
                         winners.incrementAndGet();
-                    } catch (dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException expected) {
+                    } catch (SeatAlreadyOccupiedException expected) {
                         // 경쟁에서 실패한 요청은 성공한 요청의 잠금을 삭제하지 않고 거절되어야 한다.
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -305,7 +310,7 @@ class SeatRedisIntegrationTest {
         String seatKey = key(1);
         redis.opsForValue().set(seatKey, "RESERVED");
         assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
         assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
         then(currentSeats).shouldHaveNoInteractions();
@@ -328,7 +333,7 @@ class SeatRedisIntegrationTest {
         String seatKey = key(1);
         given(currentSeats.findByIdForUpdate(1L)).willReturn(Optional.of(seat(1, SeatStatus.RESERVED)));
         assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.hasKey(seatKey)).isFalse();
         assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
     }
@@ -339,7 +344,7 @@ class SeatRedisIntegrationTest {
         String seatKey = key(1);
         redis.opsForValue().set(seatKey + ":lock", "LOCKED:other:order", Duration.ofMinutes(1));
         assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.opsForValue().get(seatKey + ":lock")).isEqualTo("LOCKED:other:order");
         assertThat(redis.hasKey(seatKey)).isFalse();
         then(currentSeats).shouldHaveNoInteractions();
@@ -354,7 +359,7 @@ class SeatRedisIntegrationTest {
             return Optional.of(seat(1, SeatStatus.AVAILABLE));
         });
         assertThatThrownBy(() -> service(redis).occupySeat(request(1)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
         assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
     }
@@ -382,7 +387,7 @@ class SeatRedisIntegrationTest {
             return Optional.of(seat(2, SeatStatus.RESERVED));
         });
         assertThatThrownBy(() -> service(redis).occupySeat(request(1, 2)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.opsForValue().get(first)).isEqualTo(newState);
         assertThat(redis.opsForValue().get(first + ":lock")).isEqualTo(hasNewLock ? newState : null);
     }
@@ -396,7 +401,7 @@ class SeatRedisIntegrationTest {
         redis.opsForValue().set(second, "LOCKED:other:order");
         redis.opsForValue().set(second + ":lock", "LOCKED:other:order");
         assertThatThrownBy(() -> service(redis).occupySeat(request(1, 2)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatAlreadyOccupiedException.class);
+                .isInstanceOf(SeatAlreadyOccupiedException.class);
         assertThat(redis.opsForValue().get(first)).isEqualTo("AVAILABLE");
         assertThat(redis.hasKey(first + ":lock")).isFalse();
         assertThat(redis.opsForValue().get(second)).isEqualTo("LOCKED:other:order");
@@ -417,12 +422,12 @@ class SeatRedisIntegrationTest {
         StringRedisTemplate unreliable = spy(redis);
         doAnswer(invocation -> {
             invocation.callRealMethod();
-            throw new org.springframework.dao.DataAccessResourceFailureException("Redis 응답 소실");
+            throw new DataAccessResourceFailureException("Redis 응답 소실");
         }).when(unreliable).execute(eq(SeatOccupationScripts.OCCUPY),
                 eq(List.of(seatKey, seatKey + ":lock")), anyString(), eq("600000"), eq("0"));
 
         assertThatThrownBy(() -> service(unreliable).occupySeat(request(1)))
-                .isInstanceOf(dev.bum.ticket_service.exception.seat.SeatOccupationFailedException.class);
+                .isInstanceOf(SeatOccupationFailedException.class);
         assertThat(redis.opsForValue().get(seatKey)).isEqualTo("AVAILABLE");
         assertThat(redis.hasKey(seatKey + ":lock")).isFalse();
     }

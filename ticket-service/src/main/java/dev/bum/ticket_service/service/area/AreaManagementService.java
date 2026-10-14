@@ -9,9 +9,9 @@ import dev.bum.common.service.ticket.area.dto.UpdateAreaRequest;
 import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
-import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.area.AreaRepository;
@@ -20,8 +20,13 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.eventLayout.EventLayout;
 import dev.bum.ticket_service.jpa.event.eventLayout.EventLayoutJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
+
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -34,10 +39,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
-import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -389,7 +393,7 @@ public class AreaManagementService {
             if (meta.contains(";base64")) {
                 text = new String(Base64.getDecoder().decode(payload), StandardCharsets.UTF_8);
             } else {
-                text = java.net.URLDecoder.decode(payload, StandardCharsets.UTF_8);
+                text = URLDecoder.decode(payload, StandardCharsets.UTF_8);
             }
             text = text.stripLeading().replaceFirst("^\\uFEFF", "");
         }

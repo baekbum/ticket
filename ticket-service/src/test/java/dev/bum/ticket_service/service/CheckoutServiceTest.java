@@ -13,32 +13,37 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
-import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptStatus;
+import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
-import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
+import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
-import dev.bum.ticket_service.service.checkout.CheckoutService;
 import dev.bum.ticket_service.service.checkout.CheckoutIdempotencyKeyGenerator;
+import dev.bum.ticket_service.service.checkout.CheckoutService;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -121,10 +126,10 @@ class CheckoutServiceTest {
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
         then(seatCacheService).should().validateOccupiedSeat(
-                org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.eq("user01"),
-                org.mockito.ArgumentMatchers.eq("order-1"),
-                org.mockito.ArgumentMatchers.argThat(seats -> seats.size() == 1)
+                ArgumentMatchers.eq(1L),
+                ArgumentMatchers.eq("user01"),
+                ArgumentMatchers.eq("order-1"),
+                ArgumentMatchers.argThat(seats -> seats.size() == 1)
         );
         then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
     }
@@ -156,11 +161,11 @@ class CheckoutServiceTest {
     @DisplayName("checkout 준비 검증에 실패하면 준비 정보를 저장하지 않는다")
     void prepare_does_not_save_attempt_when_validation_fails() {
         CheckoutPrepareRequest request = checkoutRequest();
-        org.mockito.Mockito.doThrow(new dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException())
+        Mockito.doThrow(new ActiveTokenExpiredException())
                 .when(queueAccessService).validate(1L, "user01", "expired");
 
         assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", request))
-                .isInstanceOf(dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException.class);
+                .isInstanceOf(ActiveTokenExpiredException.class);
 
         then(seatCacheService).shouldHaveNoInteractions();
         then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
@@ -188,9 +193,9 @@ class CheckoutServiceTest {
                 .willReturn(Optional.of(checkoutAttempt));
         given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
                 .willReturn(seatExpiresAt);
-        given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
+        given(reservationRepository.insert(ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
-        given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
+        given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
         PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
@@ -206,19 +211,19 @@ class CheckoutServiceTest {
         assertThat(checkoutAttempt.getPayment().getExpiresAt()).isEqualTo(seatExpiresAt);
 
         then(seatCacheService).should().validateOccupiedSeat(1L, "user01", "order-1", request.getSeats());
-        then(reservationRepository).should().insert(org.mockito.ArgumentMatchers.argThat(info ->
+        then(reservationRepository).should().insert(ArgumentMatchers.argThat(info ->
                 info.getOrderId().equals("order-1")
                         && info.getUserId().equals("user01")
                         && info.getEventId().equals(1L)
                         && info.getSeats().size() == 1
                         && info.getUserCouponId() == null
         ));
-        then(reservationDeliveryJpaRepository).should().save(org.mockito.ArgumentMatchers.any());
+        then(reservationDeliveryJpaRepository).should().save(ArgumentMatchers.any());
         then(checkoutPaymentService).should().process(
-                org.mockito.ArgumentMatchers.eq(request),
-                org.mockito.ArgumentMatchers.any(Payment.class)
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any(Payment.class)
         );
-        then(paymentJpaRepository).should().save(org.mockito.ArgumentMatchers.argThat(payment ->
+        then(paymentJpaRepository).should().save(ArgumentMatchers.argThat(payment ->
                 payment.getReservationFeeAmount() == 4000
                         && payment.getDeliveryFeeAmount() == 3200));
     }
@@ -243,7 +248,7 @@ class CheckoutServiceTest {
 
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
-        given(reservationRepository.insert(org.mockito.ArgumentMatchers.any())).willReturn(reservation);
+        given(reservationRepository.insert(ArgumentMatchers.any())).willReturn(reservation);
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         doAnswer(invocation -> {
             Payment payment = invocation.getArgument(1);
@@ -253,8 +258,8 @@ class CheckoutServiceTest {
                     LocalDateTime.of(2026, 9, 18, 23, 59, 59)
             );
             return null;
-        }).when(checkoutPaymentService).process(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.any(Payment.class));
-        given(paymentJpaRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
+        }).when(checkoutPaymentService).process(ArgumentMatchers.eq(request), ArgumentMatchers.any(Payment.class));
+        given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
         PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
@@ -265,7 +270,7 @@ class CheckoutServiceTest {
         assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(response.getBankName()).isEqualTo("KB국민은행");
         assertThat(response.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        then(checkoutPaymentService).should().process(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.any(Payment.class));
+        then(checkoutPaymentService).should().process(ArgumentMatchers.eq(request), ArgumentMatchers.any(Payment.class));
     }
 
     @Test
@@ -410,11 +415,11 @@ class CheckoutServiceTest {
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(preparedAttempt()));
-        org.mockito.Mockito.doThrow(new dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException())
+        Mockito.doThrow(new ActiveTokenExpiredException())
                 .when(queueAccessService).validate(1L, "user01", "expired");
 
         assertThatThrownBy(() -> checkoutService.confirm("user01", "expired", request))
-                .isInstanceOf(dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException.class);
+                .isInstanceOf(ActiveTokenExpiredException.class);
         then(reservationRepository).shouldHaveNoInteractions();
         then(seatCacheService).shouldHaveNoInteractions();
         then(checkoutPaymentService).shouldHaveNoInteractions();
@@ -452,7 +457,7 @@ class CheckoutServiceTest {
                 .willReturn(Optional.of(preparedAttempt()));
 
         assertThatThrownBy(() -> checkoutService.confirm("other-user", "queue-token", request))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("다른 사용자의 결제 요청 키입니다.");
 
         then(queueAccessService).shouldHaveNoInteractions();

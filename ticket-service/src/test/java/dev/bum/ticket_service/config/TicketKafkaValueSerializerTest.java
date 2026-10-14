@@ -1,10 +1,13 @@
 package dev.bum.ticket_service.config;
 
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
+
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.apache.kafka.common.header.internals.RecordHeaders;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 import java.nio.charset.StandardCharsets;
@@ -17,8 +20,8 @@ class TicketKafkaValueSerializerTest {
     @ParameterizedTest
     @ValueSource(strings = {"application.yaml", "application-prod.yaml"})
     void bothProfilesUseSerializerSupportingDlt(String resource) {
-        var yaml = new org.springframework.beans.factory.config.YamlPropertiesFactoryBean();
-        yaml.setResources(new org.springframework.core.io.ClassPathResource(resource));
+        var yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource(resource));
         assertThat(yaml.getObject().getProperty("spring.kafka.producer.value-serializer"))
                 .isEqualTo(TicketKafkaValueSerializer.class.getName());
     }

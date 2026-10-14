@@ -2,32 +2,37 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
-import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.CardPaymentService;
 import dev.bum.ticket_service.service.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.payment.PaymentExpirationService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,7 +72,7 @@ class CardPaymentServiceTest {
         given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
         assertThatThrownBy(() -> cardPaymentService.validateBeforeApproval(
                 new CardPaymentValidationRequest(payment.getPaymentNo(), "other")))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(AccessDeniedException.class);
         Payment expired = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD,
                 PaymentStatus.READY, LocalDateTime.now().minusSeconds(1));
         given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(expired));
@@ -87,7 +92,7 @@ class CardPaymentServiceTest {
         Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD,
                 PaymentStatus.READY, LocalDateTime.now().minusMinutes(1));
         given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
-        org.mockito.Mockito.doAnswer(invocation -> { payment.expire(); return null; })
+        Mockito.doAnswer(invocation -> { payment.expire(); return null; })
                 .when(paymentExpirationService).expire(payment);
         CardPaymentSettlementResponse result = cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000)));
         assertThat(result.outcome()).isEqualTo(CardPaymentSettlementResponse.Outcome.REJECTED);
@@ -114,7 +119,7 @@ class CardPaymentServiceTest {
 
     @Test
     void settlementRejectsTerminalPaymentsWithoutCompletingThem() {
-        for (PaymentStatus status : java.util.List.of(PaymentStatus.EXPIRED, PaymentStatus.FAILED, PaymentStatus.CANCELLED)) {
+        for (PaymentStatus status : List.of(PaymentStatus.EXPIRED, PaymentStatus.FAILED, PaymentStatus.CANCELLED)) {
             Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, status);
             given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
             assertThat(cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000))).outcome())
@@ -149,11 +154,11 @@ class CardPaymentServiceTest {
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
         given(paymentCompletionService.completeCard(
-                org.mockito.ArgumentMatchers.eq(payment),
-                org.mockito.ArgumentMatchers.eq(request.getTransactionId()),
-                org.mockito.ArgumentMatchers.eq(request.getCardCompany()),
-                org.mockito.ArgumentMatchers.eq(request.getMaskedCardNumber()),
-                org.mockito.ArgumentMatchers.any()
+                ArgumentMatchers.eq(payment),
+                ArgumentMatchers.eq(request.getTransactionId()),
+                ArgumentMatchers.eq(request.getCardCompany()),
+                ArgumentMatchers.eq(request.getMaskedCardNumber()),
+                ArgumentMatchers.any()
         ))
                 .willReturn(paymentResponse);
 
@@ -161,11 +166,11 @@ class CardPaymentServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
         then(paymentCompletionService).should().completeCard(
-                org.mockito.ArgumentMatchers.eq(payment),
-                org.mockito.ArgumentMatchers.eq(request.getTransactionId()),
-                org.mockito.ArgumentMatchers.eq(request.getCardCompany()),
-                org.mockito.ArgumentMatchers.eq(request.getMaskedCardNumber()),
-                org.mockito.ArgumentMatchers.any()
+                ArgumentMatchers.eq(payment),
+                ArgumentMatchers.eq(request.getTransactionId()),
+                ArgumentMatchers.eq(request.getCardCompany()),
+                ArgumentMatchers.eq(request.getMaskedCardNumber()),
+                ArgumentMatchers.any()
         );
     }
 

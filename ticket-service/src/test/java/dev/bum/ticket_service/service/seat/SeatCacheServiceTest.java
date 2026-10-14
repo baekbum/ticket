@@ -3,6 +3,7 @@ package dev.bum.ticket_service.service.seat;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
+import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
@@ -14,6 +15,7 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,9 +98,9 @@ class SeatCacheServiceTest {
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
         given(repository.selectByEventId(EVENT_ID)).willReturn(List.of(reserved));
 
-        seatCacheService.warmUpEventSeatsToCache(EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE);
+        seatCacheService.warmUpEventSeatsToCache(EVENT_ID, SeatCacheWarmUpMode.OVERWRITE);
 
-        then(valueOperations).should().multiSet(java.util.Map.of(FIRST_SEAT_KEY, "RESERVED"));
+        then(valueOperations).should().multiSet(Map.of(FIRST_SEAT_KEY, "RESERVED"));
     }
 
     @Test
@@ -108,7 +111,7 @@ class SeatCacheServiceTest {
         given(repository.selectByEventId(EVENT_ID)).willReturn(List.of(warmUpSeat(event, SeatStatus.AVAILABLE)));
 
         assertThatThrownBy(() -> seatCacheService.warmUpEventSeatsToCache(
-                EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE))
+                EVENT_ID, SeatCacheWarmUpMode.OVERWRITE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("판매 시작 이후");
         then(valueOperations).shouldHaveNoInteractions();
@@ -122,7 +125,7 @@ class SeatCacheServiceTest {
         given(eventRepository.selectById(EVENT_ID)).willReturn(event);
 
         assertThatThrownBy(() -> seatCacheService.warmUpAreaSeatsToCache(
-                10L, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.OVERWRITE))
+                10L, SeatCacheWarmUpMode.OVERWRITE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("판매 시작 이후");
         then(valueOperations).shouldHaveNoInteractions();
@@ -142,7 +145,7 @@ class SeatCacheServiceTest {
                 .willReturn(1L);
 
         String result = seatCacheService.warmUpEventSeatsToCache(
-                EVENT_ID, dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode.MISSING_ONLY);
+                EVENT_ID, SeatCacheWarmUpMode.MISSING_ONLY);
 
         assertThat(result).contains("반영 1개");
         then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),

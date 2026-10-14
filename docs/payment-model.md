@@ -38,6 +38,8 @@
 
 로컬 환불 성공 이력, 환불 업무 완료 상태와 프로세스 완료 상태는 예매·티켓·결제 변경과 같은 트랜잭션에 저장한다. 커밋 직후 별도 완료 표시를 하기 전에 프로세스가 종료되어도 성공 상태가 누락되지 않는다.
 
+진행 중인 환불 프로세스는 `active_payment_id`에 원본 결제 ID를 저장하며, `uk_refund_process_active_payment` UNIQUE 제약으로 같은 결제의 최초 동시 환불 생성을 차단한다. 생성 시 즉시 flush하여 중복 요청이 PG 호출까지 진행하지 않도록 한다. PG 또는 로컬 실패 시 키를 유지하고, `LOCAL_SUCCEEDED` 반영과 같은 트랜잭션에서 키를 NULL로 해제하여 다음 부분 환불을 허용한다. CHECK 제약은 진행 중인 프로세스의 키 누락을 막는다.
+
 ## 저장 관계
 
 ```mermaid
@@ -61,6 +63,26 @@ flowchart LR
 
 새 DB 전체를 초기화할 때는 `schema.sql`을 사용한다.
 
+기존 데이터를 유지하면서 제약을 추가할 경우, 관련 쓰기를 중단하고 아래 SQL을 실행한다. 같은 결제에 진행 중인 프로세스가 이미 여러 개 있으면 UNIQUE 추가가 실패하여 전체 변경이 롤백된다. 그런 경우 PG 이력을 확인하여 중복 프로세스를 먼저 정리해야 한다.
+
+```sql
+BEGIN;
+ALTER TABLE payment_refund_processes
+    ADD COLUMN active_payment_id BIGINT REFERENCES payments(payment_id);
+UPDATE payment_refund_processes p
+SET active_payment_id = r.payment_id
+FROM payment_refunds r
+WHERE p.refund_id = r.payment_refund_id
+    AND p.status <> 'LOCAL_SUCCEEDED';
+ALTER TABLE payment_refund_processes
+    ADD CONSTRAINT uk_refund_process_active_payment UNIQUE (active_payment_id),
+    ADD CONSTRAINT ck_refund_process_active_payment CHECK (
+        (status = 'LOCAL_SUCCEEDED' AND active_payment_id IS NULL)
+        OR (status <> 'LOCAL_SUCCEEDED' AND active_payment_id IS NOT NULL)
+    );
+COMMIT;
+```
+
 ## 검증
 
-`PaymentModelIntegrationTest`는 스냅샷 불변성, 단계와 이력의 분리, 실패·재시도 기록, 성공 이력 조회, 계좌 변경 거부, 트랜잭션 롤백을 H2에서 검증한다.
+`PaymentModelIntegrationTest`는 스냅샷 불변성, 단계와 이력의 분리, 실패·재시도 기록, 성공 이력 조회, 계좌 변경 거부, 트랜잭션 롤백, 최초 동시 환불 생성 차단, 완료 후 다음 부분 환불 허용을 H2에서 검증한다.

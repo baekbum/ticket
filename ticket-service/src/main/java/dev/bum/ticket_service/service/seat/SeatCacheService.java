@@ -17,26 +17,30 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+
 import io.micrometer.observation.annotation.Observed;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
-import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -337,7 +341,7 @@ public class SeatCacheService {
             throw new SeatAlreadyOccupiedException("선택하신 좌석 중 이미 선택된 좌석이 포함되어 있습니다.");
         } else if (!Long.valueOf(1L).equals(result)) {
             // null 또는 예상하지 못한 값: 선점 성공을 확인할 수 없으므로 예외로 처리한다.
-            throw new org.springframework.dao.DataRetrievalFailureException("좌석 Redis 선점 결과를 확인할 수 없습니다.");
+            throw new DataRetrievalFailureException("좌석 Redis 선점 결과를 확인할 수 없습니다.");
         }
         // 1: 잠금 생성과 좌석 상태 변경이 완료됐다. 위 조건에 해당하지 않아 정상 진행한다.
     }
@@ -448,7 +452,7 @@ public class SeatCacheService {
                 );
 
                 if (!Long.valueOf(1L).equals(result)) {
-                    throw new org.springframework.dao.DataRetrievalFailureException("좌석 Redis 동기화 결과를 확인할 수 없습니다.");
+                    throw new DataRetrievalFailureException("좌석 Redis 동기화 결과를 확인할 수 없습니다.");
                 }
             } catch (DataAccessException e) {
                 failures.put(update, e);

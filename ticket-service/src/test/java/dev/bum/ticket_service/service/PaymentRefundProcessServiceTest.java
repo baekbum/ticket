@@ -14,11 +14,13 @@ import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefund;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -29,6 +31,8 @@ import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +40,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
@@ -111,8 +114,8 @@ class PaymentRefundProcessServiceTest {
                 .build();
         PaymentRefundProcess process = PaymentRefundProcess.builder()
                 .paymentRefundProcessId(1L)
-                .refund(new dev.bum.ticket_service.jpa.payment.refund.PaymentRefund(payment,
-                        new dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot(
+                .refund(new PaymentRefund(payment,
+                        new PaymentRefundSnapshot(
                                 payment, List.of(ticket), 100000, 0, false, refundAccount)))
                 .status(PaymentRefundProcessStatus.GATEWAY_FAILED)
                 .build();

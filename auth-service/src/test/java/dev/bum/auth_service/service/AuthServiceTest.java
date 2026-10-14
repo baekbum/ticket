@@ -6,17 +6,24 @@ import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthRepository;
+import dev.bum.common.error.ErrorCode;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.security.TokenState;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,36 +31,35 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.util.List;
-import dev.bum.common.error.ErrorCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
-    @Mock private dev.bum.common.security.TokenStateStore tokenStateStore;
+    @Mock private TokenStateStore tokenStateStore;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void tokenStateDefaults() {
-        org.mockito.Mockito.lenient().when(tokenProvider.getTokenType(anyString())).thenReturn("refresh");
-        org.mockito.Mockito.lenient().when(tokenProvider.getTokenVersion(anyString())).thenReturn(1L);
-        org.mockito.Mockito.lenient().when(authRepository.update(org.mockito.ArgumentMatchers.any()))
+        Mockito.lenient().when(tokenProvider.getTokenType(anyString())).thenReturn("refresh");
+        Mockito.lenient().when(tokenProvider.getTokenVersion(anyString())).thenReturn(1L);
+        Mockito.lenient().when(authRepository.update(ArgumentMatchers.any()))
                 .thenAnswer(invocation -> {
                     UserDtoForEvent event = invocation.getArgument(0);
                     Auth auth = auth(event.getUserId());
                     auth.updateInfo(event);
                     return auth;
                 });
-        org.mockito.Mockito.lenient().when(authRepository.findByUserId("user01")).thenReturn(auth("user01"));
-        org.mockito.Mockito.lenient().when(redisTemplate.execute(eq(RefreshTokenScripts.SAVE), anyList(), anyString(), anyString(), anyString()))
+        Mockito.lenient().when(authRepository.findByUserId("user01")).thenReturn(auth("user01"));
+        Mockito.lenient().when(redisTemplate.execute(eq(RefreshTokenScripts.SAVE), anyList(), anyString(), anyString(), anyString()))
                 .thenReturn(1L);
     }
 
@@ -150,7 +156,7 @@ class AuthServiceTest {
 
         then(authRepository).should().findByUserId("user01");
         then(loginAttemptService).should().validatePassword(1L, "wrong-password");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -246,7 +252,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class);
-        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -297,7 +303,7 @@ class AuthServiceTest {
                 .isInstanceOf(UserNotExistException.class);
 
         then(authRepository).should().findByUserId("user01");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -311,7 +317,7 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.LoginAndCreateToken(new LoginRequest("user01", "plain-password")))
                 .isInstanceOf(WithdrawnUserException.class)
                 .hasMessage("이미 탈퇴한 사용자입니다.");
-        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -323,7 +329,7 @@ class AuthServiceTest {
         authService.updateUserTopic(event);
 
         then(authRepository).should().update(event);
-        then(tokenStateStore).should().publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
+        then(tokenStateStore).should().publish("user01", TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
     }
 
     @Test
@@ -478,7 +484,7 @@ class AuthServiceTest {
         given(authRepository.findByUserId("user01")).willReturn(current);
         assertThatThrownBy(() -> authService.reissueToken("refresh-token"))
                 .isInstanceOf(RedisException.class).extracting("errorCode").isEqualTo(ErrorCode.REFRESH_TOKEN_MISMATCH);
-        then(tokenProvider).should(never()).createToken(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong());
+        then(tokenProvider).should(never()).createToken(anyString(), anyString(), ArgumentMatchers.anyLong());
     }
 
     private void prepareReissue() {

@@ -1,9 +1,8 @@
 package dev.bum.ticket_service.jpa.payment.refund;
 
-import dev.bum.ticket_service.jpa.payment.payment.Payment;
-
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryResponse;
 import dev.bum.common.service.ticket.payment.enums.*;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 
@@ -12,6 +11,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /** 환불 처리 사건을 누적한다. 요청 정보와 대상 티켓은 환불 스냅샷을 참조한다. */
@@ -139,7 +139,7 @@ public class PaymentRefundHistory {
                         createdAt == null
                                 ? null
                                 : createdAt.format(
-                                        java.time.format.DateTimeFormatter.ofPattern(
+                                        DateTimeFormatter.ofPattern(
                                                 "yyyy-MM-dd HH:mm:ss")))
                 .build();
     }

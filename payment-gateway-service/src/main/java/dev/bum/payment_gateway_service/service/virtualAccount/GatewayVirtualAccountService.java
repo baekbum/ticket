@@ -1,7 +1,7 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
-import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
@@ -16,20 +16,24 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountR
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueException;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
-import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
-import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
-import feign.FeignException;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import feign.FeignException;
+
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -123,7 +127,7 @@ public class GatewayVirtualAccountService {
                     .refundBankCompany(request.getRefundBankCompany())
                     .refundAccountNumber(request.getRefundAccountNumber())
                     .refundAccountHolder(request.getRefundAccountHolder())
-                    .refundedAmount(request.getRefundAmount().setScale(2, java.math.RoundingMode.UNNECESSARY))
+                    .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
                     .message("무통장 환불 입금이 완료되었습니다.")
                     .build();
             refunds.saveAndFlush(GatewayRefund.virtualAccount(request, response));

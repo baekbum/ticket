@@ -1,10 +1,8 @@
 package dev.bum.user_service.controller;
 
-import dev.bum.common.security.TokenStateStore;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
@@ -13,10 +11,15 @@ import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.controller.user.UserController;
 import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.user.UserService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -61,7 +64,7 @@ class UserControllerTest {
         mockMvc.perform(request.with(authentication(admin))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden());
-        org.mockito.Mockito.verifyNoInteractions(userService);
+        Mockito.verifyNoInteractions(userService);
     }
 
     @Autowired
@@ -164,7 +167,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.userId").value("IU"))
                 .andExpect(jsonPath("$.email").value("update@test.com"));
 
-        then(userService).should().update(org.mockito.ArgumentMatchers.eq("IU"), org.mockito.ArgumentMatchers.argThat(allowed ->
+        then(userService).should().update(ArgumentMatchers.eq("IU"), ArgumentMatchers.argThat(allowed ->
                 "update@test.com".equals(allowed.getEmail())
                         && allowed.getPassword() == null
                         && allowed.getBirthDate() == null
@@ -217,7 +220,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"password\"}"))
                 .andExpect(status().isNotFound());
-        org.mockito.Mockito.verifyNoInteractions(userService);
+        Mockito.verifyNoInteractions(userService);
     }
 
     @Test
@@ -226,7 +229,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"password\"}"))
                 .andExpect(status().is4xxClientError());
-        org.mockito.Mockito.verifyNoInteractions(userService);
+        Mockito.verifyNoInteractions(userService);
     }
 
     private InsertUserRequest insertUserRequest() {

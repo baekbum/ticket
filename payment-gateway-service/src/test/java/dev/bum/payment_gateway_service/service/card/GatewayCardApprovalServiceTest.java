@@ -15,6 +15,8 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,7 +53,7 @@ class GatewayCardApprovalServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository refunds;
+    private GatewayRefundJpaRepository refunds;
 
     @InjectMocks
     private GatewayCardApprovalService gatewayCardPaymentService;

@@ -22,6 +22,8 @@ public class QPaymentRefundProcess extends EntityPathBase<PaymentRefundProcess> 
 
     public static final QPaymentRefundProcess paymentRefundProcess = new QPaymentRefundProcess("paymentRefundProcess");
 
+    public final NumberPath<Long> activePaymentId = createNumber("activePaymentId", Long.class);
+
     public final DateTimePath<java.time.LocalDateTime> completedAt = createDateTime("completedAt", java.time.LocalDateTime.class);
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
@@ -64,4 +66,3 @@ public class QPaymentRefundProcess extends EntityPathBase<PaymentRefundProcess> 
     }
 
 }
-

@@ -1,14 +1,12 @@
 package dev.bum.ticket_service.controller;
 
-import dev.bum.common.security.TokenStateStore;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
@@ -17,20 +15,25 @@ import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.controller.payment.PaymentController;
-import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
+import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.payment.PaymentService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -90,9 +93,9 @@ class PaymentControllerTest {
 
     @Test
     void newCardEndpointsRejectInvalidInternalToken() throws Exception {
-        doThrow(new org.springframework.security.access.AccessDeniedException("invalid"))
+        doThrow(new AccessDeniedException("invalid"))
                 .when(internalServiceTokenValidator).validate("invalid");
-        for (String endpoint : java.util.List.of("validate", "settle")) {
+        for (String endpoint : List.of("validate", "settle")) {
             mockMvc.perform(post(baseUrl + "/internal/card/" + endpoint).header("X-Service-Token", "invalid")
                             .contentType(MediaType.APPLICATION_JSON).content("{}"))
                     .andExpect(status().isForbidden());
@@ -150,7 +153,7 @@ class PaymentControllerTest {
                 .maskedCardNumber("4111-****-****-1111")
                 .build();
 
-        doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
+        doThrow(new AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
                 .when(internalServiceTokenValidator).validate("invalid-token");
 
         mockMvc.perform(post(baseUrl + "/internal/card/complete")
@@ -174,7 +177,7 @@ class PaymentControllerTest {
                 .maskedCardNumber("4111-****-****-1111")
                 .build();
 
-        doThrow(new org.springframework.security.access.AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
+        doThrow(new AccessDeniedException("내부 서비스 인증 토큰이 유효하지 않습니다."))
                 .when(internalServiceTokenValidator).validate(null);
 
         mockMvc.perform(post(baseUrl + "/internal/card/complete")

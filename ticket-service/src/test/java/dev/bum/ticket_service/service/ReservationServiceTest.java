@@ -2,24 +2,25 @@ package dev.bum.ticket_service.service;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
-import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
+import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
-import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
@@ -31,15 +32,18 @@ import dev.bum.ticket_service.service.payment.CardPaymentRefundService;
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.VirtualAccountPaymentRefundService;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -47,6 +51,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,10 +59,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.willAnswer;
-import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
@@ -74,7 +79,7 @@ class ReservationServiceTest {
     private ReservationRepository repository;
 
     @Mock
-    private dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService reservationManagementService;
+    private ReservationManagementService reservationManagementService;
 
     @Test
     void reservationDetailRejectsOtherOwnerBeforeLoadingPaymentAndDelivery() {
@@ -87,7 +92,7 @@ class ReservationServiceTest {
     @Test
     void reservationDetailReturnsOwnedReservation() {
         given(repository.selectById(1L)).willReturn(Reservation.builder().userId("owner").build());
-        var detail = dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse.builder().build();
+        var detail = ReservationDetailResponse.builder().build();
         given(reservationManagementService.selectDetailById(1L)).willReturn(detail);
         assertThat(reservationService.selectMyReservationDetail("owner", 1L)).isSameAs(detail);
     }
@@ -204,7 +209,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
         willAnswer(invocation -> {
             payment.partialRefund(125000);
@@ -235,7 +240,7 @@ class ReservationServiceTest {
         UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -260,7 +265,7 @@ class ReservationServiceTest {
         UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
@@ -309,7 +314,7 @@ class ReservationServiceTest {
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         willAnswer(invocation -> {
@@ -345,7 +350,7 @@ class ReservationServiceTest {
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(paymentRefundProcessService.startGatewayAttempt(payment, List.of(firstTicket, secondTicket), 250000, 0, true, null))
                 .willReturn(new PaymentRefundProcessGatewayAttempt(1L, false, true));
@@ -377,7 +382,7 @@ class ReservationServiceTest {
         UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
                 .willReturn(List.of(reservationDiscount(reservation, userCoupon)));
@@ -410,7 +415,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
         willReturn(125000).given(virtualAccountPaymentRefundService).refundPartial(payment, 125000, refundAccount(), 1L);
 
@@ -438,7 +443,7 @@ class ReservationServiceTest {
         UserCoupon userCoupon = usedUserCoupon();
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -461,7 +466,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -469,7 +474,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundAll(payment, 1L);
-        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
+        then(reservationDiscountJpaRepository).should(Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test
@@ -486,7 +491,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
         given(repository.selectById(1L)).willReturn(reservation);
-        given(paymentJpaRepository.findByReservation(reservation)).willReturn(java.util.Optional.of(payment));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -494,7 +499,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount(), 1L);
-        then(reservationDiscountJpaRepository).should(org.mockito.Mockito.times(2)).findByReservation(reservation);
+        then(reservationDiscountJpaRepository).should(Mockito.times(2)).findByReservation(reservation);
     }
 
     @Test

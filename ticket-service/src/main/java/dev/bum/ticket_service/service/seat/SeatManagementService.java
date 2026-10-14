@@ -2,22 +2,26 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.seat.dto.*;
-import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
+import dev.bum.common.service.ticket.seat.enums.SeatInsertMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
 import dev.bum.common.service.ticket.seat.vo.InsertSeatAreaConfig;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.exception.area.AreaNotExistException;
+import dev.bum.ticket_service.exception.seat.SeatLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.ticket_service.exception.seat.SeatLayoutAlreadyExistsException;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+
 import io.micrometer.observation.annotation.Observed;
+
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -154,7 +158,7 @@ public class SeatManagementService {
         return mode != null ? mode : SeatInsertMode.FAIL_IF_EXISTS;
     }
 
-    @lombok.Builder
+    @Builder
     private static class SeatInsertTarget {
         private Long eventId;
         private Long areaId;

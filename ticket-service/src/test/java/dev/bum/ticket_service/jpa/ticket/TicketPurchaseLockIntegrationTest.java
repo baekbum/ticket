@@ -8,7 +8,6 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.config.QuerydslConfig;
-import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.area.AreaRepositoryImpl;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -18,6 +17,8 @@ import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryI
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepositoryImpl;
+import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,6 +32,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -128,7 +130,7 @@ class TicketPurchaseLockIntegrationTest {
     @DisplayName("예매 트랜잭션 없이 구매 잠금만 획득하는 호출은 거부한다")
     void purchase_lock_requires_existing_transaction() {
         assertThatThrownBy(() -> locks.acquire("user", TicketLimitScope.PER_EVENT, "1"))
-                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+                .isInstanceOf(IllegalTransactionStateException.class);
     }
 
     @ParameterizedTest

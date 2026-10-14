@@ -5,27 +5,31 @@ import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
-import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentHistoryType;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
-import feign.FeignException;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import feign.FeignException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,8 +42,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class GatewayVirtualAccountServiceTest {
@@ -54,7 +58,7 @@ class GatewayVirtualAccountServiceTest {
     private TicketPaymentClient ticketPaymentClient;
 
     @Mock
-    private dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository refunds;
+    private GatewayRefundJpaRepository refunds;
 
     @InjectMocks
     private GatewayVirtualAccountService gatewayVirtualAccountService;
@@ -216,7 +220,7 @@ class GatewayVirtualAccountServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED);
         then(ticketPaymentClient).should(times(2)).completeVirtualAccountDeposit(
-                org.mockito.ArgumentMatchers.argThat(ticketRequest ->
+                ArgumentMatchers.argThat(ticketRequest ->
                         ticketRequest.getPaymentNo().equals(virtualAccount.getPaymentNo())
                                 && ticketRequest.getAmount().compareTo(virtualAccount.getAmount()) == 0
                                 && ticketRequest.getAccountNumber().equals(virtualAccount.getAccountNumber())));

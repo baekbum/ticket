@@ -13,9 +13,11 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -45,7 +47,7 @@ class CheckoutVirtualAccountServiceTest {
         Payment payment = payment(reservation);
         CheckoutConfirmRequest request = request("KB");
 
-        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any()))
+        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any()))
                 .willReturn(virtualAccountIssueResponse());
 
         virtualAccountService.issue(request, payment);
@@ -54,7 +56,7 @@ class CheckoutVirtualAccountServiceTest {
         assertThat(payment.getBankName()).isEqualTo("KB국민은행");
         assertThat(payment.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
         assertThat(payment.getExpiresAt()).isEqualTo(LocalDateTime.of(2026, 9, 18, 23, 59, 59));
-        then(paymentGatewayVirtualAccountClient).should().issue(org.mockito.ArgumentMatchers.argThat(argument ->
+        then(paymentGatewayVirtualAccountClient).should().issue(ArgumentMatchers.argThat(argument ->
                 argument.getPaymentNo().equals("PAY-20260727120000-abcdef123456")
                         && argument.getBankCompany() == BankCompany.KB
                         && argument.getAmount().compareTo(BigDecimal.valueOf(180000)) == 0
@@ -91,7 +93,7 @@ class CheckoutVirtualAccountServiceTest {
         Payment payment = payment(reservation(event()));
         GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
         response.setIssued(false);
-        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any())).willReturn(response);
+        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any())).willReturn(response);
 
         assertThatThrownBy(() -> virtualAccountService.issue(request("KB"), payment))
                 .isInstanceOf(IllegalStateException.class);
@@ -105,7 +107,7 @@ class CheckoutVirtualAccountServiceTest {
         Payment payment = payment(reservation(event()));
         GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
         response.setStatus(GatewayVirtualAccountStatus.EXPIRED);
-        given(paymentGatewayVirtualAccountClient.issue(org.mockito.ArgumentMatchers.any())).willReturn(response);
+        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any())).willReturn(response);
 
         assertThatThrownBy(() -> virtualAccountService.issue(request("KB"), payment))
                 .isInstanceOf(IllegalStateException.class)

@@ -1,6 +1,8 @@
 package dev.bum.ticket_service.jpa.ticket;
 
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
+import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,9 +12,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -60,7 +64,7 @@ public class TicketPurchaseLock {
     public void validateIncrease(long amount, int limit) {
         if (amount <= 0) throw new IllegalArgumentException("추가 매수는 양수여야 합니다.");
         if (ticketCount + amount > limit) {
-            throw new dev.bum.ticket_service.exception.ticket.TicketLimitExceededException(
+            throw new TicketLimitExceededException(
                     "더 이상 좌석을 예매할 수 없습니다. 1인당 최대 " + limit + "매까지 예매 가능합니다.");
         }
     }

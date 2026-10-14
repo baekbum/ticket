@@ -18,9 +18,11 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.service.event.event.EventManagementService;
 import dev.bum.ticket_service.service.event.file.FileStorageService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -175,7 +177,7 @@ class EventManagementServiceTest {
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/old.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
         then(fileStorageService).should().saveEventPoster(1L, null);
-        then(fileStorageService).should(never()).deleteByPublicUrl(org.mockito.ArgumentMatchers.any());
+        then(fileStorageService).should(never()).deleteByPublicUrl(ArgumentMatchers.any());
     }
 
     @Test
@@ -219,7 +221,7 @@ class EventManagementServiceTest {
         assertThatThrownBy(() -> eventManagementService.deleteBulk(info))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        then(repository).should(never()).delete(org.mockito.ArgumentMatchers.any());
+        then(repository).should(never()).delete(ArgumentMatchers.any());
     }
 
     private InsertEventBulkRequest bulkInsertRequest() {

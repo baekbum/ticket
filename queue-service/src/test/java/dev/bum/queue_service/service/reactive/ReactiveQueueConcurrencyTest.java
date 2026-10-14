@@ -3,19 +3,28 @@ package dev.bum.queue_service.service.reactive;
 import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.queue_service.QueueServiceApplication;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
-import org.junit.jupiter.api.BeforeEach;
+import dev.bum.queue_service.service.QueueRedisScripts;
+
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,7 +57,7 @@ class ReactiveQueueConcurrencyTest {
     @AfterEach
     void cleanupFixture() {
         // 오류 재현용 키가 다른 테스트의 전체 이벤트 정리에 섞이지 않게 한다.
-        redis.delete(java.util.List.of("queue:event:" + event + ":waiting",
+        redis.delete(List.of("queue:event:" + event + ":waiting",
                 "queue:event:" + event + ":waiting-expiry", "queue:event:" + event + ":active",
                 "queue:user-sessions:" + user));
     }
@@ -86,7 +95,7 @@ class ReactiveQueueConcurrencyTest {
     void wrong_key_type_rejects_registration_without_partial_writes() {
         redis.opsForValue().set("queue:event:" + event + ":waiting-expiry", "잘못된 타입");
         StepVerifier.create(waiting.createWaiting(event, user))
-                .expectError(org.springframework.dao.DataAccessException.class).verify(Duration.ofSeconds(5));
+                .expectError(DataAccessException.class).verify(Duration.ofSeconds(5));
         assertThat(redis.hasKey("queue:event:" + event + ":waiting")).isFalse();
         assertThat(redis.hasKey("queue:user-sessions:" + user)).isFalse();
         assertThat(redis.keys("queue:waiting-token:*").stream()
@@ -102,7 +111,7 @@ class ReactiveQueueConcurrencyTest {
         redis.delete(waitingKey);
         redis.opsForValue().set(waitingKey, "잘못된 타입");
         StepVerifier.create(waiting.pruneExpiredWaitingTokens(event))
-                .expectError(org.springframework.dao.DataAccessException.class).verify(Duration.ofSeconds(5));
+                .expectError(DataAccessException.class).verify(Duration.ofSeconds(5));
         assertThat(redis.opsForZSet().score(expiryKey, token)).isEqualTo(0.0);
         assertThat(redis.hasKey("queue:waiting-token:" + token)).isTrue();
         redis.delete(waitingKey);
@@ -120,12 +129,12 @@ class ReactiveQueueConcurrencyTest {
         redis.opsForZSet().add(expiryKey, token, 0);
         long cutoff = System.currentTimeMillis();
         StepVerifier.create(waiting.refreshWaitingToken(event, user, token)).verifyComplete();
-        var template = new org.springframework.data.redis.core.ReactiveStringRedisTemplate(
-                (org.springframework.data.redis.connection.ReactiveRedisConnectionFactory) redis.getConnectionFactory());
-        StepVerifier.create(template.execute(dev.bum.queue_service.service.QueueRedisScripts.REMOVE_TOKEN,
-                java.util.List.of("queue:event:" + event + ":waiting", expiryKey,
+        var template = new ReactiveStringRedisTemplate(
+                (ReactiveRedisConnectionFactory) redis.getConnectionFactory());
+        StepVerifier.create(template.execute(QueueRedisScripts.REMOVE_TOKEN,
+                List.of("queue:event:" + event + ":waiting", expiryKey,
                         "queue:waiting-token:" + token, "queue:user-sessions:" + user),
-                java.util.List.of(token, "waiting:" + token, String.valueOf(cutoff), "1")))
+                List.of(token, "waiting:" + token, String.valueOf(cutoff), "1")))
                 .expectNext(0L).verifyComplete();
         assertThat(redis.hasKey("queue:waiting-token:" + token)).isTrue();
         assertThat(redis.opsForZSet().score(expiryKey, token)).isGreaterThan((double) cutoff);
@@ -134,7 +143,7 @@ class ReactiveQueueConcurrencyTest {
     @Test
     void cancellation_after_registration_keeps_a_complete_expiring_session() {
         AtomicReference<String> saved = new AtomicReference<>();
-        var registered = new java.util.concurrent.CountDownLatch(1);
+        var registered = new CountDownLatch(1);
         Mono<Void> lostResponse = waiting.createWaiting(event, user).flatMap(token -> {
             saved.set(token);
             registered.countDown();
@@ -142,7 +151,7 @@ class ReactiveQueueConcurrencyTest {
         });
         StepVerifier.create(lostResponse).then(() -> {
             try {
-                assertThat(registered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                assertThat(registered.await(5, TimeUnit.SECONDS)).isTrue();
             } catch (InterruptedException error) {
                 throw new AssertionError(error);
             }

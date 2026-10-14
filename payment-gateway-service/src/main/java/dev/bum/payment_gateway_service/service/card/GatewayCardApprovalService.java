@@ -1,9 +1,9 @@
 package dev.bum.payment_gateway_service.service.card;
 
-import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
@@ -16,16 +16,20 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+
 import jakarta.annotation.Nonnull;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -124,7 +128,7 @@ public class GatewayCardApprovalService {
         GatewayCardPaymentRefundResponse response = GatewayCardPaymentRefundResponse.builder()
                 .paymentNo(paymentHistory.getPaymentNo())
                 .transactionId(paymentHistory.getTransactionId())
-                .refundedAmount(request.getRefundAmount().setScale(2, java.math.RoundingMode.UNNECESSARY))
+                .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
                 .status(paymentHistory.getStatus())
                 .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
                         ? "카드 결제 전체 환불이 완료되었습니다."

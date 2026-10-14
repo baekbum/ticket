@@ -26,9 +26,12 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 
 import lombok.RequiredArgsConstructor;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -36,11 +39,17 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -94,18 +103,29 @@ public class PaymentRefundProcessService {
             int cancellationFeeAmount,
             boolean fullCancellation,
             RefundAccountRequest refundAccount) {
-        PaymentRefundProcess process = paymentRefundProcessJpaRepository.save(
-                PaymentRefundProcess.create(
-                        payment,
-                        selectedTickets,
-                        refundAmount,
-                        cancellationFeeAmount,
-                        fullCancellation,
-                        refundAccount
-                )
-        );
-
-        return process.getPaymentRefundProcessId();
+        try {
+            PaymentRefundProcess process = paymentRefundProcessJpaRepository.saveAndFlush(
+                    PaymentRefundProcess.create(
+                            payment,
+                            selectedTickets,
+                            refundAmount,
+                            cancellationFeeAmount,
+                            fullCancellation,
+                            refundAccount
+                    )
+            );
+            return process.getPaymentRefundProcessId();
+        } catch (DataIntegrityViolationException e) {
+            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                if (cause instanceof ConstraintViolationException violation
+                        && violation.getConstraintName() != null
+                        && violation.getConstraintName().toLowerCase(Locale.ROOT)
+                                .contains("uk_refund_process_active_payment")) {
+                    throw new IllegalStateException("이미 진행 중인 환불 요청이 있습니다. 잠시 후 다시 요청해 주세요.", e);
+                }
+            }
+            throw e;
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -279,7 +299,7 @@ public class PaymentRefundProcessService {
         String selectedTicketIds = selectedTickets.stream()
                 .map(Ticket::getTicketId)
                 .map(String::valueOf)
-                .collect(java.util.stream.Collectors.joining(","));
+                .collect(Collectors.joining(","));
         if (!process.getRefundAmount().equals(refundAmount)
                 || !process.getCancellationFeeAmount().equals(cancellationFeeAmount)
                 || process.isFullCancellation() != fullCancellation
@@ -344,17 +364,15 @@ public class PaymentRefundProcessService {
                         process, payment, selectedTickets, refundAmount, fullCancellation));
         // 본문 실행 중에는 독립 실패 기록 트랜잭션과 잠금이 충돌하지 않도록 완료 상태를 커밋 직전에 반영한다.
         // 성공 이력과 완료 상태는 여전히 예매·결제 변경과 같은 트랜잭션으로 커밋된다.
-        if (org.springframework.transaction.support.TransactionSynchronizationManager
-                .isSynchronizationActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager
-                    .registerSynchronization(
-                            new org.springframework.transaction.support
-                                    .TransactionSynchronization() {
-                                @Override
-                                public void beforeCommit(boolean readOnly) {
-                                    process.localSucceeded();
-                                }
-                            });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void beforeCommit(boolean readOnly) {
+                            process.localSucceeded();
+                        }
+                    }
+            );
         } else {
             process.localSucceeded();
         }
@@ -382,7 +400,7 @@ public class PaymentRefundProcessService {
         if (!StringUtils.hasText(selectedTicketIds)) {
             return List.of();
         }
-        return java.util.Arrays.stream(selectedTicketIds.split(","))
+        return Arrays.stream(selectedTicketIds.split(","))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .map(Long::valueOf)
@@ -402,7 +420,7 @@ public class PaymentRefundProcessService {
 
         return selectedTickets.stream()
                 .map(Ticket::getSeat)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .toList();
     }
 
@@ -433,7 +451,7 @@ public class PaymentRefundProcessService {
 
     private Specification<PaymentRefundProcess> makeSpec(PaymentRefundProcessCondRequest cond) {
         return (root, query, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            List<Predicate> predicates = new ArrayList<>();
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("refund", JoinType.LEFT)
                         .fetch("payment", JoinType.LEFT)
@@ -479,7 +497,7 @@ public class PaymentRefundProcessService {
                                 PaymentRefundProcessStatus.valueOf(cond.getStatus())));
             }
 
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
 

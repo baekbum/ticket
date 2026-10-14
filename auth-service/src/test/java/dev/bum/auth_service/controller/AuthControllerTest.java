@@ -1,17 +1,24 @@
 package dev.bum.auth_service.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.auth_service.exception.BlacklistedUserException;
 import dev.bum.auth_service.exception.PasswordIncorrectException;
 import dev.bum.auth_service.exception.RedisException;
+import dev.bum.auth_service.exception.UserLoginLockedException;
 import dev.bum.auth_service.exception.WithdrawnUserException;
 import dev.bum.auth_service.security.SecurityConfig;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.jwt.dto.TokenResponse;
+import dev.bum.common.security.TokenState;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.auth.dto.LoginRequest;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.jsonwebtoken.MalformedJwtException;
+
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 @WebMvcTest(AuthController.class)
 class AuthControllerTest {
-    @MockitoBean private dev.bum.common.security.TokenStateStore tokenStateStore;
+    @MockitoBean private TokenStateStore tokenStateStore;
 
 
 
@@ -62,13 +69,13 @@ class AuthControllerTest {
     @DisplayName("로그인 잠금 계정은 비밀번호 재설정 안내와 403 응답을 반환한다")
     void login_locked_account() throws Exception {
         given(authService.LoginAndCreateToken(any()))
-                .willThrow(new dev.bum.auth_service.exception.UserLoginLockedException());
+                .willThrow(new UserLoginLockedException());
         mockMvc.perform(post("/api/v1/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest("user01", "password"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("USER_LOGIN_LOCKED"))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("비밀번호 찾기")));
+                .andExpect(jsonPath("$.message").value(Matchers.containsString("비밀번호 찾기")));
     }
 
     @Autowired
@@ -113,7 +120,7 @@ class AuthControllerTest {
         given(tokenProvider.getRole(token)).willReturn("ROLE_USER");
         given(tokenProvider.getTokenType(token)).willReturn("access");
         given(tokenProvider.getTokenVersion(token)).willReturn(1L);
-        given(tokenStateStore.get("user01")).willReturn(dev.bum.common.security.TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
+        given(tokenStateStore.get("user01")).willReturn(TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
 
         mockMvc.perform(get("/api/" + apiVersion + "/validate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -133,7 +140,7 @@ class AuthControllerTest {
         given(tokenProvider.getUserId("access")).willReturn("user01");
         given(tokenProvider.getRole("access")).willReturn("ROLE_USER");
         given(tokenProvider.getTokenVersion("access")).willReturn(1L);
-        given(tokenStateStore.get("user01")).willReturn(dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+        given(tokenStateStore.get("user01")).willReturn(TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
         mockMvc.perform(get("/api/v1/validate").header(HttpHeaders.AUTHORIZATION, "Bearer access"))
                 .andExpect(status().isUnauthorized());
     }
@@ -300,7 +307,7 @@ class AuthControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("USER_BLACKLISTED"))
                 .andExpect(jsonPath("$.message").value("무기한 차단된 계정입니다."))
-                .andExpect(jsonPath("$.details.blacklistedUntil").value(org.hamcrest.Matchers.nullValue()));
+                .andExpect(jsonPath("$.details.blacklistedUntil").value(Matchers.nullValue()));
     }
 
     @Test

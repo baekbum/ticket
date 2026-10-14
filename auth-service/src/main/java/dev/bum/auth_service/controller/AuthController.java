@@ -1,16 +1,22 @@
 package dev.bum.auth_service.controller;
 
-import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
-import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.jwt.dto.TokenResponse;
 import dev.bum.common.security.TokenState;
 import dev.bum.common.security.TokenStateStore;
+import dev.bum.common.service.auth.dto.LoginRequest;
+
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -87,14 +93,14 @@ public class AuthController {
                     .header("X-User-Role", role)
                     .build();
 
-        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+        } catch (ExpiredJwtException e) {
             log.warn("[Nginx Auth] 만료된 토큰 접근 발생 -> Nginx에 401 전송");
             // 🌟 중요: 만료 시 401을 줘야 Nginx가 클라이언트에게 401을 그대로 전달하고,
             // 그걸 본 대시보드 Axios/Fetch 인터셉터가 reissue(재발급)를 요청하게 됩니다!
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ErrorResponse.of(ErrorCode.TOKEN_EXPIRED, "Access Token이 만료되었습니다."));
 
-        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+        } catch (JwtException | IllegalArgumentException e) {
             log.warn("[Nginx Auth] 변조되거나 잘못된 토큰 비정상 접근 발생 -> Nginx에 403 전송: {}", e.getMessage());
             // 변조된 토큰은 갱신 기회를 주지 않고 완전히 차단해야 하므로 403을 줍니다.
             return ResponseEntity.status(HttpStatus.FORBIDDEN)

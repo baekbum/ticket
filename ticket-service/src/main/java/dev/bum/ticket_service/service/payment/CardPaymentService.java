@@ -1,22 +1,25 @@
 package dev.bum.ticket_service.service.payment;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
+import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -106,7 +109,7 @@ public class CardPaymentService {
     }
 
     private void validateOwner(Payment payment, String userId) {
-        if (payment.getReservation() == null || !java.util.Objects.equals(userId, payment.getReservation().getUserId())) {
+        if (payment.getReservation() == null || !Objects.equals(userId, payment.getReservation().getUserId())) {
             throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
         }
     }

@@ -1,5 +1,7 @@
 package dev.bum.admin_service.monitoring;
 
+import java.util.List;
+
 public record FailureMetricResponse(
         String key,
         String name,
@@ -10,6 +12,6 @@ public record FailureMetricResponse(
         Double criticalThreshold,
         FailureMetricLevel level,
         String promql,
-        java.util.List<FailureMetricDetailResponse> details
+        List<FailureMetricDetailResponse> details
 ) {
 }

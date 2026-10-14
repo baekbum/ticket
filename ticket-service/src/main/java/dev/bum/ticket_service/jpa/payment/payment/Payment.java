@@ -1,12 +1,11 @@
 package dev.bum.ticket_service.jpa.payment.payment;
 
-import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
-import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountPaymentInfo;
-
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
+import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountPaymentInfo;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 
 import jakarta.persistence.AttributeOverride;
@@ -25,6 +24,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -36,6 +36,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Entity
 @Table(
@@ -54,7 +58,7 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 public class Payment {
-    private static final java.time.format.DateTimeFormatter DATE_TIME_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -148,8 +152,8 @@ public class Payment {
     private PaymentProcess process;
 
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL)
-    @jakarta.persistence.OrderBy("paymentHistoryId ASC")
-    private java.util.List<PaymentHistory> histories = new java.util.ArrayList<>();
+    @OrderBy("paymentHistoryId ASC")
+    private List<PaymentHistory> histories = new ArrayList<>();
 
     @Builder
     public Payment(
@@ -193,8 +197,8 @@ public class Payment {
                                 .amount(amount)
                                 .reservationFeeAmount(reservationFeeAmount)
                                 .deliveryFeeAmount(deliveryFeeAmount)
-                                .tickets(reservation == null ? java.util.List.of() : reservation.getTickets())
-                                .discounts(java.util.List.of())
+                                .tickets(reservation == null ? List.of() : reservation.getTickets())
+                                .discounts(List.of())
                                 .build()
                         : snapshot;
         this.process = new PaymentProcess(initialStage(this.status));
@@ -224,8 +228,8 @@ public class Payment {
         return snapshot.getDeliveryFeeAmount();
     }
 
-    public java.util.List<PaymentHistory> getHistories() {
-        return java.util.Collections.unmodifiableList(histories);
+    public List<PaymentHistory> getHistories() {
+        return Collections.unmodifiableList(histories);
     }
 
     private void record(PaymentHistoryType type, PaymentStatus before, String reason) {

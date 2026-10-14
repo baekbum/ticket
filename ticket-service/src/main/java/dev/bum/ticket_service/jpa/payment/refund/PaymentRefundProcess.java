@@ -1,9 +1,8 @@
 package dev.bum.ticket_service.jpa.payment.refund;
 
-import dev.bum.ticket_service.jpa.payment.payment.Payment;
-
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 
@@ -11,14 +10,25 @@ import jakarta.persistence.*;
 
 import lombok.*;
 
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /** 환불 작업의 최신 진행 상태와 재시도 정보. 요청 금액과 대상은 PaymentRefundSnapshot에 저장한다. */
 @Entity
 @Table(
         name = "payment_refund_processes",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_refund_process_active_payment", columnNames = "active_payment_id"
+        ),
         indexes = @Index(name = "idx_payment_refund_processes_status", columnList = "status"))
+@Check(constraints =
+        "(status = 'LOCAL_SUCCEEDED' and active_payment_id is null) or "
+                + "(status <> 'LOCAL_SUCCEEDED' and active_payment_id is not null)")
 @Getter
 @NoArgsConstructor
 public class PaymentRefundProcess {
@@ -30,6 +40,10 @@ public class PaymentRefundProcess {
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "refund_id", nullable = false, unique = true)
     private PaymentRefund refund;
+
+    // 진행 중인 환불의 결제 ID를 UNIQUE 키로 사용하고, 로컬 반영 완료 시 해제한다.
+    @Column(name = "active_payment_id")
+    private Long activePaymentId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -44,11 +58,11 @@ public class PaymentRefundProcess {
     private LocalDateTime lastTriedAt;
     private LocalDateTime completedAt;
 
-    @org.hibernate.annotations.CreationTimestamp
+    @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @org.hibernate.annotations.UpdateTimestamp
+    @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
@@ -94,6 +108,8 @@ public class PaymentRefundProcess {
                                         refundAccountHolder))
                         : refund;
         this.status = status == null ? PaymentRefundProcessStatus.REQUESTED : status;
+        activePaymentId = this.status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
+                ? null : getPayment().getPaymentId();
         this.failureReason = failureReason;
         this.retryCount = retryCount == null ? 0 : retryCount;
         this.lastTriedAt = lastTriedAt;
@@ -101,6 +117,16 @@ public class PaymentRefundProcess {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         histories.add(PaymentRefundHistory.event(this, PaymentRefundHistoryType.REQUESTED, null));
+    }
+
+    @PrePersist
+    private void initializeActivePaymentId() {
+        if (status != PaymentRefundProcessStatus.LOCAL_SUCCEEDED) {
+            activePaymentId = getPayment().getPaymentId();
+            if (activePaymentId == null) {
+                throw new IllegalStateException("저장된 결제 정보로 환불을 요청해야 합니다.");
+            }
+        }
     }
 
     public static PaymentRefundProcess create(
@@ -224,6 +250,7 @@ public class PaymentRefundProcess {
                 PaymentRefundHistoryType.LOCAL_SUCCEEDED,
                 null);
         refund.complete();
+        activePaymentId = null;
         completedAt = LocalDateTime.now();
     }
 
@@ -260,6 +287,6 @@ public class PaymentRefundProcess {
     private String format(LocalDateTime time) {
         return time == null
                 ? null
-                : time.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                : time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 }

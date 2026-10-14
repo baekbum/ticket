@@ -9,12 +9,14 @@ import dev.bum.payment_gateway_service.jpa.refund.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.service.card.GatewayCardApprovalService;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
+
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ContextConfiguration;
@@ -26,6 +28,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.concurrent.*;
+
 import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
@@ -100,7 +103,7 @@ class GatewayRefundIntegrationTest {
                 .refundBankCompany(BankCompany.KB).refundAccountNumber("refund-account").refundAccountHolder("user")
                 .refundedAmount(new BigDecimal("4000")).message("completed").build();
         assertThatThrownBy(() -> refunds.saveAndFlush(GatewayRefund.virtualAccount(bankRequest, bankResponse)))
-                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+                .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(cardService.refund(cardRequest(1L, "4000"))).isEqualTo(first);
         assertThat(refunds.count()).isEqualTo(1);
     }

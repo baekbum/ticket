@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -29,17 +30,17 @@ class PaymentEventProducerTest {
         ReflectionTestUtils.setField(producer, "paymentCompletedTopic", "payment-completed-test");
         CompletableFuture<SendResult<String, String>> completedFuture = CompletableFuture.completedFuture(null);
         given(kafkaTemplate.send(
-                org.mockito.ArgumentMatchers.eq("payment-completed-test"),
-                org.mockito.ArgumentMatchers.eq("PAY-1"),
-                org.mockito.ArgumentMatchers.anyString()
+                ArgumentMatchers.eq("payment-completed-test"),
+                ArgumentMatchers.eq("PAY-1"),
+                ArgumentMatchers.anyString()
         )).willReturn(completedFuture);
 
         producer.sendPaymentCompleted("PAY-1", 10L, "ORDER-1", 180000);
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         then(kafkaTemplate).should().send(
-                org.mockito.ArgumentMatchers.eq("payment-completed-test"),
-                org.mockito.ArgumentMatchers.eq("PAY-1"),
+                ArgumentMatchers.eq("payment-completed-test"),
+                ArgumentMatchers.eq("PAY-1"),
                 payloadCaptor.capture()
         );
 

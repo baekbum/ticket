@@ -1,10 +1,13 @@
 package dev.bum.admin_service.kafka.dlq;
 
+import dev.bum.admin_service.config.KafkaDlqProperties;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.bum.admin_service.config.KafkaDlqProperties;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -17,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -151,7 +155,7 @@ public class KafkaDlqReplayService {
         TopicPartition topicPartition = new TopicPartition(topic, partition);
 
         try (Consumer<byte[], byte[]> consumer = kafkaDlqConsumerFactory.createConsumer()) {
-            consumer.assign(java.util.List.of(topicPartition));
+            consumer.assign(List.of(topicPartition));
             consumer.seek(topicPartition, offset);
 
             ConsumerRecords<byte[], byte[]> records = consumer.poll(POLL_TIMEOUT);

@@ -7,9 +7,13 @@ import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundResponse
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.jpa.card.CardPaymentHistoryStatus;
+
 import jakarta.persistence.*;
+
 import lombok.*;
+
 import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.domain.Persistable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,7 +26,7 @@ import java.util.Objects;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GatewayRefund implements org.springframework.data.domain.Persistable<Long> {
+public class GatewayRefund implements Persistable<Long> {
     @Id
     @Column(name = "payment_refund_process_id")
     private Long paymentRefundProcessId;

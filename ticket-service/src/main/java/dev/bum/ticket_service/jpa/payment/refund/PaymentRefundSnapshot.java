@@ -1,9 +1,8 @@
 package dev.bum.ticket_service.jpa.payment.refund;
 
-import dev.bum.ticket_service.jpa.payment.payment.Payment;
-
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 
 import jakarta.persistence.*;
@@ -14,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /** 환불 요청 시 확정한 대상 티켓, 금액 계산 근거와 환불 계좌. 재시도에서 변경하지 않는다. */
 @Entity
@@ -130,7 +130,7 @@ public class PaymentRefundSnapshot {
     public String selectedTicketIds() {
         return tickets.stream()
                 .map(t -> String.valueOf(t.getTicketId()))
-                .collect(java.util.stream.Collectors.joining(","));
+                .collect(Collectors.joining(","));
     }
 
     public List<PaymentRefundSnapshotTicket> getTickets() {

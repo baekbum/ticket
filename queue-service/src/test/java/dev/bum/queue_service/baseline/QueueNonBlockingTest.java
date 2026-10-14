@@ -6,6 +6,8 @@ import dev.bum.common.security.TokenState;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.queue_service.QueueServiceApplication;
 import dev.bum.queue_service.service.reactive.ReactiveQueueService;
+
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
 import reactor.blockhound.BlockHound;
 import reactor.blockhound.BlockingOperationError;
 import reactor.core.publisher.Mono;
@@ -64,7 +67,7 @@ class QueueNonBlockingTest {
         Map<?, ?> ready = client.get().uri("/api/v1/queue/events/" + event + "/status")
                 .header("X-Waiting-Token", (String) entered.get("token"))
                 .exchange().expectStatus().isOk().expectBody(Map.class).returnResult().getResponseBody();
-        org.assertj.core.api.Assertions.assertThat(ready.get("status")).isEqualTo("READY");
+        Assertions.assertThat(ready.get("status")).isEqualTo("READY");
         // 저장된 승격 결과를 복구하는 경로도 이벤트 루프를 블로킹하지 않아야 한다.
         client.get().uri("/api/v1/queue/events/" + event + "/status")
                 .header("X-Waiting-Token", (String) entered.get("token"))
@@ -76,7 +79,7 @@ class QueueNonBlockingTest {
         Map<?, ?> secondReady = client.get().uri("/api/v1/queue/events/" + event + "/status")
                 .header("X-Waiting-Token", (String) second.get("token"))
                 .exchange().expectStatus().isOk().expectBody(Map.class).returnResult().getResponseBody();
-        org.assertj.core.api.Assertions.assertThat(secondReady.get("status")).isEqualTo("READY");
+        Assertions.assertThat(secondReady.get("status")).isEqualTo("READY");
         String otherUser = user + "-other";
         tokenStates.publish(otherUser, new TokenState(1L, true, "ROLE_USER"));
         String otherBearer = "Bearer " + jwt.createToken(otherUser, "ROLE_USER").getAccessToken();

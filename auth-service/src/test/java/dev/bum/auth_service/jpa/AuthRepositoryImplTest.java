@@ -4,9 +4,11 @@ import dev.bum.auth_service.exception.UserAlreadyExistException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.enums.UserRole;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,7 +61,7 @@ class AuthRepositoryImplTest {
                 .isInstanceOf(UserAlreadyExistException.class);
 
         then(jpaRepository).should().findByUserId("user01");
-        then(jpaRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
+        then(jpaRepository).should(never()).save(ArgumentMatchers.any());
     }
 
     @Test

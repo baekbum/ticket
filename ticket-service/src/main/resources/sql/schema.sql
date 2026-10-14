@@ -338,13 +338,17 @@ CREATE INDEX idx_checkout_attempts_status_expires_at ON checkout_attempts(status
 CREATE TABLE payment_refund_processes (
  payment_refund_process_id BIGSERIAL PRIMARY KEY,
  refund_id BIGINT NOT NULL UNIQUE REFERENCES payment_refunds(payment_refund_id),
+ active_payment_id BIGINT REFERENCES payments(payment_id),
  status VARCHAR(30) NOT NULL,
  failure_reason VARCHAR(1000),
  retry_count INTEGER NOT NULL DEFAULT 0,
  last_tried_at TIMESTAMP,
  completed_at TIMESTAMP,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_refund_process_active_payment UNIQUE (active_payment_id),
+ CHECK ((status = 'LOCAL_SUCCEEDED' AND active_payment_id IS NULL)
+     OR (status <> 'LOCAL_SUCCEEDED' AND active_payment_id IS NOT NULL))
 );
 CREATE INDEX idx_payment_refund_processes_status ON payment_refund_processes(status);
 

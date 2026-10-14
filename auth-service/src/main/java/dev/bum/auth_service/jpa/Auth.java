@@ -1,16 +1,20 @@
 package dev.bum.auth_service.jpa;
 
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
-import dev.bum.common.kafka.user.UserDtoForEvent;
+
 import jakarta.persistence.*;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.Locale;
+import java.util.Objects;
 
 @Getter
 @Entity
@@ -82,10 +86,10 @@ public class Auth {
         if (StringUtils.hasText(event.getStatus())) {
             this.status = UserStatus.valueOf(event.getStatus());
         }
-        if (!java.util.Objects.equals(previousPassword, password)
+        if (!Objects.equals(previousPassword, password)
                 || previousRole != role || previousStatus != status
-                || !java.util.Objects.equals(previousBlacklist, isBlacklisted)
-                || !java.util.Objects.equals(previousBlacklistUntil, blacklistedUntil)) {
+                || !Objects.equals(previousBlacklist, isBlacklisted)
+                || !Objects.equals(previousBlacklistUntil, blacklistedUntil)) {
             tokenVersion = Math.addExact(tokenVersion, 1L);
         }
     }

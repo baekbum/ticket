@@ -4,8 +4,13 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
-import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
@@ -13,10 +18,8 @@ import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
-import dev.bum.common.service.user.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.user_service.service.user.UserService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,12 +39,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,10 +80,10 @@ class UserServiceTest {
         given(userRepository.update(eq("user01"), any(UpdateUserRequest.class))).willReturn(user);
         given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
         var response = userService.findPasswordByPhoneNumber(
-                dev.bum.common.service.user.user.dto.FindPasswordRequest.builder().userId("user01")
+                FindPasswordRequest.builder().userId("user01")
                         .name("홍길동").phoneNumber("01012345678").build());
 
-        userService.resetPassword(dev.bum.common.service.user.user.dto.ResetPasswordRequest.builder()
+        userService.resetPassword(ResetPasswordRequest.builder()
                 .resetToken(response.getResetToken()).password("new-password").build());
 
         then(kafkaTemplate).should().send(any(), any(), argThat(event ->
