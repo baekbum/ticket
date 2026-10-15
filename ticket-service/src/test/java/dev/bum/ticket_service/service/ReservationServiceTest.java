@@ -125,6 +125,45 @@ class ReservationServiceTest {
     }
 
     @Test
+    void cancellationRejectsAnAvailableSeatBeforeRequestingRefund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
+        ticket.getSeat().available();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+
+        assertThatThrownBy(() -> reservationService.cancelMyReservation(
+                "user01", 1L, CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("선점 또는 예매 상태인 좌석만 취소할 수 있습니다.");
+
+        then(paymentRefundProcessService).shouldHaveNoInteractions();
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
+    }
+
+    @Test
+    void cancellationRejectsAnotherUsersTicketEvenWhenReservationIsOwned() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Seat seat = seat(1L, reservation.getEvent(), "VIP", 1, 1);
+        seat.reserved();
+        Ticket ticket = Ticket.builder()
+                .ticketId(1L).reservation(reservation).event(reservation.getEvent())
+                .seat(seat).userId("another-user").status(TicketStatus.PAID).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+
+        assertThatThrownBy(() -> reservationService.cancelMyReservation(
+                "user01", 1L, CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("해당 예매 소유자의 티켓만 취소할 수 있습니다.");
+
+        then(paymentRefundProcessService).shouldHaveNoInteractions();
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.RESERVED);
+    }
+
+    @Test
     @DisplayName("본인 예약을 ID로 조회한다")
     void reservation_select_my_reservation() {
         Reservation reservation = reservation(1L, "order-1", "user01", event());
@@ -182,7 +221,7 @@ class ReservationServiceTest {
         Ticket selectedTicket = ticket(1L, reservation, TicketStatus.PENDING_PAYMENT);
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PENDING_PAYMENT);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
         reservationService.cancelMyReservation("user01", 1L, info);
@@ -191,7 +230,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
-        then(repository).should().selectById(1L);
+        then(repository).should().selectByIdForUpdate(1L);
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
     }
 
@@ -208,7 +247,7 @@ class ReservationServiceTest {
         Ticket selectedTicket = ticket(1L, reservation, TicketStatus.PAID);
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
         willAnswer(invocation -> {
@@ -239,7 +278,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
         UserCoupon userCoupon = usedUserCoupon();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
@@ -264,7 +303,7 @@ class ReservationServiceTest {
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
         UserCoupon userCoupon = usedUserCoupon();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
@@ -313,7 +352,7 @@ class ReservationServiceTest {
         Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
@@ -349,7 +388,7 @@ class ReservationServiceTest {
         Ticket firstTicket = ticket(1L, reservation, TicketStatus.PAID);
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(paymentRefundProcessService.startGatewayAttempt(payment, List.of(firstTicket, secondTicket), 250000, 0, true, null))
@@ -381,7 +420,7 @@ class ReservationServiceTest {
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
         UserCoupon userCoupon = usedUserCoupon();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(firstTicket, secondTicket));
         given(reservationDiscountJpaRepository.findByReservation(reservation))
@@ -414,7 +453,7 @@ class ReservationServiceTest {
         Ticket selectedTicket = ticket(1L, reservation, TicketStatus.PAID);
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
         willReturn(125000).given(virtualAccountPaymentRefundService).refundPartial(payment, 125000, refundAccount(), 1L);
@@ -442,7 +481,7 @@ class ReservationServiceTest {
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
         UserCoupon userCoupon = usedUserCoupon();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
@@ -465,7 +504,7 @@ class ReservationServiceTest {
                 .build();
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
 
@@ -490,7 +529,7 @@ class ReservationServiceTest {
                 .build();
         Ticket remainingTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(remainingTicket));
 
@@ -512,7 +551,7 @@ class ReservationServiceTest {
                 .selectedTicketIdList(List.of(1L))
                 .build();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
 
         assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -536,7 +575,7 @@ class ReservationServiceTest {
         Ticket cancelledTicket = ticket(1L, reservation, TicketStatus.CANCELLED);
         Ticket activeTicket = ticket(2L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(cancelledTicket, activeTicket));
 
         assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
@@ -559,7 +598,7 @@ class ReservationServiceTest {
                 .build();
         Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
 
         assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
@@ -581,12 +620,12 @@ class ReservationServiceTest {
                 .selectedTicketIdList(List.of(1L))
                 .build();
 
-        given(repository.selectById(1L)).willReturn(reservation);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
 
         assertThatThrownBy(() -> reservationService.cancelMyReservation("user01", 1L, info))
                 .isInstanceOf(AccessDeniedException.class);
 
-        then(repository).should().selectById(1L);
+        then(repository).should().selectByIdForUpdate(1L);
         then(repository).shouldHaveNoMoreInteractions();
         then(seatCacheService).shouldHaveNoInteractions();
     }
@@ -669,12 +708,15 @@ class ReservationServiceTest {
     }
 
     private Ticket ticket(Long ticketId, Reservation reservation, TicketStatus status) {
+        Seat occupiedSeat = seat(ticketId, reservation.getEvent(), "VIP", 1, ticketId.intValue());
+        if (status == TicketStatus.PENDING_PAYMENT) occupiedSeat.lock();
+        else if (status == TicketStatus.PAID) occupiedSeat.reserved();
         return Ticket.builder()
                 .ticketId(ticketId)
                 .userId(reservation.getUserId())
                 .reservation(reservation)
                 .event(reservation.getEvent())
-                .seat(seat(ticketId, reservation.getEvent(), "VIP", 1, ticketId.intValue()))
+                .seat(occupiedSeat)
                 .status(status)
                 .build();
     }

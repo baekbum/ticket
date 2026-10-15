@@ -92,7 +92,7 @@ public class ReservationService {
      */
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancelMyReservation(String currentUserId, long id, CancelReservationRequest info) {
-        Reservation reservation = repository.selectById(id);
+        Reservation reservation = repository.selectByIdForUpdate(id);
         Object beforeStatus = reservation.getStatus();
         validateOwner(currentUserId, reservation);
         info.setUserId(currentUserId);
@@ -120,6 +120,7 @@ public class ReservationService {
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
+        CancellationTicketValidator.validate(reservation, selectedTickets);
         boolean fullCancellation = isFullCancellation(activeTickets, selectedTickets);
         boolean restoreCouponOnCancel = fullCancellation
                 && (reservation.getStatus() == ReservationStatus.PAID

@@ -38,8 +38,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -50,13 +48,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -83,74 +74,26 @@ class PaymentModelIntegrationTest {
     @Autowired PlatformTransactionManager transactionManager;
 
     @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DirtiesContext(
-            methodMode = DirtiesContext.MethodMode.AFTER_METHOD
-    )
-    void concurrentInitialRefundCreationKeepsOnlyOneActiveProcess() throws Exception {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        Long paymentId = tx.execute(status -> payments.saveAndFlush(payment("concurrent-refund")).getPaymentId());
-        CyclicBarrier ready = new CyclicBarrier(2);
-        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
-            Callable<Long> create = () -> tx.execute(status -> {
-                Payment payment = payments.findById(paymentId).orElseThrow();
-                List<Ticket> selectedTickets = payment.getReservation().getTickets();
-                selectedTickets.size();
-                try {
-                    ready.await(15, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new IllegalStateException(e);
-                }
-                return processService.create(payment, selectedTickets, 3000, 0, false, null);
-            });
-            List<Future<Long>> attempts = List.of(pool.submit(create), pool.submit(create));
-            int succeeded = 0;
-            int rejected = 0;
-            for (Future<Long> attempt : attempts) {
-                try {
-                    assertThat(attempt.get(30, TimeUnit.SECONDS)).isNotNull();
-                    succeeded++;
-                } catch (ExecutionException e) {
-                    assertThat(e.getCause())
-                            .isInstanceOf(IllegalStateException.class)
-                            .hasMessage("이미 진행 중인 환불 요청이 있습니다. 잠시 후 다시 요청해 주세요.")
-                            .hasCauseInstanceOf(DataIntegrityViolationException.class);
-                    rejected++;
-                }
-            }
-            assertThat(succeeded).isEqualTo(1);
-            assertThat(rejected).isEqualTo(1);
-        }
-        tx.executeWithoutResult(status -> {
-            assertThat(processes.findAll()).hasSize(1);
-            assertThat(refunds.findAll()).hasSize(1);
-            assertThat(processes.findAll().getFirst().getActivePaymentId()).isEqualTo(paymentId);
-        });
-    }
-
-    @Test
-    void failedRefundRetainsActiveKeyAndCompletedRefundAllowsNextPartialRefund() {
+    void completedRefundAllowsNextPartialRefund() {
         Payment payment = payments.saveAndFlush(payment("next-partial-refund"));
         PaymentRefundProcess first = processes.saveAndFlush(PaymentRefundProcess.create(
                 payment, payment.getReservation().getTickets(), 3000, 0, false, null
         ));
         first.gatewayFailed("응답 유실");
         processes.flush();
-        assertThat(first.getActivePaymentId()).isEqualTo(payment.getPaymentId());
         first.gatewayRetryRequested();
         first.gatewaySucceeded();
         first.localFailed("로컬 반영 실패");
         processes.flush();
-        assertThat(first.getActivePaymentId()).isEqualTo(payment.getPaymentId());
         first.localSucceeded();
         processes.flush();
-        assertThat(first.getActivePaymentId()).isNull();
 
         PaymentRefundProcess second = processes.saveAndFlush(PaymentRefundProcess.create(
                 payment, payment.getReservation().getTickets(), 2000, 0, false, null
         ));
+        assertThat(first.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
         assertThat(second.getPaymentRefundProcessId()).isNotEqualTo(first.getPaymentRefundProcessId());
-        assertThat(second.getActivePaymentId()).isEqualTo(payment.getPaymentId());
+        assertThat(second.getRefundAmount()).isEqualTo(2000);
     }
 
     @Test

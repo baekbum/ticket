@@ -17,11 +17,13 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
+import dev.bum.ticket_service.service.reservation.reservation.CancellationTicketValidator;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 
@@ -30,8 +32,6 @@ import jakarta.persistence.criteria.Predicate;
 
 import lombok.RequiredArgsConstructor;
 
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -47,7 +47,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -57,6 +56,7 @@ public class PaymentRefundProcessService {
 
     private final PaymentRefundProcessJpaRepository paymentRefundProcessJpaRepository;
     private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
+    private final ReservationJpaRepository reservationJpaRepository;
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final SeatCacheService seatCacheService;
@@ -103,29 +103,17 @@ public class PaymentRefundProcessService {
             int cancellationFeeAmount,
             boolean fullCancellation,
             RefundAccountRequest refundAccount) {
-        try {
-            PaymentRefundProcess process = paymentRefundProcessJpaRepository.saveAndFlush(
-                    PaymentRefundProcess.create(
-                            payment,
-                            selectedTickets,
-                            refundAmount,
-                            cancellationFeeAmount,
-                            fullCancellation,
-                            refundAccount
-                    )
-            );
-            return process.getPaymentRefundProcessId();
-        } catch (DataIntegrityViolationException e) {
-            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
-                if (cause instanceof ConstraintViolationException violation
-                        && violation.getConstraintName() != null
-                        && violation.getConstraintName().toLowerCase(Locale.ROOT)
-                                .contains("uk_refund_process_active_payment")) {
-                    throw new IllegalStateException("이미 진행 중인 환불 요청이 있습니다. 잠시 후 다시 요청해 주세요.", e);
-                }
-            }
-            throw e;
-        }
+        PaymentRefundProcess process = paymentRefundProcessJpaRepository.save(
+                PaymentRefundProcess.create(
+                        payment,
+                        selectedTickets,
+                        refundAmount,
+                        cancellationFeeAmount,
+                        fullCancellation,
+                        refundAccount
+                )
+        );
+        return process.getPaymentRefundProcessId();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -240,6 +228,11 @@ public class PaymentRefundProcessService {
             targetType = "PAYMENT_REFUND_PROCESS")
     @Transactional
     public PaymentRefundProcessResponse completeLocal(Long paymentRefundProcessId) {
+        Long reservationId = paymentRefundProcessJpaRepository.findReservationIdById(paymentRefundProcessId)
+                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
+        // 프로세스나 티켓을 읽기 전에 사용자·관리자 취소와 같은 예매 행을 잠근다.
+        reservationJpaRepository.findByIdForUpdate(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("예매 정보를 찾을 수 없습니다."));
         PaymentRefundProcess process = findById(paymentRefundProcessId);
         if (process.getStatus() != PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
                 && process.getStatus() != PaymentRefundProcessStatus.LOCAL_FAILED) {
@@ -312,10 +305,15 @@ public class PaymentRefundProcessService {
         try {
             Payment payment = process.getPayment();
             Reservation reservation = process.getReservation();
+            List<Ticket> selectedTickets = selectProcessTickets(process, reservation);
+            CancellationTicketValidator.validate(reservation, selectedTickets);
+            if (selectedTickets.isEmpty()
+                    || selectedTickets.stream().anyMatch(ticket -> ticket.getStatus() != TicketStatus.PAID)) {
+                throw new IllegalArgumentException("결제 완료 상태인 티켓만 환불 완료 처리할 수 있습니다.");
+            }
             if (applyPaymentRefund) {
                 applyPaymentRefund(payment, process);
             }
-            List<Ticket> selectedTickets = selectProcessTickets(process, reservation);
             boolean restoreCouponOnCancel = process.isFullCancellation()
                     && reservation.getStatus() == ReservationStatus.PAID;
 

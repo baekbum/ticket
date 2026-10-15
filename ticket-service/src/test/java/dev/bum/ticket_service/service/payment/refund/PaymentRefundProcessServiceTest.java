@@ -22,6 +22,7 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaReposito
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
@@ -70,6 +71,9 @@ class PaymentRefundProcessServiceTest {
 
     @Mock
     private VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
+
+    @Mock
+    private ReservationJpaRepository reservationJpaRepository;
 
     @Mock
     private TicketJpaRepository ticketJpaRepository;
@@ -168,6 +172,8 @@ class PaymentRefundProcessServiceTest {
         Ticket secondTicket = ticket(2L, reservation, TicketStatus.PAID);
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(firstTicket, secondTicket), 250000, true, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(firstTicket, secondTicket));
 
@@ -198,6 +204,8 @@ class PaymentRefundProcessServiceTest {
                 1L, payment, List.of(firstTicket, secondTicket), 190000, 60000, true,
                 PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(firstTicket, secondTicket));
 
@@ -218,6 +226,8 @@ class PaymentRefundProcessServiceTest {
         Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.LOCAL_FAILED);
 
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
 
@@ -234,6 +244,28 @@ class PaymentRefundProcessServiceTest {
     }
 
     @Test
+    void manualCompletionRejectsCancelledTicketBeforeApplyingPaymentRefund() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket ticket = ticket(1L, reservation, TicketStatus.CANCELLED);
+        PaymentRefundProcess process = refundProcess(
+                1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
+        );
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
+        given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
+
+        assertThatThrownBy(() -> paymentRefundProcessService.completeLocal(1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 취소되었거나 만료된 티켓은 취소할 수 없습니다.");
+
+        assertThat(payment.getRefundedAmount()).isZero();
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        then(paymentRefundHistoryJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("이미 환불 이력이 저장된 환불 프로세스는 중복 이력 저장을 차단한다")
     void prevent_duplicate_refund_history() {
         Reservation reservation = reservation(ReservationStatus.PAID);
@@ -241,6 +273,8 @@ class PaymentRefundProcessServiceTest {
         Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
         given(paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)).willReturn(true);

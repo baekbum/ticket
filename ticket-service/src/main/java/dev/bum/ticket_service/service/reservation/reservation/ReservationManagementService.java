@@ -130,11 +130,12 @@ public class ReservationManagementService {
      */
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
     public void cancel(long id, CancelReservationRequest info) {
-        Reservation reservation = repository.selectById(id);
+        Reservation reservation = repository.selectByIdForUpdate(id);
         validateCancelableReservation(reservation);
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
         List<Ticket> selectedTickets = selectTicketsForCancel(activeTickets, info.getSelectedTicketIdList());
+        CancellationTicketValidator.validate(reservation, selectedTickets);
         boolean fullCancellation = isFullCancellation(activeTickets, selectedTickets);
         boolean restoreCouponOnCancel = fullCancellation
                 && (reservation.getStatus() == ReservationStatus.PAID

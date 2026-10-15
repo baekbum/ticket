@@ -17,6 +17,10 @@ public interface PaymentRefundProcessJpaRepository
         extends JpaRepository<PaymentRefundProcess, Long>,
                 JpaSpecificationExecutor<PaymentRefundProcess> {
 
+    @Query("select p.refund.payment.reservation.reservationId from PaymentRefundProcess p"
+            + " where p.paymentRefundProcessId = :id")
+    Optional<Long> findReservationIdById(@Param("id") Long id);
+
     @Lock(
             LockModeType.PESSIMISTIC_WRITE)
     @Query(

@@ -121,6 +121,12 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
     }
 
+    @Override
+    public Reservation selectByIdForUpdate(long id) {
+        return jpaRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
+    }
+
     /**
      * 조건으로 예매 내역 조회
      * @param cond
