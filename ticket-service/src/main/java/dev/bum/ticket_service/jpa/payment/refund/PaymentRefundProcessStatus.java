@@ -14,5 +14,8 @@ public enum PaymentRefundProcessStatus {
     LOCAL_SUCCEEDED,
 
     // gateway 환불은 성공했지만 로컬 DB 상태 변경 또는 커밋이 실패한 상태.
-    LOCAL_FAILED
+    LOCAL_FAILED,
+
+    // PG에서 미실행 요청을 종료하고 다른 요청으로 대체한 상태.
+    SUPERSEDED
 }

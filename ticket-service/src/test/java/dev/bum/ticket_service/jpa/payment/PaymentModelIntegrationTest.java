@@ -2,18 +2,21 @@ package dev.bum.ticket_service.jpa.payment;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.jpa.event.event.*;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentHistory;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentHistoryType;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
-import dev.bum.ticket_service.jpa.payment.payment.PaymentProcess;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentProcessStage;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentSnapshot;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
@@ -29,11 +32,14 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.*;
 import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 
 import jakarta.persistence.EntityManager;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -46,15 +52,37 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(PaymentRefundProcessService.class)
+@Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class})
 class PaymentModelIntegrationTest {
+    @MockitoBean Clock clock;
+    @MockitoBean PaymentGatewayRefundClient refundResolution;
+
+    @BeforeEach
+    void configureTimeAndGatewayResolution() {
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T03:00:00Z"));
+        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
+        given(refundResolution.resolve(any())).willAnswer(invocation -> {
+            GatewayRefundResolutionRequest request = invocation.getArgument(0);
+            return GatewayRefundResolutionResponse.builder()
+                    .paymentRefundProcessId(request.paymentRefundProcessId())
+                    .paymentNo(request.paymentNo())
+                    .outcome(Outcome.NOT_FOUND)
+                    .build();
+        });
+    }
+
     @Autowired PaymentRefundProcessService processService;
     @MockitoBean SeatCacheService seatCacheService;
 

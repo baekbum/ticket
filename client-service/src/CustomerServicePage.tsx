@@ -248,7 +248,7 @@ function CancelGuide() {
           <table>
             <thead><tr><th>공연 관람일</th><th>취소 마감</th></tr></thead>
             <tbody>
-              <tr><td>모든 공연</td><td>관람일 전날까지</td></tr>
+              <tr><td>모든 공연</td><td>공연별 취소 기한 내 매일 23:50:00까지 신규 접수</td></tr>
             </tbody>
           </table>
         </div>
@@ -268,7 +268,8 @@ function CancelGuide() {
           </table>
         </div>
         <ul className="guide-notes">
-          <li>취소 마감 이후 및 관람일 당일에는 취소·변경·환불이 불가합니다.</li>
+          <li>매일 23:50:00 이후부터 자정까지 신규 취소 접수가 중단됩니다. 공연별 최종 취소 기한이 지나면 신규 접수가 종료됩니다.</li>
+          <li>기한 내 접수한 미완료 취소 요청은 마감 이후에도 최초 환불액·수수료 조건으로 재시도할 수 있습니다.</li>
           <li>환불 완료 시점은 카드사 및 은행 영업일에 따라 달라질 수 있습니다.</li>
         </ul>
       </div>

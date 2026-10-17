@@ -161,7 +161,8 @@ CREATE TABLE payment_refund_snapshots (
     refund_account_number_masked VARCHAR(50),
     refund_account_number_hash VARCHAR(64),
     refund_account_holder VARCHAR(50),
-    captured_at TIMESTAMP NOT NULL
+    captured_at TIMESTAMP NOT NULL,
+    restore_coupon BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 

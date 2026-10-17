@@ -1,5 +1,6 @@
 package dev.bum.payment_gateway_service.jpa.refund;
 
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
@@ -19,7 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-/** 환불 성공 기록과 최초 응답을 결제 정보 변경과 같은 트랜잭션으로 커밋한다. */
+/** 환불 성공 결과 또는 미실행 요청의 종료 기록을 저장한다. 성공 결과는 결제 변경과 함께 커밋한다. */
 @Entity
 @Table(name = "gateway_refunds", indexes = @Index(name = "idx_gateway_refunds_payment_no", columnList = "payment_no"))
 @Getter
@@ -37,6 +38,8 @@ public class GatewayRefund implements Persistable<Long> {
     private PaymentMethod method;
     @Column(name = "refund_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal refundAmount;
+    @Column(nullable = false)
+    private boolean closed;
     @Column(name = "transaction_id", length = 100)
     private String transactionId;
     @Enumerated(EnumType.STRING)
@@ -83,6 +86,7 @@ public class GatewayRefund implements Persistable<Long> {
     }
 
     public GatewayCardPaymentRefundResponse replay(GatewayCardPaymentRefundRequest request) {
+        require(!closed);
         validate(request.getPaymentNo(), PaymentMethod.CREDIT_CARD, request.getRefundAmount());
         require(Objects.equals(transactionId, request.getTransactionId()));
         return GatewayCardPaymentRefundResponse.builder().paymentNo(paymentNo).transactionId(transactionId)
@@ -90,6 +94,7 @@ public class GatewayRefund implements Persistable<Long> {
     }
 
     public GatewayVirtualAccountRefundResponse replay(GatewayVirtualAccountRefundRequest request) {
+        require(!closed);
         validate(request.getPaymentNo(), PaymentMethod.BANK_TRANSFER, request.getRefundAmount());
         require(refundBankCompany == request.getRefundBankCompany()
                 && Objects.equals(refundAccountNumber, request.getRefundAccountNumber())
@@ -97,6 +102,17 @@ public class GatewayRefund implements Persistable<Long> {
         return GatewayVirtualAccountRefundResponse.builder().paymentNo(paymentNo).refundBankCompany(refundBankCompany)
                 .refundAccountNumber(refundAccountNumber).refundAccountHolder(refundAccountHolder)
                 .refundedAmount(refundAmount).message(message).build();
+    }
+
+    public static GatewayRefund closed(GatewayRefundResolutionRequest request) {
+        return GatewayRefund.builder()
+                .paymentRefundProcessId(request.paymentRefundProcessId())
+                .paymentNo(request.paymentNo()).method(request.method()).refundAmount(request.refundAmount())
+                .closed(true).message("요청 변경으로 실행하지 않은 환불을 종료했습니다.").build();
+    }
+
+    public void validateResolution(GatewayRefundResolutionRequest request) {
+        validate(request.paymentNo(), request.method(), request.refundAmount());
     }
 
     private void validate(String requestedPaymentNo, PaymentMethod requestedMethod, BigDecimal requestedAmount) {

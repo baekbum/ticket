@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS gateway_refunds (
     payment_no VARCHAR(60) NOT NULL,
     method VARCHAR(30) NOT NULL,
     refund_amount NUMERIC(15, 2) NOT NULL,
+    closed BOOLEAN NOT NULL DEFAULT FALSE,
     transaction_id VARCHAR(100),
     refund_bank_company VARCHAR(30),
     refund_account_number VARCHAR(100),

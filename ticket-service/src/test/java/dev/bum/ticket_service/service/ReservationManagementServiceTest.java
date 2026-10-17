@@ -34,7 +34,10 @@ import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.refund.CardPaymentRefundService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundRequestContext;
 import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
+import dev.bum.ticket_service.service.reservation.reservation.CancellationFeeCalculator.CancellationRefundCalculation;
+import dev.bum.ticket_service.service.reservation.reservation.CancellationFeeCalculator;
 import dev.bum.ticket_service.service.reservation.reservation.ReservationManagementService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
@@ -42,15 +45,21 @@ import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,13 +67,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationManagementServiceTest {
@@ -74,6 +83,9 @@ class ReservationManagementServiceTest {
 
     @InjectMocks
     private ReservationManagementService reservationManagementService;
+
+    @Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-10-15T03:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     @Mock
     private ReservationRepository repository;
@@ -107,8 +119,31 @@ class ReservationManagementServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyInt(), anyInt(), anyBoolean(), any()))
-                .thenReturn(new PaymentRefundProcessGatewayAttempt(1L, true, false));
+        lenient().when(paymentRefundProcessService.inspectRequest(any(), any(), anyBoolean(), any()))
+                .thenReturn(PaymentRefundRequestContext.builder()
+                        .previousProcessId(null)
+                        .sameRequest(false)
+                        .build());
+        lenient().when(paymentRefundProcessService.startGatewayAttempt(any(Payment.class), any(), anyBoolean(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Payment payment = invocation.getArgument(0);
+                    List<Ticket> selected = invocation.getArgument(1);
+                    boolean full = invocation.getArgument(2);
+                    CancellationRefundCalculation calculation = CancellationFeeCalculator.calculate(
+                            payment.getReservation(), payment,
+                            payment.getReservation().getTickets().stream()
+                                    .filter(ticket -> ticket.getStatus() == TicketStatus.PAID || ticket.getStatus() == TicketStatus.PENDING_PAYMENT)
+                                    .toList(),
+                            selected, reservationDiscountJpaRepository.findByReservation(payment.getReservation()), full,
+                            LocalDateTime.now(clock)
+                    );
+                    return PaymentRefundProcessGatewayAttempt.builder()
+                            .paymentRefundProcessId(1L)
+                            .gatewayRequired(calculation.refundAmount() > 0)
+                            .localPaymentRefundRequired(calculation.refundAmount() == 0)
+                            .calculation(calculation)
+                            .build();
+                });
     }
 
     @Test
@@ -197,7 +232,7 @@ class ReservationManagementServiceTest {
         CancelReservationRequest info = CancelReservationRequest.builder()
                 .userId("user01")
                 .eventId(1L)
-                .selectedTicketIdList(List.of(1L))
+                .selectedTicketIdList(List.of(1L, 2L))
                 .build();
         Ticket selectedTicket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
         Ticket remainingTicket = ticket(2L, reservation, event(), seat(2L, event(), "VIP", 1, 2), TicketStatus.PENDING_PAYMENT);
@@ -205,13 +240,18 @@ class ReservationManagementServiceTest {
         given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selectedTicket, remainingTicket));
 
+        given(paymentJpaRepository.findByReservation(reservation))
+                .willReturn(Optional.of(virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0)));
+
         reservationManagementService.cancel(1L, info);
 
-        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(selectedTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
-        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat()));
+        assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(remainingTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat(), remainingTicket.getSeat()));
     }
 
     @Test
@@ -500,6 +540,180 @@ class ReservationManagementServiceTest {
         then(paymentJpaRepository).shouldHaveNoInteractions();
         then(cardPaymentRefundService).shouldHaveNoInteractions();
         then(virtualAccountPaymentRefundService).shouldHaveNoInteractions();
+    }
+
+
+    @ParameterizedTest
+    @EnumSource(value = TicketStatus.class, names = {"PAID", "PENDING_PAYMENT"})
+    void cancellationRejectsMissingPayment(TicketStatus ticketStatus) {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ticketStatus == TicketStatus.PAID ? ReservationStatus.PAID : ReservationStatus.PENDING_PAYMENT);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), ticketStatus);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("예매의 결제 정보를 찾을 수 없습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getStatus()).isEqualTo(ticketStatus);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(ticketStatus == TicketStatus.PAID ? SeatStatus.RESERVED : SeatStatus.LOCKED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentStatus.class, names = {"READY", "WAITING_DEPOSIT", "FAILED", "CANCELLED", "EXPIRED", "REFUNDED"})
+    void paidCancellationRejectsInconsistentPaymentStatus(PaymentStatus status) {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PAID);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PAID);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(cardPayment(reservation, status, 0)));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("결제 완료 티켓과 결제 상태가 일치하지 않습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.RESERVED);
+    }
+
+    @Test
+    void unpaidBankCancellationDoesNotRequireRefund() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PENDING_PAYMENT);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation))
+                .willReturn(Optional.of(virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0)));
+
+        var response = reservationManagementService.cancel(1L, request);
+
+        assertThat(response.reservationId()).isEqualTo(1L);
+        assertThat(response.paymentRefundProcessId()).isNull();
+        assertThat(response.previousRequestRecovered()).isFalse();
+        assertThat(response.cancelledTicketIds()).containsExactly(1L);
+        assertThat(response.message()).isEqualTo("입금 전 예매 취소가 완료되었습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+    }
+
+    @Test
+    void unpaidBankCancellationStillRejectsAfterDailyCutoff() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PENDING_PAYMENT);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T14:51:00Z"));
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation))
+                .willReturn(Optional.of(virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0)));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("신규 예매 취소는 매일 23시 50분 00초까지 가능합니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentStatus.class, names = {"READY", "FAILED", "PAID"})
+    void unpaidCardCancellationIsRejected(PaymentStatus status) {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PENDING_PAYMENT);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(cardPayment(reservation, status, 0)));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("예매 상태와 티켓의 결제 상태가 일치하지 않습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
+    }
+
+
+    @Test
+    void unpaidBankCancellationRejectsPartialSelection() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PENDING_PAYMENT);
+        Ticket selected = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        Ticket remaining = ticket(2L, reservation, reservation.getEvent(), seat(2L, reservation.getEvent(), "VIP", 1, 2), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0);
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(selected, remaining));
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("입금 전 무통장 예매는 전체 취소만 가능합니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(selected.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(remaining.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(selected.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        assertThat(remaining.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentStatus.class, names = {"READY", "FAILED", "PAID", "CANCELLED", "EXPIRED"})
+    void unpaidBankCancellationRequiresWaitingDeposit(PaymentStatus status) {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PENDING_PAYMENT);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation))
+                .willReturn(Optional.of(virtualAccountPayment(reservation, status, 0)));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("결제 대기 티켓과 결제 상태가 일치하지 않습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
+    }
+
+    @Test
+    void partiallyCancelledReservationRejectsUnpaidTickets() {
+        Reservation reservation = reservation(1L, "order-1", "user01", event(), ReservationStatus.PARTIALLY_CANCELLED);
+        Ticket ticket = ticket(1L, reservation, reservation.getEvent(), seat(1L, reservation.getEvent(), "VIP", 1, 1), TicketStatus.PENDING_PAYMENT);
+        CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
+        given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
+        given(paymentJpaRepository.findByReservation(reservation))
+                .willReturn(Optional.of(virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0)));
+
+        assertThatThrownBy(() -> reservationManagementService.cancel(1L, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("예매 상태와 티켓의 결제 상태가 일치하지 않습니다.");
+
+        then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
+        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
     }
 
     private Reservation reservation(Long reservationId, String orderId, String userId, Event event) {

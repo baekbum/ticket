@@ -42,6 +42,8 @@ public class QPaymentRefundSnapshot extends EntityPathBase<PaymentRefundSnapshot
 
     public final EnumPath<dev.bum.common.service.ticket.payment.enums.BankCompany> refundBankCompany = createEnum("refundBankCompany", dev.bum.common.service.ticket.payment.enums.BankCompany.class);
 
+    public final BooleanPath restoreCoupon = createBoolean("restoreCoupon");
+
     public final NumberPath<Integer> ticketAmount = createNumber("ticketAmount", Integer.class);
 
     public final ListPath<PaymentRefundSnapshotTicket, QPaymentRefundSnapshotTicket> tickets = this.<PaymentRefundSnapshotTicket, QPaymentRefundSnapshotTicket>createList("tickets", PaymentRefundSnapshotTicket.class, QPaymentRefundSnapshotTicket.class, PathInits.DIRECT2);

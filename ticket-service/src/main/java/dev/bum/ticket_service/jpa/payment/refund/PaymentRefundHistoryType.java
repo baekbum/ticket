@@ -8,5 +8,6 @@ public enum PaymentRefundHistoryType {
     GATEWAY_FAILED,
     LOCAL_APPLIED,
     LOCAL_SUCCEEDED,
-    LOCAL_FAILED
+    LOCAL_FAILED,
+    SUPERSEDED
 }

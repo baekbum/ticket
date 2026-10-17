@@ -2,14 +2,17 @@ package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
+import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.UpdateReservationStatusRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
+import dev.bum.common.service.ticket.reservation.policy.ReservationCancellationPolicy;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
@@ -29,25 +32,27 @@ import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.refund.CardPaymentRefundService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessGatewayAttempt;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundRequestContext;
 import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -55,6 +60,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class ReservationManagementService {
 
+    private final Clock clock;
     private final ReservationRepository repository;
     private final SeatCacheService seatCacheService;
     private final TicketPurchaseCountService ticketPurchaseCountService;
@@ -129,8 +135,9 @@ public class ReservationManagementService {
      * 관리자 기준으로 예매 티켓을 취소하고 좌석 캐시와 사용자 구매 수량을 보정한다.
      */
     @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
-    public void cancel(long id, CancelReservationRequest info) {
+    public CancelReservationResponse cancel(long id, CancelReservationRequest info) {
         Reservation reservation = repository.selectByIdForUpdate(id);
+        ReservationStatus beforeStatus = reservation.getStatus();
         validateCancelableReservation(reservation);
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<Ticket> activeTickets = selectActiveTickets(tickets);
@@ -143,13 +150,21 @@ public class ReservationManagementService {
 
         Long paymentRefundProcessId = null;
         try {
-            paymentRefundProcessId = refundPaymentBeforeCancel(reservation, info, activeTickets, selectedTickets, fullCancellation);
+            CancelReservationResponse response = refundPaymentBeforeCancel(
+                    reservation, info, activeTickets, selectedTickets, fullCancellation
+            );
+            paymentRefundProcessId = response.paymentRefundProcessId();
+            if (response.previousRequestRecovered()) {
+                AuditDataMapper.setFieldChange("status", beforeStatus, reservation.getStatus());
+                return response;
+            }
             ticketPurchaseCountService.release(reservation, selectedTickets);
             List<Seat> cancelledSeats = cancelTickets(selectedTickets);
             applyReservationCancelStatus(reservation, fullCancellation, restoreCouponOnCancel);
-            registerRefundProcessCompletion(paymentRefundProcessId);
 
             seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
+            AuditDataMapper.setFieldChange("status", beforeStatus, reservation.getStatus());
+            return response;
         } catch (RuntimeException e) {
             markLocalFailed(paymentRefundProcessId, e);
             throw e;
@@ -159,79 +174,101 @@ public class ReservationManagementService {
     /**
      * 결제 완료 예매를 취소하는 경우, 로컬 예매 상태를 바꾸기 전에 gateway 환불을 먼저 완료한다.
      */
-    private Long refundPaymentBeforeCancel(
-            Reservation reservation,
-            CancelReservationRequest info,
-            List<Ticket> activeTickets,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation
-    ) {
-        if (reservation.getStatus() != ReservationStatus.PAID
-                && reservation.getStatus() != ReservationStatus.PARTIALLY_CANCELLED) {
-            return null;
+    private CancelReservationResponse refundPaymentBeforeCancel(
+            Reservation reservation, CancelReservationRequest info, List<Ticket> activeTickets,
+            List<Ticket> selectedTickets, boolean fullCancellation) {
+        Payment payment = paymentJpaRepository.findByReservation(reservation)
+                .orElseThrow(() -> new IllegalStateException("예매의 결제 정보를 찾을 수 없습니다."));
+
+        if (!(payment.getMethod() == PaymentMethod.BANK_TRANSFER
+                || payment.getMethod() == PaymentMethod.CREDIT_CARD)) {
+            throw new IllegalArgumentException("지원하지 않는 환불 수단입니다.");
         }
 
-        return paymentJpaRepository.findByReservation(reservation)
-                .map(payment -> {
-                    if (payment.getStatus() != PaymentStatus.PAID
-                            && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
-                        return null;
-                    }
+        // 예매 잠금 아래 기존 미완료 요청을 찾고 이번 요청과 동일한지 먼저 확인한다.
+        RefundAccountRequest account = payment.getMethod() == PaymentMethod.BANK_TRANSFER ? info.getRefundAccount() : null;
+        PaymentRefundRequestContext requestContext = paymentRefundProcessService.inspectRequest(
+                payment, selectedTickets, fullCancellation, account
+        );
 
-                    if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
-                        CancellationFeeCalculator.CancellationRefundCalculation calculation =
-                                calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
-                        int refundAmount = calculation.refundAmount();
-                        int cancellationFeeAmount = calculation.cancellationFeeAmount();
-                        if (refundAmount == 0) {
-                            payment.applyCancellation(0, cancellationFeeAmount);
-                            restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
-                            return null;
-                        }
-                        boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
-                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
-                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, null);
-                        Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
+        // 무통장 입금 전은 전체 취소만 허용한다. 카드와 입금 완료 건은 아래 환불 절차로 진행한다.
 
-                        if (gatewayAttempt.isGatewayRequired()) {
-                            refundCardPayment(payment, refundAmount, cancellationFeeAmount, fullPaymentRefund, paymentRefundProcessId);
-                        } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
-                            applyPaymentRefund(payment, refundAmount, cancellationFeeAmount);
-                        }
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
+            boolean unpaidTickets = activeTickets.stream()
+                    .allMatch(ticket -> ticket.getStatus() == TicketStatus.PENDING_PAYMENT);
+            if (unpaidTickets && reservation.getStatus() == ReservationStatus.PENDING_PAYMENT) {
+                if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
+                    throw new IllegalStateException("결제 대기 티켓과 결제 상태가 일치하지 않습니다.");
+                }
+                if (requestContext.hasPreviousRequest()) {
+                    throw new IllegalStateException("입금 대기 예매에 진행 중인 환불 요청이 존재합니다.");
+                }
+                if (!fullCancellation) {
+                    throw new IllegalArgumentException("입금 전 무통장 예매는 전체 취소만 가능합니다.");
+                }
+                ReservationCancellationPolicy.validateNewRequest(
+                        LocalDateTime.now(clock),
+                        reservation.getEvent() == null ? null : reservation.getEvent().getCancelDeadlineAt()
+                );
+                // 입금 전이므로 PG 환불 없이 상위 메서드에서 티켓·좌석·예매 취소를 진행한다.
+                return CancelReservationResponse.canceledWithoutGateway(
+                        reservation.getReservationId(), selectedTickets.stream().map(Ticket::getTicketId).toList()
+                );
+            }
+        }
 
-                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
-                        restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
-                        return paymentRefundProcessId;
-                    }
+        if ((reservation.getStatus() != ReservationStatus.PAID
+                && reservation.getStatus() != ReservationStatus.PARTIALLY_CANCELLED)
+                || activeTickets.stream().anyMatch(ticket -> ticket.getStatus() != TicketStatus.PAID)) {
+            throw new IllegalStateException("예매 상태와 티켓의 결제 상태가 일치하지 않습니다.");
+        }
+        if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
+            throw new IllegalStateException("결제 완료 티켓과 결제 상태가 일치하지 않습니다.");
+        }
 
-                    if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
-                        CancellationFeeCalculator.CancellationRefundCalculation calculation =
-                                calculateRefund(reservation, payment, activeTickets, selectedTickets, fullCancellation);
-                        int refundAmount = calculation.refundAmount();
-                        int cancellationFeeAmount = calculation.cancellationFeeAmount();
-                        if (refundAmount == 0) {
-                            payment.applyCancellation(0, cancellationFeeAmount);
-                            restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
-                            return null;
-                        }
-                        boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
-                        PaymentRefundProcessGatewayAttempt gatewayAttempt = paymentRefundProcessService.startGatewayAttempt(
-                                payment, selectedTickets, refundAmount, cancellationFeeAmount, fullCancellation, info.getRefundAccount());
-                        Long paymentRefundProcessId = gatewayAttempt.getPaymentRefundProcessId();
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD && payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("지원하지 않는 환불 수단입니다.");
+        }
+        // 동일 요청은 기존 상태로 재개하고, 변경 요청은 신규 검증·기존 PG 종료 확인 후 준비한다.
+        PaymentRefundProcessGatewayAttempt attempt = paymentRefundProcessService.startGatewayAttempt(
+                payment, selectedTickets, fullCancellation, account, requestContext
+        );
 
-                        if (gatewayAttempt.isGatewayRequired()) {
-                            refundVirtualAccountPayment(payment, info, refundAmount, cancellationFeeAmount, fullPaymentRefund, paymentRefundProcessId);
-                        } else if (gatewayAttempt.isLocalPaymentRefundRequired()) {
-                            applyPaymentRefund(payment, refundAmount, cancellationFeeAmount);
-                        }
+        // 변경 요청이어도 기존 PG 환불이 성공했다면 기존 건만 복구하고 이번 요청은 추가 실행하지 않는다.
+        if (attempt.isPreviousRequestRecoveryRequired()) {
+            try {
+                return paymentRefundProcessService.recoverPreviousRequest(attempt.getPaymentRefundProcessId());
+            } catch (RuntimeException e) {
+                markLocalFailed(attempt.getPaymentRefundProcessId(), e);
+                throw e;
+            }
+        }
 
-                        savePaymentRefundHistory(paymentRefundProcessId, payment, selectedTickets, refundAmount, fullCancellation);
-                        restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
-                        return paymentRefundProcessId;
-                    }
+        CancellationFeeCalculator.CancellationRefundCalculation calculation = attempt.getCalculation();
+        int refundAmount = calculation.refundAmount();
+        int cancellationFeeAmount = calculation.cancellationFeeAmount();
+        Long processId = attempt.getPaymentRefundProcessId();
 
-                    return null;
-        }).orElse(null);
+        // 준비된 프로세스의 멱등 키로 PG 환불을 실행하거나, PG 재호출 없이 로컬 결제 반영만 진행한다.
+        if (attempt.isGatewayRequired()) {
+            boolean fullPaymentRefund = refundAmount == payment.getRefundableAmount();
+
+            if (payment.getMethod() == PaymentMethod.CREDIT_CARD) {
+                refundCardPayment(payment, refundAmount, cancellationFeeAmount, fullPaymentRefund, processId);
+            } else {
+                refundVirtualAccountPayment(payment, info, refundAmount, cancellationFeeAmount, fullPaymentRefund, processId);
+            }
+
+        } else if (attempt.isLocalPaymentRefundRequired()) {
+            applyPaymentRefund(payment, refundAmount, cancellationFeeAmount);
+        }
+
+        savePaymentRefundHistory(processId, payment, selectedTickets, refundAmount, fullCancellation);
+        restoreCouponAfterPartialCancel(reservation, fullCancellation, calculation);
+
+        return CancelReservationResponse.canceled(
+                reservation.getReservationId(), processId, selectedTickets.stream().map(Ticket::getTicketId).toList()
+        );
     }
 
     private void refundCardPayment(
@@ -277,30 +314,6 @@ public class ReservationManagementService {
         }
     }
 
-    private void registerRefundProcessCompletion(Long paymentRefundProcessId) {
-        if (paymentRefundProcessId == null) {
-            return;
-        }
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            paymentRefundProcessService.markLocalSucceeded(paymentRefundProcessId);
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                paymentRefundProcessService.markLocalSucceeded(paymentRefundProcessId);
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    paymentRefundProcessService.markLocalFailed(paymentRefundProcessId, null);
-                }
-            }
-        });
-    }
-
     private void markLocalFailed(Long paymentRefundProcessId, RuntimeException e) {
         if (paymentRefundProcessId != null) {
             paymentRefundProcessService.markLocalFailed(paymentRefundProcessId, e);
@@ -330,6 +343,7 @@ public class ReservationManagementService {
     }
 
     private void applyPaymentRefund(Payment payment, int refundAmount, int cancellationFeeAmount) {
+        if (refundAmount == 0 && cancellationFeeAmount == 0) return;
         payment.applyCancellation(refundAmount, cancellationFeeAmount);
     }
 
@@ -337,11 +351,6 @@ public class ReservationManagementService {
         if (reservation.getStatus() == ReservationStatus.CANCELLED
                 || reservation.getStatus() == ReservationStatus.EXPIRED) {
             throw new IllegalArgumentException("이미 취소되었거나 만료된 예매입니다.");
-        }
-        if (reservation.getEvent() != null
-                && reservation.getEvent().getCancelDeadlineAt() != null
-                && LocalDateTime.now().isAfter(reservation.getEvent().getCancelDeadlineAt())) {
-            throw new IllegalArgumentException("취소 가능 기한이 지났습니다.");
         }
     }
 
@@ -372,23 +381,6 @@ public class ReservationManagementService {
         }
 
         return selectedTickets;
-    }
-
-    private CancellationFeeCalculator.CancellationRefundCalculation calculateRefund(
-            Reservation reservation,
-            Payment payment,
-            List<Ticket> activeTickets,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation
-    ) {
-        return CancellationFeeCalculator.calculate(
-                reservation,
-                payment,
-                activeTickets,
-                selectedTickets,
-                reservationDiscountJpaRepository.findByReservation(reservation),
-                fullCancellation,
-                LocalDateTime.now());
     }
 
     private void restoreCouponAfterPartialCancel(

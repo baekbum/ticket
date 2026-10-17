@@ -1,16 +1,21 @@
 package dev.bum.ticket_service.service.reservation.reservation;
 
-import com.querydsl.jpa.impl.JPAQueryFactory;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayCardPaymentRefundRequest;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
@@ -31,25 +36,38 @@ import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.ticket_service.service.payment.refund.CardPaymentRefundService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
 import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+
+import com.querydsl.jpa.impl.JPAQueryFactory;
+
+import lombok.Builder;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +81,7 @@ import java.util.concurrent.TimeoutException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -70,13 +89,31 @@ import static org.mockito.Mockito.verify;
 @DataJpaTest
 @ActiveProfiles("test")
 @Import({ReservationRepositoryImpl.class, ReservationService.class, ReservationManagementService.class,
-        PaymentRefundProcessService.class, CardPaymentRefundService.class})
+        PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class, CardPaymentRefundService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReservationCancellationConcurrencyTest {
+    @MockitoBean Clock clock;
+    @MockitoBean PaymentGatewayRefundClient refundResolution;
+
+    @BeforeEach
+    void configureTimeAndGatewayResolution() {
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T03:00:00Z"));
+        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
+        given(refundResolution.resolve(any())).willAnswer(invocation -> {
+            GatewayRefundResolutionRequest request = invocation.getArgument(0);
+            return GatewayRefundResolutionResponse.builder()
+                    .paymentRefundProcessId(request.paymentRefundProcessId())
+                    .paymentNo(request.paymentNo())
+                    .outcome(Outcome.NOT_FOUND)
+                    .build();
+        });
+    }
+
     @Autowired ReservationService userCancellation;
     @Autowired ReservationManagementService adminCancellation;
     @Autowired PaymentRefundProcessService refundService;
+    @MockitoSpyBean PaymentRefundRollbackRecorder rollbackRecorder;
     @Autowired ReservationJpaRepository reservations;
     @Autowired PaymentJpaRepository payments;
     @Autowired PaymentRefundProcessJpaRepository processes;
@@ -94,6 +131,70 @@ class ReservationCancellationConcurrencyTest {
     @MockitoBean PaymentGatewayCardClient gateway;
     @MockitoBean VirtualAccountPaymentRefundService virtualAccountRefunds;
 
+    @Test
+    void identicalRetryAfterDeadlineAndMidnightUsesOriginalSnapshot() {
+        Fixture fixture = fixture(false);
+        LocalDateTime capturedAt = LocalDateTime.of(2026, 10, 14, 23, 49);
+        Long processId = new TransactionTemplate(transactionManager).execute(status -> {
+            Payment payment = payments.findById(fixture.paymentId()).orElseThrow();
+            payment.getReservation().getEvent().update(UpdateEventRequest.builder()
+                    .cancelDeadlineAt(LocalDateTime.of(2026, 10, 14, 23, 59, 59)).build());
+            PaymentRefundProcess process = PaymentRefundProcess.create(
+                    payment, tickets.findAllByTicketIdIn(fixture.ticketIds().subList(0, 2)),
+                    18000, 2000, false, null, capturedAt, false
+            );
+            process.gatewayFailed("PG 응답 유실");
+            return processes.saveAndFlush(process).getPaymentRefundProcessId();
+        });
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T14:55:00Z"));
+
+        userCancellation.cancelMyReservation("owner", fixture.reservationId(), request(fixture.ticketIds().subList(0, 2)));
+
+        ArgumentCaptor<GatewayCardPaymentRefundRequest> requested = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
+        verify(gateway).refund(requested.capture());
+        assertThat(requested.getValue().getPaymentRefundProcessId()).isEqualTo(processId);
+        assertThat(requested.getValue().getRefundAmount()).isEqualByComparingTo("18000");
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Payment payment = payments.findById(fixture.paymentId()).orElseThrow();
+            assertThat(payment.getRefundedAmount()).isEqualTo(18000);
+            assertThat(payment.getCancellationFeeAmount()).isEqualTo(2000);
+            assertThat(processes.findById(processId).orElseThrow().getRefund().getSnapshot().getCapturedAt()).isEqualTo(capturedAt);
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void changedRequestRecoversOnlyOriginalTicketsWhenPgConfirmsSuccess(boolean admin) {
+        Fixture fixture = fixture(false);
+        Long processId = new TransactionTemplate(transactionManager).execute(status -> {
+            Payment payment = payments.findById(fixture.paymentId()).orElseThrow();
+            PaymentRefundProcess process = PaymentRefundProcess.create(
+                    payment, tickets.findAllByTicketIdIn(fixture.ticketIds().subList(0, 2)), 20000, 0, false, null
+            );
+            process.gatewayFailed("PG 응답 유실");
+            return processes.saveAndFlush(process).getPaymentRefundProcessId();
+        });
+        doAnswer(invocation -> GatewayRefundResolutionResponse.builder()
+                .paymentRefundProcessId(processId)
+                .paymentNo("PAY-LOCK")
+                .outcome(Outcome.SUCCEEDED)
+                .build())
+                .when(refundResolution).resolve(any());
+
+        CancelReservationResponse response = admin
+                ? adminCancellation.cancel(fixture.reservationId(), request(fixture.ticketIds()))
+                : userCancellation.cancelMyReservation("owner", fixture.reservationId(), request(fixture.ticketIds()));
+
+        assertThat(response.previousRequestRecovered()).isTrue();
+        assertThat(response.paymentRefundProcessId()).isEqualTo(processId);
+        assertThat(response.cancelledTicketIds()).containsExactlyElementsOf(fixture.ticketIds().subList(0, 2));
+        assertThat(response.message()).contains("이전 요청", "변경 요청은 추가로 처리하지 않았습니다");
+        assertThat(processes.findById(processId).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertThat(processes.count()).isEqualTo(1);
+        assertResult(fixture, 20000, 2);
+        verify(gateway, times(0)).refund(any());
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void waitingRequestRetriesTheSameProcessAfterTheFirstCancellationRollsBack(boolean localFailure) throws Exception {
@@ -109,6 +210,12 @@ class ReservationCancellationConcurrencyTest {
             return null;
         };
         if (localFailure) {
+            doAnswer(invocation -> {
+                GatewayRefundResolutionRequest request = invocation.getArgument(0);
+                return GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(request.paymentRefundProcessId()).paymentNo(request.paymentNo())
+                        .outcome(Outcome.SUCCEEDED).build();
+            }).when(refundResolution).resolve(any());
             doAnswer(failFirstAttempt).when(purchaseCounts).release(any(), any());
         } else {
             doAnswer(failFirstAttempt).when(gateway).refund(any());
@@ -225,6 +332,159 @@ class ReservationCancellationConcurrencyTest {
         verify(gateway, times(0)).refund(any());
     }
 
+
+    @Test
+    void knownPgSuccessRecoversOriginalTicketsInsteadOfNewDisjointSelection() {
+        Fixture fixture = fixture(true);
+        CancelReservationResponse response = userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds().subList(3, 4))
+        );
+
+        assertThat(response.previousRequestRecovered()).isTrue();
+        assertThat(response.cancelledTicketIds()).containsExactlyElementsOf(fixture.ticketIds().subList(0, 3));
+        assertThat(processes.findById(fixture.processId()).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertResult(fixture, 30000, 3);
+        assertThat(tickets.findById(fixture.ticketIds().getLast()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
+        verify(gateway, times(0)).refund(any());
+        verify(refundResolution, times(0)).resolve(any());
+    }
+
+    @Test
+    void automaticRecoveryRollbackKeepsPgSuccessAndCanResumeWithoutAnotherRefund() {
+        Fixture fixture = fixture(true);
+        doAnswer(invocation -> { throw new IllegalStateException("로컬 반영 실패"); })
+                .when(purchaseCounts).release(any(), any());
+
+        assertThatThrownBy(() -> userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds())
+        )).isInstanceOf(IllegalStateException.class).hasMessage("로컬 반영 실패");
+
+        assertResult(fixture, 0, 0);
+        assertThat(processes.findById(fixture.processId()).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
+        doAnswer(invocation -> null).when(purchaseCounts).release(any(), any());
+
+        CancelReservationResponse response = userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds())
+        );
+        assertThat(response.previousRequestRecovered()).isTrue();
+        assertThat(response.paymentRefundProcessId()).isEqualTo(fixture.processId());
+        assertThat(response.cancelledTicketIds()).containsExactlyElementsOf(fixture.ticketIds().subList(0, 3));
+        assertResult(fixture, 30000, 3);
+        assertThat(processes.count()).isEqualTo(1);
+        verify(gateway, times(0)).refund(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void processLockIsHeldByOuterTransactionAndSnapshotSurvivesRollback(boolean existing) throws Exception {
+        Fixture fixture = fixture(existing);
+        CountDownLatch localEntered = new CountDownLatch(1);
+        CountDownLatch finishLocal = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            localEntered.countDown();
+            if (!finishLocal.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("로컬 대기 시간 초과");
+            throw new IllegalStateException("로컬 반영 실패");
+        }).when(purchaseCounts).release(any(), any());
+
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            Future<?> first = pool.submit(() -> userCancellation.cancelMyReservation(
+                    "owner", fixture.reservationId(), request(fixture.ticketIds().subList(0, 3))
+            ));
+            try {
+                assertThat(localEntered.await(10, TimeUnit.SECONDS)).isTrue();
+                Long processId = processes.findAll().getFirst().getPaymentRefundProcessId();
+                new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                    PaymentRefundProcess persisted = processes.findById(processId).orElseThrow();
+                    assertThat(persisted.getRefund().getSnapshot().getTickets()).hasSize(3);
+                });
+                CountDownLatch readerStarted = new CountDownLatch(1);
+                Future<?> reader = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                    readerStarted.countDown();
+                    return processes.findByIdForUpdate(processId).orElseThrow().getPaymentRefundProcessId();
+                }));
+                assertThat(readerStarted.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> reader.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                finishLocal.countDown();
+                reader.get(15, TimeUnit.SECONDS);
+            } finally {
+                finishLocal.countDown();
+            }
+            assertThatThrownBy(() -> first.get(15, TimeUnit.SECONDS)).isInstanceOf(ExecutionException.class);
+        }
+        assertResult(fixture, 0, 0);
+        assertThat(processes.count()).isEqualTo(1);
+        assertThat(processes.findAll().getFirst().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
+    }
+
+    @Test
+    void pgLookupRecoversWhenRollbackResultRecordingWasLost() {
+        Fixture fixture = fixture(false);
+        doAnswer(invocation -> { throw new IllegalStateException("로컬 반영 실패"); })
+                .when(purchaseCounts).release(any(), any());
+        doAnswer(invocation -> { throw new IllegalStateException("결과 기록 실패"); })
+                .when(rollbackRecorder).record(any());
+
+        assertThatThrownBy(() -> userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds().subList(0, 3))
+        )).isInstanceOf(IllegalStateException.class).hasMessage("로컬 반영 실패");
+        assertResult(fixture, 0, 0);
+        Long processId = processes.findAll().getFirst().getPaymentRefundProcessId();
+        assertThat(processes.findById(processId).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.REQUESTED);
+        doAnswer(invocation -> null).when(purchaseCounts).release(any(), any());
+        doAnswer(invocation -> GatewayRefundResolutionResponse.builder()
+                .paymentRefundProcessId(processId).paymentNo("PAY-LOCK").outcome(Outcome.SUCCEEDED).build())
+                .when(refundResolution).resolve(any());
+
+        CancelReservationResponse response = userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds().subList(0, 3))
+        );
+        assertThat(response.paymentRefundProcessId()).isEqualTo(processId);
+        assertThat(processes.count()).isEqualTo(1);
+        assertResult(fixture, 30000, 3);
+        verify(gateway, times(1)).refund(any());
+    }
+
+    @Test
+    void changedRequestKeepsNewSnapshotAndClosesOldIdAfterOuterRollback() {
+        Fixture fixture = fixture(false);
+        Long oldId = new TransactionTemplate(transactionManager).execute(status -> {
+            Payment payment = payments.findById(fixture.paymentId()).orElseThrow();
+            PaymentRefundProcess previous = PaymentRefundProcess.create(
+                    payment, tickets.findAllByTicketIdIn(fixture.ticketIds().subList(0, 2)), 20000, 0, false, null
+            );
+            previous.gatewayFailed("이전 요청 실패");
+            return processes.saveAndFlush(previous).getPaymentRefundProcessId();
+        });
+        doAnswer(invocation -> GatewayRefundResolutionResponse.builder()
+                .paymentRefundProcessId(oldId).paymentNo("PAY-LOCK").outcome(Outcome.CLOSED).build())
+                .when(refundResolution).resolve(any());
+        doAnswer(invocation -> { throw new IllegalStateException("로컬 반영 실패"); })
+                .when(purchaseCounts).release(any(), any());
+
+        assertThatThrownBy(() -> userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds())
+        )).isInstanceOf(IllegalStateException.class).hasMessage("로컬 반영 실패");
+        assertResult(fixture, 0, 0);
+        assertThat(processes.count()).isEqualTo(2);
+        assertThat(processes.findById(oldId).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.SUPERSEDED);
+        Long newId = processes.findAll().stream().map(PaymentRefundProcess::getPaymentRefundProcessId)
+                .filter(id -> !id.equals(oldId)).findFirst().orElseThrow();
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            PaymentRefundProcess created = processes.findById(newId).orElseThrow();
+            assertThat(created.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
+            assertThat(created.getRefund().getSnapshot().getTickets()).hasSize(4);
+            assertThat(created.getRefundAmount()).isEqualTo(40000);
+        });
+        doAnswer(invocation -> null).when(purchaseCounts).release(any(), any());
+        CancelReservationResponse response = userCancellation.cancelMyReservation(
+                "owner", fixture.reservationId(), request(fixture.ticketIds())
+        );
+        assertThat(response.paymentRefundProcessId()).isEqualTo(newId);
+        assertResult(fixture, 40000, 4);
+        verify(gateway, times(1)).refund(any());
+        verify(refundResolution, times(1)).resolve(any());
+    }
+
     private Fixture fixture(boolean gatewaySucceeded) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Event event = events.save(Event.builder()
@@ -253,8 +513,12 @@ class ReservationCancellationConcurrencyTest {
                 process.gatewaySucceeded();
                 processId = processes.saveAndFlush(process).getPaymentRefundProcessId();
             }
-            return new Fixture(reservation.getReservationId(), payment.getPaymentId(), processId,
-                    booked.stream().map(Ticket::getTicketId).toList());
+            return Fixture.builder()
+                    .reservationId(reservation.getReservationId())
+                    .paymentId(payment.getPaymentId())
+                    .processId(processId)
+                    .ticketIds(booked.stream().map(Ticket::getTicketId).toList())
+                    .build();
         });
     }
 
@@ -273,6 +537,7 @@ class ReservationCancellationConcurrencyTest {
         return CancelReservationRequest.builder().selectedTicketIdList(ids).build();
     }
 
+    @Builder
     private record Fixture(Long reservationId, Long paymentId, Long processId, List<Long> ticketIds) {
     }
 }

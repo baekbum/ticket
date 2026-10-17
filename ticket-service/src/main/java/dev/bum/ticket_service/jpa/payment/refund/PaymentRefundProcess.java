@@ -86,17 +86,21 @@ public class PaymentRefundProcess {
         this.paymentRefundProcessId = paymentRefundProcessId;
         this.refund =
                 refund == null
-                        ? new PaymentRefund(
-                                payment,
-                                new PaymentRefundSnapshot(
-                                        payment,
-                                        selectedTicketIds,
-                                        refundAmount,
-                                        cancellationFeeAmount,
-                                        fullCancellation,
-                                        refundBankCompany,
-                                        refundAccountNumberMasked,
-                                        refundAccountHolder))
+                        ? PaymentRefund.builder()
+                                .payment(payment)
+                                .snapshot(
+                                        PaymentRefundSnapshot.legacyBuilder()
+                                                .payment(payment)
+                                                .ids(selectedTicketIds)
+                                                .amount(refundAmount)
+                                                .fee(cancellationFeeAmount)
+                                                .full(fullCancellation)
+                                                .bank(refundBankCompany)
+                                                .masked(refundAccountNumberMasked)
+                                                .holder(refundAccountHolder)
+                                                .build()
+                                )
+                                .build()
                         : refund;
         this.status = status == null ? PaymentRefundProcessStatus.REQUESTED : status;
         this.failureReason = failureReason;
@@ -124,12 +128,29 @@ public class PaymentRefundProcess {
             Integer fee,
             boolean full,
             RefundAccountRequest account) {
+        return create(payment, tickets, amount, fee, full, account, LocalDateTime.now(), false);
+    }
+
+    public static PaymentRefundProcess create(
+            Payment payment, List<Ticket> tickets, Integer amount, Integer fee, boolean full,
+            RefundAccountRequest account, LocalDateTime capturedAt, boolean restoreCoupon) {
         return PaymentRefundProcess.builder()
                 .refund(
-                        new PaymentRefund(
-                                payment,
-                                new PaymentRefundSnapshot(
-                                        payment, tickets, amount, fee, full, account)))
+                        PaymentRefund.builder()
+                                .payment(payment)
+                                .snapshot(
+                                        PaymentRefundSnapshot.builder()
+                                                .payment(payment)
+                                                .tickets(tickets)
+                                                .refundAmount(amount)
+                                                .cancellationFeeAmount(fee)
+                                                .fullCancellation(full)
+                                                .refundAccount(account)
+                                                .capturedAt(capturedAt)
+                                                .restoreCoupon(restoreCoupon)
+                                                .build()
+                                )
+                                .build())
                 .status(PaymentRefundProcessStatus.REQUESTED)
                 .lastTriedAt(LocalDateTime.now())
                 .build();
@@ -189,7 +210,7 @@ public class PaymentRefundProcess {
 
     private void move(
             PaymentRefundProcessStatus next, PaymentRefundHistoryType event, String reason) {
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
         if (status == next && event != PaymentRefundHistoryType.RETRY_REQUESTED) return;
         PaymentRefundProcessStatus before = status;
         status = next;
@@ -206,6 +227,12 @@ public class PaymentRefundProcess {
                 null);
     }
 
+    public void superseded() {
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        move(PaymentRefundProcessStatus.SUPERSEDED, PaymentRefundHistoryType.SUPERSEDED, null);
+        refund.supersede();
+    }
+
     public void gatewayRetryRequested() {
         move(PaymentRefundProcessStatus.REQUESTED, PaymentRefundHistoryType.RETRY_REQUESTED, null);
     }
@@ -215,7 +242,8 @@ public class PaymentRefundProcess {
     }
 
     public void gatewayFailed(String reason) {
-        if (status != PaymentRefundProcessStatus.LOCAL_SUCCEEDED) retryCount++;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        retryCount++;
         move(
                 PaymentRefundProcessStatus.GATEWAY_FAILED,
                 PaymentRefundHistoryType.GATEWAY_FAILED,
@@ -223,7 +251,7 @@ public class PaymentRefundProcess {
     }
 
     public void localSucceeded() {
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
         move(
                 PaymentRefundProcessStatus.LOCAL_SUCCEEDED,
                 PaymentRefundHistoryType.LOCAL_SUCCEEDED,

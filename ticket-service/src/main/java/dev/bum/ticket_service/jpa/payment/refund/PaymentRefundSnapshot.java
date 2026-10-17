@@ -59,6 +59,9 @@ public class PaymentRefundSnapshot {
     @Column(nullable = false, updatable = false)
     private LocalDateTime capturedAt;
 
+    @Column(nullable = false, updatable = false)
+    private boolean restoreCoupon;
+
     @OneToMany(mappedBy = "snapshot", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("paymentRefundSnapshotTicketId ASC")
     private List<PaymentRefundSnapshotTicket> tickets = new ArrayList<>();
@@ -70,24 +73,33 @@ public class PaymentRefundSnapshot {
             int fee,
             boolean full,
             RefundAccountRequest account) {
-        refundAmount = amount;
-        cancellationFeeAmount = fee;
-        fullCancellation = full;
-        capturedAt = LocalDateTime.now();
+        this(payment, tickets, amount, fee, full, account, LocalDateTime.now(), false);
+    }
+
+    @Builder
+    public PaymentRefundSnapshot(
+            Payment payment, List<Ticket> tickets, int refundAmount, int cancellationFeeAmount, boolean fullCancellation,
+            RefundAccountRequest refundAccount, LocalDateTime capturedAt, boolean restoreCoupon) {
+        this.refundAmount = refundAmount;
+        this.cancellationFeeAmount = cancellationFeeAmount;
+        this.fullCancellation = fullCancellation;
+        this.capturedAt = Objects.requireNonNull(capturedAt);
+        this.restoreCoupon = restoreCoupon;
         for (Ticket ticket : tickets)
             this.tickets.add(PaymentRefundSnapshotTicket.capture(this, ticket));
         ticketAmount = this.tickets.stream().mapToInt(PaymentRefundSnapshotTicket::getTicketPrice).sum();
-        deliveryRefundAmount = full ? payment.getDeliveryFeeAmount() : 0;
-        discountAmount = Math.max(0, ticketAmount + deliveryRefundAmount - amount - fee);
-        if (account != null) {
-            refundBankCompany = account.getBankCompany();
-            refundAccountNumberMasked = mask(account.getAccountNumber());
-            refundAccountNumberHash = hash(account.getAccountNumber());
-            refundAccountHolder = account.getAccountHolder();
+        deliveryRefundAmount = fullCancellation ? payment.getDeliveryFeeAmount() : 0;
+        discountAmount = Math.max(0, ticketAmount + deliveryRefundAmount - refundAmount - cancellationFeeAmount);
+        if (refundAccount != null) {
+            refundBankCompany = refundAccount.getBankCompany();
+            refundAccountNumberMasked = mask(refundAccount.getAccountNumber());
+            refundAccountNumberHash = hash(refundAccount.getAccountNumber());
+            refundAccountHolder = refundAccount.getAccountHolder();
         }
     }
 
     // 기존 생성 API를 유지하되 요청 정보는 스냅샷 한 곳에만 저장한다.
+    @Builder(builderMethodName = "legacyBuilder", builderClassName = "LegacyBuilder")
     public PaymentRefundSnapshot(
             Payment payment,
             String ids,
@@ -138,7 +150,12 @@ public class PaymentRefundSnapshot {
     }
 
     public void validateAccount(RefundAccountRequest account) {
-        if (account == null) return;
+        if (account == null) {
+            if (refundBankCompany != null || refundAccountHolder != null || refundAccountNumberHash != null) {
+                throw new IllegalArgumentException("기존 환불 요청의 계좌 정보가 필요합니다.");
+            }
+            return;
+        }
         boolean numberMatches =
                 refundAccountNumberHash == null
                         ? Objects.equals(

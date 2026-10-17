@@ -29,7 +29,7 @@
 
 ## 환불
 
-- `PaymentRefund`: 원본 결제 참조와 개별 환불의 업무 상태(`REQUESTED`, `COMPLETED`).
+- `PaymentRefund`: 원본 결제 참조와 개별 환불의 업무 상태(`REQUESTED`, `COMPLETED`, 요청 변경으로 종료한 `SUPERSEDED`).
 - `PaymentRefundSnapshot`: 요청 환불액, 취소 수수료, 전체 취소 여부, 대상 티켓과 당시 가격, 금액 계산 근거 및 마스킹한 환불 계좌. 계좌 원문 대신 비교용 SHA-256 해시를 저장한다.
 - `PaymentRefundProcess`: 최신 PG/로컬 처리 단계, 실패 원인, 재시도 횟수와 처리 시각. 결제번호·수단·금액·예매 참조·티켓 ID 문자열을 별도 컬럼으로 반복 저장하지 않는다. 기존 조회 메서드는 환불 정보와 스냅샷을 참조하여 값을 반환한다.
 - `PaymentRefundHistory`: 요청, 실패, 재시도, PG 성공, 로컬 반영과 완료의 사건을 누적한다. 요청 정보와 대상 티켓은 스냅샷에서 조회하고, 로컬 반영 성공 사건에만 처리 직후의 누적 환불액·환불 가능액·결제 상태를 기록한다.
@@ -38,11 +38,23 @@
 
 환불 프로세스는 PG 호출 전에 별도 트랜잭션으로 저장한다. 재시도는 같은 `paymentRefundProcessId`를 PG 멱등 키로 전달한다. 금액·티켓·계좌를 바꾸는 요청은 동일 환불 요청의 재시도로 처리하지 않는다. 완료된 프로세스는 뒤늦게 도착한 실패 기록으로 되돌리지 않는다.
 
+신규 취소는 한국 시각으로 매일 23:50:00까지 허용하며, 이후부터 자정까지 신규 접수를 중단한다. 공연별 최종 마감이 더 이르면 그 시각을 적용한다. 기존 최종 마감이 23:50 이후인 경우 API 조회와 검증에서 같은 날짜의 23:50으로 제한한다.
+
+`refundPaymentBeforeCancel()`은 기존 요청 조회·동일성 판단 → 결제 수단 분기 → 동일 요청 재개 또는 변경 요청 준비 순서로 실행한다. A는 `Reservation`과 기존 환불 프로세스의 비관적 잠금을 커밋·롤백까지 유지한다. 기존 요청이 없으면 생성 전용 B(`REQUIRES_NEW`)에서 프로세스·스냅샷을 커밋하고, A가 생성된 ID를 비관적 락으로 다시 조회한다. `inspectRequest()`와 `startGatewayAttempt()` 및 상태 변경은 모두 A에 참여한다. 입금 대기 예매에 기존 미완료 환불이 있는 상태 불일치도 거부한다.
+
+환불 요청은 금액 계산보다 먼저 미완료 프로세스를 조회한다. 같은 결제·티켓 집합·전체 취소 여부·환불 계좌이면 저장된 환불액·수수료·쿠폰 복원 여부와 `capturedAt`을 사용하며, 현재 수수료나 신규 취소 기한으로 다시 검증하지 않는다. 티켓 ID 순서는 요청 동일성에 영향을 주지 않는다. 티켓 소유자와 현재 취소 가능 상태는 재시도에서도 검증한다.
+
+요청을 변경할 때는 신규 마감 검증 후 PG의 내부 `resolve` API로 이전 요청을 확인한다. PG는 환불 실행과 같은 결제 행을 잠그고, 이미 성공했으면 `SUCCEEDED`, 미실행 요청을 종료했으면 `CLOSED`를 반환한다. 종료 기록은 늦게 도착한 이전 ID의 환불 실행을 차단한다. 단순한 환불 기록 부재 조회만으로는 새 요청을 허용하지 않는다. 성공이 확인되면 A에서 PG 성공 상태를 기록하고 기존 스냅샷으로 로컬 반영을 자동 완료한다. 이번 변경 요청은 추가로 실행하지 않는다. 취소 API는 `previousRequestRecovered`, 실제 처리한 `cancelledTicketIds`, 기존 `paymentRefundProcessId`와 안내 메시지를 반환하며 화면에도 처리된 좌석을 표시한다. 로컬 복구가 실패하면 A를 롤백하여 잠금을 해제한 뒤 별도 기록 트랜잭션에서 확인된 PG 성공과 로컬 실패를 보존한다. 기록이 유실되어도 기존 ID로 PG 결과를 조회하여 복구한다. 미실행 종료가 확인되면 A에서 이전 프로세스·환불을 `SUPERSEDED`로 닫고 B에서 새 요청을 저장한다. A가 롤백되면 PG 실행 차단이 확정된 이전 건의 종료 상태도 롤백 후 기록한다.
+
+동일 요청의 PG 결과가 불명확하면 내부 조회로 성공 여부를 확인한 뒤, 미실행이면 기존 ID로 재시도한다. PG 종료 응답 유실이나 ticket DB 실패로 PG만 종료된 경우에도 종료 여부를 다시 확인하며, 동일 요청은 최초 조건을 새 ID로 복사해 복구한다. PG 조회·종료에 실패하거나 응답이 불일치하면 새 요청을 생성하지 않는다.
+
 로컬 환불 성공 이력, 환불 업무 완료 상태와 프로세스 완료 상태는 예매·티켓·결제 변경과 같은 트랜잭션에 저장한다. 커밋 직후 별도 완료 표시를 하기 전에 프로세스가 종료되어도 성공 상태가 누락되지 않는다.
 
-사용자 취소·관리자 취소·관리자 수동 환불 완료는 모두 `Reservation` 행에 비관적 쓰기 잠금을 획득한 뒤 상태를 조회·검증한다. 잠금은 취소 요청의 바깥 트랜잭션이 커밋 또는 롤백할 때까지 유지한다. 별도 환불 기록 트랜잭션에서는 이 예매 잠금을 다시 요청하지 않는다. 수동 완료는 프로세스에서 예매 ID만 먼저 조회하여 예매를 잠근 뒤 프로세스와 티켓을 불러온다.
+사용자 취소·관리자 취소·관리자 수동 환불 완료는 모두 `Reservation` 행에 비관적 쓰기 잠금을 획득한 뒤 상태를 조회·검증한다. 잠금은 취소 요청의 바깥 트랜잭션이 커밋 또는 롤백할 때까지 유지한다. 생성 전용 B는 기존 예매·프로세스의 잠금을 다시 요청하지 않는다. A 실행 중에는 별도 트랜잭션에서 같은 프로세스를 갱신하지 않는다. 롤백 완료 후의 결과 기록은 예매 → 프로세스 순서로 다시 잠그고, 완료 상태나 더 최근 실패 기록을 덮어쓰지 않는다. 수동 완료는 프로세스에서 예매 ID만 먼저 조회하여 예매를 잠근 뒤 프로세스와 티켓을 불러온다.
 
-선택한 티켓 전체가 해당 예매와 예매 소유자에게 속해야 하며, 티켓은 결제 대기 또는 결제 완료, 좌석은 `LOCKED` 또는 `RESERVED` 상태여야 한다. 무통장 입금 전 취소도 허용한다. 수동 환불 완료는 PG 환불 성공을 전제로 결제 완료 티켓만 처리한다. 겹치는 티켓을 포함한 후속 요청은 앞 요청의 커밋 후 최신 상태를 검증하여 전체 거부하고, 남은 다른 티켓의 정상 부분 취소는 허용한다.
+선택한 티켓 전체가 해당 예매와 예매 소유자에게 속해야 하며, 티켓은 결제 대기 또는 결제 완료, 좌석은 `LOCKED` 또는 `RESERVED` 상태여야 한다. 무통장 입금 전에는 전체 취소만 허용하고 부분 취소는 거부한다. 입금 완료 후에는 부분 취소를 허용한다. 수동 환불 완료는 PG 환불 성공을 전제로 결제 완료 티켓만 처리한다. 겹치는 티켓을 포함한 후속 요청은 앞 요청의 커밋 후 최신 상태를 검증하여 전체 거부하고, 남은 다른 티켓의 정상 부분 취소는 허용한다.
+
+미결제 취소는 결제 수단이 무통장이고 결제 상태가 `WAITING_DEPOSIT`인 경우에만 허용한다. 남은 티켓 전체가 결제 대기 상태이고 예매가 결제 대기(`PENDING_PAYMENT`) 상태여야 하며, 전체 취소 여부와 신규 취소 마감도 검증한다. 카드 미결제와 결제 정보 누락은 거부한다. 결제 완료 티켓은 결제 정보가 반드시 존재하고 `PAID` 또는 `PARTIALLY_REFUNDED`여야 한다. 예매·티켓·결제 상태가 일치하지 않으면 로컬 취소 전에 중단한다.
 
 ## 저장 관계
 
@@ -66,6 +78,40 @@ flowchart LR
 결제·환불 테이블을 삭제하고 다시 만들 때는 `ticket-service/src/main/resources/sql/reset-payment-tables.sql`을 사용한다. 대상 데이터는 삭제되며, PG 멱등 키 충돌을 막기 위해 환불 프로세스 ID 시퀀스는 기존 값을 이어간다. 결제·입금 콜백·환불·관련 스케줄러의 쓰기를 중단한 상태에서 실행한다.
 
 새 DB 전체를 초기화할 때는 `schema.sql`을 사용한다.
+
+기존 ticket DB에는 새 스냅샷 필드를 추가한다. 기존 미완료 부분 환불의 쿠폰 복원 여부는 기존 할인 정책과 아직 취소되지 않은 티켓을 기준으로 초기화한다. 관련 쓰기를 중단한 상태에서 실행한다.
+
+```sql
+BEGIN;
+ALTER TABLE payment_refund_snapshots
+    ADD COLUMN IF NOT EXISTS restore_coupon BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE payment_refund_snapshots s
+SET restore_coupon = EXISTS (
+    SELECT 1
+    FROM payment_refunds r
+    JOIN payment_refund_processes rp ON rp.refund_id = r.payment_refund_id
+    JOIN payments p ON p.payment_id = r.payment_id
+    JOIN reservation_discounts d ON d.reservation_id = p.reservation_id
+    JOIN user_coupons uc ON uc.user_coupon_id = d.user_coupon_id
+    JOIN coupons c ON c.coupon_id = uc.coupon_id
+    WHERE r.refund_snapshot_id = s.payment_refund_snapshot_id
+      AND rp.status IN ('REQUESTED', 'GATEWAY_FAILED', 'GATEWAY_SUCCEEDED', 'LOCAL_FAILED')
+      AND NOT s.full_cancellation AND d.discount_amount > 0 AND uc.status = 'USED'
+      AND c.min_order_amount IS NOT NULL
+      AND (SELECT COALESCE(SUM(t.price), 0) FROM tickets t
+           WHERE t.reservation_id = p.reservation_id AND t.status IN ('PAID', 'PENDING_PAYMENT'))
+          - s.ticket_amount < c.min_order_amount
+)
+WHERE EXISTS (
+    SELECT 1 FROM payment_refunds r
+    JOIN payment_refund_processes rp ON rp.refund_id = r.payment_refund_id
+    WHERE r.refund_snapshot_id = s.payment_refund_snapshot_id
+      AND rp.status IN ('REQUESTED', 'GATEWAY_FAILED', 'GATEWAY_SUCCEEDED', 'LOCAL_FAILED')
+);
+COMMIT;
+```
+
+PG DB에는 `gateway_refunds.closed BOOLEAN NOT NULL DEFAULT FALSE`가 필요하다. 적용 SQL은 `docs/refund-idempotency.md`에 있다. 새 코드와 스키마는 ticket·PG를 함께 배포해야 한다.
 
 기존 DB에 추가했던 중복 방지 컬럼은 아래 SQL로 제거한다. 해당 컬럼에 걸린 UNIQUE·CHECK·외래 키 제약도 PostgreSQL이 함께 제거한다. 관련 쓰기를 중단하고 새 코드 배포와 함께 적용한다.
 

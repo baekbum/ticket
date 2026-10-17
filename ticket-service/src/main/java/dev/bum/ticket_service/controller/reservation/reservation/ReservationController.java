@@ -2,6 +2,7 @@ package dev.bum.ticket_service.controller.reservation.reservation;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationDetailResponse;
@@ -51,12 +52,11 @@ public class ReservationController {
     }
 
     @PutMapping("/cancel/id/{id}")
-    public ResponseEntity<Void> cancel(
+    public ResponseEntity<CancelReservationResponse> cancel(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable("id") long id,
             @RequestBody CancelReservationRequest info
     ) {
-        reservationService.cancelMyReservation(currentUserId, id, info);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(reservationService.cancelMyReservation(currentUserId, id, info));
     }
 }

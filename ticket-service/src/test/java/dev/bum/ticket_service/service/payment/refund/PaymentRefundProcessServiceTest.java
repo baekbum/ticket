@@ -1,5 +1,7 @@
 package dev.bum.ticket_service.service.payment.refund;
 
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
@@ -11,6 +13,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditContext;
 import dev.bum.ticket_service.audit.AuditLog;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
@@ -31,16 +34,22 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,17 +57,32 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentRefundProcessServiceTest {
+
+    @Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-10-15T03:00:00Z"), ZoneId.of("Asia/Seoul"));
+    @Mock
+    private PaymentGatewayRefundClient paymentGatewayRefundClient;
 
     @Mock
     private TicketPurchaseCountService ticketPurchaseCountService;
 
     @InjectMocks
     private PaymentRefundProcessService paymentRefundProcessService;
+
+    @Spy
+    @InjectMocks
+    private PaymentRefundProcessCreator creator;
+
+    @Mock
+    private PaymentRefundRollbackRecorder rollbackRecorder;
 
     @Mock
     private PaymentRefundProcessJpaRepository paymentRefundProcessJpaRepository;
@@ -84,6 +108,20 @@ class PaymentRefundProcessServiceTest {
     @Mock
     private SeatCacheService seatCacheService;
 
+    @BeforeEach
+    void configureCreationAndLocks() {
+        ReflectionTestUtils.setField(paymentRefundProcessService, "paymentRefundProcessCreator", creator);
+        lenient().when(paymentRefundProcessJpaRepository.findByIdForUpdate(any()))
+                .thenAnswer(invocation -> paymentRefundProcessJpaRepository.findById(invocation.getArgument(0)));
+        lenient().when(paymentRefundProcessJpaRepository.save(any(PaymentRefundProcess.class)))
+                .thenAnswer(invocation -> {
+                    PaymentRefundProcess created = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(created, "paymentRefundProcessId", 999L);
+                    given(paymentRefundProcessJpaRepository.findByIdForUpdate(999L)).willReturn(Optional.of(created));
+                    return created;
+                });
+    }
+
     @AfterEach
     void tearDown() {
         AuditContext.clear();
@@ -102,6 +140,160 @@ class PaymentRefundProcessServiceTest {
     }
 
     @Test
+    void sameTicketSetReusesSnapshotAmountsAfterCutoffWithoutRecalculation() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket first = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket second = ticket(2L, reservation, TicketStatus.PAID);
+        LocalDateTime capturedAt = LocalDateTime.of(2026, 10, 14, 23, 49);
+        PaymentRefundSnapshot snapshot = PaymentRefundSnapshot.builder()
+                .payment(payment)
+                .tickets(List.of(first, second))
+                .refundAmount(230000)
+                .cancellationFeeAmount(20000)
+                .fullCancellation(true)
+                .refundAccount(null)
+                .capturedAt(capturedAt)
+                .restoreCoupon(true)
+                .build();
+        PaymentRefundProcess previous = PaymentRefundProcess.builder().paymentRefundProcessId(1L)
+                .refund(PaymentRefund.builder()
+                        .payment(payment)
+                        .snapshot(snapshot)
+                        .build()).status(PaymentRefundProcessStatus.GATEWAY_FAILED).build();
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T14:55:00Z"));
+        given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
+                .willReturn(Optional.of(previous));
+        given(paymentRefundProcessJpaRepository.findById(previous.getPaymentRefundProcessId())).willReturn(Optional.of(previous));
+        given(paymentGatewayRefundClient.resolve(any()))
+                .willReturn(GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("PAY-1")
+                        .outcome(Outcome.NOT_FOUND)
+                        .build());
+
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
+                payment, List.of(second, first), true, null
+        );
+
+        assertThat(attempt.getPaymentRefundProcessId()).isEqualTo(1L);
+        assertThat(attempt.getCalculation().refundAmount()).isEqualTo(230000);
+        assertThat(attempt.getCalculation().cancellationFeeAmount()).isEqualTo(20000);
+        assertThat(attempt.getCalculation().restoreCoupon()).isTrue();
+        assertThat(snapshot.getCapturedAt()).isEqualTo(capturedAt);
+        then(ticketJpaRepository).shouldHaveNoInteractions();
+        then(reservationDiscountJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void changedRequestCreatesNewSnapshotOnlyAfterPgClosesTheOldRequest() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket first = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket second = ticket(2L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess previous = refundProcess(1L, payment, List.of(first), 100000, false,
+                PaymentRefundProcessStatus.GATEWAY_FAILED);
+        given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
+                .willReturn(Optional.of(previous));
+        given(paymentRefundProcessJpaRepository.findById(previous.getPaymentRefundProcessId())).willReturn(Optional.of(previous));
+        given(paymentGatewayRefundClient.resolve(any()))
+                .willReturn(GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("PAY-1")
+                        .outcome(Outcome.CLOSED)
+                        .build());
+        given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(first, second));
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
+                payment, List.of(second), false, null
+        );
+
+        assertThat(previous.getStatus()).isEqualTo(PaymentRefundProcessStatus.SUPERSEDED);
+        assertThat(attempt.getCalculation().refundAmount()).isEqualTo(125000);
+        ArgumentCaptor<PaymentRefundProcess> created = ArgumentCaptor.forClass(PaymentRefundProcess.class);
+        then(paymentRefundProcessJpaRepository).should().save(created.capture());
+        assertThat(created.getValue().getRefund().getSnapshot().getTickets().getFirst().getTicketId()).isEqualTo(2L);
+        assertThat(created.getValue().getRefund().getSnapshot().getCapturedAt()).isEqualTo(LocalDateTime.now(clock));
+        then(paymentGatewayRefundClient).should().resolve(argThat(request -> request.closeIfUnexecuted()));
+    }
+
+    @Test
+    void changedRequestReturnsRecoveryPlanWhenPgReportsSuccess() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket first = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket second = ticket(2L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess previous = refundProcess(1L, payment, List.of(first), 100000, false,
+                PaymentRefundProcessStatus.GATEWAY_FAILED);
+        given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
+                .willReturn(Optional.of(previous));
+        given(paymentRefundProcessJpaRepository.findById(previous.getPaymentRefundProcessId())).willReturn(Optional.of(previous));
+        given(paymentGatewayRefundClient.resolve(any()))
+                .willReturn(GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("PAY-1")
+                        .outcome(Outcome.SUCCEEDED)
+                        .build());
+
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
+                payment, List.of(second), false, null
+        );
+        assertThat(attempt.isPreviousRequestRecoveryRequired()).isTrue();
+        assertThat(previous.getStatus()).isEqualTo(PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
+        then(paymentRefundProcessJpaRepository).should(never()).save(any());
+    }
+
+    @Test
+    void changedRequestAfterCutoffDoesNotCloseTheOriginalRequest() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket first = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket second = ticket(2L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess previous = refundProcess(1L, payment, List.of(first), 100000, false,
+                PaymentRefundProcessStatus.GATEWAY_FAILED);
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T14:55:00Z"));
+        given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
+                .willReturn(Optional.of(previous));
+        given(paymentRefundProcessJpaRepository.findById(previous.getPaymentRefundProcessId())).willReturn(Optional.of(previous));
+
+        assertThatThrownBy(() -> prepareAttempt(payment, List.of(second), false, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(previous.getStatus()).isEqualTo(PaymentRefundProcessStatus.GATEWAY_FAILED);
+        then(paymentGatewayRefundClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void sameRequestClosedAtPgCanRecoverWithNewKeyAndOriginalTerms() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
+        PaymentRefundProcess previous = refundProcess(1L, payment, List.of(ticket), 100000, false,
+                PaymentRefundProcessStatus.GATEWAY_FAILED);
+        LocalDateTime capturedAt = previous.getRefund().getSnapshot().getCapturedAt();
+        given(clock.instant()).willReturn(Instant.parse("2026-10-15T14:55:00Z"));
+        given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
+                .willReturn(Optional.of(previous));
+        given(paymentRefundProcessJpaRepository.findById(previous.getPaymentRefundProcessId())).willReturn(Optional.of(previous));
+        given(paymentGatewayRefundClient.resolve(any()))
+                .willReturn(GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("PAY-1")
+                        .outcome(Outcome.CLOSED)
+                        .build());
+
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
+                payment, List.of(ticket), false, null
+        );
+
+        assertThat(previous.getStatus()).isEqualTo(PaymentRefundProcessStatus.SUPERSEDED);
+        assertThat(attempt.getCalculation().refundAmount()).isEqualTo(100000);
+        ArgumentCaptor<PaymentRefundProcess> created = ArgumentCaptor.forClass(PaymentRefundProcess.class);
+        then(paymentRefundProcessJpaRepository).should().save(created.capture());
+        assertThat(created.getValue().getRefund().getSnapshot().getCapturedAt()).isEqualTo(capturedAt);
+    }
+
+    @Test
     @DisplayName("GATEWAY_FAILED 환불 프로세스는 사용자 재요청 시 REQUESTED 상태로 gateway 재시도 대상이 된다")
     void start_gateway_attempt_when_gateway_failed() {
         Reservation reservation = reservation(ReservationStatus.PAID);
@@ -114,19 +306,38 @@ class PaymentRefundProcessServiceTest {
                 .build();
         PaymentRefundProcess process = PaymentRefundProcess.builder()
                 .paymentRefundProcessId(1L)
-                .refund(new PaymentRefund(payment,
-                        new PaymentRefundSnapshot(
-                                payment, List.of(ticket), 100000, 0, false, refundAccount)))
+                .refund(PaymentRefund.builder()
+                        .payment(payment)
+                        .snapshot(
+                                PaymentRefundSnapshot.builder()
+                                        .payment(payment)
+                                        .tickets(List.of(ticket))
+                                        .refundAmount(100000)
+                                        .cancellationFeeAmount(0)
+                                        .fullCancellation(false)
+                                        .refundAccount(refundAccount)
+                                        .capturedAt(LocalDateTime.now())
+                                        .restoreCoupon(false)
+                                        .build()
+                        )
+                        .build())
                 .status(PaymentRefundProcessStatus.GATEWAY_FAILED)
                 .build();
 
         given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
                 .willReturn(Optional.of(process));
+        given(paymentRefundProcessJpaRepository.findById(process.getPaymentRefundProcessId())).willReturn(Optional.of(process));
 
-        PaymentRefundProcessGatewayAttempt attempt = paymentRefundProcessService.startGatewayAttempt(
+        given(paymentGatewayRefundClient.resolve(any())).willReturn(
+                GatewayRefundResolutionResponse.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("PAY-1")
+                        .outcome(Outcome.NOT_FOUND)
+                        .build()
+        );
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
                 payment,
                 List.of(ticket),
-                100000,
                 false,
                 refundAccount
         );
@@ -149,11 +360,11 @@ class PaymentRefundProcessServiceTest {
 
         given(paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(any(), anyList()))
                 .willReturn(Optional.of(process));
+        given(paymentRefundProcessJpaRepository.findById(process.getPaymentRefundProcessId())).willReturn(Optional.of(process));
 
-        PaymentRefundProcessGatewayAttempt attempt = paymentRefundProcessService.startGatewayAttempt(
+        PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
                 payment,
                 List.of(ticket),
-                100000,
                 false,
                 null
         );
@@ -359,6 +570,16 @@ class PaymentRefundProcessServiceTest {
                 .build();
     }
 
+    private PaymentRefundProcessGatewayAttempt prepareAttempt(
+            Payment payment, List<Ticket> selectedTickets, boolean fullCancellation, RefundAccountRequest account) {
+        PaymentRefundRequestContext context = paymentRefundProcessService.inspectRequest(
+                payment, selectedTickets, fullCancellation, account
+        );
+        return paymentRefundProcessService.startGatewayAttempt(
+                payment, selectedTickets, fullCancellation, account, context
+        );
+    }
+
     private Reservation reservation(ReservationStatus status) {
         return Reservation.builder()
                 .reservationId(1L)
@@ -386,7 +607,7 @@ class PaymentRefundProcessServiceTest {
                 .eventId(1L)
                 .title("IU Concert")
                 .venue("KSPO Dome")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
+                .eventDateTime(LocalDateTime.of(2099, 9, 18, 18, 0))
                 .build();
     }
 

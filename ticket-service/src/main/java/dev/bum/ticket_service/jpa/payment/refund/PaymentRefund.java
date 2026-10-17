@@ -28,6 +28,7 @@ public class PaymentRefund {
     @Column(nullable = false, length = 30)
     private PaymentRefundStatus status;
 
+    @Builder
     public PaymentRefund(Payment payment, PaymentRefundSnapshot snapshot) {
         this.payment = payment;
         this.snapshot = snapshot;
@@ -36,5 +37,9 @@ public class PaymentRefund {
 
     public void complete() {
         status = PaymentRefundStatus.COMPLETED;
+    }
+
+    public void supersede() {
+        status = PaymentRefundStatus.SUPERSEDED;
     }
 }

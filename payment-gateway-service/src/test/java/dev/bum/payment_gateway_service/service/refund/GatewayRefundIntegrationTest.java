@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.refund;
 
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
+import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.dto.card.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
@@ -8,6 +10,7 @@ import dev.bum.payment_gateway_service.jpa.card.*;
 import dev.bum.payment_gateway_service.jpa.refund.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.service.card.GatewayCardApprovalService;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionService;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
 
 import org.junit.jupiter.api.*;
@@ -33,7 +36,7 @@ import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @ContextConfiguration(classes = GatewayRefundIntegrationTest.PersistenceConfig.class)
-@Import({GatewayCardApprovalService.class, GatewayVirtualAccountService.class})
+@Import({GatewayCardApprovalService.class, GatewayVirtualAccountService.class, GatewayRefundResolutionService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class GatewayRefundIntegrationTest {
     @Configuration
@@ -42,6 +45,7 @@ class GatewayRefundIntegrationTest {
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
     static class PersistenceConfig { }
 
+    @Autowired GatewayRefundResolutionService resolutionService;
     @Autowired GatewayCardApprovalService cardService;
     @Autowired GatewayVirtualAccountService accountService;
     @Autowired GatewayRefundJpaRepository refunds;
@@ -183,6 +187,82 @@ class GatewayRefundIntegrationTest {
         }
         assertThat(refunds.count()).isEqualTo(1);
         assertThat(accountHistories.count()).isEqualTo(1);
+    }
+
+    @Test
+    void closingAnUnexecutedCardRefundBlocksLateRequestsAndAllowsANewKey() {
+        var request = GatewayRefundResolutionRequest.builder()
+                .paymentRefundProcessId(1L)
+                .paymentNo("CARD-PAY")
+                .method(PaymentMethod.CREDIT_CARD)
+                .refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(true)
+                .build();
+        assertThat(resolutionService.resolve(request).outcome()).isEqualTo(Outcome.CLOSED);
+        assertThatThrownBy(() -> cardService.refund(cardRequest(1L, "4000")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
+        cardService.refund(cardRequest(2L, "10000"));
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void closingABankRefundDoesNotCountAsRefundedMoney() {
+        var request = GatewayRefundResolutionRequest.builder()
+                .paymentRefundProcessId(1L)
+                .paymentNo("BANK-PAY")
+                .method(PaymentMethod.BANK_TRANSFER)
+                .refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(true)
+                .build();
+        assertThat(resolutionService.resolve(request).outcome()).isEqualTo(Outcome.CLOSED);
+        assertThatThrownBy(() -> accountService.refund(bankRequest(1L, "4000")))
+                .isInstanceOf(IllegalArgumentException.class);
+        accountService.refund(bankRequest(2L, "10000"));
+        assertThat(accountHistories.count()).isEqualTo(1);
+    }
+
+    @Test
+    void resolvingAnExecutedRefundCannotCloseOrExecuteItAgain() {
+        var request = GatewayRefundResolutionRequest.builder()
+                .paymentRefundProcessId(1L)
+                .paymentNo("CARD-PAY")
+                .method(PaymentMethod.CREDIT_CARD)
+                .refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(true)
+                .build();
+        cardService.refund(cardRequest(1L, "4000"));
+        assertThat(resolutionService.resolve(request).outcome()).isEqualTo(Outcome.SUCCEEDED);
+        assertThat(cardService.refund(cardRequest(1L, "4000")).getRefundedAmount()).isEqualByComparingTo("4000");
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
+    }
+
+    @Test
+    void racingRefundAndCloseProducesEitherOneRefundOrAClosedRequest() throws Exception {
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            Future<Boolean> refunded = pool.submit(() -> {
+                start.await();
+                try { cardService.refund(cardRequest(1L, "4000")); return true; }
+                catch (IllegalArgumentException e) { return false; }
+            });
+            Future<Outcome> closed = pool.submit(() -> {
+                start.await();
+                return resolutionService.resolve(GatewayRefundResolutionRequest.builder()
+                        .paymentRefundProcessId(1L)
+                        .paymentNo("CARD-PAY")
+                        .method(PaymentMethod.CREDIT_CARD)
+                        .refundAmount(new BigDecimal("4000"))
+                        .closeIfUnexecuted(true)
+                        .build()).outcome();
+            });
+            start.countDown();
+            boolean executed = refunded.get(15, TimeUnit.SECONDS);
+            assertThat(closed.get(15, TimeUnit.SECONDS)).isEqualTo(executed ? Outcome.SUCCEEDED : Outcome.CLOSED);
+            assertThat(refunds.count()).isEqualTo(1);
+            assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount())
+                    .isEqualByComparingTo(executed ? "6000" : "10000");
+        }
     }
 
     private GatewayCardPaymentRefundRequest cardRequest(Long id, String amount) {
