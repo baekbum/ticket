@@ -14,4 +14,8 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Reservation r where r.reservationId = :id")
     Optional<Reservation> findByIdForUpdate(@Param("id") long id);
+
+    // 외부 취소 요청은 같은 예매가 처리 중이면 기다리지 않고 즉시 거부한다.
+    @Query(value = "select r.* from reservations r where r.reservation_id = :id for update nowait", nativeQuery = true)
+    Optional<Reservation> findByIdForUpdateNowait(@Param("id") long id);
 }

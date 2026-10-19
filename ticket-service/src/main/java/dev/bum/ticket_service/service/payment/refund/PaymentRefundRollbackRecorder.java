@@ -24,7 +24,7 @@ public class PaymentRefundRollbackRecorder {
     public void record(PaymentRefundRollbackRecord record) {
         // 다음 취소 요청과도 동일한 잠금 순서를 지켜, 더 최근 작업의 결과를 덮어쓰지 않는다.
         if (reservations.findByIdForUpdate(record.reservationId()).isEmpty()) return;
-        PaymentRefundProcess process = processes.findByIdForUpdate(record.processId()).orElse(null);
+        PaymentRefundProcess process = processes.findById(record.processId()).orElse(null);
         if (process == null || process.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
                 || process.getStatus() == PaymentRefundProcessStatus.SUPERSEDED) return;
 

@@ -14,6 +14,8 @@ import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionSer
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -36,7 +38,8 @@ import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @ContextConfiguration(classes = GatewayRefundIntegrationTest.PersistenceConfig.class)
-@Import({GatewayCardApprovalService.class, GatewayVirtualAccountService.class, GatewayRefundResolutionService.class})
+@Import({GatewayCardApprovalService.class, GatewayVirtualAccountService.class, GatewayRefundResolutionService.class,
+        GatewayRefundProcessService.class, GatewayRefundCreator.class, GatewayRefundFailureRecorder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class GatewayRefundIntegrationTest {
     @Configuration
@@ -46,6 +49,8 @@ class GatewayRefundIntegrationTest {
     static class PersistenceConfig { }
 
     @Autowired GatewayRefundResolutionService resolutionService;
+    @Autowired GatewayRefundCreator refundCreator;
+    @Autowired GatewayRefundFailureRecorder failureRecorder;
     @Autowired GatewayCardApprovalService cardService;
     @Autowired GatewayVirtualAccountService accountService;
     @Autowired GatewayRefundJpaRepository refunds;
@@ -133,18 +138,20 @@ class GatewayRefundIntegrationTest {
         assertThatThrownBy(() -> accountService.refund(changed)).isInstanceOf(IllegalArgumentException.class);
         accountService.refund(bankRequest(2L, "6000"));
         assertThatThrownBy(() -> accountService.refund(bankRequest(3L, "1"))).isInstanceOf(IllegalArgumentException.class);
-        assertThat(refunds.count()).isEqualTo(2);
+        assertThat(refunds.count()).isEqualTo(3);
+        assertThat(refunds.findById(3L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.FAILED);
         assertThat(accountHistories.count()).isEqualTo(2);
     }
 
     @Test
-    void rollbackRemovesRefundRecordAndActualCardChangesAndAllowsRetry() {
+    void rollbackKeepsFailedRequestAndRevertsActualCardChangesBeforeRetry() {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
             cardService.refund(cardRequest(1L, "4000"));
             throw new IllegalStateException("commit failed");
         })).isInstanceOf(IllegalStateException.class);
-        assertThat(refunds.count()).isZero();
+        assertThat(refunds.count()).isEqualTo(1);
+        assertThat(refunds.findById(1L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.FAILED);
         assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
         assertThat(cardHistories.findByPaymentNo("CARD-PAY").orElseThrow().getRefundedAmount()).isEqualByComparingTo("0");
         cardService.refund(cardRequest(1L, "4000"));
@@ -152,14 +159,16 @@ class GatewayRefundIntegrationTest {
     }
 
     @Test
-    void rollbackRemovesBankRefundAndPaymentHistoryTogether() {
+    void rollbackKeepsBankRequestAndRevertsPaymentHistory() {
         assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             accountService.refund(bankRequest(1L, "4000"));
             throw new IllegalStateException("commit failed");
         })).isInstanceOf(IllegalStateException.class);
-        assertThat(refunds.count()).isZero();
+        assertThat(refunds.count()).isEqualTo(1);
+        assertThat(refunds.findById(1L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.FAILED);
         assertThat(accountHistories.count()).isZero();
-        accountService.refund(bankRequest(1L, "10000"));
+        assertThatThrownBy(() -> accountService.refund(bankRequest(1L, "10000"))).isInstanceOf(IllegalArgumentException.class);
+        accountService.refund(bankRequest(1L, "4000"));
         assertThat(refunds.count()).isEqualTo(1);
     }
 
@@ -187,6 +196,93 @@ class GatewayRefundIntegrationTest {
         }
         assertThat(refunds.count()).isEqualTo(1);
         assertThat(accountHistories.count()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void initialRecordSurvivesRollbackAndWaitingRequestRetriesUnderPaymentLock(boolean bank) throws Exception {
+        CountDownLatch firstPrepared = new CountDownLatch(1);
+        CountDownLatch rollbackFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            Future<?> first = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                if (bank) accountService.refund(bankRequest(1L, "4000"));
+                else cardService.refund(cardRequest(1L, "4000"));
+                firstPrepared.countDown();
+                try {
+                    if (!rollbackFirst.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("대기 시간 초과");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                throw new IllegalStateException("환불 반영 후 커밋 실패");
+            }));
+            try {
+                assertThat(firstPrepared.await(10, TimeUnit.SECONDS)).isTrue();
+                // A가 끝나기 전에도 B에서 커밋한 최초 요청은 다른 트랜잭션에서 조회된다.
+                GatewayRefund initial = refunds.findById(1L).orElseThrow();
+                assertThat(initial.getStatus()).isEqualTo(GatewayRefundStatus.REQUESTED);
+                assertThat(refunds.sumRefundAmount(initial.getPaymentNo(), initial.getMethod())).isEqualByComparingTo("0");
+                Future<?> second = pool.submit(() -> {
+                    secondStarted.countDown();
+                    if (bank) return accountService.refund(bankRequest(1L, "4000"));
+                    return cardService.refund(cardRequest(1L, "4000"));
+                });
+                assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                rollbackFirst.countDown();
+                assertThatThrownBy(() -> first.get(15, TimeUnit.SECONDS)).isInstanceOf(ExecutionException.class);
+                second.get(15, TimeUnit.SECONDS);
+            } finally {
+                rollbackFirst.countDown();
+            }
+        }
+        assertThat(refunds.count()).isEqualTo(1);
+        GatewayRefund succeeded = refunds.findById(1L).orElseThrow();
+        assertThat(succeeded.getStatus()).isEqualTo(GatewayRefundStatus.SUCCEEDED);
+        assertThat(refunds.sumRefundAmount(succeeded.getPaymentNo(), succeeded.getMethod())).isEqualByComparingTo("4000");
+        if (bank) assertThat(accountHistories.count()).isEqualTo(1);
+        else assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
+    }
+
+    @Test
+    void resolutionDistinguishesPendingAndFailedRequestsAndCanCloseBoth() {
+        refundCreator.create(cardRequest(1L, "4000"));
+        var lookup = GatewayRefundResolutionRequest.builder().paymentRefundProcessId(1L)
+                .paymentNo("CARD-PAY").method(PaymentMethod.CREDIT_CARD).refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(false).build();
+        assertThat(resolutionService.resolve(lookup).outcome()).isEqualTo(Outcome.REQUESTED);
+
+        Long version = refunds.findById(1L).orElseThrow().getVersion();
+        failureRecorder.record(1L, "CARD-PAY", PaymentMethod.CREDIT_CARD, version, "첫 실패");
+        assertThat(resolutionService.resolve(lookup).outcome()).isEqualTo(Outcome.FAILED);
+        failureRecorder.record(1L, "CARD-PAY", PaymentMethod.CREDIT_CARD, version, "지연된 실패");
+        assertThat(refunds.findById(1L).orElseThrow().getFailureReason()).isEqualTo("첫 실패");
+
+        var close = GatewayRefundResolutionRequest.builder().paymentRefundProcessId(1L)
+                .paymentNo("CARD-PAY").method(PaymentMethod.CREDIT_CARD).refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(true).build();
+        assertThat(resolutionService.resolve(close).outcome()).isEqualTo(Outcome.CLOSED);
+        Long closedVersion = refunds.findById(1L).orElseThrow().getVersion();
+        failureRecorder.record(1L, "CARD-PAY", PaymentMethod.CREDIT_CARD, closedVersion, "종료 후 실패");
+        assertThat(refunds.findById(1L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.CLOSED);
+        assertThatThrownBy(() -> cardService.refund(cardRequest(1L, "4000"))).isInstanceOf(IllegalArgumentException.class);
+        assertThat(refunds.sumRefundAmount("CARD-PAY", PaymentMethod.CREDIT_CARD)).isEqualByComparingTo("0");
+
+        refundCreator.create(cardRequest(2L, "4000"));
+        assertThat(resolutionService.resolve(GatewayRefundResolutionRequest.builder().paymentRefundProcessId(2L)
+                .paymentNo("CARD-PAY").method(PaymentMethod.CREDIT_CARD).refundAmount(new BigDecimal("4000"))
+                .closeIfUnexecuted(true).build()).outcome()).isEqualTo(Outcome.CLOSED);
+    }
+
+    @Test
+    void delayedFailureCannotOverwriteACommittedRefund() {
+        var response = cardService.refund(cardRequest(1L, "4000"));
+        GatewayRefund completed = refunds.findById(1L).orElseThrow();
+        failureRecorder.record(1L, "CARD-PAY", PaymentMethod.CREDIT_CARD, completed.getVersion(), "지연된 실패");
+        assertThat(refunds.findById(1L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.SUCCEEDED);
+        assertThat(cardService.refund(cardRequest(1L, "4000"))).isEqualTo(response);
+        assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
     }
 
     @Test

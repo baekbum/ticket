@@ -12,6 +12,7 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountI
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
@@ -19,7 +20,9 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPay
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentHistoryType;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
 
+import static org.mockito.Mockito.lenient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +51,15 @@ import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class GatewayVirtualAccountServiceTest {
+
+    @Mock
+    private GatewayRefundProcessService refundProcesses;
+
+    @BeforeEach
+    void prepareRefundRecord() {
+        lenient().when(refundProcesses.prepare(any(GatewayVirtualAccountRefundRequest.class)))
+                .thenAnswer(invocation -> GatewayRefund.requested(invocation.getArgument(0, GatewayVirtualAccountRefundRequest.class)));
+    }
 
     @Mock
     private DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;

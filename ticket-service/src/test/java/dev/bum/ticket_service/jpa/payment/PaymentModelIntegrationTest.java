@@ -49,7 +49,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
@@ -216,13 +215,11 @@ class PaymentModelIntegrationTest {
         process.gatewayRetryRequested();
         process.gatewaySucceeded();
         payment.applyCancellation(5000, 1000);
-        processService.savePaymentRefundHistory(
+        processService.completeCancellation(
                 process.getPaymentRefundProcessId(),
                 payment,
                 payment.getReservation().getTickets(),
                 5000,
-                false);
-        TransactionSynchronizationUtils.triggerBeforeCommit(
                 false);
         processes.flush();
         Long id = process.getPaymentRefundProcessId();

@@ -8,6 +8,9 @@ import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.card.*;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundCreator;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundFailureRecorder;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +49,8 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @ContextConfiguration(classes = GatewayCardFlowIntegrationTest.PersistenceConfig.class)
-@Import({GatewayCardPaymentService.class, GatewayCardApprovalService.class, GatewayCardSettlementService.class})
+@Import({GatewayCardPaymentService.class, GatewayCardApprovalService.class, GatewayCardSettlementService.class,
+        GatewayRefundProcessService.class, GatewayRefundCreator.class, GatewayRefundFailureRecorder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class GatewayCardFlowIntegrationTest {
     @Configuration

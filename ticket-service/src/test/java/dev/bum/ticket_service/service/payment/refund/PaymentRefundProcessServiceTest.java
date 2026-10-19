@@ -37,6 +37,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -111,13 +113,11 @@ class PaymentRefundProcessServiceTest {
     @BeforeEach
     void configureCreationAndLocks() {
         ReflectionTestUtils.setField(paymentRefundProcessService, "paymentRefundProcessCreator", creator);
-        lenient().when(paymentRefundProcessJpaRepository.findByIdForUpdate(any()))
-                .thenAnswer(invocation -> paymentRefundProcessJpaRepository.findById(invocation.getArgument(0)));
         lenient().when(paymentRefundProcessJpaRepository.save(any(PaymentRefundProcess.class)))
                 .thenAnswer(invocation -> {
                     PaymentRefundProcess created = invocation.getArgument(0);
                     ReflectionTestUtils.setField(created, "paymentRefundProcessId", 999L);
-                    given(paymentRefundProcessJpaRepository.findByIdForUpdate(999L)).willReturn(Optional.of(created));
+                    given(paymentRefundProcessJpaRepository.findById(999L)).willReturn(Optional.of(created));
                     return created;
                 });
     }
@@ -239,7 +239,7 @@ class PaymentRefundProcessServiceTest {
         PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
                 payment, List.of(second), false, null
         );
-        assertThat(attempt.isPreviousRequestRecoveryRequired()).isTrue();
+        assertThat(attempt.getAction()).isEqualTo(RefundAction.RECOVER_PREVIOUS_REQUEST);
         assertThat(previous.getStatus()).isEqualTo(PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
         then(paymentRefundProcessJpaRepository).should(never()).save(any());
     }
@@ -293,9 +293,10 @@ class PaymentRefundProcessServiceTest {
         assertThat(created.getValue().getRefund().getSnapshot().getCapturedAt()).isEqualTo(capturedAt);
     }
 
-    @Test
+    @ParameterizedTest
+    @EnumSource(value = Outcome.class, names = {"NOT_FOUND", "REQUESTED", "FAILED"})
     @DisplayName("GATEWAY_FAILED 환불 프로세스는 사용자 재요청 시 REQUESTED 상태로 gateway 재시도 대상이 된다")
-    void start_gateway_attempt_when_gateway_failed() {
+    void start_gateway_attempt_when_gateway_failed(Outcome outcome) {
         Reservation reservation = reservation(ReservationStatus.PAID);
         Payment payment = virtualAccountPayment(reservation);
         Ticket ticket = ticket(1L, reservation, TicketStatus.PAID);
@@ -332,7 +333,7 @@ class PaymentRefundProcessServiceTest {
                 GatewayRefundResolutionResponse.builder()
                         .paymentRefundProcessId(1L)
                         .paymentNo("PAY-1")
-                        .outcome(Outcome.NOT_FOUND)
+                        .outcome(outcome)
                         .build()
         );
         PaymentRefundProcessGatewayAttempt attempt = prepareAttempt(
@@ -342,8 +343,7 @@ class PaymentRefundProcessServiceTest {
                 refundAccount
         );
 
-        assertThat(attempt.isGatewayRequired()).isTrue();
-        assertThat(attempt.isLocalPaymentRefundRequired()).isFalse();
+        assertThat(attempt.getAction()).isEqualTo(RefundAction.REQUEST_GATEWAY);
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.REQUESTED);
         assertThat(process.getRefundBankCompany()).isEqualTo(BankCompany.SHINHAN);
         assertThat(process.getRefundAccountNumberMasked()).isEqualTo("******3210");
@@ -369,8 +369,7 @@ class PaymentRefundProcessServiceTest {
                 null
         );
 
-        assertThat(attempt.isGatewayRequired()).isFalse();
-        assertThat(attempt.isLocalPaymentRefundRequired()).isTrue();
+        assertThat(attempt.getAction()).isEqualTo(RefundAction.APPLY_LOCAL);
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
     }
 
@@ -384,7 +383,7 @@ class PaymentRefundProcessServiceTest {
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(firstTicket, secondTicket), 250000, true, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
         given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
-        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(firstTicket, secondTicket));
 
@@ -416,7 +415,7 @@ class PaymentRefundProcessServiceTest {
                 PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
         given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
-        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(firstTicket, secondTicket));
 
@@ -438,7 +437,7 @@ class PaymentRefundProcessServiceTest {
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.LOCAL_FAILED);
 
         given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
-        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
 
@@ -463,7 +462,7 @@ class PaymentRefundProcessServiceTest {
                 1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
         );
         given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
-        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
 
@@ -485,7 +484,7 @@ class PaymentRefundProcessServiceTest {
         PaymentRefundProcess process = refundProcess(1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
 
         given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
-        given(reservationJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(reservation));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
         given(paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)).willReturn(true);

@@ -30,6 +30,8 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
 import dev.bum.ticket_service.service.payment.refund.CardPaymentRefundService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessGatewayAttempt;
+import dev.bum.ticket_service.service.payment.refund.RefundAction;
+import dev.bum.ticket_service.service.reservation.reservation.ReservationCancellationService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRequestContext;
 import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
@@ -54,6 +56,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -129,8 +132,15 @@ class ReservationServiceTest {
     @Mock
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
 
+    @Spy
+    @InjectMocks
+    private ReservationCancellationService reservationCancellationService;
+
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(
+                reservationService, "reservationCancellationService", reservationCancellationService
+        );
         lenient().when(paymentRefundProcessService.inspectRequest(any(), any(), anyBoolean(), any()))
                 .thenReturn(PaymentRefundRequestContext.builder()
                         .previousProcessId(null)
@@ -151,8 +161,7 @@ class ReservationServiceTest {
                     );
                     return PaymentRefundProcessGatewayAttempt.builder()
                             .paymentRefundProcessId(1L)
-                            .gatewayRequired(calculation.refundAmount() > 0)
-                            .localPaymentRefundRequired(calculation.refundAmount() == 0)
+                            .action(calculation.refundAmount() > 0 ? RefundAction.REQUEST_GATEWAY : RefundAction.APPLY_LOCAL)
                             .calculation(calculation)
                             .build();
                 });
@@ -300,7 +309,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundPartial(payment, 125000, 1L);
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(1L, payment, List.of(selectedTicket), 125000, false);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(selectedTicket), 125000, false);
     }
 
     @Test
@@ -358,7 +367,7 @@ class ReservationServiceTest {
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment, 1L);
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
     }
 
     @Test
@@ -413,7 +422,7 @@ class ReservationServiceTest {
                         .previousProcessId(null)
                         .sameRequest(false)
                         .build());
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(
+        then(paymentRefundProcessService).should().completeCancellation(
                 1L, payment, List.of(firstTicket, secondTicket), 190000, true);
     }
 
@@ -439,8 +448,7 @@ class ReservationServiceTest {
                 .build()))
                 .willReturn(PaymentRefundProcessGatewayAttempt.builder()
                         .paymentRefundProcessId(1L)
-                        .gatewayRequired(false)
-                        .localPaymentRefundRequired(true)
+                        .action(RefundAction.APPLY_LOCAL)
                         .calculation(
                                 CancellationRefundCalculation.builder()
                                         .refundAmount(250000)
@@ -460,7 +468,7 @@ class ReservationServiceTest {
         assertThat(firstTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(secondTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         then(cardPaymentRefundService).should(never()).refundAll(payment, 1L);
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
     }
 
     @Test
@@ -494,7 +502,7 @@ class ReservationServiceTest {
         assertThat(userCoupon.getUsedAt()).isNull();
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount(), 1L);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
     }
 
     @Test
@@ -521,7 +529,7 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, refundAccount(), 1L);
-        then(paymentRefundProcessService).should().savePaymentRefundHistory(1L, payment, List.of(selectedTicket), 125000, false);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(selectedTicket), 125000, false);
     }
 
     @Test

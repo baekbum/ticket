@@ -15,7 +15,7 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
-import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 
 import jakarta.annotation.Nonnull;
 
@@ -46,7 +46,7 @@ public class GatewayCardApprovalService {
     private final DummyCardPaymentHistoryJpaRepository dummyCardPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
     private final PasswordEncoder passwordEncoder;
-    private final GatewayRefundJpaRepository refunds;
+    private final GatewayRefundProcessService refundProcesses;
 
     @Transactional
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
@@ -109,33 +109,37 @@ public class GatewayCardApprovalService {
         if (request.getPaymentRefundProcessId() == null || request.getPaymentRefundProcessId() <= 0) {
             throw new IllegalArgumentException("환불 프로세스 ID가 필요합니다.");
         }
-        GatewayRefund existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
-        if (existing != null) return existing.replay(request);
-
+        // A는 원래 결제 행을 잠근다. 최초 환불 기록 B를 생성하는 동안에도 잠금을 유지한다.
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository
                 .findByPaymentNoAndTransactionId(request.getPaymentNo(), request.getTransactionId())
                 .orElseThrow(() -> new IllegalArgumentException("카드 결제 승인 이력을 찾을 수 없습니다."));
+        GatewayRefund refund = refundProcesses.prepare(request);
+        if (refund.isSucceeded()) return refund.replay(request);
 
-        // 잠금을 기다리는 동안 다른 요청이 커밋했을 수 있으므로 결제 잠금 획득 후 환불 기록을 다시 확인한다.
-        existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
-        if (existing != null) return existing.replay(request);
-        validateRefundableHistory(paymentHistory, request);
-        DummyCard card = dummyCardJpaRepository.findByIdForUpdate(paymentHistory.getDummyCard().getDummyCardId())
-                .orElseThrow(() -> new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다."));
-        card.cancelApproval(request.getRefundAmount());
-        paymentHistory.refund(request.getRefundAmount());
+        try {
+            validateRefundableHistory(paymentHistory, request);
+            DummyCard card = dummyCardJpaRepository.findByIdForUpdate(paymentHistory.getDummyCard().getDummyCardId())
+                    .orElseThrow(() -> new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다."));
+            card.cancelApproval(request.getRefundAmount());
+            paymentHistory.refund(request.getRefundAmount());
 
-        GatewayCardPaymentRefundResponse response = GatewayCardPaymentRefundResponse.builder()
-                .paymentNo(paymentHistory.getPaymentNo())
-                .transactionId(paymentHistory.getTransactionId())
-                .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
-                .status(paymentHistory.getStatus())
-                .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
-                        ? "카드 결제 전체 환불이 완료되었습니다."
-                        : "카드 결제 부분 환불이 완료되었습니다.")
-                .build();
-        refunds.saveAndFlush(GatewayRefund.card(request, response));
-        return response;
+            GatewayCardPaymentRefundResponse response = GatewayCardPaymentRefundResponse.builder()
+                    .paymentNo(paymentHistory.getPaymentNo())
+                    .transactionId(paymentHistory.getTransactionId())
+                    .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
+                    .status(paymentHistory.getStatus())
+                    .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
+                            ? "카드 결제 전체 환불이 완료되었습니다."
+                            : "카드 결제 부분 환불이 완료되었습니다.")
+                    .build();
+            // 실제 환불 변경과 성공 상태를 A에서 함께 커밋한다.
+            refund.succeeded(response);
+            return response;
+        } catch (RuntimeException e) {
+            refund.failed(e.getMessage());
+            // A 롤백으로 잠금이 해제된 뒤 등록한 후처리에서 실패 상태를 별도로 보존한다.
+            throw e;
+        }
     }
 
     private void validateCurrentUser(String currentUserId) {

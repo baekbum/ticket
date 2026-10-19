@@ -16,6 +16,7 @@ import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayCardPaymentRefundRequest;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
+import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
@@ -25,6 +26,7 @@ import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
@@ -63,6 +65,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -88,7 +92,7 @@ import static org.mockito.Mockito.verify;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({ReservationRepositoryImpl.class, ReservationService.class, ReservationManagementService.class,
+@Import({ReservationRepositoryImpl.class, ReservationService.class, ReservationManagementService.class, ReservationCancellationService.class,
         PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class, CardPaymentRefundService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -117,6 +121,7 @@ class ReservationCancellationConcurrencyTest {
     @Autowired ReservationJpaRepository reservations;
     @Autowired PaymentJpaRepository payments;
     @Autowired PaymentRefundProcessJpaRepository processes;
+    @Autowired PaymentRefundHistoryJpaRepository refundHistories;
     @Autowired EventJpaRepository events;
     @Autowired SeatJpaRepository seats;
     @Autowired TicketJpaRepository tickets;
@@ -197,7 +202,7 @@ class ReservationCancellationConcurrencyTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void waitingRequestRetriesTheSameProcessAfterTheFirstCancellationRollsBack(boolean localFailure) throws Exception {
+    void concurrentRequestIsRejectedAndExplicitRetryReusesProcessAfterRollback(boolean localFailure) throws Exception {
         Fixture fixture = fixture(false);
         CountDownLatch gatewayEntered = new CountDownLatch(1);
         CountDownLatch failGateway = new CountDownLatch(1);
@@ -232,14 +237,17 @@ class ReservationCancellationConcurrencyTest {
             });
             try {
                 assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
-                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                assertThatThrownBy(() -> second.get(3, TimeUnit.SECONDS))
+                        .isInstanceOf(ExecutionException.class)
+                        .hasCauseInstanceOf(ReservationCancellationInProgressException.class);
+                assertThat(first.isDone()).isFalse();
             } finally {
                 failGateway.countDown();
             }
             assertThatThrownBy(() -> first.get(15, TimeUnit.SECONDS))
                     .isInstanceOf(ExecutionException.class).hasCauseInstanceOf(IllegalStateException.class);
-            second.get(15, TimeUnit.SECONDS);
         }
+        adminCancellation.cancel(fixture.reservationId(), request(fixture.ticketIds().subList(0, 3)));
         ArgumentCaptor<GatewayCardPaymentRefundRequest> requests = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
         verify(gateway, times(localFailure ? 1 : 2)).refund(requests.capture());
         assertThat(requests.getAllValues()).extracting(GatewayCardPaymentRefundRequest::getPaymentRefundProcessId)
@@ -251,7 +259,7 @@ class ReservationCancellationConcurrencyTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void secondCancellationWaitsAndRevalidatesTickets(boolean overlapping) throws Exception {
+    void secondCancellationIsRejectedWhileFirstRequestHoldsReservationLock(boolean overlapping) throws Exception {
         Fixture fixture = fixture(false);
         CountDownLatch gatewayEntered = new CountDownLatch(1);
         CountDownLatch finishGateway = new CountDownLatch(1);
@@ -275,17 +283,23 @@ class ReservationCancellationConcurrencyTest {
             });
             try {
                 assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
-                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                assertThatThrownBy(() -> second.get(3, TimeUnit.SECONDS))
+                        .isInstanceOf(ExecutionException.class)
+                        .hasCauseInstanceOf(ReservationCancellationInProgressException.class);
+                assertThat(first.isDone()).isFalse();
             } finally {
                 finishGateway.countDown();
             }
             first.get(15, TimeUnit.SECONDS);
-            if (overlapping) {
-                assertThatThrownBy(() -> second.get(15, TimeUnit.SECONDS))
-                        .isInstanceOf(ExecutionException.class).hasCauseInstanceOf(IllegalArgumentException.class);
-            } else {
-                second.get(15, TimeUnit.SECONDS);
-            }
+        }
+        assertResult(fixture, 30000, 3);
+        verify(gateway, times(1)).refund(any());
+        // 첫 요청 종료 후 재요청하면 최신 티켓 상태를 검증한다.
+        if (overlapping) {
+            assertThatThrownBy(() -> adminCancellation.cancel(fixture.reservationId(), request(fixture.ticketIds().subList(1, 4))))
+                    .isInstanceOf(IllegalArgumentException.class);
+        } else {
+            adminCancellation.cancel(fixture.reservationId(), request(fixture.ticketIds().subList(3, 4)));
         }
         assertResult(fixture, overlapping ? 30000 : 40000, overlapping ? 3 : 4);
         verify(gateway, times(overlapping ? 1 : 2)).refund(any());
@@ -317,13 +331,14 @@ class ReservationCancellationConcurrencyTest {
             });
             try {
                 assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
-                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                assertThatThrownBy(() -> second.get(3, TimeUnit.SECONDS))
+                        .isInstanceOf(ExecutionException.class)
+                        .hasCauseInstanceOf(ReservationCancellationInProgressException.class);
+                assertThat(first.isDone()).isFalse();
             } finally {
                 finishApplying.countDown();
             }
             first.get(15, TimeUnit.SECONDS);
-            assertThatThrownBy(() -> second.get(15, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class).hasCauseInstanceOf(IllegalArgumentException.class);
         }
         assertResult(fixture, 30000, 3);
         assertThat(processes.findById(fixture.processId()).orElseThrow().getStatus())
@@ -376,7 +391,7 @@ class ReservationCancellationConcurrencyTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void processLockIsHeldByOuterTransactionAndSnapshotSurvivesRollback(boolean existing) throws Exception {
+    void reservationLockProtectsProcessAndSnapshotSurvivesRollback(boolean existing) throws Exception {
         Fixture fixture = fixture(existing);
         CountDownLatch localEntered = new CountDownLatch(1);
         CountDownLatch finishLocal = new CountDownLatch(1);
@@ -400,7 +415,8 @@ class ReservationCancellationConcurrencyTest {
                 CountDownLatch readerStarted = new CountDownLatch(1);
                 Future<?> reader = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
                     readerStarted.countDown();
-                    return processes.findByIdForUpdate(processId).orElseThrow().getPaymentRefundProcessId();
+                    reservations.findByIdForUpdate(fixture.reservationId()).orElseThrow();
+                    return processes.findById(processId).orElseThrow().getPaymentRefundProcessId();
                 }));
                 assertThat(readerStarted.await(10, TimeUnit.SECONDS)).isTrue();
                 assertThatThrownBy(() -> reader.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
@@ -483,6 +499,50 @@ class ReservationCancellationConcurrencyTest {
         assertResult(fixture, 40000, 4);
         verify(gateway, times(1)).refund(any());
         verify(refundResolution, times(1)).resolve(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void rollbackAfterCompletionRestoresLocalDataAndRetryDoesNotRefundAgain(boolean admin) {
+        Fixture fixture = fixture(false);
+        CancelReservationRequest request = request(fixture.ticketIds().subList(0, 3));
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            CancelReservationResponse response = admin
+                    ? adminCancellation.cancel(fixture.reservationId(), request)
+                    : userCancellation.cancelMyReservation("owner", fixture.reservationId(), request);
+
+            // 응답을 만들 때에는 티켓·좌석과 성공 이력·완료 상태가 모두 A에 반영되어 있어야 한다.
+            assertResult(fixture, 30000, 3);
+            PaymentRefundProcess process = processes.findById(response.paymentRefundProcessId()).orElseThrow();
+            assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+            assertThat(refundHistories.existsByPaymentRefundProcess(process)).isTrue();
+            assertThat(response.cancelledTicketIds()).containsExactlyElementsOf(request.getSelectedTicketIdList());
+
+            // 완료 상태를 명시적으로 저장했어도 A의 커밋이 실패하면 로컬 변경은 함께 롤백된다.
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void beforeCommit(boolean readOnly) {
+                    throw new IllegalStateException("완료 상태 반영 후 커밋 실패");
+                }
+            });
+        })).isInstanceOf(IllegalStateException.class).hasMessageContaining("커밋 실패");
+
+        assertResult(fixture, 0, 0);
+        PaymentRefundProcess pending = processes.findAll().getFirst();
+        Long processId = pending.getPaymentRefundProcessId();
+        assertThat(pending.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
+        assertThat(refundHistories.existsByPaymentRefundProcess(pending)).isFalse();
+
+        CancelReservationResponse retried = admin
+                ? adminCancellation.cancel(fixture.reservationId(), request)
+                : userCancellation.cancelMyReservation("owner", fixture.reservationId(), request);
+        assertThat(retried.paymentRefundProcessId()).isEqualTo(processId);
+        assertThat(processes.count()).isEqualTo(1);
+        assertThat(processes.findById(processId).orElseThrow().getStatus())
+                .isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertResult(fixture, 30000, 3);
+        verify(gateway, times(1)).refund(any());
     }
 
     private Fixture fixture(boolean gatewaySucceeded) {

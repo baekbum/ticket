@@ -18,6 +18,7 @@ import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueExcept
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistory;
@@ -52,6 +53,7 @@ public class GatewayVirtualAccountService {
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
     private final GatewayRefundJpaRepository refunds;
+    private final GatewayRefundProcessService refundProcesses;
 
     @Transactional(readOnly = true)
     public GatewayVirtualAccountStatusResponse status(String paymentNo) {
@@ -94,15 +96,13 @@ public class GatewayVirtualAccountService {
         if (request.getPaymentRefundProcessId() == null || request.getPaymentRefundProcessId() <= 0) {
             throw new IllegalArgumentException("환불 프로세스 ID가 필요합니다.");
         }
-        GatewayRefund existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
-        if (existing != null) return existing.replay(request);
+        // 원래 가상계좌 행을 잠가 같은 결제에 대한 환불과 결과 확인을 직렬화한다.
+        DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
+        GatewayRefund refund = refundProcesses.prepare(request);
+        if (refund.isSucceeded()) return refund.replay(request);
 
         try {
-            DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                    .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
-
-            existing = refunds.findById(request.getPaymentRefundProcessId()).orElse(null);
-            if (existing != null) return existing.replay(request);
             validateRefund(virtualAccount, request);
             dummyVirtualAccountPaymentHistoryJpaRepository.save(
                     DummyVirtualAccountPaymentHistory.refunded(
@@ -130,9 +130,11 @@ public class GatewayVirtualAccountService {
                     .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
                     .message("무통장 환불 입금이 완료되었습니다.")
                     .build();
-            refunds.saveAndFlush(GatewayRefund.virtualAccount(request, response));
+            // 실제 입금 환불 이력과 성공 상태를 같은 A 트랜잭션에서 확정한다.
+            refund.succeeded(response);
             return response;
         } catch (RuntimeException e) {
+            refund.failed(e.getMessage());
             log.warn(
                     "무통장 환불 실패: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}, reason={}",
                     request.getPaymentNo(),

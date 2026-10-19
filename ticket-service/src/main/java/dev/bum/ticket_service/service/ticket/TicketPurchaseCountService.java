@@ -64,11 +64,13 @@ public class TicketPurchaseCountService {
     private TicketPurchaseLock lock(Event event, String userId) {
         TicketLimitScope scope = event.getTicketLimitScope();
         String key = scope == TicketLimitScope.PER_GROUP ? event.getEventGroupCode() : event.getEventId().toString();
-        return locks.findForUpdate(userId, scope, key).orElseGet(() -> {
-            locks.insertIfAbsent(userId, scope.name(), key, 0);
 
-            return locks.findForUpdate(userId, scope, key)
-                    .orElseThrow(() -> new IllegalStateException("구매 매수 정보를 찾을 수 없습니다."));
-        });
+        return locks.findForUpdate(userId, scope, key)
+                .orElseGet(() -> {
+                    locks.insertIfAbsent(userId, scope.name(), key, 0);
+
+                    return locks.findForUpdate(userId, scope, key)
+                            .orElseThrow(() -> new IllegalStateException("구매 매수 정보를 찾을 수 없습니다."));
+                });
     }
 }

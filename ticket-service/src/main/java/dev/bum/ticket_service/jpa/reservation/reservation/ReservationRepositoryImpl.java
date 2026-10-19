@@ -12,6 +12,7 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
+import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
@@ -32,6 +33,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -123,8 +125,12 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
     @Override
     public Reservation selectByIdForUpdate(long id) {
-        return jpaRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
+        try {
+            return jpaRepository.findByIdForUpdateNowait(id)
+                    .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
+        } catch (PessimisticLockingFailureException e) {
+            throw new ReservationCancellationInProgressException(e);
+        }
     }
 
     /**

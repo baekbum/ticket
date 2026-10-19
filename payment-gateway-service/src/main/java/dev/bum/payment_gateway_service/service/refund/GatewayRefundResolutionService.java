@@ -34,7 +34,13 @@ public class GatewayRefundResolutionService {
         Outcome outcome;
         if (existing != null) {
             existing.validateResolution(request);
-            outcome = existing.isClosed() ? Outcome.CLOSED : Outcome.SUCCEEDED;
+            if (request.closeIfUnexecuted() && !existing.isSucceeded()) existing.close();
+            outcome = switch (existing.getStatus()) {
+                case SUCCEEDED -> Outcome.SUCCEEDED;
+                case CLOSED -> Outcome.CLOSED;
+                case REQUESTED -> Outcome.REQUESTED;
+                case FAILED -> Outcome.FAILED;
+            };
         } else if (request.closeIfUnexecuted()) {
             refunds.saveAndFlush(GatewayRefund.closed(request));
             outcome = Outcome.CLOSED;

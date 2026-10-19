@@ -32,7 +32,7 @@ class PaymentRefundRollbackRecorderTest {
     @BeforeEach
     void setUp() {
         given(reservations.findByIdForUpdate(1L)).willReturn(Optional.of(Reservation.builder().build()));
-        given(processes.findByIdForUpdate(10L)).willReturn(Optional.of(process));
+        given(processes.findById(10L)).willReturn(Optional.of(process));
     }
 
     @Test

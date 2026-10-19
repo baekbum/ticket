@@ -130,13 +130,15 @@ CREATE TABLE virtual_account_outbox_events (
 CREATE INDEX idx_virtual_account_outbox_type_status_id ON virtual_account_outbox_events(event_type, status, outbox_id);
 CREATE INDEX idx_virtual_account_outbox_payment_no ON virtual_account_outbox_events(payment_no);
 
--- 환불 성공 또는 미실행 종료 기록: ticket-service의 환불 프로세스마다 변경하지 않는 기록을 하나씩 저장한다.
+-- 환불 프로세스별 최초 요청을 보존하고 성공·실패·미실행 종료 상태를 기록한다.
 CREATE TABLE gateway_refunds (
     payment_refund_process_id BIGINT PRIMARY KEY,
     payment_no VARCHAR(60) NOT NULL,
     method VARCHAR(30) NOT NULL,
     refund_amount NUMERIC(15, 2) NOT NULL,
-    closed BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(30) NOT NULL DEFAULT 'REQUESTED',
+    failure_reason VARCHAR(1000),
+    version BIGINT NOT NULL DEFAULT 0,
     transaction_id VARCHAR(100),
     refund_bank_company VARCHAR(30),
     refund_account_number VARCHAR(100),
@@ -144,6 +146,8 @@ CREATE TABLE gateway_refunds (
     card_status VARCHAR(40),
     message VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_gateway_refunds_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'FAILED', 'CLOSED')),
     CONSTRAINT chk_gateway_refunds_process_id CHECK (payment_refund_process_id > 0),
     CONSTRAINT chk_gateway_refunds_amount CHECK (refund_amount > 0)
 );
