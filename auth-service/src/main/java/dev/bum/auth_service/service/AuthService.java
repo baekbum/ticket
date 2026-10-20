@@ -44,6 +44,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
     private final TokenStateStore tokenStateStore;
+    private final UserEventIdempotencyService userEventIdempotencyService;
 
     /**
      * 토큰을 발급하는 메서드.
@@ -132,6 +133,14 @@ public class AuthService {
      */
     public void insertUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result == UserEventRegistrationResult.DUPLICATE) {
+            republishCurrentState(event);
+            return;
+        }
+
         log.info("[유저 추가] userId={}", event.getUserId());
 
         boolean created = repository.insert(event);
@@ -149,6 +158,14 @@ public class AuthService {
      */
     public void updateUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result == UserEventRegistrationResult.DUPLICATE) {
+            republishCurrentState(event);
+            return;
+        }
+
         log.info("[유저 수정] userId={}", event.getUserId());
         Auth auth = repository.update(event);
         publishAfterCommit(auth.getUserId(), stateOf(auth));
@@ -290,6 +307,21 @@ public class AuthService {
                     redisKey, userId, e);
             throw new RedisException("Redis Refresh Token 삭제 중 오류가 발생했습니다.");
         }
+    }
+
+    private void republishCurrentState(UserDtoForEvent event) {
+        Auth current;
+
+        try {
+            current = repository.findByUserId(event.getUserId());
+        } catch (UserNotExistException e) {
+            // 이미 삭제된 계정의 과거 CREATE 재전달로 계정을 다시 만들지 않는다.
+            return;
+        }
+
+        if (!event.getId().equals(current.getId())) return;
+        // DB 중복 반영은 생략하지만, 커밋 후 Redis 갱신이 실패했던 경우는 복구한다.
+        publishAfterCommit(current.getUserId(), stateOf(current));
     }
 
     private TokenState stateOf(Auth auth) {

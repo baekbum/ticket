@@ -46,9 +46,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
     @Mock private TokenStateStore tokenStateStore;
+    @Mock private UserEventIdempotencyService userEventIdempotencyService;
 
     @BeforeEach
     void tokenStateDefaults() {
+        Mockito.lenient().when(userEventIdempotencyService.registerAndValidate(ArgumentMatchers.any()))
+                .thenReturn(UserEventRegistrationResult.REGISTERED);
         Mockito.lenient().when(tokenProvider.getTokenType(anyString())).thenReturn("refresh");
         Mockito.lenient().when(tokenProvider.getTokenVersion(anyString())).thenReturn(1L);
         Mockito.lenient().when(authRepository.update(ArgumentMatchers.any()))

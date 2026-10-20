@@ -13,8 +13,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,10 @@ public class UserOutboxService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void enqueue(UserDtoForEvent event) {
+        if (!StringUtils.hasText(event.getIdempotencyKey())) {
+            event.setIdempotencyKey(UUID.randomUUID().toString());
+        }
+
         String payload;
 
         try {

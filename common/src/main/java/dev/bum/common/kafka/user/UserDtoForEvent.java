@@ -14,6 +14,8 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserDtoForEvent {
+    // Outbox 저장 시 한 번 생성하며 재발행·DLT 재처리에서도 같은 키를 사용한다.
+    private String idempotencyKey;
     private TopicEventType eventType; // CREATE, DELETE
     private Long id;
     private String userId;

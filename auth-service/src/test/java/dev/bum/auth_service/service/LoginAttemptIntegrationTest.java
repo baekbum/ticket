@@ -5,7 +5,9 @@ import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserLoginLockedException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.*;
+import dev.bum.auth_service.jpa.event.ProcessedUserEventJpaRepository;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.security.TokenState;
 import dev.bum.common.security.TokenStateStore;
@@ -19,6 +21,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -34,14 +37,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.datasource.url=jdbc:h2:mem:login_attempts;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-@Import({LoginAttemptService.class, AuthService.class, AuthRepositoryImpl.class,
+@Import({LoginAttemptService.class, AuthService.class, AuthRepositoryImpl.class, UserEventIdempotencyService.class,
         LoginAttemptIntegrationTest.PasswordConfiguration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class LoginAttemptIntegrationTest {
@@ -50,6 +55,7 @@ class LoginAttemptIntegrationTest {
     @Autowired private AuthRepository repository;
     @Autowired private AuthJpaRepository auths;
     @Autowired private UserLoginLockJpaRepository locks;
+    @Autowired private ProcessedUserEventJpaRepository receipts;
     @Autowired private PasswordEncoder encoder;
     @Autowired private PlatformTransactionManager transactionManager;
     @MockitoBean private JwtTokenProvider tokenProvider;
@@ -65,6 +71,7 @@ class LoginAttemptIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        receipts.deleteAll();
         locks.deleteAll();
         auths.deleteAll();
         auths.saveAndFlush(Auth.builder().id(1L).userId("user01")
@@ -147,6 +154,7 @@ class LoginAttemptIntegrationTest {
         Mockito.when(tokenStateStore.get("user01"))
                 .thenReturn(TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
         authService.insertUserTopic(UserDtoForEvent.builder().id(2L).userId("user01")
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
                 .password(encoder.encode("new-password")).role("ROLE_USER").build());
         assertThat(auths.findById(2L).orElseThrow().getTokenVersion()).isEqualTo(3L);
         Mockito.clearInvocations(tokenStateStore);
@@ -158,6 +166,7 @@ class LoginAttemptIntegrationTest {
     @Test
     void repeatedCreateKeepsCurrentPasswordAndTokenVersion() {
         var event = UserDtoForEvent.builder().id(1L).userId("user01")
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
                 .password("old-password").role("ROLE_ADMIN").build();
         var before = auths.findById(1L).orElseThrow();
         long version = before.getTokenVersion();
@@ -286,7 +295,8 @@ class LoginAttemptIntegrationTest {
     }
 
     private UserDtoForEvent resetEvent() {
-        return UserDtoForEvent.builder().userId("user01").password(encoder.encode("new-password"))
+        return UserDtoForEvent.builder().id(1L).userId("user01").password(encoder.encode("new-password"))
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.UPDATE)
                 .passwordReset(true).build();
     }
 

@@ -68,7 +68,8 @@ class RefreshTokenRedisIntegrationTest {
         repository = mock(AuthRepository.class);
         auth = Auth.builder().id(1L).userId(user).role(UserRole.ROLE_USER).password("encoded").build();
         given(repository.findByUserId(user)).willReturn(auth);
-        service = new AuthService(repository, mock(LoginAttemptService.class), provider, redis, new RedisTokenStateStore(redis));
+        service = new AuthService(repository, mock(LoginAttemptService.class), provider, redis, new RedisTokenStateStore(redis),
+                mock(UserEventIdempotencyService.class));
     }
 
     @AfterEach

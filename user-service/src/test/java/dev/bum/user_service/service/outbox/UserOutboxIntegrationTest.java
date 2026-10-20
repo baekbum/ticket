@@ -158,6 +158,7 @@ class UserOutboxIntegrationTest {
         ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
         verify(kafka, times(2)).send(eq("user-event"), eq("member"), sent.capture());
         assertThat(sent.getAllValues().get(0)).isEqualTo(sent.getAllValues().get(1));
+        assertThat(sent.getAllValues().getFirst().getIdempotencyKey()).isNotBlank();
         assertThat(outbox.findAll().getFirst().getStatus()).isEqualTo(UserOutboxStatus.PUBLISHED);
     }
 
@@ -253,6 +254,29 @@ class UserOutboxIntegrationTest {
         }
         verify(kafka).send(eq("user-event"), eq("member"), any(UserDtoForEvent.class));
         assertThat(outbox.findById(id).orElseThrow().getAttemptCount()).isEqualTo(1);
+    }
+
+    @Test
+    void newOperationsUseDifferentKeys() {
+        users.insert(signup("member"));
+        users.update("member", UpdateUserRequest.builder().role("ROLE_ADMIN").build());
+        ArgumentCaptor<UserDtoForEvent> fresh = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(2)).send(eq("user-event"), eq("member"), fresh.capture());
+        assertThat(fresh.getAllValues()).extracting(UserDtoForEvent::getIdempotencyKey).doesNotHaveDuplicates().doesNotContainNull();
+    }
+
+    @Test
+    void outboxWithoutKeyIsNotPublished() {
+        UserOutboxEvent invalid = outbox.saveAndFlush(UserOutboxEvent.builder()
+                .userId("member").topic("user-event").nextAttemptAt(LocalDateTime.now().minusSeconds(1))
+                .payload("{\"eventType\":\"UPDATE\",\"id\":1,\"userId\":\"member\",\"role\":\"ROLE_ADMIN\"}")
+                .build());
+        publisher.publish(invalid.getOutboxId());
+        verify(kafka, never()).send(anyString(), anyString(), any(UserDtoForEvent.class));
+        assertThat(outbox.findById(invalid.getOutboxId()).orElseThrow()).satisfies(event -> {
+            assertThat(event.getStatus()).isEqualTo(UserOutboxStatus.PENDING);
+            assertThat(event.getLastError()).isEqualTo("IllegalArgumentException");
+        });
     }
 
     private void failCommit(String message) {
