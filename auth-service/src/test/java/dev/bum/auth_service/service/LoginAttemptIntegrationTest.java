@@ -156,6 +156,25 @@ class LoginAttemptIntegrationTest {
     }
 
     @Test
+    void repeatedCreateKeepsCurrentPasswordAndTokenVersion() {
+        var event = UserDtoForEvent.builder().id(1L).userId("user01")
+                .password("old-password").role("ROLE_ADMIN").build();
+        var before = auths.findById(1L).orElseThrow();
+        long version = before.getTokenVersion();
+        String password = before.getPassword();
+        Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(TokenState.builder().version(version).active(true).role("ROLE_USER").build());
+
+        authService.insertUserTopic(event);
+
+        var after = auths.findById(1L).orElseThrow();
+        assertThat(after.getPassword()).isEqualTo(password);
+        assertThat(after.getTokenVersion()).isEqualTo(version);
+        assertThat(after.getRole()).isEqualTo(before.getRole());
+        Mockito.verify(tokenStateStore).publish(ArgumentMatchers.eq("user01"), ArgumentMatchers.argThat(state -> state.version() == version));
+    }
+
+    @Test
     void deleted_account_revocation_is_retried_after_redis_failure() {
         var event = UserDtoForEvent.builder().id(1L).userId("user01").build();
         Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()

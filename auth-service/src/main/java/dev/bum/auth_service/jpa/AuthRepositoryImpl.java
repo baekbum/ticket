@@ -21,16 +21,15 @@ public class AuthRepositoryImpl implements AuthRepository {
     private final AuthJpaRepository jpaRepository;
     private final UserLoginLockJpaRepository loginLocks;
 
-    private void throwIfUserExists(String userId) {
-        if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
+    @Override
+    public boolean insert(UserDtoForEvent event) {
+        event.setUserId(normalizeUserId(event.getUserId()));
+        Auth existing = jpaRepository.findByUserId(event.getUserId()).orElse(null);
+        if (existing != null) {
+            // 같은 계정의 CREATE 재전달은 현재 비밀번호·권한을 초기 값으로 되돌리지 않는다.
+            if (event.getId() != null && event.getId().equals(existing.getId())) return false;
             throw new UserAlreadyExistException("이미 해당 유저가 존재합니다.");
         }
-    }
-
-    @Override
-    public void insert(UserDtoForEvent event) {
-        event.setUserId(normalizeUserId(event.getUserId()));
-        throwIfUserExists(event.getUserId());
 
         Auth auth = Auth.builder()
                 .id(event.getId())
@@ -41,7 +40,9 @@ public class AuthRepositoryImpl implements AuthRepository {
                 .isBlacklisted(event.getIsBlacklisted())
                 .blacklistedUntil(event.getBlacklistedUntil())
                 .build();
+
         jpaRepository.save(auth);
+        return true;
     }
 
     @Override

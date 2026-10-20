@@ -1,8 +1,8 @@
 package dev.bum.user_service.service.user;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
-import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.kafka.enums.TopicEventType;
+import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.FindPasswordRequest;
 import dev.bum.common.service.user.user.dto.FindPasswordResponse;
@@ -19,18 +19,16 @@ import dev.bum.user_service.exception.UserNotExistException;
 import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
+import dev.bum.user_service.service.outbox.UserOutboxService;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
 import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -55,11 +52,8 @@ public class UserService {
 
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
-    private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    private final UserOutboxService userOutboxService;
     private final Map<String, PasswordResetToken> passwordResetTokens = new ConcurrentHashMap<>();
-
-    @Value("${topic.user.name}")
-    private String userTopic;
 
     /**
      * ID 중복 체크 로직
@@ -92,7 +86,7 @@ public class UserService {
                 .blacklistedUntil(savedUser.getBlacklistedUntil())
                 .build();
 
-        sendTopicToKafka(event);
+        userOutboxService.enqueue(event);
 
         return savedUser.toResponse();
     }
@@ -194,7 +188,7 @@ public class UserService {
                         .build()
         );
 
-        sendTopicToKafka(UserDtoForEvent.builder()
+        userOutboxService.enqueue(UserDtoForEvent.builder()
                 .eventType(TopicEventType.UPDATE)
                 .id(updatedUser.getId())
                 .userId(updatedUser.getUserId())
@@ -249,7 +243,8 @@ public class UserService {
         Map<String, Object> afterData = new LinkedHashMap<>();
         putUserUpdateAuditData(beforeData, afterData, beforeUser, info);
 
-        UserResponse updatedUser = repository.update(userId, info).toResponse();
+        User updatedEntity = repository.update(userId, info);
+        UserResponse updatedUser = updatedEntity.toResponse();
         if (info.getStatus() != null && (originalStatus != updatedUser.getStatus()
                 || !Objects.equals(originalWithdrawAt, updatedUser.getWithdrawAt()))) {
             beforeData.put("status", originalStatus);
@@ -262,6 +257,7 @@ public class UserService {
 
         // 인증에 필요한 정보가 변경됐을 때 AUTH DB에 적용
         if ((StringUtils.hasText(info.getRole()) && !originalRole.name().equals(info.getRole()))
+                || StringUtils.hasText(info.getPassword())
                 || originalStatus != updatedUser.getStatus()
                 || info.getIsBlacklisted() != null
                 || info.getBlacklistedUntil() != null) {
@@ -269,16 +265,14 @@ public class UserService {
                     .eventType(TopicEventType.UPDATE)
                     .id(updatedUser.getId())
                     .userId(updatedUser.getUserId())
+                    .password(StringUtils.hasText(info.getPassword()) ? updatedEntity.getPassword() : null)
                     .role(updatedUser.getRole().name())
                     .status(updatedUser.getStatus().name())
                     .isBlacklisted(updatedUser.getIsBlacklisted())
                     .blacklistedUntil(updatedUser.getBlacklistedUntil())
                     .build();
 
-            CompletableFuture<SendResult<String, UserDtoForEvent>> sent = sendTopicToKafka(event);
-            if (info.getIsBlacklisted() != null || info.getBlacklistedUntil() != null) {
-                sent.join();
-            }
+            userOutboxService.enqueue(event);
         }
 
         return updatedUser;
@@ -297,7 +291,7 @@ public class UserService {
         user.withdraw(LocalDateTime.now());
         AuditContext.setBeforeData(Map.of("status", UserStatus.ACTIVE.name()));
         AuditContext.setAfterData(Map.of("status", UserStatus.WITHDRAWN.name(), "withdrawAt", user.getWithdrawAt().toString()));
-        sendTopicToKafka(UserDtoForEvent.builder()
+        userOutboxService.enqueue(UserDtoForEvent.builder()
                 .eventType(TopicEventType.UPDATE)
                 .id(user.getId())
                 .userId(user.getUserId())
@@ -325,7 +319,13 @@ public class UserService {
                 .password("123456789!")
                 .build();
 
-        repository.update(userId, info);
+        User updatedUser = repository.update(userId, info);
+        userOutboxService.enqueue(UserDtoForEvent.builder()
+                .eventType(TopicEventType.UPDATE)
+                .id(updatedUser.getId())
+                .userId(updatedUser.getUserId())
+                .password(updatedUser.getPassword())
+                .build());
         log.info("[비밀빈호 초기화 완료] userId : {}", userId);
     }
 
@@ -346,7 +346,7 @@ public class UserService {
                 .userId(deletedUser.getUserId())
                 .build();
 
-        sendTopicToKafka(event);
+        userOutboxService.enqueue(event);
 
         return deletedUser.toResponse();
     }
@@ -439,7 +439,7 @@ public class UserService {
         AuditContext.setBeforeData(Map.of("password", "UNCHANGED"));
         AuditContext.setAfterData(Map.of("password", "CHANGED"));
 
-        sendTopicToKafka(UserDtoForEvent.builder()
+        userOutboxService.enqueue(UserDtoForEvent.builder()
                 .eventType(TopicEventType.UPDATE)
                 .id(updatedUser.getId())
                 .userId(updatedUser.getUserId())
@@ -589,21 +589,4 @@ public class UserService {
         }
     }
 
-    /**
-     * 토픽을 카프카 큐에 전달.
-     * @param event
-     */
-    private CompletableFuture<SendResult<String, UserDtoForEvent>> sendTopicToKafka(UserDtoForEvent event) {
-        // 주입받은 userTopic 변수 사용
-        CompletableFuture<SendResult<String, UserDtoForEvent>> sent = kafkaTemplate.send(userTopic, event.getUserId(), event);
-        sent
-                .whenComplete((result, ex) -> {
-                    if (ex == null) {
-                        log.info("Kafka 전송 성공: [topic: {}, userId: {}]", userTopic, event.getUserId());
-                    } else {
-                        log.error("Kafka 전송 실패: [userId: {}] 에러: {}", event.getUserId(), ex.getMessage());
-                    }
-                });
-        return sent;
-    }
 }

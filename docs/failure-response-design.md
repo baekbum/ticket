@@ -298,10 +298,10 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 | Producer | 정책 |
 | --- | --- |
 | 감사 로그 Producer | 본 요청을 실패시키지 않고 경고 로그만 남긴다. |
-| 사용자 이벤트 Producer | DB 커밋 이후 발행하거나 outbox로 전환한다. 현재 직접 발행이면 실패 로그를 운영 알림 대상으로 둔다. |
+| 사용자 이벤트 Producer | 회원 변경과 Outbox를 함께 커밋한 뒤 즉시 발행을 시도한다. 실패·중단된 PENDING 이벤트는 스케줄러가 재발행한다. |
 | 결제 완료 Producer | Consumer 도입 후 DB 커밋 이후 발행한다. 실패 시 outbox 또는 재발행 대상에 남긴다. |
 
-운영 안정성을 높이려면 `user-event`, `payment-completed`는 outbox 패턴으로 전환하는 것이 최종 목표다.
+`user-event`의 저장·발행·재시도와 검증 범위는 [회원 이벤트 Outbox](./user-event-outbox.md)를 따른다. `payment-completed`의 outbox 전환은 별도 작업이다.
 
 ## 운영 알림 기준
 

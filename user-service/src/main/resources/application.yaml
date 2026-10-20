@@ -41,6 +41,14 @@ topic:
     log:
       name: audit-log
 
+app:
+  user-outbox:
+    scheduler-enabled: true
+    fixed-delay-ms: 5000
+    retry-delay-ms: 30000
+    send-timeout-ms: 10000
+    batch-size: 100
+
 management:
   endpoints:
     web:

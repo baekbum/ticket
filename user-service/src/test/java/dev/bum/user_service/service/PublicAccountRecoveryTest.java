@@ -1,12 +1,12 @@
 package dev.bum.user_service.service;
 
-import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.*;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.exception.UserNotExistException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.user.UserService;
+import dev.bum.user_service.service.outbox.UserOutboxService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,10 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -28,7 +25,7 @@ class PublicAccountRecoveryTest {
     @InjectMocks private UserService service;
     @Mock private UserRepository repository;
     @Mock private PasswordEncoder passwordEncoder;
-    @Mock private KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    @Mock private UserOutboxService outboxService;
 
     @ParameterizedTest
     @ValueSource(strings = {"ID_PHONE", "ID_EMAIL", "PASSWORD_PHONE", "PASSWORD_EMAIL"})
@@ -38,7 +35,7 @@ class PublicAccountRecoveryTest {
 
         assertThatThrownBy(() -> recover(route)).isInstanceOf(UserNotExistException.class)
                 .hasMessage("사용자 정보가 일치하지 않습니다.");
-        verifyNoInteractions(passwordEncoder, kafkaTemplate);
+        verifyNoInteractions(passwordEncoder, outboxService);
     }
 
     @ParameterizedTest
@@ -68,7 +65,7 @@ class PublicAccountRecoveryTest {
                 .isInstanceOf(UserNotExistException.class);
 
         verify(repository, never()).update(anyString(), any());
-        verifyNoInteractions(passwordEncoder, kafkaTemplate);
+        verifyNoInteractions(passwordEncoder, outboxService);
     }
 
     @Test
@@ -78,13 +75,12 @@ class PublicAccountRecoveryTest {
         FindPasswordResponse response = (FindPasswordResponse) recover("PASSWORD_EMAIL");
         when(repository.selectById("member01")).thenReturn(user);
         when(repository.update(eq("member01"), any())).thenReturn(user);
-        when(kafkaTemplate.send(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         service.resetPassword(ResetPasswordRequest.builder()
                 .resetToken(response.getResetToken()).password("new-password").build());
 
         verify(repository).update(eq("member01"), argThat(request -> "new-password".equals(request.getPassword())));
-        verify(kafkaTemplate).send(any(), eq("member01"), argThat(event -> Boolean.TRUE.equals(event.getPasswordReset())));
+        verify(outboxService).enqueue(argThat(event -> Boolean.TRUE.equals(event.getPasswordReset())));
     }
 
     @Test

@@ -4,7 +4,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.*;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.audit.AuditContext;
@@ -12,6 +11,7 @@ import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.user.UserService;
+import dev.bum.user_service.service.outbox.UserOutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,11 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -37,7 +33,7 @@ class UserSensitiveLoggingTest {
     @InjectMocks private UserService service;
     @Mock private UserRepository repository;
     @Mock private PasswordEncoder passwordEncoder;
-    @Mock private KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    @Mock private UserOutboxService outboxService;
 
     private Logger logger;
     private Level originalLevel;
@@ -45,7 +41,6 @@ class UserSensitiveLoggingTest {
 
     @BeforeEach
     void captureLogs() {
-        ReflectionTestUtils.setField(service, "userTopic", "user-events");
         logger = (Logger) LoggerFactory.getLogger(UserService.class);
         originalLevel = logger.getLevel();
         logger.setLevel(Level.INFO);
@@ -71,7 +66,6 @@ class UserSensitiveLoggingTest {
             request.setPassword(HASH);
             return user();
         });
-        when(kafkaTemplate.send(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         service.insert(request);
 

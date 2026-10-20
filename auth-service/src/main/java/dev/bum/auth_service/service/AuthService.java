@@ -133,10 +133,13 @@ public class AuthService {
     public void insertUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
         log.info("[유저 추가] userId={}", event.getUserId());
-        repository.insert(event);
+
+        boolean created = repository.insert(event);
         Auth auth = repository.findByUserId(event.getUserId());
+
         TokenState previous = tokenStateStore.get(auth.getUserId());
-        if (previous != null) auth.startAfterPreviousAccount(previous.version());
+
+        if (created && previous != null) auth.startAfterPreviousAccount(previous.version());
         publishAfterCommit(auth.getUserId(), stateOf(auth));
     }
 
