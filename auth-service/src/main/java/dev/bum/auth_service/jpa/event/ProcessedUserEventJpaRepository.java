@@ -13,11 +13,12 @@ public interface ProcessedUserEventJpaRepository extends JpaRepository<Processed
     // 같은 회원·멱등키의 최초 요청끼리 경합해도 UNIQUE 제약으로 직렬화한다. DB 반영 실패 시 이 기록도 롤백된다.
     @Modifying(flushAutomatically = true)
     @Query(value = """
-            insert into processed_user_events (idempotency_key, auth_id, user_id, event_type, request_hash, processed_at)
-            values (:idempotencyKey, :authId, :userId, :eventType, :requestHash, current_timestamp)
+            insert into processed_user_events (idempotency_key, auth_id, event_version, user_id, event_type, request_hash, processed_at)
+            values (:idempotencyKey, :authId, :eventVersion, :userId, :eventType, :requestHash, current_timestamp)
             on conflict do nothing
             """, nativeQuery = true)
     int insertIfAbsent(@Param("idempotencyKey") String idempotencyKey, @Param("authId") Long authId,
+                       @Param("eventVersion") Long eventVersion,
                        @Param("userId") String userId, @Param("eventType") String eventType,
                        @Param("requestHash") String requestHash);
 

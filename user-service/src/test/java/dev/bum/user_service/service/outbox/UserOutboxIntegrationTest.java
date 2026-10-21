@@ -3,13 +3,20 @@ package dev.bum.user_service.service.outbox;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
 import dev.bum.user_service.jpa.outbox.UserOutboxEvent;
 import dev.bum.user_service.jpa.outbox.UserOutboxEventJpaRepository;
 import dev.bum.user_service.jpa.outbox.UserOutboxStatus;
 import dev.bum.user_service.jpa.user.UserJpaRepository;
 import dev.bum.user_service.jpa.user.UserRepositoryImpl;
+import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
+import dev.bum.user_service.jpa.user.UserKafkaEventStateJpaRepository;
+import dev.bum.user_service.service.user.UserKafkaEventStateService;
 import dev.bum.user_service.service.user.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +41,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -50,7 +58,7 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(properties = {"topic.user.name=user-event", "app.user-outbox.retry-delay-ms=0"})
 @ActiveProfiles("test")
-@Import({UserService.class, UserRepositoryImpl.class, UserOutboxService.class,
+@Import({UserService.class, UserRepositoryImpl.class, UserOutboxService.class, UserKafkaEventStateService.class,
         UserOutboxPublisher.class, UserOutboxDispatcher.class, UserOutboxIntegrationTest.JsonConfig.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class UserOutboxIntegrationTest {
@@ -64,8 +72,10 @@ class UserOutboxIntegrationTest {
 
     @Autowired UserService users;
     @Autowired UserJpaRepository userRows;
+    @Autowired UserKafkaEventStateJpaRepository eventStates;
     @MockitoSpyBean UserOutboxEventJpaRepository outbox;
     @MockitoSpyBean UserOutboxPublisher publisher;
+    @MockitoSpyBean UserRepositoryImpl userRepository;
     @Autowired UserOutboxDispatcher dispatcher;
     @Autowired PlatformTransactionManager transactionManager;
     @MockitoBean JPAQueryFactory queryFactory;
@@ -75,6 +85,7 @@ class UserOutboxIntegrationTest {
     @BeforeEach
     void configure() {
         outbox.deleteAll();
+        eventStates.deleteAll();
         userRows.deleteAll();
         when(passwords.encode(any())).thenReturn("encoded-password");
         when(kafka.send(anyString(), anyString(), any(UserDtoForEvent.class)))
@@ -114,6 +125,7 @@ class UserOutboxIntegrationTest {
 
         assertThat(userRows.count()).isZero();
         assertThat(outbox.count()).isZero();
+        assertThat(eventStates.count()).isZero();
         verifyNoInteractions(kafka);
     }
 
@@ -277,6 +289,117 @@ class UserOutboxIntegrationTest {
             assertThat(event.getStatus()).isEqualTo(UserOutboxStatus.PENDING);
             assertThat(event.getLastError()).isEqualTo("IllegalArgumentException");
         });
+    }
+
+    @Test
+    void versionsAndFullSnapshotsSurviveRetryAndDelete() {
+        users.insert(signup("member"));
+        when(passwords.encode("changed-password")).thenReturn("changed-hash");
+        users.update("member", UpdateUserRequest.builder().password("changed-password").build());
+        users.update("member", UpdateUserRequest.builder().role("ROLE_ADMIN").build());
+        users.delete("member");
+        ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(4)).send(eq("user-event"), eq("member"), sent.capture());
+        assertThat(sent.getAllValues()).extracting(UserDtoForEvent::getEventVersion).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(sent.getAllValues().get(2).getPassword()).isEqualTo("changed-hash");
+        assertThat(sent.getAllValues().get(2).getRole()).isEqualTo("ROLE_ADMIN");
+        assertThat(sent.getAllValues().get(3).getEventType()).isEqualTo(TopicEventType.DELETE);
+        assertThat(eventStates.count()).isZero();
+    }
+
+    @Test
+    void rollbackDoesNotAdvanceSourceVersion() {
+        users.insert(signup("member"));
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            users.update("member", UpdateUserRequest.builder().role("ROLE_ADMIN").build());
+            tx.setRollbackOnly();
+        });
+        Long userPk = userRows.findByUserId("member").orElseThrow().getId();
+        assertThat(eventStates.findById(userPk).orElseThrow().getEventVersion()).isEqualTo(1L);
+        users.update("member", UpdateUserRequest.builder().role("ROLE_ADMIN").build());
+        ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(2)).send(eq("user-event"), eq("member"), sent.capture());
+        assertThat(sent.getAllValues()).extracting(UserDtoForEvent::getEventVersion).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void passwordResetVersionIncrementsIndependentlyAndPersistsInLaterSnapshots() {
+        users.insert(signup("member"));
+        var reset = users.findPasswordByPhoneNumber(FindPasswordRequest.builder()
+                .userId("member").name("회원").phoneNumber("01012345678").build());
+        users.resetPassword(ResetPasswordRequest.builder().resetToken(reset.getResetToken()).password("new-password").build());
+        users.update("member", UpdateUserRequest.builder().password("ordinary-change").build());
+        var secondReset = users.findPasswordByPhoneNumber(FindPasswordRequest.builder()
+                .userId("member").name("회원").phoneNumber("01012345678").build());
+        users.resetPassword(ResetPasswordRequest.builder()
+                .resetToken(secondReset.getResetToken()).password("second-password").build());
+        users.update("member", UpdateUserRequest.builder().password("following-change").build());
+        ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(5)).send(eq("user-event"), eq("member"), sent.capture());
+        assertThat(sent.getAllValues()).extracting(UserDtoForEvent::getPasswordResetVersion)
+                .containsExactly(0L, 1L, 1L, 2L, 2L);
+        assertThat(sent.getAllValues()).extracting(UserDtoForEvent::getEventVersion)
+                .containsExactly(1L, 2L, 3L, 4L, 5L);
+        assertThat(sent.getAllValues().get(4).getPasswordReset()).isFalse();
+        Long userPk = userRows.findByUserId("member").orElseThrow().getId();
+        assertThat(eventStates.findById(userPk).orElseThrow().getPasswordResetVersion()).isEqualTo(2L);
+    }
+
+    @Test
+    void concurrentUpdatesUseOrderedVersionsAndLatestFullState() throws Exception {
+        users.insert(signup("member"));
+        when(passwords.encode("changed-password")).thenReturn("changed-hash");
+        CountDownLatch changing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            User result = (User) invocation.callRealMethod();
+            if (changing.getCount() > 0) {
+                changing.countDown();
+                if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("대기 시간 초과");
+            }
+            return result;
+        }).when(userRepository).update(eq("member"), any());
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> users.update("member", UpdateUserRequest.builder().password("changed-password").build()));
+            assertThat(changing.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = pool.submit(() -> users.update("member", UpdateUserRequest.builder().role("ROLE_ADMIN").build()));
+            try {
+                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            first.get(15, TimeUnit.SECONDS);
+            second.get(15, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+        }
+        var member = userRows.findByUserId("member").orElseThrow();
+        dispatcher.retryPendingEvents();
+        assertThat(eventStates.findById(member.getId()).orElseThrow().getEventVersion()).isEqualTo(3L);
+        assertThat(member.getPassword()).isEqualTo("changed-hash");
+        ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(3)).send(eq("user-event"), eq("member"), sent.capture());
+        UserDtoForEvent latest = sent.getAllValues().stream().max(Comparator.comparing(UserDtoForEvent::getEventVersion)).orElseThrow();
+        assertThat(latest.getPassword()).isEqualTo("changed-hash");
+        assertThat(latest.getRole()).isEqualTo("ROLE_ADMIN");
+    }
+
+    @Test
+    void stateSharesUserPrimaryKeyAndIsDeletedAfterFinalEvent() {
+        users.insert(signup("member"));
+        Long userPk = userRows.findByUserId("member").orElseThrow().getId();
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            UserKafkaEventState state = eventStates.findById(userPk).orElseThrow();
+            assertThat(state.getUserPk()).isEqualTo(state.getUser().getId()).isEqualTo(userPk);
+            assertThat(state.getEventVersion()).isEqualTo(1L);
+        });
+        users.delete("member");
+        assertThat(userRows.existsById(userPk)).isFalse();
+        assertThat(eventStates.existsById(userPk)).isFalse();
+        ArgumentCaptor<UserDtoForEvent> sent = ArgumentCaptor.forClass(UserDtoForEvent.class);
+        verify(kafka, times(2)).send(eq("user-event"), eq("member"), sent.capture());
+        assertThat(sent.getAllValues().get(1).getEventType()).isEqualTo(TopicEventType.DELETE);
+        assertThat(sent.getAllValues().get(1).getEventVersion()).isEqualTo(2L);
     }
 
     private void failCommit(String message) {

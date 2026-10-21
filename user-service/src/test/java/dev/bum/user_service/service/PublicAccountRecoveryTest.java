@@ -4,10 +4,13 @@ import dev.bum.common.service.user.user.dto.*;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.exception.UserNotExistException;
 import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
+import dev.bum.user_service.service.user.UserKafkaEventStateService;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.user.UserService;
 import dev.bum.user_service.service.outbox.UserOutboxService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -22,6 +25,17 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PublicAccountRecoveryTest {
+    @Mock private UserKafkaEventStateService userKafkaEventStateService;
+    @BeforeEach
+    void prepareLockedLookup() {
+        lenient().when(userKafkaEventStateService.advance(any(), anyBoolean())).thenAnswer(invocation -> {
+            UserKafkaEventState state = UserKafkaEventState.builder().user(invocation.getArgument(0)).build();
+            state.advance(invocation.getArgument(1));
+            return state;
+        });
+        lenient().when(repository.selectByIdForUpdate(anyString()))
+                .thenAnswer(invocation -> repository.selectById(invocation.getArgument(0)));
+    }
     @InjectMocks private UserService service;
     @Mock private UserRepository repository;
     @Mock private PasswordEncoder passwordEncoder;

@@ -2,6 +2,8 @@ package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.jpa.event.ProcessedUserEvent;
 import dev.bum.auth_service.jpa.event.ProcessedUserEventJpaRepository;
+import dev.bum.auth_service.jpa.event.UserEventVersion;
+import dev.bum.auth_service.jpa.event.UserEventVersionJpaRepository;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +21,17 @@ import java.util.HexFormat;
 @RequiredArgsConstructor
 public class UserEventIdempotencyService {
     private final ProcessedUserEventJpaRepository repository;
+    private final UserEventVersionJpaRepository versionRepository;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public UserEventRegistrationResult registerAndValidate(UserDtoForEvent event) {
         if (event.getId() == null
+                || event.getEventVersion() == null || event.getEventVersion() < 1
+                || (event.getPasswordResetVersion() != null && (event.getPasswordResetVersion() < 0
+                || event.getPasswordResetVersion() > event.getEventVersion()))
                 || !StringUtils.hasText(event.getIdempotencyKey())
                 || event.getIdempotencyKey().length() > 100
-                || (event.getEventType() != TopicEventType.CREATE
-                && event.getEventType() != TopicEventType.UPDATE)) {
+                || event.getEventType() == null) {
 
             throw new IllegalArgumentException("회원 이벤트의 멱등키 또는 대상 정보가 올바르지 않습니다.");
         }
@@ -35,25 +40,42 @@ public class UserEventIdempotencyService {
 
         // 같은 회원·멱등키가 있으면 저장을 생략하고 0을 반환한다.
         int inserted = repository.insertIfAbsent(
-                event.getIdempotencyKey(), event.getId(), event.getUserId(), event.getEventType().name(), requestHash
+                event.getIdempotencyKey(), event.getId(), event.getEventVersion(),
+                event.getUserId(), event.getEventType().name(), requestHash
         );
 
         // 신규·기존 이력을 같은 조건으로 잠금 조회한 뒤 요청 내용이 일치하는지 검증한다.
         ProcessedUserEvent recorded = repository.findByAuthIdAndIdempotencyKeyForUpdate(
                 event.getId(), event.getIdempotencyKey()
-        )
-                .orElseThrow(() -> new IllegalStateException("회원 이벤트 처리 이력을 찾을 수 없습니다."));
+        ).orElseThrow(() -> new IllegalStateException("회원 이벤트 처리 이력을 찾을 수 없습니다."));
 
         if (!recorded.getRequestHash().equals(requestHash)) {
             throw new IllegalArgumentException("같은 회원의 멱등키로 다른 요청 내용을 처리할 수 없습니다.");
         }
 
-        return inserted == 1 ? UserEventRegistrationResult.REGISTERED : UserEventRegistrationResult.DUPLICATE;
+        // 서로 다른 멱등키로 동시에 도착한 이벤트도 회원별 행 잠금 아래 버전을 비교한다.
+        versionRepository.insertIfAbsent(event.getId());
+
+        UserEventVersion version = versionRepository.findByAuthIdForUpdate(event.getId())
+                .orElseThrow(() -> new IllegalStateException("회원 이벤트 버전 정보를 찾을 수 없습니다."));
+
+        // 과거에 건너뛴 DELETE의 재전달이 최신 회원을 삭제하지 않도록 현재 버전·삭제 여부도 확인한다.
+        if (inserted == 0 && event.getEventVersion() == version.getLastEventVersion()
+                && (event.getEventType() == TopicEventType.DELETE) == version.isDeleted()) {
+            return UserEventRegistrationResult.DUPLICATE;
+        }
+
+        if (version.isStale(event.getEventVersion())) return UserEventRegistrationResult.STALE;
+
+        // 실제 회원 반영이 실패하면 이 버전 변경과 처리 이력도 함께 롤백된다.
+        version.advance(event.getEventVersion(), event.getEventType() == TopicEventType.DELETE);
+        return UserEventRegistrationResult.REGISTERED;
     }
 
     private String fingerprint(UserDtoForEvent event) {
         String[] values = {
-                event.getEventType().name(), event.getId().toString(), event.getUserId(), event.getPassword(),
+                event.getEventType().name(), event.getId().toString(), text(event.getEventVersion()),
+                text(event.getPasswordResetVersion()), event.getUserId(), event.getPassword(),
                 text(event.getPasswordReset()), event.getRole(), event.getStatus(),
                 text(event.getIsBlacklisted()), text(event.getBlacklistedUntil())
         };

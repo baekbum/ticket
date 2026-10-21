@@ -9,6 +9,8 @@ import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.user_service.audit.AuditContext;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
+import dev.bum.user_service.service.user.UserKafkaEventStateService;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.user.UserService;
 import dev.bum.user_service.service.outbox.UserOutboxService;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserSensitiveLoggingTest {
+    @Mock private UserKafkaEventStateService userKafkaEventStateService;
     private static final String PASSWORD = "plaintext-password-marker!";
     private static final String HASH = "encoded-password-marker";
     @InjectMocks private UserService service;
@@ -41,6 +44,13 @@ class UserSensitiveLoggingTest {
 
     @BeforeEach
     void captureLogs() {
+        lenient().when(userKafkaEventStateService.advance(any(), anyBoolean())).thenAnswer(invocation -> {
+            UserKafkaEventState state = UserKafkaEventState.builder().user(invocation.getArgument(0)).build();
+            state.advance(invocation.getArgument(1));
+            return state;
+        });
+        lenient().when(repository.selectByIdForUpdate(anyString()))
+                .thenAnswer(invocation -> repository.selectById(invocation.getArgument(0)));
         logger = (Logger) LoggerFactory.getLogger(UserService.class);
         originalLevel = logger.getLevel();
         logger.setLevel(Level.INFO);

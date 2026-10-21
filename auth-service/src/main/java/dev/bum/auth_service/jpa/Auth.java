@@ -48,6 +48,9 @@ public class Auth {
     @Column(name = "token_version", nullable = false)
     private long tokenVersion = 1L;
 
+    @Column(name = "password_reset_version", nullable = false)
+    private long passwordResetVersion = 0L;
+
     @Builder
     private Auth(Long id, String userId, String password, UserRole role,
                  UserStatus status, Boolean isBlacklisted, LocalDate blacklistedUntil) {
@@ -65,6 +68,9 @@ public class Auth {
     }
 
     public void updateInfo(UserDtoForEvent event) {
+        if (event.getPasswordResetVersion() != null) {
+            passwordResetVersion = Math.max(passwordResetVersion, event.getPasswordResetVersion());
+        }
         String previousPassword = password;
         UserRole previousRole = role;
         UserStatus previousStatus = status;

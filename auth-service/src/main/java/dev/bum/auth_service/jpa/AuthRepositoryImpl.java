@@ -41,6 +41,7 @@ public class AuthRepositoryImpl implements AuthRepository {
                 .blacklistedUntil(event.getBlacklistedUntil())
                 .build();
 
+        auth.updateInfo(event);
         jpaRepository.save(auth);
         return true;
     }
@@ -59,9 +60,10 @@ public class AuthRepositoryImpl implements AuthRepository {
         if (event.getId() != null && !event.getId().equals(auth.getId())) {
             throw new UserNotExistException("이전 계정의 수정 이벤트입니다.");
         }
-        boolean passwordReset = Boolean.TRUE.equals(event.getPasswordReset())
-                && StringUtils.hasText(event.getPassword())
-                && !Objects.equals(auth.getPassword(), event.getPassword());
+        boolean passwordReset = StringUtils.hasText(event.getPassword())
+                && (event.getPasswordResetVersion() != null
+                ? event.getPasswordResetVersion() > auth.getPasswordResetVersion()
+                : Boolean.TRUE.equals(event.getPasswordReset()) && !Objects.equals(auth.getPassword(), event.getPassword()));
         auth.updateInfo(event);
         // 같은 재설정 이벤트가 재전달되면 그 이후에 쌓인 실패 횟수를 지우지 않는다.
         if (passwordReset) {

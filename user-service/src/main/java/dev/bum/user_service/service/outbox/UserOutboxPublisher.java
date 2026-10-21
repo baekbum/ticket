@@ -47,8 +47,9 @@ public class UserOutboxPublisher {
         try {
             UserDtoForEvent payload = objectMapper.readValue(event.getPayload(), UserDtoForEvent.class);
 
-            if (!StringUtils.hasText(payload.getIdempotencyKey())) {
-                throw new IllegalArgumentException("회원 이벤트의 멱등키가 없습니다.");
+            if (!StringUtils.hasText(payload.getIdempotencyKey())
+                    || payload.getEventVersion() == null || payload.getEventVersion() < 1) {
+                throw new IllegalArgumentException("회원 이벤트의 멱등키 또는 버전이 올바르지 않습니다.");
             }
 
             // .get()이 없다면 비동기로 발행하고 바로 다른 코드를 진행하지만, .get()을 사용하면 응답이 올 때까지 대기함.

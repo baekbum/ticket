@@ -1,56 +1,67 @@
-# AUTH 회원 이벤트 소비 멱등성
+# AUTH 회원 이벤트 멱등성과 버전 검증
 
-이번 작업은 CREATE·UPDATE 이벤트의 멱등키만 적용한다. 아직 처리하지 않은 오래된 이벤트가 최신 상태를 덮어쓰는 것을 막는 이벤트 버전 검증은 다음 단계다.
+회원 이벤트는 `id`(회원 PK), `idempotencyKey`(작업 식별자), `eventVersion`(회원별 변경 순서)을 함께 전달한다. `eventVersion`은 Redis 세션 폐기에 사용하는 `tokenVersion`과 별개다.
 
-## 이벤트 키와 처리 이력
+## USER 버전 발급과 전체 상태
 
-`UserDtoForEvent.idempotencyKey`는 작업별 멱등키다. `id`는 USER/AUTH 회원 PK로 계속 사용하며 두 값의 역할을 구분한다. USER가 Outbox를 처음 기록할 때 UUID를 생성하고 JSON에 저장한다. Outbox 재발행은 같은 키를 사용하며, 관리자의 DLT 원문 재처리도 원문 바이트를 보내므로 키가 유지된다.
+회원 생성은 버전 1부터 시작한다. 인증 정보 변경·탈퇴·관리자 삭제 이벤트를 만들 때마다 `UserKafkaEventState.eventVersion`을 증가시킨다. `User`에는 이벤트 버전 필드를 두지 않는다. 상태 엔티티는 `@OneToOne + @MapsId`로 회원 PK를 공유하며 USER DB의 `user_kafka_event_states.user_pk`가 PK이자 `users.id`의 FK다. 역방향 연관관계는 두지 않는다. 변경 작업은 회원을 비관적 잠금 조회하고 최신 DB 상태로 갱신한 뒤 진행한다. 회원 변경, 상태 엔티티의 버전 증가, Outbox 저장은 같은 트랜잭션으로 커밋·롤백한다. 회원 생성 시 첫 이벤트와 함께 상태를 생성한다. 삭제 시에는 상태의 마지막 버전을 Outbox에 기록한 뒤 상태와 회원을 삭제한다. 회원 조회나 AUTH와 관계없는 정보 변경은 이벤트 버전을 증가시키지 않는다.
 
-AUTH의 `UserEventIdempotencyService.registerAndValidate()`는 회원 변경 트랜잭션에 MANDATORY로 참여한다. `processed_user_events`는 별도 이력 PK를 사용하며, `(auth_id, idempotency_key)` UNIQUE 제약과 INSERT ON CONFLICT DO NOTHING으로 같은 회원의 최초 처리끼리의 경합을 보호한다. 로그인 ID가 아닌 회원 PK를 기준으로 구분하므로 서로 다른 회원은 같은 멱등키를 독립적으로 사용할 수 있다. 기존 이력도 회원 PK와 멱등키를 함께 조건으로 비관적 잠금 조회한 뒤 요청 지문을 비교한다. 지문은 회원 PK·사용자 ID·이벤트 종류·암호화된 비밀번호·재설정 여부·권한·계정 상태·차단 정보를 포함하는 SHA-256이다. payload나 비밀번호는 처리 이력과 오류 로그에 저장하지 않는다.
+UPDATE도 암호화된 비밀번호·권한·계정 상태·차단 정보 전체를 담는다. 예를 들어 비밀번호 변경 v2가 DLT에 있고 권한 변경 v3가 먼저 반영돼도 v3 스냅샷에 새 비밀번호가 있으므로, v2를 건너뛰어도 해당 변경이 유실되지 않는다.
 
-등록·검증 결과는 `UserEventRegistrationResult`로 반환한다. 신규 등록은 `REGISTERED`, 동일한 요청의 재전달은 `DUPLICATE`다. `AuthService`는 결과를 비교해 중복일 때만 DB 변경을 생략하고 현재 인증 상태를 Redis에 다시 게시한다. 등록·검증 호출과 결과 판단을 분리한다.
+`passwordResetVersion`은 0에서 시작하며 비밀번호 찾기를 통한 재설정마다 기존 값에서 1씩 증가하는 별도 버전이다. 일반 정보 변경 시에는 증가시키지 않고 이후 스냅샷에도 이 값을 유지한다. AUTH는 자신이 반영한 재설정 버전보다 클 때만 로그인 잠금을 해제한다. 따라서 재설정 이벤트를 건너뛰어도 최신 스냅샷으로 잠금 해제를 이어받으며, 그 뒤 새로 발생한 잠금은 같은 재설정 버전으로 해제하지 않는다.
 
-```text
-같은 트랜잭션 A:
-  회원 PK + 멱등키 처리 이력 등록·잠금 → 요청 내용 검증
-    최초: AUTH DB 변경 → 이력과 함께 커밋
-    중복: AUTH DB 변경 생략
-    같은 회원·같은 키·다른 요청: 예외로 거부
-  afterCommit → 현재 인증 상태를 Redis에 게시
-```
+Outbox에 키·버전·전체 payload를 저장한 후 재발행 시 그대로 사용한다. 소비나 재발행 시 새 키·버전을 생성하지 않는다. 키 또는 양수 버전이 없는 이벤트는 거부한다.
 
-첫 요청의 DB 반영이나 커밋이 실패하면 처리 이력도 롤백되어 같은 키로 다시 실행할 수 있다. 같은 회원·같은 키의 동시 요청은 첫 요청의 커밋·롤백을 기다린 뒤 중복을 생략하거나 최초 처리를 재시도한다. 처리 이력에는 회원 외래 키를 두지 않고 계정 삭제 후에도 보존한다. 자동 정리하지 않으며, 정리 시에는 Kafka·DLT에서 재처리할 수 있는 기간 동안의 중복 방어가 사라지지 않도록 보관 정책을 정한다.
+## AUTH 등록·검증과 직렬화
 
-DB 커밋 후 Redis 갱신만 실패하면 처리 이력은 이미 커밋되어 있다. 재전달 때 DB 변경을 반복하지 않고 현재 AUTH DB의 인증 상태를 다시 게시한다. 예전 payload로 비밀번호나 권한을 되돌리지 않는다. 계정이 삭제됐거나 같은 사용자 ID의 회원 PK가 달라졌으면 과거 CREATE·UPDATE를 다시 적용하지 않는다.
+`UserEventIdempotencyService.registerAndValidate()`는 MANDATORY로 회원 변경 트랜잭션에 참여한다.
 
-## 적용 범위
+1. `(auth_id, idempotency_key)` UNIQUE 제약과 INSERT ON CONFLICT DO NOTHING으로 처리 이력을 등록한다.
+2. 처리 이력을 비관적 잠금 조회하고 요청 SHA-256을 비교한다. 해시는 회원 PK·이벤트 버전·재설정 버전·이벤트 종류와 요청 내용을 포함한다. 같은 키로 내용을 바꾸면 거부한다.
+3. `user_event_versions`에 회원별 행을 만들고 비관적 잠금 조회한다. 서로 다른 키의 동시 이벤트도 이 행 아래 직렬화된다.
+4. 현재 버전의 같은 요청이면 `DUPLICATE`, 이미 반영한 버전 이하이거나 삭제된 계정이면 `STALE`, 새 버전이면 `REGISTERED`를 반환한다.
 
-USER에서 생성한 이벤트는 idempotencyKey를 포함한다. CREATE·UPDATE 이벤트의 멱등키가 누락되거나 공백이면 AUTH가 검증 오류로 거부한다. USER도 키 없는 Outbox 이벤트에 대체 키를 붙이지 않고 발행을 중단해 PENDING 상태와 오류 유형을 기록한다. 재발행이나 소비 시 임의 키를 새로 생성하지 않는다.
+회원 반영 실패나 DB 커밋 실패 시 처리 이력과 마지막 버전도 함께 롤백한다. 높은 버전이 먼저 잠금을 획득하면 뒤의 낮은 버전은 건너뛴다. 낮은 버전이 먼저 처리되면 그 뒤 높은 버전을 적용하여 최종 상태는 최신 버전이 된다.
 
-관리자 보정 재처리 시 idempotencyKey를 제거하지 않는다. DB 반영 전 실패한 이벤트는 이력이 롤백되므로 같은 키로 내용을 고쳐 재처리할 수 있다. 같은 회원에서 이미 DB 반영이 완료된 키로 요청 내용을 바꾸면 거부하며, 의도적으로 다른 변경을 수행하는 경우에는 새 작업으로 새 키를 사용한다. DELETE는 기존 재전달 방어를 유지하고 이번 멱등키 이력 대상에서는 제외한다.
+과거 이벤트 자체는 처리 오류가 아니므로 정상적으로 소비를 끝낸다. 따라서 오래된 DLT 이벤트를 재처리해도 최신 상태를 덮어쓰거나 같은 이벤트가 반복해서 DLT로 이동하지 않는다. 별도의 Redis 장애가 발생하면 인증 상태 게시를 위해 기존 소비자 재시도 경로를 사용한다.
+
+## 삭제와 Redis 복구
+
+CREATE·UPDATE·관리자 DELETE 모두 처리 이력과 버전 검증을 적용한다. 일반 회원 탈퇴는 UPDATE/WITHDRAWN이다. DELETE가 완료돼도 회원별 버전 행과 삭제 여부를 남겨 과거 CREATE가 계정을 되살리지 못하게 한다. 처리 이력·버전 행에는 회원 외래 키를 두지 않는다.
+
+중복·과거 CREATE/UPDATE는 DB 변경을 생략하고 현재 AUTH DB 상태를 Redis에 게시한다. 회원 PK가 다르거나 이미 삭제된 계정이면 게시하지 않는다. 중복 DELETE는 DB 삭제 뒤 실패했던 Redis 폐기를 다시 진행하지만, 과거 DELETE는 현재 계정을 삭제하지 않는다.
+
+AUTH DB 커밋과 Redis 게시는 별개다. DB 커밋 뒤 Redis 게시가 실패하면 Kafka 재시도가 DB 변경을 반복하지 않고 현재 인증 상태를 복구한다.
 
 ## DB 적용
 
-AUTH의 개발·운영 설정은 `ddl-auto: validate`이므로 배포 전에 새 테이블이 필요하다. 기존 DB에는 아래 CREATE 구문만 적용하며, 초기화용 `auth-service/src/main/resources/sql/schema.sql` 전체를 실행하지 않는다. 이 작업에서 실제 DB DDL은 실행하지 않았다.
+실제 DB DDL은 실행하지 않는다. 초기화용 `auth-service/src/main/resources/sql/schema.sql`, `user-service/src/main/resources/sql/schema.sql`에 새 구조를 반영했다. 기존 DB에 초기화 SQL 전체를 실행하면 데이터가 삭제되므로 스키마 변경만 적용해야 한다.
 
-이전에 멱등키 단독 PK 구조로 이 테이블을 생성했다면, 새 이력 PK와 `(auth_id, idempotency_key)` UNIQUE 제약을 사용하는 구조로 먼저 변경해야 한다. 아래 CREATE 구문은 테이블이 없는 경우에 사용한다.
+필요한 구조는 다음과 같다.
+
+- USER 신규 `user_kafka_event_states`: 회원 PK를 공유하는 1:1 상태 테이블. `users`에 버전 컬럼을 추가하지 않는다.
+- AUTH `auth`: `password_reset_version BIGINT NOT NULL DEFAULT 0`
+- AUTH `processed_user_events`: `event_version BIGINT NOT NULL`, 이벤트 종류에 DELETE 허용
+- AUTH 신규 테이블:
 
 ```sql
-CREATE TABLE processed_user_events (
-    processed_user_event_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    idempotency_key VARCHAR(100) NOT NULL,
-    auth_id BIGINT NOT NULL,
-    user_id VARCHAR(50) NOT NULL,
-    event_type VARCHAR(20) NOT NULL CHECK (event_type IN ('CREATE', 'UPDATE')),
-    request_hash VARCHAR(64) NOT NULL,
-    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_processed_user_events_auth_key UNIQUE (auth_id, idempotency_key)
+CREATE TABLE user_event_versions (
+    auth_id BIGINT PRIMARY KEY,
+    last_event_version BIGINT NOT NULL DEFAULT 0 CHECK (last_event_version >= 0),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
-CREATE INDEX idx_processed_user_events_user ON processed_user_events(user_id);
 ```
 
-멱등키는 같은 작업의 재전달만 구분하며, 다른 키를 가진 오래된 이벤트의 순서 문제는 아직 해결하지 않는다.
+```sql
+CREATE TABLE user_kafka_event_states (
+    user_pk BIGINT PRIMARY KEY REFERENCES users(id),
+    event_version BIGINT NOT NULL DEFAULT 0 CHECK (event_version >= 0),
+    password_reset_version BIGINT NOT NULL DEFAULT 0 CHECK (password_reset_version >= 0),
+    CONSTRAINT chk_user_kafka_reset_version CHECK (password_reset_version <= event_version)
+);
+```
+AUTH의 `ddl-auto: validate` 설정에서는 배포 전에 스키마 변경이 필요하다. USER와 AUTH가 같은 이벤트 계약을 사용해야 한다. 이미 발행된 버전 없는 이벤트나 기존 처리 이력의 버전은 자동으로 추측하지 않는다. 재처리할 때 키·버전·내용을 보존하며, 보정 작업은 USER에서 새 버전의 이벤트로 생성한다. 회원 PK와 원본 버전·Outbox 시퀀스를 임의로 초기화하면 기존 순서 보장이 깨지므로 DB 재구축 범위를 함께 관리한다.
 
 ## 검증
 
-`UserEventIdempotencyIntegrationTest`는 H2에서 CREATE·UPDATE 중복, 서로 다른 회원의 동일 키 사용과 독립적 재시도, 같은 회원·같은 키 요청 불일치, 키 누락·공백 거부, 동시 처리와 첫 요청 롤백, DB 반영·커밋 실패 후 재시도, Redis 실패 후 DB 중복 반영 없이 복구, 삭제 계정의 과거 CREATE 재전달을 검증한다. `UserOutboxIntegrationTest`는 새 작업별 키 생성, Outbox 재발행의 키 보존, 키 없는 Outbox의 발행 차단을 검증한다. 실제 PostgreSQL·Kafka 환경 장애 검증은 별도다.
+H2 PostgreSQL 모드에서 중복과 요청 불일치, 미처리 과거 DLT 이벤트, 동일 버전의 다른 키, 삭제 뒤 CREATE와 과거 DELETE 재전달, 비밀번호 재설정 누락 복구, 서로 다른 키의 동시 처리, DB 실패·롤백, Redis 실패 복구를 검증한다. USER는 회원과 상태의 PK 공유, 버전 증가·전체 스냅샷·동시 변경·롤백·재발행 보존, 삭제 이벤트 기록 후 상태 정리를 검증한다. 실제 Redis 테스트는 환경변수를 활성화해 별도로 실행한다. 실제 PostgreSQL·Kafka 장애를 결합한 종단 검증은 별도다.

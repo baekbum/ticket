@@ -17,11 +17,14 @@ import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
+import dev.bum.user_service.service.user.UserKafkaEventStateService;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.user.UserService;
 import dev.bum.user_service.service.outbox.UserOutboxService;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,6 +50,18 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+    @Mock private UserKafkaEventStateService userKafkaEventStateService;
+
+    @BeforeEach
+    void prepareLockedLookup() {
+        lenient().when(userKafkaEventStateService.advance(any(), anyBoolean())).thenAnswer(invocation -> {
+            UserKafkaEventState state = UserKafkaEventState.builder().user(invocation.getArgument(0)).build();
+            state.advance(invocation.getArgument(1));
+            return state;
+        });
+        lenient().when(userRepository.selectByIdForUpdate(anyString()))
+                .thenAnswer(invocation -> userRepository.selectById(invocation.getArgument(0)));
+    }
 
     @Test
     void password_change_failures_do_not_lock_a_logged_in_user() {
@@ -443,6 +458,7 @@ class UserServiceTest {
                 .build();
 
         given(userRepository.delete(any())).willReturn(result);
+        given(userRepository.selectById(userId)).willReturn(result);
 
         UserResponse response = userService.delete(userId);
 
@@ -671,6 +687,8 @@ class UserServiceTest {
 
         given(userRepository.delete("user01")).willReturn(user01);
         given(userRepository.delete("user02")).willReturn(user02);
+        given(userRepository.selectById("user01")).willReturn(user01);
+        given(userRepository.selectById("user02")).willReturn(user02);
 
         userService.deleteBulk(info);
 

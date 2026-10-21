@@ -36,6 +36,9 @@ public class ProcessedUserEvent {
     @Column(name = "auth_id", nullable = false)
     private Long authId;
 
+    @Column(name = "event_version", nullable = false)
+    private long eventVersion;
+
     @Column(name = "user_id", nullable = false, length = 50)
     private String userId;
 

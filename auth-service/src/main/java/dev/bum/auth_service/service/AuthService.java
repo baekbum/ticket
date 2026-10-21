@@ -136,7 +136,8 @@ public class AuthService {
 
         UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
 
-        if (result == UserEventRegistrationResult.DUPLICATE) {
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
             republishCurrentState(event);
             return;
         }
@@ -161,7 +162,8 @@ public class AuthService {
 
         UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
 
-        if (result == UserEventRegistrationResult.DUPLICATE) {
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
             republishCurrentState(event);
             return;
         }
@@ -177,6 +179,12 @@ public class AuthService {
      */
     public void deleteUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+        if (result == UserEventRegistrationResult.STALE) {
+            republishCurrentState(event);
+            return;
+        }
+        // DELETE 중복도 아래로 진행하여 DB 삭제 후 실패했던 Redis 폐기를 재시도한다.
         log.info("[유저 삭제] userId={}", event.getUserId());
         try {
             Auth auth = repository.findByUserId(event.getUserId());

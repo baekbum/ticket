@@ -6,7 +6,9 @@ import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.jpa.AuthJpaRepository;
 import dev.bum.auth_service.jpa.AuthRepositoryImpl;
 import dev.bum.auth_service.jpa.UserLoginLockJpaRepository;
+import dev.bum.auth_service.jpa.UserLoginLock;
 import dev.bum.auth_service.jpa.event.ProcessedUserEventJpaRepository;
+import dev.bum.auth_service.jpa.event.UserEventVersionJpaRepository;
 import dev.bum.auth_service.kafka.UserEventConsumer;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.enums.TopicEventType;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -56,6 +59,7 @@ class UserEventIdempotencyIntegrationTest {
     @Autowired AuthService service;
     @Autowired AuthJpaRepository accounts;
     @Autowired ProcessedUserEventJpaRepository receipts;
+    @Autowired UserEventVersionJpaRepository eventVersions;
     @Autowired UserLoginLockJpaRepository loginLocks;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean AuthRepositoryImpl repository;
@@ -63,10 +67,13 @@ class UserEventIdempotencyIntegrationTest {
     @MockitoBean JwtTokenProvider tokens;
     @MockitoBean StringRedisTemplate redis;
     @MockitoBean TokenStateStore states;
+    private long nextEventVersion;
 
     @BeforeEach
     void configure() {
         receipts.deleteAll();
+        eventVersions.deleteAll();
+        nextEventVersion = 0L;
         loginLocks.deleteAll();
         accounts.deleteAll();
         accounts.saveAndFlush(Auth.builder().id(1L).userId("member")
@@ -105,7 +112,7 @@ class UserEventIdempotencyIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"password", "role", "userId", "eventType"})
+    @ValueSource(strings = {"password", "role", "userId", "eventType", "eventVersion"})
     void sameKeyWithDifferentRequestIsRejected(String changedField) {
         UserDtoForEvent event = event("same-key", TopicEventType.UPDATE, "ROLE_ADMIN");
         consumer.consume(event);
@@ -114,6 +121,7 @@ class UserEventIdempotencyIntegrationTest {
             case "role" -> event.setRole("ROLE_USER");
             case "userId" -> event.setUserId("other");
             case "eventType" -> event.setEventType(TopicEventType.CREATE);
+            case "eventVersion" -> event.setEventVersion(event.getEventVersion() + 1);
         }
 
         assertThatThrownBy(() -> consumer.consume(event))
@@ -165,6 +173,7 @@ class UserEventIdempotencyIntegrationTest {
         event.setUserId("missing");
         assertThatThrownBy(() -> consumer.consume(event)).isInstanceOf(UserNotExistException.class);
         assertThat(receipts.count()).isZero();
+        assertThat(eventVersions.count()).isZero();
 
         accounts.saveAndFlush(Auth.builder().id(2L).userId("missing")
                 .password("hash-before").role(UserRole.ROLE_USER).build());
@@ -186,6 +195,7 @@ class UserEventIdempotencyIntegrationTest {
             });
         })).isInstanceOf(IllegalStateException.class).hasMessage("커밋 실패");
         assertThat(receipts.count()).isZero();
+        assertThat(eventVersions.count()).isZero();
         assertThat(account().getRole()).isEqualTo(UserRole.ROLE_USER);
         verifyNoInteractions(states);
 
@@ -257,7 +267,7 @@ class UserEventIdempotencyIntegrationTest {
         service.deleteUserTopic(event("delete", TopicEventType.DELETE, null));
         consumer.consume(created);
         assertThat(accounts.findById(1L)).isEmpty();
-        assertThat(receipts.count()).isEqualTo(1);
+        assertThat(receipts.count()).isEqualTo(2);
         verify(repository, times(1)).insert(any());
     }
 
@@ -274,12 +284,137 @@ class UserEventIdempotencyIntegrationTest {
         verifyNoInteractions(states);
     }
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(longs = {0L, -1L})
+    void missingOrInvalidVersionIsRejected(Long version) {
+        UserDtoForEvent event = event("invalid-version", TopicEventType.UPDATE, "ROLE_ADMIN");
+        event.setEventVersion(version);
+        assertThatThrownBy(() -> consumer.consume(event)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(receipts.count()).isZero();
+        assertThat(eventVersions.count()).isZero();
+        verify(repository, never()).update(any());
+    }
+
+    @Test
+    void unprocessedOldDltEventCannotOverwriteNewerState() {
+        UserDtoForEvent older = event("old-dlt", TopicEventType.UPDATE, "ROLE_USER");
+        UserDtoForEvent newer = event("newer", TopicEventType.UPDATE, "ROLE_ADMIN");
+        newer.setPassword("latest-password");
+        consumer.consume(newer);
+        long tokenVersion = account().getTokenVersion();
+
+        consumer.consume(older);
+        consumer.consume(older);
+
+        assertThat(account().getRole()).isEqualTo(UserRole.ROLE_ADMIN);
+        assertThat(account().getPassword()).isEqualTo("latest-password");
+        assertThat(account().getTokenVersion()).isEqualTo(tokenVersion);
+        assertThat(eventVersions.findById(1L).orElseThrow().getLastEventVersion()).isEqualTo(newer.getEventVersion());
+        assertThat(receipts.count()).isEqualTo(2);
+        verify(repository, times(1)).update(any());
+    }
+
+    @Test
+    void differentKeyWithSameVersionIsSkipped() {
+        UserDtoForEvent first = event("first-version", TopicEventType.UPDATE, "ROLE_ADMIN");
+        consumer.consume(first);
+        UserDtoForEvent collision = event("same-version", TopicEventType.UPDATE, "ROLE_USER");
+        collision.setEventVersion(first.getEventVersion());
+        consumer.consume(collision);
+        assertThat(account().getRole()).isEqualTo(UserRole.ROLE_ADMIN);
+        verify(repository, times(1)).update(any());
+    }
+
+    @Test
+    void deleteKeepsVersionAndBlocksUnseenOldCreate() {
+        UserDtoForEvent oldCreate = event("unseen-create", TopicEventType.CREATE, "ROLE_USER");
+        consumer.consume(event("delete-newer", TopicEventType.DELETE, null));
+        consumer.consume(oldCreate);
+        assertThat(accounts.findById(1L)).isEmpty();
+        assertThat(eventVersions.findById(1L).orElseThrow().isDeleted()).isTrue();
+        verify(repository, never()).insert(any());
+    }
+
+    @Test
+    void staleDeleteCannotDeleteNewerAccountState() {
+        UserDtoForEvent oldDelete = event("old-delete", TopicEventType.DELETE, null);
+        consumer.consume(event("current-update", TopicEventType.UPDATE, "ROLE_ADMIN"));
+        consumer.consume(oldDelete);
+        assertThat(account().getRole()).isEqualTo(UserRole.ROLE_ADMIN);
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void latestSnapshotCarriesMissedPasswordResetWithoutUnlockingLaterLocksAgain() {
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            var lock = UserLoginLock.builder().authId(1L).build();
+            for (int attempt = 0; attempt < 5; attempt++) lock.recordFailure();
+            loginLocks.save(lock);
+        });
+        UserDtoForEvent latest = event("after-reset", TopicEventType.UPDATE, "ROLE_ADMIN");
+        latest.setEventVersion(2L);
+        latest.setPassword("reset-password");
+        latest.setPasswordReset(false);
+        latest.setPasswordResetVersion(1L);
+        consumer.consume(latest);
+        assertThat(loginLocks.findAll().getFirst().isLocked()).isFalse();
+
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            var lock = loginLocks.findByAuthId(1L).orElseThrow();
+            for (int attempt = 0; attempt < 5; attempt++) lock.recordFailure();
+        });
+        UserDtoForEvent following = event("after-new-lock", TopicEventType.UPDATE, "ROLE_USER");
+        following.setEventVersion(3L);
+        following.setPassword("reset-password");
+        following.setPasswordResetVersion(1L);
+        consumer.consume(following);
+        assertThat(loginLocks.findAll().getFirst().isLocked()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void differentKeysAreSerializedByAccountVersion(boolean newerFirst) throws Exception {
+        UserDtoForEvent older = event("concurrent-old", TopicEventType.UPDATE, "ROLE_USER");
+        UserDtoForEvent newer = event("concurrent-new", TopicEventType.UPDATE, "ROLE_ADMIN");
+        CountDownLatch updating = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            if (calls.incrementAndGet() == 1) {
+                updating.countDown();
+                if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("대기 시간 초과");
+            }
+            return result;
+        }).when(repository).update(any());
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> consumer.consume(newerFirst ? newer : older));
+            assertThat(updating.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = pool.submit(() -> consumer.consume(newerFirst ? older : newer));
+            try {
+                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            first.get(15, TimeUnit.SECONDS);
+            second.get(15, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+        }
+        assertThat(account().getRole()).isEqualTo(UserRole.ROLE_ADMIN);
+        assertThat(eventVersions.findById(1L).orElseThrow().getLastEventVersion()).isEqualTo(newer.getEventVersion());
+        assertThat(receipts.count()).isEqualTo(2);
+    }
+
     private Auth account() {
         return accounts.findById(1L).orElseThrow();
     }
 
     private UserDtoForEvent event(String key, TopicEventType type, String role) {
-        return UserDtoForEvent.builder().idempotencyKey(key).eventType(type).id(1L).userId("member")
+        return UserDtoForEvent.builder().idempotencyKey(key).eventVersion(++nextEventVersion)
+                .passwordResetVersion(0L).eventType(type).id(1L).userId("member")
                 .password("hash-before").role(role).build();
     }
 }

@@ -6,6 +6,7 @@ import dev.bum.auth_service.exception.UserLoginLockedException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.*;
 import dev.bum.auth_service.jpa.event.ProcessedUserEventJpaRepository;
+import dev.bum.auth_service.jpa.event.UserEventVersionJpaRepository;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
@@ -56,6 +57,7 @@ class LoginAttemptIntegrationTest {
     @Autowired private AuthJpaRepository auths;
     @Autowired private UserLoginLockJpaRepository locks;
     @Autowired private ProcessedUserEventJpaRepository receipts;
+    @Autowired private UserEventVersionJpaRepository eventVersions;
     @Autowired private PasswordEncoder encoder;
     @Autowired private PlatformTransactionManager transactionManager;
     @MockitoBean private JwtTokenProvider tokenProvider;
@@ -72,6 +74,7 @@ class LoginAttemptIntegrationTest {
     @BeforeEach
     void setUp() {
         receipts.deleteAll();
+        eventVersions.deleteAll();
         locks.deleteAll();
         auths.deleteAll();
         auths.saveAndFlush(Auth.builder().id(1L).userId("user01")
@@ -149,12 +152,14 @@ class LoginAttemptIntegrationTest {
 
     @Test
     void recreated_account_uses_higher_version_and_ignores_old_delete_event() {
-        var deleted = UserDtoForEvent.builder().id(1L).userId("user01").build();
+        var deleted = UserDtoForEvent.builder().id(1L).userId("user01").eventType(TopicEventType.DELETE)
+                .idempotencyKey(UUID.randomUUID().toString()).eventVersion(1L).build();
         authService.deleteUserTopic(deleted);
         Mockito.when(tokenStateStore.get("user01"))
                 .thenReturn(TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
         authService.insertUserTopic(UserDtoForEvent.builder().id(2L).userId("user01")
                 .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
+                .eventVersion(1L)
                 .password(encoder.encode("new-password")).role("ROLE_USER").build());
         assertThat(auths.findById(2L).orElseThrow().getTokenVersion()).isEqualTo(3L);
         Mockito.clearInvocations(tokenStateStore);
@@ -167,6 +172,7 @@ class LoginAttemptIntegrationTest {
     void repeatedCreateKeepsCurrentPasswordAndTokenVersion() {
         var event = UserDtoForEvent.builder().id(1L).userId("user01")
                 .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
+                .eventVersion(1L)
                 .password("old-password").role("ROLE_ADMIN").build();
         var before = auths.findById(1L).orElseThrow();
         long version = before.getTokenVersion();
@@ -185,7 +191,8 @@ class LoginAttemptIntegrationTest {
 
     @Test
     void deleted_account_revocation_is_retried_after_redis_failure() {
-        var event = UserDtoForEvent.builder().id(1L).userId("user01").build();
+        var event = UserDtoForEvent.builder().id(1L).userId("user01").eventType(TopicEventType.DELETE)
+                .idempotencyKey(UUID.randomUUID().toString()).eventVersion(1L).build();
         Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
                 .when(tokenStateStore).publish(ArgumentMatchers.eq("user01"), ArgumentMatchers.any());
         assertThatThrownBy(() -> authService.deleteUserTopic(event))
@@ -240,6 +247,7 @@ class LoginAttemptIntegrationTest {
         lockAccount();
         UserDtoForEvent event = resetEvent();
         event.setPasswordReset(null);
+        event.setPasswordResetVersion(0L);
         update(event);
         assertThat(lock().isLocked()).isTrue();
         assertThatThrownBy(() -> attempts.validatePassword(1L, "new-password"))
@@ -297,6 +305,7 @@ class LoginAttemptIntegrationTest {
     private UserDtoForEvent resetEvent() {
         return UserDtoForEvent.builder().id(1L).userId("user01").password(encoder.encode("new-password"))
                 .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.UPDATE)
+                .eventVersion(1L).passwordResetVersion(1L)
                 .passwordReset(true).build();
     }
 

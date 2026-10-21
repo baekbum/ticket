@@ -18,6 +18,7 @@ import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.UserNotExistException;
 import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
 import dev.bum.user_service.jpa.user.UserRepository;
 import dev.bum.user_service.service.outbox.UserOutboxService;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
@@ -53,6 +54,7 @@ public class UserService {
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final UserOutboxService userOutboxService;
+    private final UserKafkaEventStateService userKafkaEventStateService;
     private final Map<String, PasswordResetToken> passwordResetTokens = new ConcurrentHashMap<>();
 
     /**
@@ -75,18 +77,7 @@ public class UserService {
         log.info("[INSERT] userId={}", info.getUserId());
         User savedUser = repository.insert(info);
 
-        UserDtoForEvent event = UserDtoForEvent.builder()
-                .eventType(TopicEventType.CREATE)
-                .id(savedUser.getId())
-                .userId(savedUser.getUserId())
-                .password(savedUser.getPassword())
-                .role(savedUser.getRole().name())
-                .status(savedUser.getStatus().name())
-                .isBlacklisted(savedUser.getIsBlacklisted())
-                .blacklistedUntil(savedUser.getBlacklistedUntil())
-                .build();
-
-        userOutboxService.enqueue(event);
+        enqueueUserEvent(savedUser, TopicEventType.CREATE, false);
 
         return savedUser.toResponse();
     }
@@ -179,7 +170,7 @@ public class UserService {
         if (resetToken == null || resetToken.isExpired()) {
             throw new UserNotExistException("비밀번호 재설정 요청이 만료되었습니다.");
         }
-        validateTicksyUser(repository.selectById(resetToken.userId()));
+        validateTicksyUser(repository.selectByIdForUpdate(resetToken.userId()));
 
         User updatedUser = repository.update(
                 resetToken.userId(),
@@ -188,14 +179,7 @@ public class UserService {
                         .build()
         );
 
-        userOutboxService.enqueue(UserDtoForEvent.builder()
-                .eventType(TopicEventType.UPDATE)
-                .id(updatedUser.getId())
-                .userId(updatedUser.getUserId())
-                .password(updatedUser.getPassword())
-                .passwordReset(true)
-                .role(updatedUser.getRole().name())
-                .build());
+        enqueueUserEvent(updatedUser, TopicEventType.UPDATE, true);
     }
 
     /**
@@ -229,7 +213,7 @@ public class UserService {
     public UserResponse update(String userId, UpdateUserRequest info) {
         log.info("[UPDATE] userId={}", userId);
 
-        User beforeUser = repository.selectById(userId);
+        User beforeUser = repository.selectByIdForUpdate(userId);
         if (beforeUser.getStatus() != UserStatus.ACTIVE && info.getStatus() == null) {
             throw new IllegalArgumentException("탈퇴한 계정은 수정할 수 없습니다.");
         }
@@ -261,18 +245,7 @@ public class UserService {
                 || originalStatus != updatedUser.getStatus()
                 || info.getIsBlacklisted() != null
                 || info.getBlacklistedUntil() != null) {
-            UserDtoForEvent event = UserDtoForEvent.builder()
-                    .eventType(TopicEventType.UPDATE)
-                    .id(updatedUser.getId())
-                    .userId(updatedUser.getUserId())
-                    .password(StringUtils.hasText(info.getPassword()) ? updatedEntity.getPassword() : null)
-                    .role(updatedUser.getRole().name())
-                    .status(updatedUser.getStatus().name())
-                    .isBlacklisted(updatedUser.getIsBlacklisted())
-                    .blacklistedUntil(updatedUser.getBlacklistedUntil())
-                    .build();
-
-            userOutboxService.enqueue(event);
+            enqueueUserEvent(updatedEntity, TopicEventType.UPDATE, false);
         }
 
         return updatedUser;
@@ -280,7 +253,7 @@ public class UserService {
 
     @AuditLog(action = "USER_WITHDRAW", targetType = "USER")
     public UserResponse withdraw(String userId, String password) {
-        User user = repository.selectById(userId);
+        User user = repository.selectByIdForUpdate(userId);
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new IllegalArgumentException("이미 탈퇴한 계정입니다.");
         }
@@ -291,12 +264,7 @@ public class UserService {
         user.withdraw(LocalDateTime.now());
         AuditContext.setBeforeData(Map.of("status", UserStatus.ACTIVE.name()));
         AuditContext.setAfterData(Map.of("status", UserStatus.WITHDRAWN.name(), "withdrawAt", user.getWithdrawAt().toString()));
-        userOutboxService.enqueue(UserDtoForEvent.builder()
-                .eventType(TopicEventType.UPDATE)
-                .id(user.getId())
-                .userId(user.getUserId())
-                .status(UserStatus.WITHDRAWN.name())
-                .build());
+        enqueueUserEvent(user, TopicEventType.UPDATE, false);
         return user.toResponse();
     }
 
@@ -320,12 +288,7 @@ public class UserService {
                 .build();
 
         User updatedUser = repository.update(userId, info);
-        userOutboxService.enqueue(UserDtoForEvent.builder()
-                .eventType(TopicEventType.UPDATE)
-                .id(updatedUser.getId())
-                .userId(updatedUser.getUserId())
-                .password(updatedUser.getPassword())
-                .build());
+        enqueueUserEvent(updatedUser, TopicEventType.UPDATE, false);
         log.info("[비밀빈호 초기화 완료] userId : {}", userId);
     }
 
@@ -338,15 +301,10 @@ public class UserService {
     public UserResponse delete(String userId) {
         log.info("[DELETE] userId : {}", userId);
 
+        User user = repository.selectByIdForUpdate(userId);
+        // 상태를 삭제하기 전에 마지막 버전을 발급하고 삭제 이벤트를 Outbox에 저장한다.
+        enqueueUserEvent(user, TopicEventType.DELETE, false);
         User deletedUser = repository.delete(userId);
-
-        UserDtoForEvent event = UserDtoForEvent.builder()
-                .eventType(TopicEventType.DELETE)
-                .id(deletedUser.getId())
-                .userId(deletedUser.getUserId())
-                .build();
-
-        userOutboxService.enqueue(event);
 
         return deletedUser.toResponse();
     }
@@ -418,7 +376,7 @@ public class UserService {
 
     @AuditLog(action = "USER_PASSWORD_CHANGE", targetType = "USER")
     public void changeMyPassword(String userId, String currentPassword, String newPassword, String newPasswordConfirm) {
-        User user = repository.selectById(userId);
+        User user = repository.selectByIdForUpdate(userId);
 
         validateIsUserStatusActive(user);
 
@@ -439,11 +397,24 @@ public class UserService {
         AuditContext.setBeforeData(Map.of("password", "UNCHANGED"));
         AuditContext.setAfterData(Map.of("password", "CHANGED"));
 
+        enqueueUserEvent(updatedUser, TopicEventType.UPDATE, false);
+    }
+
+    private void enqueueUserEvent(User user, TopicEventType type, boolean passwordReset) {
+        UserKafkaEventState state = userKafkaEventStateService.advance(user, passwordReset);
+        // 최신 이벤트만으로도 인증 정보를 복원할 수 있도록 변경 차분 대신 전체 상태를 기록한다.
         userOutboxService.enqueue(UserDtoForEvent.builder()
-                .eventType(TopicEventType.UPDATE)
-                .id(updatedUser.getId())
-                .userId(updatedUser.getUserId())
-                .password(updatedUser.getPassword())
+                .eventVersion(state.getEventVersion())
+                .passwordResetVersion(state.getPasswordResetVersion())
+                .eventType(type)
+                .id(user.getId())
+                .userId(user.getUserId())
+                .password(user.getPassword())
+                .passwordReset(passwordReset)
+                .role(user.getRole() == null ? null : user.getRole().name())
+                .status(user.getStatus().name())
+                .isBlacklisted(Boolean.TRUE.equals(user.getIsBlacklisted()))
+                .blacklistedUntil(user.getBlacklistedUntil())
                 .build());
     }
 
