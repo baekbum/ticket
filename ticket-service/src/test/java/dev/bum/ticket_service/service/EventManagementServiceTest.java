@@ -41,6 +41,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class EventManagementServiceTest {
@@ -74,8 +75,10 @@ class EventManagementServiceTest {
                         && request.getEventDateTime().equals(LocalDateTime.of(2026, 9, 19, 18, 0))
                         && request.getTicketLimitScope() == TicketLimitScope.PER_GROUP
         ))).willReturn(secondEvent);
-        given(fileStorageService.saveEventPoster(1L, posterImage)).willReturn("/ticket/uploads/events/posters/1/poster.png");
-        given(fileStorageService.saveEventPoster(2L, posterImage)).willReturn("/ticket/uploads/events/posters/2/poster.png");
+        given(fileStorageService.saveEventPoster(posterImage)).willReturn(
+                "/ticket/uploads/events/posters/1/poster.png",
+                "/ticket/uploads/events/posters/2/poster.png"
+        );
 
         List<EventResponse> response = eventManagementService.insertBulk(info, posterImage);
 
@@ -83,8 +86,7 @@ class EventManagementServiceTest {
         assertThat(response).extracting(EventResponse::getEventId).containsExactly(1L, 2L);
         assertThat(response).extracting(EventResponse::getPosterUrl)
                 .containsExactly("/ticket/uploads/events/posters/1/poster.png", "/ticket/uploads/events/posters/2/poster.png");
-        then(fileStorageService).should().saveEventPoster(1L, posterImage);
-        then(fileStorageService).should().saveEventPoster(2L, posterImage);
+        then(fileStorageService).should(times(2)).saveEventPoster(posterImage);
     }
 
     @Test
@@ -151,14 +153,14 @@ class EventManagementServiceTest {
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
         given(repository.selectById(1L)).willReturn(event);
-        given(fileStorageService.saveEventPoster(1L, posterImage)).willReturn("/ticket/uploads/events/posters/1/new.png");
+        given(fileStorageService.saveEventPoster(posterImage)).willReturn("/ticket/uploads/events/posters/1/new.png");
 
         EventResponse response = eventManagementService.update(1L, info, posterImage);
 
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/new.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
         then(repository).should().selectById(1L);
-        then(fileStorageService).should().saveEventPoster(1L, posterImage);
+        then(fileStorageService).should().saveEventPoster(posterImage);
         then(fileStorageService).should().deleteByPublicUrl("/ticket/uploads/events/posters/1/old.png");
     }
 
@@ -170,13 +172,13 @@ class EventManagementServiceTest {
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
         given(repository.selectById(1L)).willReturn(event);
-        given(fileStorageService.saveEventPoster(1L, null)).willReturn(null);
+        given(fileStorageService.saveEventPoster(null)).willReturn(null);
 
         EventResponse response = eventManagementService.update(1L, info, null);
 
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/old.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
-        then(fileStorageService).should().saveEventPoster(1L, null);
+        then(fileStorageService).should().saveEventPoster(null);
         then(fileStorageService).should(never()).deleteByPublicUrl(ArgumentMatchers.any());
     }
 

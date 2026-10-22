@@ -49,7 +49,7 @@ public class EventManagementService {
         for (InsertEventScheduleRequest schedule : info.getSchedules()) {
             InsertEventRequest request = toInsertEventRequest(info.getCommon(), schedule);
             Event event = repository.insert(request);
-            String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
+            String posterUrl = fileStorageService.saveEventPoster(posterImage);
             event.updatePosterUrl(posterUrl);
             responses.add(event.toResponse());
         }
@@ -114,7 +114,7 @@ public class EventManagementService {
         Event event = repository.selectById(id);
         AuditDataMapper.setChangedData(event, info, "description", "venueAddress", "posterUrl");
         String previousPosterUrl = event.getPosterUrl();
-        String newPosterUrl = fileStorageService.saveEventPoster(id, posterImage);
+        String newPosterUrl = fileStorageService.saveEventPoster(posterImage);
 
         if (newPosterUrl != null) {
             info.setPosterUrl(newPosterUrl);

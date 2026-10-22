@@ -84,7 +84,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
         int totalTicketAmount = calculateTotalTicketAmount(seats);
-        DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, reservation, totalTicketAmount);
+        DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, totalTicketAmount);
 
         // 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 결제 대기 티켓 생성
         for (Seat seat : seats) {
@@ -208,11 +208,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     /**
      * 쿠폰을 사용했을 때, 할인 금액을 계산한 스냅샷을 반환
      * @param info
-     * @param reservation
      * @param totalTicketAmount
      * @return
      */
-    private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, Reservation reservation, int totalTicketAmount) {
+    private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, int totalTicketAmount) {
         if (info.getUserCouponId() == null) {
             return null;
         }

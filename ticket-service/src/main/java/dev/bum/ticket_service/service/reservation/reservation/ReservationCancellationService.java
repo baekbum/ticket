@@ -130,7 +130,7 @@ public class ReservationCancellationService {
             );
             // 로컬 취소가 끝난 뒤 성공 이력과 완료 상태를 A에서 함께 저장한다.
             paymentRefundProcessService.completeCancellation(
-                    processId, payment, selectedTickets, calculation.refundAmount(), fullCancellation
+                    processId, payment
             );
             return CancelReservationResponse.canceled(
                     reservation.getReservationId(), processId,

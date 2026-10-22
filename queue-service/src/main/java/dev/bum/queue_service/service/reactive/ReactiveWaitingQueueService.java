@@ -45,7 +45,7 @@ public class ReactiveWaitingQueueService {
         });
     }
 
-    public Mono<QueueStatusResponse> waitingStatusResponse(Long eventId, String userId, String token) {
+    public Mono<QueueStatusResponse> waitingStatusResponse(Long eventId, String token) {
         return redis.opsForZSet().rank(keys.waitingKey(eventId), token)
                 .map(rank -> Optional.of(rank + 1))
                 .defaultIfEmpty(Optional.empty())
@@ -92,10 +92,6 @@ public class ReactiveWaitingQueueService {
     }
 
     public Mono<Void> pruneExpiredWaitingTokens(Long eventId) {
-        return pruneExpiredWaitingTokens(eventId, null);
-    }
-
-    public Mono<Void> pruneExpiredWaitingTokens(Long eventId, String userId) {
         return Mono.defer(() -> {
             long cutoff = nowMillis();
             return redis.opsForZSet().rangeByScore(keys.waitingExpiryKey(eventId), Range.closed(0.0, (double) cutoff))

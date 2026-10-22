@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+    public ResponseEntity<Map<String, String>> handleMethodArgumentNotValidException() {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "요청 값이 올바르지 않습니다."));
     }
 

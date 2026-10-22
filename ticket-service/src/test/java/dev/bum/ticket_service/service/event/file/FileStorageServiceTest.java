@@ -25,7 +25,7 @@ class FileStorageServiceTest {
         FileStorageService fileStorageService = fileStorageService();
         MockMultipartFile file = imageFile("poster.png", "image/png");
 
-        String publicUrl = fileStorageService.saveEventPoster(1L, file);
+        String publicUrl = fileStorageService.saveEventPoster(file);
 
         assertThat(publicUrl).isEqualTo("/ticket/uploads/events/posters/26_08/poster.png");
         assertThat(tempDir.resolve(publicUrl.substring("/ticket/uploads/".length()))).exists();
@@ -38,8 +38,8 @@ class FileStorageServiceTest {
         MockMultipartFile firstFile = imageFile("poster.png", "image/png");
         MockMultipartFile secondFile = imageFile("poster.png", "image/png");
 
-        String firstPublicUrl = fileStorageService.saveEventPoster(1L, firstFile);
-        String secondPublicUrl = fileStorageService.saveEventPoster(2L, secondFile);
+        String firstPublicUrl = fileStorageService.saveEventPoster(firstFile);
+        String secondPublicUrl = fileStorageService.saveEventPoster(secondFile);
 
         assertThat(firstPublicUrl).isEqualTo("/ticket/uploads/events/posters/26_08/poster.png");
         assertThat(secondPublicUrl).isEqualTo("/ticket/uploads/events/posters/26_08/poster_1.png");
@@ -53,20 +53,9 @@ class FileStorageServiceTest {
         FileStorageService fileStorageService = fileStorageService();
         MockMultipartFile file = new MockMultipartFile("posterImage", "poster.png", "image/png", new byte[0]);
 
-        String publicUrl = fileStorageService.saveEventPoster(1L, file);
+        String publicUrl = fileStorageService.saveEventPoster(file);
 
         assertThat(publicUrl).isNull();
-    }
-
-    @Test
-    @DisplayName("이벤트 ID가 없어도 월별 경로에 저장")
-    void save_event_poster_without_event_id() {
-        FileStorageService fileStorageService = fileStorageService();
-        MockMultipartFile file = imageFile("poster.png", "image/png");
-
-        String publicUrl = fileStorageService.saveEventPoster(null, file);
-
-        assertThat(publicUrl).isEqualTo("/ticket/uploads/events/posters/26_08/poster.png");
     }
 
     @Test
@@ -75,7 +64,7 @@ class FileStorageServiceTest {
         FileStorageService fileStorageService = fileStorageService();
         MockMultipartFile file = imageFile("poster.gif", "image/gif");
 
-        assertThatThrownBy(() -> fileStorageService.saveEventPoster(1L, file))
+        assertThatThrownBy(() -> fileStorageService.saveEventPoster(file))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -85,7 +74,7 @@ class FileStorageServiceTest {
         FileStorageService fileStorageService = fileStorageService();
         MockMultipartFile file = new MockMultipartFile("posterImage", "poster.png", "text/plain", "image".getBytes());
 
-        assertThatThrownBy(() -> fileStorageService.saveEventPoster(1L, file))
+        assertThatThrownBy(() -> fileStorageService.saveEventPoster(file))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -93,7 +82,7 @@ class FileStorageServiceTest {
     @DisplayName("public URL로 저장된 파일 삭제")
     void delete_by_public_url() throws Exception {
         FileStorageService fileStorageService = fileStorageService();
-        String publicUrl = fileStorageService.saveEventPoster(1L, imageFile("poster.png", "image/png"));
+        String publicUrl = fileStorageService.saveEventPoster(imageFile("poster.png", "image/png"));
         Path storedFile = tempDir.resolve(publicUrl.substring("/ticket/uploads/".length()));
 
         fileStorageService.deleteByPublicUrl(publicUrl);
@@ -105,7 +94,7 @@ class FileStorageServiceTest {
     @DisplayName("prefix가 다른 public URL은 삭제하지 않음")
     void delete_by_public_url_with_other_prefix() throws Exception {
         FileStorageService fileStorageService = fileStorageService();
-        String publicUrl = fileStorageService.saveEventPoster(1L, imageFile("poster.png", "image/png"));
+        String publicUrl = fileStorageService.saveEventPoster(imageFile("poster.png", "image/png"));
         Path storedFile = tempDir.resolve(publicUrl.substring("/ticket/uploads/".length()));
 
         fileStorageService.deleteByPublicUrl("/other/uploads/events/posters/1/poster.png");

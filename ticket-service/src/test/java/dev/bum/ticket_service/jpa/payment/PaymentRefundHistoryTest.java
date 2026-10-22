@@ -40,10 +40,7 @@ class PaymentRefundHistoryTest {
 
         PaymentRefundHistory history = PaymentRefundHistory.create(
                 process,
-                payment,
-                List.of(firstTicket, secondTicket),
-                125000,
-                false
+                payment
         );
 
         assertThat(history.getPaymentRefundProcess()).isEqualTo(process);

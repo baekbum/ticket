@@ -65,9 +65,6 @@ public class PaymentRefundProcess {
     public PaymentRefundProcess(
             Long paymentRefundProcessId,
             Payment payment,
-            Reservation reservation,
-            String paymentNo,
-            PaymentMethod method,
             Integer refundAmount,
             Integer cancellationFeeAmount,
             boolean fullCancellation,

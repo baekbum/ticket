@@ -49,6 +49,6 @@ public class ReactiveQueueAdminService {
     private Mono<QueueStatusResponse> waitingStatus(Long eventId, String userId, String token) {
         return active.admit(eventId, userId, token)
                 .flatMap(activeToken -> active.readyStatusResponse(eventId, activeToken))
-                .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, userId, token)));
+                .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, token)));
     }
 }

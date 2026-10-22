@@ -4,7 +4,6 @@ import dev.bum.common.service.ticket.payment.dto.PaymentRefundHistoryResponse;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.jpa.ticket.Ticket;
 
 import jakarta.persistence.*;
 
@@ -81,10 +80,7 @@ public class PaymentRefundHistory {
 
     public static PaymentRefundHistory create(
             PaymentRefundProcess process,
-            Payment payment,
-            List<Ticket> tickets,
-            Integer amount,
-            boolean full) {
+            Payment payment) {
         PaymentRefundHistory h = event(process, PaymentRefundHistoryType.LOCAL_APPLIED, process.getStatus());
         h.refundedAmountAfter = payment.getRefundedAmount();
         h.refundableAmountAfter = payment.getRefundableAmount();

@@ -45,7 +45,7 @@ public class FileStorageService {
     /**
      * 이벤트 포스터 이미지를 검증한 뒤 월별 업로드 경로에 저장하고 공개 URL을 반환한다.
      */
-    public String saveEventPoster(Long eventId, MultipartFile file) {
+    public String saveEventPoster(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return null;
         }

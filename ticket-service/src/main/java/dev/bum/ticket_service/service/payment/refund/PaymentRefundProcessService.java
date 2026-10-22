@@ -358,17 +358,14 @@ public class PaymentRefundProcessService {
     @Transactional
     public void completeCancellation(
             Long paymentRefundProcessId,
-            Payment payment,
-            List<Ticket> selectedTickets,
-            int refundAmount,
-            boolean fullCancellation) {
+            Payment payment) {
 
         if (paymentRefundProcessId == null) {
             return;
         }
 
         PaymentRefundProcess process = findById(paymentRefundProcessId);
-        savePaymentRefundHistory(process, payment, selectedTickets, refundAmount, fullCancellation);
+        savePaymentRefundHistory(process, payment);
         process.localSucceeded();
     }
 
@@ -503,12 +500,7 @@ public class PaymentRefundProcessService {
                 restoreUsedCoupons(reservation);
             }
 
-            savePaymentRefundHistory(
-                    process,
-                    payment,
-                    selectedTickets,
-                    process.getRefundAmount(),
-                    process.isFullCancellation());
+            savePaymentRefundHistory(process, payment);
 
             process.localSucceeded();
 
@@ -533,17 +525,12 @@ public class PaymentRefundProcessService {
 
     private void savePaymentRefundHistory(
             PaymentRefundProcess process,
-            Payment payment,
-            List<Ticket> selectedTickets,
-            int refundAmount,
-            boolean fullCancellation) {
+            Payment payment) {
         if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)) {
             throw new IllegalStateException("이미 환불 이력이 저장된 환불 처리입니다.");
         }
 
-        paymentRefundHistoryJpaRepository.save(
-                PaymentRefundHistory.create(
-                        process, payment, selectedTickets, refundAmount, fullCancellation));
+        paymentRefundHistoryJpaRepository.save(PaymentRefundHistory.create(process, payment));
     }
 
     private List<Ticket> selectProcessTickets(

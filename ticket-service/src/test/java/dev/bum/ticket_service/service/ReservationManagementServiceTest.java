@@ -191,7 +191,7 @@ class ReservationManagementServiceTest {
         Ticket ticket = ticket(1L, reservation, event(), seat(1L, event(), "VIP", 1, 1), TicketStatus.CANCELLED);
         payment.partialRefund(125000);
         PaymentRefundProcess refundProcess = PaymentRefundProcess.create(payment, List.of(ticket), 125000, false, null);
-        PaymentRefundHistory refundHistory = PaymentRefundHistory.create(refundProcess, payment, List.of(ticket), 125000, false);
+        PaymentRefundHistory refundHistory = PaymentRefundHistory.create(refundProcess, payment);
 
         given(repository.selectById(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
@@ -290,7 +290,7 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(cardPaymentRefundService).should().refundPartial(payment, 125000, 1L);
-        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(selectedTicket), 125000, false);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment);
     }
 
     @Test
@@ -347,7 +347,7 @@ class ReservationManagementServiceTest {
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
         then(cardPaymentRefundService).should().refundAll(payment, 1L);
-        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment);
     }
 
     @Test
@@ -381,7 +381,7 @@ class ReservationManagementServiceTest {
         assertThat(userCoupon.getUsedAt()).isNull();
         then(virtualAccountPaymentRefundService).should().refundAll(payment, refundAccount(), 1L);
         then(cardPaymentRefundService).shouldHaveNoInteractions();
-        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment);
     }
 
     @Test
@@ -408,7 +408,7 @@ class ReservationManagementServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PARTIALLY_CANCELLED);
         assertThat(selectedTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         then(virtualAccountPaymentRefundService).should().refundPartial(payment, 125000, refundAccount(), 1L);
-        then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(selectedTicket), 125000, false);
+        then(paymentRefundProcessService).should().completeCancellation(1L, payment);
     }
 
     @Test

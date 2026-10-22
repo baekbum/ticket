@@ -219,10 +219,7 @@ class PaymentModelIntegrationTest {
         payment.applyCancellation(5000, 1000);
         processService.completeCancellation(
                 process.getPaymentRefundProcessId(),
-                payment,
-                payment.getReservation().getTickets(),
-                5000,
-                false);
+                payment);
         processes.flush();
         Long id = process.getPaymentRefundProcessId();
         Reservation reservation = process.getReservation();
