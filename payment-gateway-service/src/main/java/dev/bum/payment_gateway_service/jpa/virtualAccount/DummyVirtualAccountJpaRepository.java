@@ -26,6 +26,8 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
 
     List<DummyVirtualAccount> findTop100ByStatusOrderByDepositedAtAsc(VirtualAccountPaymentStatus status);
 
+    // 입금과 만료가 같은 계좌 행을 잠가 상태 변경을 순서대로 처리한다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<DummyVirtualAccount> findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
             VirtualAccountPaymentStatus status,
             LocalDateTime expiresAt
