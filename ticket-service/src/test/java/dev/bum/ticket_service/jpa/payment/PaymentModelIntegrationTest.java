@@ -36,6 +36,7 @@ import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 
 import jakarta.persistence.EntityManager;
 
@@ -84,6 +85,7 @@ class PaymentModelIntegrationTest {
 
     @Autowired PaymentRefundProcessService processService;
     @MockitoBean SeatCacheService seatCacheService;
+    @MockitoBean UserCouponRepository userCouponRepository;
 
     @MockitoBean
     TicketPurchaseCountService purchaseCountService;

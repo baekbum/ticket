@@ -30,6 +30,7 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaReposito
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepositoryImpl;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
@@ -93,7 +94,8 @@ import static org.mockito.Mockito.verify;
 @DataJpaTest
 @ActiveProfiles("test")
 @Import({ReservationRepositoryImpl.class, ReservationService.class, ReservationManagementService.class, ReservationCancellationService.class,
-        PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class, CardPaymentRefundService.class})
+        PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class, CardPaymentRefundService.class,
+        UserCouponRepositoryImpl.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReservationCancellationConcurrencyTest {

@@ -27,6 +27,7 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
@@ -106,6 +107,9 @@ class PaymentRefundProcessServiceTest {
 
     @Mock
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @Mock
+    private UserCouponRepository userCouponRepository;
 
     @Mock
     private SeatCacheService seatCacheService;

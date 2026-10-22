@@ -14,6 +14,7 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepositoryImpl;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepositoryImpl;
@@ -54,7 +55,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({ReservationRepositoryImpl.class, TicketRepositoryImpl.class, SeatRepositoryImpl.class,
-        AreaRepositoryImpl.class, EventRepositoryImpl.class, QuerydslConfig.class, TicketPurchaseCountService.class})
+        AreaRepositoryImpl.class, EventRepositoryImpl.class, QuerydslConfig.class, TicketPurchaseCountService.class,
+        UserCouponRepositoryImpl.class})
 class TicketPurchaseLockIntegrationTest {
 
     @Autowired private ReservationRepositoryImpl reservations;

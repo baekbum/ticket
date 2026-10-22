@@ -15,7 +15,7 @@ import dev.bum.ticket_service.exception.reservation.ReservationNotExistException
 import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
-import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.event.QEvent;
@@ -56,7 +56,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     private final SeatRepository seatRepository;
     private final TicketRepository ticketRepository;
     private final TicketPurchaseCountService ticketPurchaseCountService;
-    private final UserCouponJpaRepository userCouponJpaRepository;
+    private final UserCouponRepository userCouponRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final EntityManager em;
     private QReservation reservation;
@@ -217,8 +217,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             return null;
         }
 
-        UserCoupon userCoupon = userCouponJpaRepository.findById(info.getUserCouponId())
-                .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
+        // 검증부터 사용·예매 저장까지 같은 트랜잭션에서 잠금을 유지한다.
+        UserCoupon userCoupon = userCouponRepository.selectByIdForUpdate(info.getUserCouponId());
         Coupon coupon = userCoupon.getCoupon();
         LocalDateTime now = LocalDateTime.now();
 

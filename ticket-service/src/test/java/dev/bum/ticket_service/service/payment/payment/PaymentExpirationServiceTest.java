@@ -17,6 +17,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
@@ -54,6 +55,9 @@ class PaymentExpirationServiceTest {
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
 
     @Mock
+    private UserCouponRepository userCouponRepository;
+
+    @Mock
     private SeatCacheService seatCacheService;
 
     @Mock
@@ -86,6 +90,8 @@ class PaymentExpirationServiceTest {
         assertThat(seat.getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
+
+        then(userCouponRepository).should().lockForUpdate(userCoupon);
 
         then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(seat));
         then(seatCacheService).shouldHaveNoMoreInteractions();

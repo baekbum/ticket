@@ -25,6 +25,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
@@ -131,6 +132,9 @@ class ReservationServiceTest {
 
     @Mock
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @Mock
+    private UserCouponRepository userCouponRepository;
 
     @Spy
     @InjectMocks
@@ -366,6 +370,7 @@ class ReservationServiceTest {
         assertThat(secondTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(userCoupon.getStatus()).isEqualTo(UserCouponStatus.ISSUED);
         assertThat(userCoupon.getUsedAt()).isNull();
+        then(userCouponRepository).should().lockForUpdate(userCoupon);
         then(cardPaymentRefundService).should().refundAll(payment, 1L);
         then(paymentRefundProcessService).should().completeCancellation(1L, payment, List.of(firstTicket, secondTicket), 250000, true);
     }

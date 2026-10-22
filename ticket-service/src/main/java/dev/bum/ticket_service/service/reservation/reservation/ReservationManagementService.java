@@ -17,6 +17,7 @@ import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
@@ -55,6 +56,7 @@ public class ReservationManagementService {
     private final TicketPurchaseCountService ticketPurchaseCountService;
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+    private final UserCouponRepository userCouponRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
@@ -270,12 +272,14 @@ public class ReservationManagementService {
      * 전체 취소 또는 만료 처리 시 예매 할인 스냅샷에 연결된 사용 쿠폰을 복구한다.
      */
     private void restoreUsedCoupons(Reservation reservation) {
-        LocalDateTime now = LocalDateTime.now();
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
 
         for (ReservationDiscount discount : discounts) {
-            if (discount.getUserCoupon() != null && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
-                discount.getUserCoupon().restore(now);
+            if (discount.getUserCoupon() == null) continue;
+
+            userCouponRepository.lockForUpdate(discount.getUserCoupon());
+            if (discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
+                discount.getUserCoupon().restore(LocalDateTime.now());
             }
         }
     }

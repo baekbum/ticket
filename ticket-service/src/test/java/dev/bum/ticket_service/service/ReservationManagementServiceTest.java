@@ -28,6 +28,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
@@ -116,6 +117,9 @@ class ReservationManagementServiceTest {
 
     @Mock
     private ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+
+    @Mock
+    private UserCouponRepository userCouponRepository;
 
     @Mock
     private ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;

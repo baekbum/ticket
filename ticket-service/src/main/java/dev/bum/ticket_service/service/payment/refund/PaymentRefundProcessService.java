@@ -26,6 +26,7 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaReposito
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
@@ -78,6 +79,7 @@ public class PaymentRefundProcessService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+    private final UserCouponRepository userCouponRepository;
     private final SeatCacheService seatCacheService;
     private final TicketPurchaseCountService ticketPurchaseCountService;
 
@@ -604,13 +606,14 @@ public class PaymentRefundProcessService {
     }
 
     private void restoreUsedCoupons(Reservation reservation) {
-        LocalDateTime now = LocalDateTime.now();
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
 
         for (ReservationDiscount discount : discounts) {
-            if (discount.getUserCoupon() != null
-                    && discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
-                discount.getUserCoupon().restore(now);
+            if (discount.getUserCoupon() == null) continue;
+
+            userCouponRepository.lockForUpdate(discount.getUserCoupon());
+            if (discount.getUserCoupon().getStatus() == UserCouponStatus.USED) {
+                discount.getUserCoupon().restore(LocalDateTime.now());
             }
         }
     }
