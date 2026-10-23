@@ -2,12 +2,10 @@ package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
@@ -18,6 +16,8 @@ import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueExcept
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEvent;
+import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEventJpaRepository;
 import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountJpaRepository;
@@ -31,13 +31,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import feign.FeignException;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -47,13 +47,14 @@ import java.util.concurrent.ThreadLocalRandom;
 public class GatewayVirtualAccountService {
 
     private static final int MAX_ACCOUNT_ISSUE_ATTEMPTS = 5;
-    private static final int MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS = 3;
 
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
     private final GatewayRefundJpaRepository refunds;
     private final GatewayRefundProcessService refundProcesses;
+    private final VirtualAccountDepositOutboxService depositOutboxService;
+    private final VirtualAccountOutboxEventJpaRepository expirationOutbox;
 
     @Transactional(readOnly = true)
     public GatewayVirtualAccountStatusResponse status(String paymentNo) {
@@ -68,10 +69,11 @@ public class GatewayVirtualAccountService {
     }
 
     public GatewayVirtualAccountIssueResponse issue(GatewayVirtualAccountIssueRequest request) {
-        return dummyVirtualAccountJpaRepository.findByPaymentNo(request.getPaymentNo())
+        return dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .map(virtualAccount -> {
                     validateSameIssueRequest(virtualAccount, request);
                     expireIfNecessary(virtualAccount);
+
                     return toIssueResponse(virtualAccount, "이미 발급된 가상계좌입니다.");
                 })
                 .orElseGet(() -> issueNewVirtualAccount(request));
@@ -81,15 +83,19 @@ public class GatewayVirtualAccountService {
         DummyVirtualAccount virtualAccount = dummyVirtualAccountJpaRepository.findByAccountNumber(request.getAccountNumber())
                 .orElseThrow(() -> new IllegalArgumentException("가상계좌 정보를 찾을 수 없습니다."));
 
-        validateDeposit(virtualAccount, request);
-        virtualAccount.deposit(request.getDepositorName(), request.getDepositedAt());
-        dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.deposited(virtualAccount));
-        boolean ticketPaymentCompleted = applyTicketVirtualAccountDepositCompleted(virtualAccount);
+        if (virtualAccount.hasDeposit()) {
+            validateSameDeposit(virtualAccount, request);
+            return toDepositResponse(virtualAccount, "이미 입금 처리된 가상계좌입니다.");
+        }
 
-        String message = ticketPaymentCompleted
-                ? "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
-                : "가상계좌 입금은 완료되었지만 ticket-service 결제 완료 반영에 실패했습니다.";
-        return toDepositResponse(virtualAccount, message);
+        LocalDateTime depositedAt = (request.getDepositedAt() == null ? LocalDateTime.now() : request.getDepositedAt()).truncatedTo(ChronoUnit.MICROS);
+        validateDeposit(virtualAccount, request, depositedAt);
+        virtualAccount.deposit(request.getDepositorName(), depositedAt);
+
+        dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.deposited(virtualAccount));
+        // 입금·이력·전달할 알림을 함께 커밋한다. 티켓 호출은 커밋 이후에만 실행한다.
+        depositOutboxService.enqueue(virtualAccount);
+        return toDepositResponse(virtualAccount, "가상계좌 입금이 완료되었습니다. 티켓 서비스에 입금 정보를 전달합니다.");
     }
 
     public GatewayVirtualAccountRefundResponse refund(GatewayVirtualAccountRefundRequest request) {
@@ -161,7 +167,9 @@ public class GatewayVirtualAccountService {
                         expiresAt
                 )
         );
+
         dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.issued(virtualAccount));
+
         if (request.isTicketPaymentApplyRequired()) {
             applyTicketVirtualAccountIssued(virtualAccount);
         }
@@ -183,76 +191,6 @@ public class GatewayVirtualAccountService {
         } catch (RuntimeException e) {
             throw new TicketVirtualAccountIssueException("ticket-service 가상계좌 발급 정보 반영에 실패했습니다.", e);
         }
-    }
-
-    private boolean applyTicketVirtualAccountDepositCompleted(DummyVirtualAccount virtualAccount) {
-        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
-                .paymentNo(virtualAccount.getPaymentNo())
-                .bankCompany(virtualAccount.getBankCompany())
-                .bankName(virtualAccount.getBankName())
-                .accountNumber(virtualAccount.getAccountNumber())
-                .depositorName(virtualAccount.getDepositorName())
-                .amount(virtualAccount.getAmount())
-                .depositedAt(virtualAccount.getDepositedAt())
-                .build();
-
-        String failureReason = null;
-
-        for (int attempt = 1; attempt <= MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS; attempt++) {
-            PaymentResponse response;
-
-            try {
-                response = ticketPaymentClient.completeVirtualAccountDeposit(request);
-            } catch (FeignException e) {
-                failureReason = e.status() <= 0
-                        ? "ticket-service 입금 완료 응답을 확인하지 못했습니다."
-                        : "ticket-service 입금 완료 반영 실패: HTTP " + e.status();
-
-                if (!isRetryableTicketFailure(e) || attempt == MAX_TICKET_DEPOSIT_COMPLETE_ATTEMPTS) {
-                    break;
-                }
-
-                log.warn("ticket-service 입금 완료 요청 재시도: paymentNo={}, attempt={}", virtualAccount.getPaymentNo(), attempt + 1);
-                continue;
-            } catch (RuntimeException e) {
-                failureReason = "ticket-service 입금 완료 반영 실패: " + e.getClass().getSimpleName();
-                break;
-            }
-
-            if (isConfirmedDeposit(response, virtualAccount)) {
-                virtualAccount.completeTicketPayment(null);
-
-                dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                        DummyVirtualAccountPaymentHistory.ticketPaymentCompleted(virtualAccount)
-                );
-
-                return true;
-            }
-
-            failureReason = "ticket-service 입금 완료 응답이 결제 정보와 일치하지 않습니다.";
-            break;
-        }
-
-        virtualAccount.failTicketPayment(failureReason);
-        dummyVirtualAccountPaymentHistoryJpaRepository.save(
-                DummyVirtualAccountPaymentHistory.ticketPaymentFailed(virtualAccount)
-        );
-
-        return false;
-    }
-
-    private boolean isConfirmedDeposit(PaymentResponse response, DummyVirtualAccount virtualAccount) {
-        return response != null
-                && response.getStatus() == PaymentStatus.PAID
-                && response.getMethod() == PaymentMethod.BANK_TRANSFER
-                && virtualAccount.getPaymentNo().equals(response.getPaymentNo())
-                && response.getAmount() != null
-                && virtualAccount.getAmount().compareTo(BigDecimal.valueOf(response.getAmount())) == 0
-                && virtualAccount.getAccountNumber().equals(response.getAccountNumber());
-    }
-
-    private boolean isRetryableTicketFailure(FeignException exception) {
-        return exception.status() <= 0 || exception.status() >= 500;
     }
 
     /**
@@ -292,22 +230,26 @@ public class GatewayVirtualAccountService {
         return bankCompany.getAccountPrefix() + "-" + middle + "-" + last;
     }
 
-    private void validateDeposit(DummyVirtualAccount virtualAccount, GatewayVirtualAccountDepositRequest request) {
-        if (virtualAccount.getStatus() == VirtualAccountPaymentStatus.DEPOSITED
-                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED
-                || virtualAccount.getStatus() == VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED) {
-            throw new IllegalArgumentException("이미 입금 처리된 가상계좌입니다.");
-        }
+    private void validateDeposit(DummyVirtualAccount virtualAccount, GatewayVirtualAccountDepositRequest request,
+                                 LocalDateTime depositedAt) {
         if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.WAITING_DEPOSIT) {
             throw new IllegalArgumentException("입금 처리할 수 없는 가상계좌 상태입니다.");
         }
-        LocalDateTime depositedAt = request.getDepositedAt() != null ? request.getDepositedAt() : LocalDateTime.now();
         if (depositedAt.isAfter(virtualAccount.getExpiresAt())) {
             virtualAccount.expire();
             throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
         if (virtualAccount.getAmount().compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("입금 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private void validateSameDeposit(DummyVirtualAccount account, GatewayVirtualAccountDepositRequest request) {
+        if (account.getAmount().compareTo(request.getAmount()) != 0
+                || !Objects.equals(account.getDepositorName(), request.getDepositorName())
+                || (request.getDepositedAt() != null
+                    && !Objects.equals(account.getDepositedAt(), request.getDepositedAt().truncatedTo(ChronoUnit.MICROS)))) {
+            throw new IllegalArgumentException("이미 처리된 입금 정보와 요청이 일치하지 않습니다.");
         }
     }
 
@@ -324,14 +266,18 @@ public class GatewayVirtualAccountService {
     }
 
     private void expireIfNecessary(DummyVirtualAccount virtualAccount) {
+        LocalDateTime expiredAt = LocalDateTime.now();
         if (virtualAccount.getStatus() == VirtualAccountPaymentStatus.WAITING_DEPOSIT
-                && LocalDateTime.now().isAfter(virtualAccount.getExpiresAt())) {
+                && expiredAt.isAfter(virtualAccount.getExpiresAt())) {
             virtualAccount.expire();
+            // 발급 재조회에서 만료를 확정해도 티켓에 전달할 이력과 알림을 함께 남긴다.
+            dummyVirtualAccountPaymentHistoryJpaRepository.save(DummyVirtualAccountPaymentHistory.expired(virtualAccount));
+            expirationOutbox.save(VirtualAccountOutboxEvent.virtualAccountExpired(virtualAccount, expiredAt));
         }
     }
 
     private void validateRefund(DummyVirtualAccount virtualAccount, GatewayVirtualAccountRefundRequest request) {
-        if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED) {
+        if (!virtualAccount.hasDeposit()) {
             throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
         }
         BigDecimal refunded = refunds.sumRefundAmount(virtualAccount.getPaymentNo(), PaymentMethod.BANK_TRANSFER);

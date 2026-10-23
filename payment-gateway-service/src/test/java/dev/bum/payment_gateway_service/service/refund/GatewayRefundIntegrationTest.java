@@ -12,6 +12,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.service.card.GatewayCardApprovalService;
 import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionService;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
+import dev.bum.payment_gateway_service.service.virtualAccount.VirtualAccountDepositOutboxService;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,6 +62,7 @@ class GatewayRefundIntegrationTest {
     @Autowired PlatformTransactionManager transactionManager;
     @MockitoBean TicketPaymentClient ticketClient;
     @MockitoBean PasswordEncoder encoder;
+    @MockitoBean VirtualAccountDepositOutboxService depositOutbox;
 
     @BeforeEach
     void setup() {
@@ -78,7 +80,6 @@ class GatewayRefundIntegrationTest {
         cardHistories.save(history);
         DummyVirtualAccount account = DummyVirtualAccount.issue("BANK-PAY", BankCompany.KB, "123-456", new BigDecimal("10000"), LocalDateTime.now().plusDays(1));
         account.deposit("user", LocalDateTime.now());
-        account.completeTicketPayment(null);
         accounts.save(account);
     }
 

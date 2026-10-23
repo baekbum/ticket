@@ -20,6 +20,8 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -52,7 +54,7 @@ public class VirtualAccountPaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
         validateGatewayVirtualAccountDeposit(payment, request);
-        if (payment.getStatus() == PaymentStatus.PAID) {
+        if (isDepositApplied(payment)) {
             return payment.toResponse();
         }
 
@@ -99,7 +101,19 @@ public class VirtualAccountPaymentService {
                 && !payment.getAccountNumber().equals(request.getAccountNumber())) {
             throw new IllegalArgumentException("입금 계좌번호가 일치하지 않습니다.");
         }
-        if (payment.getStatus() == PaymentStatus.PAID) {
+        if (!Objects.equals(payment.getBankName(), request.getBankName())
+                || request.getBankCompany() == null
+                || !Objects.equals(request.getBankName(), request.getBankCompany().getBankName())) {
+            throw new IllegalArgumentException("입금 은행 정보가 일치하지 않습니다.");
+        }
+        if (isDepositApplied(payment)) {
+            // 응답 유실 후 환불까지 진행됐더라도 최초 입금과 같은 요청만 성공으로 반환한다.
+            if (!Objects.equals(payment.getDepositorName(), request.getDepositorName())
+                    || payment.getPaidAt() == null || request.getDepositedAt() == null
+                    || !payment.getPaidAt().truncatedTo(ChronoUnit.MICROS)
+                        .equals(request.getDepositedAt().truncatedTo(ChronoUnit.MICROS))) {
+                throw new IllegalArgumentException("이미 처리된 입금 정보와 요청이 일치하지 않습니다.");
+            }
             return;
         }
         if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
@@ -109,6 +123,12 @@ public class VirtualAccountPaymentService {
             paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
+    }
+
+    private boolean isDepositApplied(Payment payment) {
+        return payment.getStatus() == PaymentStatus.PAID
+                || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED
+                || payment.getStatus() == PaymentStatus.REFUNDED;
     }
 
     private void validateGatewayVirtualAccountExpiration(Payment payment, VirtualAccountExpiredEvent event) {

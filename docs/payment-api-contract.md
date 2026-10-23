@@ -207,10 +207,10 @@ Content-Type: application/json
   "accountNumber": "1111-2222-3333",
   "depositorName": "홍길동",
   "amount": 180000,
-  "status": "TICKET_PAYMENT_COMPLETED",
+  "status": "DEPOSITED",
   "expiresAt": "2026-08-20T23:59:59",
   "depositedAt": "2026-08-20T12:00:00",
-  "message": "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
+  "message": "가상계좌 입금이 완료되었습니다. 티켓 서비스에 입금 정보를 전달합니다."
 }
 ```
 
@@ -220,10 +220,11 @@ Content-Type: application/json
 1. accountNumber로 gateway 가상계좌 조회
 2. WAITING_DEPOSIT 상태, 입금 금액, 만료 시각 검증
 3. gateway virtual account = DEPOSITED
-4. 입금 이력 저장
-5. ticket-service 내부 무통장 입금 완료 API 호출
-6. 성공 시 gateway virtual account = TICKET_PAYMENT_COMPLETED
-7. 실패 시 gateway virtual account = TICKET_PAYMENT_FAILED, 실패 사유 저장
+4. 입금 이력과 PENDING 입금 Outbox 저장 후 함께 커밋
+5. 커밋 이후 ticket-service 내부 무통장 입금 완료 API 호출
+6. 일치하는 성공 응답을 확인하면 Outbox = DELIVERED, 계좌는 DEPOSITED 유지
+7. 전달 실패·응답 유실은 PENDING 유지 후 스케줄러로 동일 입금 정보를 재전달
+8. 동일 입금 재요청은 기존 이력·Outbox 재사용, 다른 입금 정보는 거부
 ```
 
 ## ticket-service 내부 API

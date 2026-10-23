@@ -109,21 +109,4 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
-    public static DummyVirtualAccountPaymentHistory ticketPaymentCompleted(DummyVirtualAccount virtualAccount) {
-        return DummyVirtualAccountPaymentHistory.builder()
-                .virtualAccount(virtualAccount)
-                .paymentNo(virtualAccount.getPaymentNo())
-                .historyType(VirtualAccountPaymentHistoryType.TICKET_PAYMENT_COMPLETED)
-                .message("ticket-service 결제 완료 반영에 성공했습니다.")
-                .build();
-    }
-
-    public static DummyVirtualAccountPaymentHistory ticketPaymentFailed(DummyVirtualAccount virtualAccount) {
-        return DummyVirtualAccountPaymentHistory.builder()
-                .virtualAccount(virtualAccount)
-                .paymentNo(virtualAccount.getPaymentNo())
-                .historyType(VirtualAccountPaymentHistoryType.TICKET_PAYMENT_FAILED)
-                .message(virtualAccount.getFailureReason())
-                .build();
-    }
 }

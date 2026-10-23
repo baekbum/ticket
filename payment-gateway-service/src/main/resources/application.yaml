@@ -49,6 +49,10 @@ app:
     base-url: http://localhost:8082
     service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   virtual-account:
+    deposit-outbox:
+      fixed-delay-ms: 30000
+      retry-delay-ms: 30000
+      batch-size: 100
     expiration:
       enabled: true
       cron: "0 0 0 * * *"

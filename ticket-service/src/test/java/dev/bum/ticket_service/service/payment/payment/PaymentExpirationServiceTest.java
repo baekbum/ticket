@@ -71,7 +71,7 @@ class PaymentExpirationServiceTest {
     void expire_if_expired() {
         Event event = event();
         Reservation reservation = reservation(event);
-        Payment payment = payment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2020, 1, 1, 0, 0));
+        Payment payment = payment(reservation, PaymentStatus.READY, LocalDateTime.of(2020, 1, 1, 0, 0));
         Seat seat = seat(event);
         Ticket ticket = ticket(event, reservation, seat);
         UserCoupon userCoupon = userCoupon(LocalDateTime.of(2099, 1, 1, 0, 0));
@@ -107,6 +107,19 @@ class PaymentExpirationServiceTest {
         paymentExpirationService.expireIfExpired(1L);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        then(ticketRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("발급된 무통장 계좌는 입금 알림 지연을 고려하여 PG 만료 이벤트를 기다린다")
+    void waitingBankTransferIsNotExpiredByLocalClock() {
+        Payment payment = payment(reservation(event()), PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2020, 1, 1, 0, 0));
+        given(paymentJpaRepository.findByIdForUpdate(1L)).willReturn(Optional.of(payment));
+
+        paymentExpirationService.expireIfExpired(1L);
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         then(ticketRepository).shouldHaveNoInteractions();
         then(seatCacheService).shouldHaveNoInteractions();
     }

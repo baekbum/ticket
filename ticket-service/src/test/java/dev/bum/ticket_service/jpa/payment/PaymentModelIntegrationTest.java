@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
@@ -34,6 +35,9 @@ import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
+import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
@@ -42,9 +46,12 @@ import jakarta.persistence.EntityManager;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -53,6 +60,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -61,10 +69,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class})
+@Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
+        VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
     @MockitoBean PaymentGatewayRefundClient refundResolution;
@@ -101,6 +112,51 @@ class PaymentModelIntegrationTest {
     @Autowired TicketJpaRepository tickets;
     @Autowired EntityManager entityManager;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired VirtualAccountPaymentService virtualAccountPayments;
+    @MockitoBean TicketRepository ticketRepository;
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 3000, 8000})
+    void depositNotificationReplaysAfterPaymentOrRefundWithoutChangingHistory(int refundAmount) {
+        Payment payment = payment("deposit-replay");
+        payment.switchToBankTransfer();
+        LocalDateTime expiresAt = LocalDateTime.of(2026, 8, 20, 23, 59, 59);
+        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", expiresAt);
+        payments.saveAndFlush(payment);
+        given(ticketRepository.selectByReservation(payment.getReservation()))
+                .willReturn(tickets.findByReservation(payment.getReservation()));
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo(payment.getPaymentNo()).bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
+                .accountNumber("1111-123456").depositorName("입금자").amount(BigDecimal.valueOf(12000))
+                .depositedAt(expiresAt.minusMinutes(1)).build();
+
+        virtualAccountPayments.completeDepositFromGateway(request);
+        if (refundAmount > 0) payment.partialRefund(refundAmount);
+        payments.flush();
+        int historiesBeforeReplay = payment.getHistories().size();
+        PaymentStatus statusBeforeReplay = payment.getStatus();
+
+        var replay = virtualAccountPayments.completeDepositFromGateway(request);
+        assertThat(replay.getStatus()).isEqualTo(statusBeforeReplay);
+        assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
+        verify(seatCacheService, times(1)).syncReservedSeatsAfterCommit(any());
+
+        request.setDepositorName("다른 입금자");
+        assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request))
+                .hasMessage("이미 처리된 입금 정보와 요청이 일치하지 않습니다.");
+        assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
+    }
+
+    @Test
+    void localExpirationQueryExcludesWaitingBankTransfer() {
+        Payment payment = payment("bank-awaiting-notification");
+        payment.switchToBankTransfer();
+        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().minusDays(1));
+        payments.saveAndFlush(payment);
+        assertThat(payments.findExpiredPaymentIds(List.of(PaymentStatus.READY, PaymentStatus.WAITING_DEPOSIT),
+                LocalDateTime.now(), PageRequest.of(0, 100)
+        )).doesNotContain(payment.getPaymentId());
+    }
 
     @Test
     void completedRefundAllowsNextPartialRefund() {

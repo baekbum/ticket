@@ -59,6 +59,8 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
             select p.paymentId
             from Payment p
             where p.status in :statuses
+              and not (p.method = dev.bum.common.service.ticket.payment.enums.PaymentMethod.BANK_TRANSFER
+                       and p.status = dev.bum.common.service.ticket.payment.enums.PaymentStatus.WAITING_DEPOSIT)
               and p.expiresAt is not null
               and p.expiresAt <= :now
             order by p.expiresAt asc, p.paymentId asc

@@ -65,7 +65,7 @@ class VirtualAccountReconciliationCompletionServiceTest {
         given(payments.findByPaymentNoForUpdate(PAYMENT_NO)).willReturn(Optional.of(fixture.payment));
         given(tickets.selectByReservation(fixture.reservation)).willReturn(List.of(fixture.ticket));
 
-        var response = service.complete(PAYMENT_NO, gatewayStatus(GatewayVirtualAccountStatus.TICKET_PAYMENT_FAILED, 180000));
+        var response = service.complete(PAYMENT_NO, gatewayStatus(GatewayVirtualAccountStatus.DEPOSITED, 180000));
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(fixture.reservation.getStatus()).isEqualTo(ReservationStatus.PAID);

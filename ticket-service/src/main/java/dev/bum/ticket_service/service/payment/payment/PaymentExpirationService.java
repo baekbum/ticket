@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
@@ -75,6 +76,9 @@ public class PaymentExpirationService {
     }
 
     private boolean isExpiredIncompletePayment(Payment payment, LocalDateTime now) {
+        // 입금 알림이 지연됐을 수 있으므로 발급된 무통장 계좌의 만료는 PG 이벤트로 확정한다.
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER
+                && payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) return false;
         return (payment.getStatus() == PaymentStatus.READY || payment.getStatus() == PaymentStatus.WAITING_DEPOSIT)
                 && payment.getExpiresAt() != null
                 && !payment.getExpiresAt().isAfter(now);

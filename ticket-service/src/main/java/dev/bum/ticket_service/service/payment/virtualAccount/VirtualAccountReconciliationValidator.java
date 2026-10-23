@@ -38,9 +38,7 @@ public class VirtualAccountReconciliationValidator {
                 || !payment.getExpiresAt().equals(status.expiresAt())) {
             return "Ticket과 PG의 결제 수단·금액·계좌 정보가 일치하지 않습니다.";
         }
-        if (status.status() != GatewayVirtualAccountStatus.DEPOSITED
-                && status.status() != GatewayVirtualAccountStatus.TICKET_PAYMENT_FAILED
-                && status.status() != GatewayVirtualAccountStatus.TICKET_PAYMENT_COMPLETED) {
+        if (status.status() != GatewayVirtualAccountStatus.DEPOSITED) {
             return "PG에서 입금 완료가 확인되지 않았습니다.";
         }
         if (!StringUtils.hasText(status.depositorName()) || status.depositedAt() == null || payment.getExpiresAt() == null
