@@ -5,7 +5,6 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -87,26 +86,6 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("가상계좌 발급 반영 요청을 무통장 결제 서비스로 위임한다")
-    void delegate_virtual_account_issued() {
-        VirtualAccountIssuedRequest request = VirtualAccountIssuedRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .amount(BigDecimal.valueOf(180000))
-                .bankName("KB국민은행")
-                .accountNumber("1111-1234-123456")
-                .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
-                .build();
-        PaymentResponse expectedResponse = waitingDepositResponse();
-
-        given(virtualAccountPaymentService.applyIssuedFromGateway(request)).willReturn(expectedResponse);
-
-        PaymentResponse response = paymentService.applyVirtualAccountIssued(request);
-
-        assertThat(response).isEqualTo(expectedResponse);
-        then(virtualAccountPaymentService).should().applyIssuedFromGateway(request);
-    }
-
-    @Test
     @DisplayName("가상계좌 입금 완료 요청을 무통장 결제 서비스로 위임한다")
     void delegate_virtual_account_deposit_completion() {
         VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
@@ -166,17 +145,4 @@ class PaymentServiceTest {
                 .build();
     }
 
-    private PaymentResponse waitingDepositResponse() {
-        return PaymentResponse.builder()
-                .paymentId(1L)
-                .reservationId(1L)
-                .orderId("ORDER-1")
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.WAITING_DEPOSIT)
-                .amount(180000)
-                .bankName("KB국민은행")
-                .accountNumber("1111-1234-123456")
-                .build();
-    }
 }

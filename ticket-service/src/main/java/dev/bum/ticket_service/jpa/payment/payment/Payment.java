@@ -263,11 +263,14 @@ public class Payment {
     public void waitDeposit(String bankName, String accountNumber, LocalDateTime expiresAt) {
         PaymentStatus before = this.status;
         this.status = PaymentStatus.WAITING_DEPOSIT;
+
         if (this.virtualAccountInfo == null) {
             this.virtualAccountInfo = new VirtualAccountPaymentInfo();
         }
+
         this.virtualAccountInfo.issue(bankName, accountNumber);
         this.expiresAt = expiresAt;
+
         process.move(PaymentProcessStage.WAITING_DEPOSIT, null);
         record(PaymentHistoryType.ACCOUNT_ISSUED, before, null);
     }

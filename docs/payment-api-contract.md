@@ -231,6 +231,8 @@ Content-Type: application/json
 
 gateway가 ticket-service에 결제 상태를 반영할 때만 사용한다.
 
+가상계좌 발급 정보는 ticket-service가 checkout 중 PG 발급 응답을 받아 직접 저장한다. 발급 요청은 결제번호·은행사·금액·공연일시를 전달한다.
+
 ```text
 X-Service-Token: {internalServiceToken}
 Content-Type: application/json
@@ -241,7 +243,6 @@ POST /ticket/api/v1/payments/internal/card/validate
 POST /ticket/api/v1/payments/internal/card/settle
 POST /ticket/api/v1/payments/internal/card/complete
 POST /ticket/api/v1/payments/internal/card/fail
-POST /ticket/api/v1/payments/internal/virtual-account/issued
 POST /ticket/api/v1/payments/internal/virtual-account/deposit/complete
 ```
 

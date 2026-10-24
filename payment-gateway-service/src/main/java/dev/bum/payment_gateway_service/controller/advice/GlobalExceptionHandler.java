@@ -2,7 +2,6 @@ package dev.bum.payment_gateway_service.controller.advice;
 
 import dev.bum.payment_gateway_service.exception.TicketPaymentCompleteException;
 import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
-import dev.bum.payment_gateway_service.exception.TicketVirtualAccountIssueException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -35,8 +34,4 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", e.getMessage()));
     }
 
-    @ExceptionHandler(TicketVirtualAccountIssueException.class)
-    public ResponseEntity<Map<String, String>> handleTicketVirtualAccountIssueException(TicketVirtualAccountIssueException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", e.getMessage()));
-    }
 }

@@ -3,10 +3,8 @@ package dev.bum.ticket_service.service.payment.virtualAccount;
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
@@ -19,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
@@ -31,23 +28,6 @@ public class VirtualAccountPaymentService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentCompletionService paymentCompletionService;
     private final PaymentExpirationService paymentExpirationService;
-
-    public PaymentResponse applyIssuedFromGateway(VirtualAccountIssuedRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        validateGatewayVirtualAccountIssuedBasics(payment, request);
-        if (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) {
-            return payment.toResponse();
-        }
-
-        validateGatewayVirtualAccountIssuedReady(payment);
-        PaymentStatus beforePaymentStatus = payment.getStatus();
-        payment.waitDeposit(request.getBankName(), request.getAccountNumber(), request.getExpiresAt());
-        AuditDataMapper.setFieldChange("status", beforePaymentStatus, payment.getStatus());
-
-        return payment.toResponse();
-    }
 
     public PaymentResponse completeDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
@@ -72,22 +52,6 @@ public class VirtualAccountPaymentService {
 
         paymentExpirationService.expire(payment);
         return payment.toResponse();
-    }
-
-    private void validateGatewayVirtualAccountIssuedBasics(Payment payment, VirtualAccountIssuedRequest request) {
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
-        }
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
-            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
-        }
-    }
-
-    private void validateGatewayVirtualAccountIssuedReady(Payment payment) {
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("가상계좌 발급 정보를 반영할 수 없는 결제 상태입니다.");
-        }
-        validatePaymentNotExpired(payment);
     }
 
     private void validateGatewayVirtualAccountDeposit(Payment payment, VirtualAccountDepositCompleteRequest request) {
@@ -150,10 +114,4 @@ public class VirtualAccountPaymentService {
         }
     }
 
-    private void validatePaymentNotExpired(Payment payment) {
-        if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
-            paymentExpirationService.expire(payment);
-            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
-        }
-    }
 }

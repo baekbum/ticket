@@ -7,7 +7,6 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.service.payment.card.CardPaymentService;
 import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentService;
@@ -57,15 +56,6 @@ public class PaymentService {
     @Observed(name = "ticket.payment.fail-card-from-gateway", contextualName = "ticket payment fail card from gateway")
     public PaymentResponse failCardFromGateway(CardPaymentFailRequest request) {
         return cardPaymentService.failFromGateway(request);
-    }
-
-    /**
-     * payment-gateway에서 발급한 가상계좌 정보를 무통장 결제에 반영하고 입금 대기 상태로 전환한다.
-     */
-    @AuditLog(action = "VIRTUAL_ACCOUNT_ISSUED_FROM_GATEWAY", targetType = "PAYMENT")
-    @Observed(name = "ticket.payment.apply-virtual-account-issued", contextualName = "ticket payment apply virtual account issued")
-    public PaymentResponse applyVirtualAccountIssued(VirtualAccountIssuedRequest request) {
-        return virtualAccountPaymentService.applyIssuedFromGateway(request);
     }
 
     /**

@@ -61,7 +61,6 @@ class CheckoutVirtualAccountServiceTest {
                         && argument.getBankCompany() == BankCompany.KB
                         && argument.getAmount().compareTo(BigDecimal.valueOf(180000)) == 0
                         && argument.getEventDateTime().equals(event.getEventDateTime())
-                        && Boolean.FALSE.equals(argument.getTicketPaymentApplyRequired())
         ));
     }
 

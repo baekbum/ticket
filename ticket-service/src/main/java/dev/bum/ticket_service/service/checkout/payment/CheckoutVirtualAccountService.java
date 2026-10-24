@@ -29,6 +29,7 @@ public class CheckoutVirtualAccountService {
                 || virtualAccount.getExpiresAt() == null) {
             throw new IllegalStateException("가상계좌 발급에 실패했습니다.");
         }
+        // PG 발급 응답을 현재 결제 트랜잭션에서 반영한다.
         payment.waitDeposit(
                 virtualAccount.getBankName(),
                 virtualAccount.getAccountNumber(),
@@ -47,7 +48,6 @@ public class CheckoutVirtualAccountService {
                         .bankCompany(bankCompany)
                         .amount(BigDecimal.valueOf(payment.getAmount()))
                         .eventDateTime(payment.getReservation().getEvent().getEventDateTime())
-                        .ticketPaymentApplyRequired(false)
                         .build()
         );
     }

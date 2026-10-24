@@ -30,10 +30,4 @@ public class GatewayVirtualAccountIssueRequest {
 
     @NotNull
     private LocalDateTime eventDateTime;
-
-    private Boolean ticketPaymentApplyRequired;
-
-    public boolean isTicketPaymentApplyRequired() {
-        return ticketPaymentApplyRequired == null || ticketPaymentApplyRequired;
-    }
 }

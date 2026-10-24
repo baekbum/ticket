@@ -5,7 +5,6 @@ import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountIssuedRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
@@ -48,39 +47,6 @@ class VirtualAccountPaymentServiceTest {
 
     @InjectMocks
     private VirtualAccountPaymentService virtualAccountPaymentService;
-
-    @Test
-    @DisplayName("payment-gateway 가상계좌 발급 정보를 입금 대기 상태로 반영한다")
-    void apply_virtual_account_issued_success() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.BANK_TRANSFER, PaymentStatus.READY);
-        VirtualAccountIssuedRequest request = virtualAccountIssuedRequest(BigDecimal.valueOf(180000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        PaymentResponse response = virtualAccountPaymentService.applyIssuedFromGateway(request);
-
-        assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-        assertThat(response.getBankName()).isEqualTo("KB국민은행");
-        assertThat(response.getAccountNumber()).isEqualTo("1111-1234-123456");
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-    }
-
-    @Test
-    @DisplayName("payment-gateway 가상계좌 발급 금액이 다르면 결제 상태를 유지한다")
-    void apply_virtual_account_issued_amount_mismatch() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.BANK_TRANSFER, PaymentStatus.READY);
-        VirtualAccountIssuedRequest request = virtualAccountIssuedRequest(BigDecimal.valueOf(170000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        assertThatThrownBy(() -> virtualAccountPaymentService.applyIssuedFromGateway(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("결제 금액이 일치하지 않습니다.");
-
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
-    }
 
     @Test
     @DisplayName("payment-gateway 입금 완료 요청 수신 시 결제와 예매를 완료 처리한다")
@@ -186,16 +152,6 @@ class VirtualAccountPaymentServiceTest {
         then(paymentExpirationService).shouldHaveNoInteractions();
     }
 
-    private VirtualAccountIssuedRequest virtualAccountIssuedRequest(BigDecimal amount) {
-        return VirtualAccountIssuedRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .amount(amount)
-                .bankName("KB국민은행")
-                .accountNumber("1111-1234-123456")
-                .expiresAt(LocalDateTime.of(2099, 7, 27, 23, 59, 59))
-                .build();
-    }
-
     private VirtualAccountDepositCompleteRequest virtualAccountDepositCompleteRequest(BigDecimal amount) {
         return VirtualAccountDepositCompleteRequest.builder()
                 .paymentNo("PAY-20260727120000-abcdef123456")
@@ -242,18 +198,6 @@ class VirtualAccountPaymentServiceTest {
                 .status(ReservationStatus.PENDING_PAYMENT)
                 .tickets(new ArrayList<>())
                 .reservedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
-                .build();
-    }
-
-    private Payment payment(Reservation reservation, PaymentMethod method, PaymentStatus status) {
-        return Payment.builder()
-                .paymentId(1L)
-                .reservation(reservation)
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .method(method)
-                .status(status)
-                .amount(180000)
-                .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
                 .build();
     }
 
