@@ -69,7 +69,7 @@ public class PaymentExpirationService {
                 .ifPresent(ReservationDelivery::cancel);
         restoreUsedCoupons(reservation);
 
-        seatCacheService.syncAvailableSeatsAfterCommit(availableSeats);
+        seatCacheService.syncAvailableSeatsAfterCommit(availableSeats, reservation.getUserId(), reservation.getOrderId());
 
         log.info("[PAYMENT][EXPIRE][HANDLE] paymentId={}, reservationId={}, seatCount={}",
                 payment.getPaymentId(), reservation.getReservationId(), availableSeats.size());

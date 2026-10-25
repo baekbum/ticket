@@ -139,7 +139,7 @@ class PaymentModelIntegrationTest {
         var replay = virtualAccountPayments.completeDepositFromGateway(request);
         assertThat(replay.getStatus()).isEqualTo(statusBeforeReplay);
         assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
-        verify(seatCacheService, times(1)).syncReservedSeatsAfterCommit(any());
+        verify(seatCacheService, times(1)).syncReservedSeatsAfterCommit(any(), any(), any());
 
         request.setDepositorName("다른 입금자");
         assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request))

@@ -283,7 +283,7 @@ class ReservationServiceTest {
         then(repository).should().selectByIdForUpdate(1L);
         assertThat(remainingTicket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(remainingTicket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
-        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat(), remainingTicket.getSeat()));
+        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(selectedTicket.getSeat(), remainingTicket.getSeat()), reservation.getUserId(), reservation.getOrderId());
     }
 
     @Test

@@ -26,8 +26,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -68,7 +66,7 @@ class SeatCacheServiceTest {
     private StringRedisTemplate seatRedisTemplate;
 
     @Mock
-    private SeatCacheSyncFailureService seatCacheSyncFailureService;
+    private SeatCacheSyncOutboxService seatCacheSyncOutboxService;
 
     @Mock
     private ValueOperations<String, String> valueOperations;
@@ -84,7 +82,7 @@ class SeatCacheServiceTest {
                 repository,
                 eventRepository,
                 seatRedisTemplate,
-                seatCacheSyncFailureService,
+                seatCacheSyncOutboxService,
                 seatCacheMissOccupationService
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -280,82 +278,17 @@ class SeatCacheServiceTest {
     }
 
     @Test
-    @DisplayName("좌석 Redis 상태 동기화는 트랜잭션 커밋 이후에만 실행된다")
-    void sync_reserved_seats_registers_after_commit_callback() {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            Seat seat = seat(1L, "VIP", 1, 1);
-            given(seatRedisTemplate.execute(any(DefaultRedisScript.class), anyList(), anyString(), eq("RESERVED")))
-                    .willReturn(1L);
-
-            seatCacheService.syncReservedSeatsAfterCommit(List.of(seat));
-
-            then(seatRedisTemplate).should(never()).execute(any(DefaultRedisScript.class), anyList(), anyString(), anyString());
-
-            List<TransactionSynchronization> synchronizations =
-                    TransactionSynchronizationManager.getSynchronizations();
-            synchronizations.forEach(TransactionSynchronization::afterCommit);
-
-            then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
-                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("RESERVED"));
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+    @DisplayName("DB 좌석 상태 변경에 대한 동기화 작업과 예매 소유 정보를 Outbox로 전달한다")
+    void enqueue_seat_changes_with_reservation_owner() {
+        List<Seat> seats = List.of(seat(1L, "VIP", 1, 1));
+        seatCacheService.syncReservedSeatsAfterCommit(seats, USER_ID, "order-1");
+        seatCacheService.syncLockedSeatsAfterCommit(seats, USER_ID, "order-1");
+        seatCacheService.syncAvailableSeatsAfterCommit(seats, USER_ID, "order-1");
+        then(seatCacheSyncOutboxService).should().enqueue(seats, "syncReservedSeatsAfterCommit", USER_ID, "order-1");
+        then(seatCacheSyncOutboxService).should().enqueue(seats, "syncLockedSeatsAfterCommit", USER_ID, "order-1");
+        then(seatCacheSyncOutboxService).should().enqueue(seats, "syncAvailableSeatsAfterCommit", USER_ID, "order-1");
+        then(seatRedisTemplate).shouldHaveNoInteractions();
     }
-
-    @Test
-    @DisplayName("커밋 후 좌석 Redis 동기화 실패는 보정 이력으로 저장한다")
-    void sync_reserved_seats_records_failure_after_commit() {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            Seat seat = seat(1L, "VIP", 1, 1);
-            DataAccessException redisError = new DataAccessException("redis error") {};
-            given(seatRedisTemplate.execute(any(DefaultRedisScript.class),
-                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("RESERVED")))
-                    .willThrow(redisError);
-
-            seatCacheService.syncReservedSeatsAfterCommit(List.of(seat));
-
-            List<TransactionSynchronization> synchronizations =
-                    TransactionSynchronizationManager.getSynchronizations();
-            synchronizations.forEach(TransactionSynchronization::afterCommit);
-
-            then(seatCacheSyncFailureService).should().recordFailure(
-                    eq("syncReservedSeatsAfterCommit"),
-                    eq("event:{eventId}:seat"),
-                    eq(List.of(FIRST_SEAT_KEY)),
-                    eq(List.of(SeatStatus.RESERVED.name())),
-                    eq(redisError)
-            );
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
-    }
-
-    @Test
-    @DisplayName("좌석별 동기화를 계속 수행하고 실패한 좌석만 각각 저장한다")
-    void sync_available_seats_continues_and_records_only_each_failed_seat() {
-        String secondKey = "event:1:seat:VIP:1:2";
-        String thirdKey = "event:1:seat:VIP:1:3";
-        String fourthKey = "event:1:seat:VIP:1:4";
-        DataAccessException secondError = new DataAccessException("second failed") {};
-        DataAccessException thirdError = new DataAccessException("third failed") {};
-        given(seatRedisTemplate.execute(any(DefaultRedisScript.class), anyList(), anyString(), eq("AVAILABLE")))
-                .willReturn(1L).willThrow(secondError).willThrow(thirdError).willReturn(1L);
-
-        seatCacheService.syncAvailableSeatsAfterCommit(List.of(
-                seat(1L, "VIP", 1, 1), seat(2L, "VIP", 1, 2),
-                seat(3L, "VIP", 1, 3), seat(4L, "VIP", 1, 4)));
-
-        then(seatRedisTemplate).should().execute(any(DefaultRedisScript.class),
-                eq(List.of(fourthKey, fourthKey + ":lock")), anyString(), eq("AVAILABLE"));
-        then(seatCacheSyncFailureService).should().recordFailure("syncAvailableSeatsAfterCommit",
-                "event:{eventId}:seat", List.of(secondKey), List.of("AVAILABLE"), secondError);
-        then(seatCacheSyncFailureService).should().recordFailure("syncAvailableSeatsAfterCommit",
-                "event:{eventId}:seat", List.of(thirdKey), List.of("AVAILABLE"), thirdError);
-        then(seatCacheSyncFailureService).shouldHaveNoMoreInteractions();
-    }
-
     private Event event() {
         return event(TicketLimitScope.PER_EVENT);
     }

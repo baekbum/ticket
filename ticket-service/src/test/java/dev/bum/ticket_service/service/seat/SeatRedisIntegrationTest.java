@@ -13,6 +13,10 @@ import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailure;
+import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncOutbox;
+import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncOutboxJpaRepository;
+import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncOutboxStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureJpaRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureStatus;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
@@ -27,10 +31,6 @@ import org.springframework.data.redis.connection.lettuce.LettuceClientConfigurat
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -56,7 +56,6 @@ class SeatRedisIntegrationTest {
     private SeatJpaRepository currentSeats;
     private EventRepository events;
     private TicketRepository tickets;
-    private SeatCacheSyncFailureService failures;
     private Event event;
 
     @BeforeEach
@@ -68,7 +67,6 @@ class SeatRedisIntegrationTest {
         currentSeats = mock(SeatJpaRepository.class);
         events = mock(EventRepository.class);
         tickets = mock(TicketRepository.class);
-        failures = mock(SeatCacheSyncFailureService.class);
         long id = ThreadLocalRandom.current().nextLong(1_000_000_000_000L, 9_000_000_000_000L);
         event = Event.builder().eventId(id).ticketLimitScope(TicketLimitScope.PER_EVENT)
                 .maxTicketsPerPerson(4).saleStartAt(LocalDateTime.now().minusHours(1))
@@ -195,59 +193,72 @@ class SeatRedisIntegrationTest {
     }
 
     @Test
-    void real_redis_acl_errors_record_only_failed_seats_and_continue() {
+    void real_redis_acl_errors_keep_pending_outbox_and_continue() {
         List<Seat> targets = List.of(seat(1, SeatStatus.AVAILABLE), seat(2, SeatStatus.AVAILABLE),
                 seat(3, SeatStatus.AVAILABLE), seat(4, SeatStatus.AVAILABLE));
-        for (int col = 1; col <= 4; col++) {
-            redis.opsForValue().set(key(col), "RESERVED", Duration.ofMinutes(2));
-        }
+        for (int col = 1; col <= 4; col++) redis.opsForValue().set(key(col), "RESERVED", Duration.ofMinutes(2));
         StringRedisTemplate restricted = restrictedRedis(List.of(key(1), key(1) + ":lock", key(4), key(4) + ":lock"));
-
-        service(restricted).syncAvailableSeatsAfterCommit(targets);
-
+        SeatCacheSyncOutboxJpaRepository outboxes = mock(SeatCacheSyncOutboxJpaRepository.class);
+        SeatCacheSyncOutboxPublisher publisher = new SeatCacheSyncOutboxPublisher(outboxes, currentSeats, restricted);
+        List<SeatCacheSyncOutbox> records = new ArrayList<>();
+        for (int index = 0; index < targets.size(); index++) {
+            Seat seat = targets.get(index);
+            long id = index + 1L;
+            SeatCacheSyncOutbox outbox = SeatCacheSyncOutbox.builder().seatId(seat.getSeatId())
+                    .redisKey(key(index + 1)).lockValue("LOCKED:old-user:old-order").operation("cancel").build();
+            ReflectionTestUtils.setField(outbox, "outboxId", id);
+            given(outboxes.findByIdForUpdate(id)).willReturn(Optional.of(outbox));
+            given(currentSeats.findByIdForUpdate(seat.getSeatId())).willReturn(Optional.of(seat));
+            records.add(outbox);
+            publisher.publish(id);
+        }
         assertThat(redis.opsForValue().get(key(1))).isEqualTo("AVAILABLE");
         assertThat(redis.opsForValue().get(key(4))).isEqualTo("AVAILABLE");
         assertThat(redis.opsForValue().get(key(2))).isEqualTo("RESERVED");
         assertThat(redis.opsForValue().get(key(3))).isEqualTo("RESERVED");
-        then(failures).should().recordFailure(eq("syncAvailableSeatsAfterCommit"), anyString(),
-                eq(List.of(key(2))), eq(List.of("AVAILABLE")), any(Exception.class));
-        then(failures).should().recordFailure(eq("syncAvailableSeatsAfterCommit"), anyString(),
-                eq(List.of(key(3))), eq(List.of("AVAILABLE")), any(Exception.class));
-        then(failures).shouldHaveNoMoreInteractions();
+        assertThat(records).extracting(SeatCacheSyncOutbox::getStatus).containsExactly(
+                SeatCacheSyncOutboxStatus.APPLIED, SeatCacheSyncOutboxStatus.PENDING,
+                SeatCacheSyncOutboxStatus.PENDING, SeatCacheSyncOutboxStatus.APPLIED);
+        assertThat(records.get(1).getRetryCount()).isEqualTo(1);
+        assertThat(records.get(2).getRetryCount()).isEqualTo(1);
     }
 
     @Test
-    void seat_cache_is_updated_only_after_database_commit() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", "sa", "");
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        jdbc.execute("create table transaction_marker (amount integer not null)");
-        jdbc.update("insert into transaction_marker values (0)");
-        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        SeatCacheService service = service(redis);
-        String seatKey = key(1);
-        try {
-            assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
-                jdbc.update("update transaction_marker set amount = 1");
-                service.syncReservedSeatsAfterCommit(List.of(seat(1, SeatStatus.RESERVED)));
-                throw new IllegalStateException("DB 롤백");
-            })).isInstanceOf(IllegalStateException.class);
-            assertThat(jdbc.queryForObject("select amount from transaction_marker", Integer.class)).isZero();
-            assertThat(redis.hasKey(seatKey)).isFalse();
-
-            transaction.executeWithoutResult(status -> {
-                jdbc.update("update transaction_marker set amount = 1");
-                service.syncReservedSeatsAfterCommit(List.of(seat(1, SeatStatus.RESERVED)));
-                assertThat(redis.hasKey(seatKey)).isFalse();
-            });
-            assertThat(jdbc.queryForObject("select amount from transaction_marker", Integer.class)).isEqualTo(1);
-            assertThat(redis.opsForValue().get(seatKey)).isEqualTo("RESERVED");
-        } finally {
-            jdbc.execute("shutdown");
-        }
+    void outbox_sync_releases_only_its_own_reservation_hold() {
+        String key = key(1);
+        String owner = "LOCKED:user:order";
+        redis.opsForValue().set(key, owner, Duration.ofMinutes(2));
+        redis.opsForValue().set(key + ":lock", owner, Duration.ofMinutes(2));
+        Long result = redis.execute(SeatCacheSyncScripts.APPLY, List.of(key, key + ":lock"), "60000", "RESERVED", owner);
+        assertThat(result).isEqualTo(1L);
+        assertThat(redis.opsForValue().get(key)).isEqualTo("RESERVED");
+        assertThat(redis.hasKey(key + ":lock")).isFalse();
     }
 
+    @Test
+    void old_outbox_does_not_clear_a_new_reservation_hold() {
+        String key = key(1);
+        String owner = "LOCKED:new-user:new-order";
+        redis.opsForValue().set(key, owner, Duration.ofMinutes(2));
+        redis.opsForValue().set(key + ":lock", owner, Duration.ofMinutes(2));
+        Long result = redis.execute(SeatCacheSyncScripts.APPLY, List.of(key, key + ":lock"), "60000", "AVAILABLE", "LOCKED:old-user:old-order");
+        assertThat(result).isZero();
+        assertThat(redis.opsForValue().get(key)).isEqualTo(owner);
+        assertThat(redis.opsForValue().get(key + ":lock")).isEqualTo(owner);
+    }
+
+    @Test
+    void old_outbox_keeps_a_new_hold_when_the_state_key_is_missing() {
+        String key = key(1);
+        String owner = "LOCKED:new-user:new-order";
+        redis.opsForValue().set(key + ":lock", owner, Duration.ofMinutes(2));
+        Long result = redis.execute(SeatCacheSyncScripts.APPLY, List.of(key, key + ":lock"), "60000", "AVAILABLE", "LOCKED:old-user:old-order");
+        assertThat(result).isZero();
+        assertThat(redis.hasKey(key)).isFalse();
+        assertThat(redis.opsForValue().get(key + ":lock")).isEqualTo(owner);
+    }
     private SeatCacheService service(StringRedisTemplate template) {
-        return new SeatCacheService(seats, events, template, failures,
+        return new SeatCacheService(seats, events, template, mock(SeatCacheSyncOutboxService.class),
                 new SeatCacheMissOccupationService(currentSeats, template));
     }
     private Seat seat(int col, SeatStatus status) {

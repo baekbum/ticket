@@ -242,7 +242,7 @@ public class ReservationCancellationService {
         // 쿠폰 원복
         if (restoreCoupon) restoreUsedCoupons(reservation);
 
-        seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
+        seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats, reservation.getUserId(), reservation.getOrderId());
     }
 
     private void validateCancelableReservation(Reservation reservation) {

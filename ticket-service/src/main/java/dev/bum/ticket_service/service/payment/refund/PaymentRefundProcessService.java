@@ -504,7 +504,7 @@ public class PaymentRefundProcessService {
 
             process.localSucceeded();
 
-            seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats);
+            seatCacheService.syncAvailableSeatsAfterCommit(cancelledSeats, reservation.getUserId(), reservation.getOrderId());
         } catch (RuntimeException e) {
             process.localFailed(messageOf(e));
             throw e;

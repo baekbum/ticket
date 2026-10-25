@@ -75,6 +75,11 @@ topic:
       name: audit-log
 
 app:
+  seat-cache:
+    sync-outbox:
+      fixed-delay-ms: 30000
+      retry-delay-ms: 30000
+      batch-size: 100
   internal:
     service-token: ${APP_INTERNAL_SERVICE_TOKEN:local-internal-service-token}
   upload:

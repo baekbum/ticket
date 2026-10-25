@@ -229,7 +229,7 @@ public class ReservationManagementService {
 
         ticketPurchaseCountService.applyStatusAdjustment(reservation, beforeTicketCount, tickets);
         AuditDataMapper.setFieldChange("status", beforeStatus, targetStatus);
-        syncAdjustedSeatCache(lockedSeats, reservedSeats, availableSeats);
+        syncAdjustedSeatCache(reservation, lockedSeats, reservedSeats, availableSeats);
 
         return selectDetailById(id);
     }
@@ -256,15 +256,15 @@ public class ReservationManagementService {
     /**
      * 상태 보정으로 변경된 좌석 목록을 Redis 캐시에 반영한다.
      */
-    private void syncAdjustedSeatCache(List<Seat> lockedSeats, List<Seat> reservedSeats, List<Seat> availableSeats) {
+    private void syncAdjustedSeatCache(Reservation reservation, List<Seat> lockedSeats, List<Seat> reservedSeats, List<Seat> availableSeats) {
         if (!lockedSeats.isEmpty()) {
-            seatCacheService.syncLockedSeatsAfterCommit(lockedSeats);
+            seatCacheService.syncLockedSeatsAfterCommit(lockedSeats, reservation.getUserId(), reservation.getOrderId());
         }
         if (!reservedSeats.isEmpty()) {
-            seatCacheService.syncReservedSeatsAfterCommit(reservedSeats);
+            seatCacheService.syncReservedSeatsAfterCommit(reservedSeats, reservation.getUserId(), reservation.getOrderId());
         }
         if (!availableSeats.isEmpty()) {
-            seatCacheService.syncAvailableSeatsAfterCommit(availableSeats);
+            seatCacheService.syncAvailableSeatsAfterCommit(availableSeats, reservation.getUserId(), reservation.getOrderId());
         }
     }
 

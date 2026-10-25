@@ -93,7 +93,7 @@ class PaymentExpirationServiceTest {
 
         then(userCouponRepository).should().lockForUpdate(userCoupon);
 
-        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(seat));
+        then(seatCacheService).should().syncAvailableSeatsAfterCommit(List.of(seat), reservation.getUserId(), reservation.getOrderId());
         then(seatCacheService).shouldHaveNoMoreInteractions();
     }
 

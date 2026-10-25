@@ -437,3 +437,22 @@ CREATE TABLE payment_histories (
  occurred_at TIMESTAMP NOT NULL
 );
 CREATE INDEX idx_payment_histories_payment ON payment_histories(payment_id);
+
+-- ticket DB에서 실행한다. 좌석 상태 변경과 함께 저장하는 Redis 동기화 작업.
+CREATE TABLE IF NOT EXISTS seat_cache_sync_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    seat_id BIGINT NOT NULL,
+    redis_key VARCHAR(200) NOT NULL,
+    lock_value VARCHAR(500) NOT NULL,
+    operation VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error_type VARCHAR(100),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    applied_at TIMESTAMP,
+    CONSTRAINT chk_seat_cache_outbox_status CHECK (status IN ('PENDING', 'APPLIED')),
+    CONSTRAINT chk_seat_cache_outbox_retry_count CHECK (retry_count >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_seat_cache_outbox_ready
+    ON seat_cache_sync_outbox(status, next_attempt_at, outbox_id);
