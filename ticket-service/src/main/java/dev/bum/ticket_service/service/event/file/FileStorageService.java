@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -128,11 +129,26 @@ public class FileStorageService {
                 throw new IllegalArgumentException("유효하지 않은 파일 경로입니다.");
             }
 
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, target);
-                return target;
+            try {
+                Files.createFile(target);
             } catch (FileAlreadyExistsException e) {
                 continue;
+            }
+
+            try (
+                    InputStream inputStream = file.getInputStream();
+                    OutputStream outputStream = Files.newOutputStream(target)
+            ) {
+                inputStream.transferTo(outputStream);
+                return target;
+            } catch (IOException | RuntimeException e) {
+                // 저장 도중 실패하면 트랜잭션 후처리를 등록하기 전이므로 여기서 부분 파일을 정리한다.
+                try {
+                    Files.deleteIfExists(target);
+                } catch (IOException cleanupError) {
+                    e.addSuppressed(cleanupError);
+                }
+                throw e;
             }
         }
     }

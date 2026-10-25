@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -100,6 +102,35 @@ class FileStorageServiceTest {
         fileStorageService.deleteByPublicUrl("/other/uploads/events/posters/1/poster.png");
 
         assertThat(Files.exists(storedFile)).isTrue();
+    }
+
+    @Test
+    @DisplayName("저장 중 읽기 오류가 발생하면 부분 파일을 삭제하고 기존 파일은 보존")
+    void failed_upload_removes_only_its_partial_file() throws IOException {
+        FileStorageService service = fileStorageService();
+        String existing = service.saveEventPoster(imageFile("poster.png", "image/png"));
+        MockMultipartFile broken = new MockMultipartFile("posterImage", "poster.png", "image/png", new byte[]{1}) {
+            @Override
+            public InputStream getInputStream() {
+                return new InputStream() {
+                    private boolean firstRead = true;
+
+                    @Override
+                    public int read() throws IOException {
+                        if (firstRead) {
+                            firstRead = false;
+                            return 1;
+                        }
+                        throw new IOException("업로드 읽기 실패");
+                    }
+                };
+            }
+        };
+
+        assertThatThrownBy(() -> service.saveEventPoster(broken)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(tempDir.resolve(existing.substring("/ticket/uploads/".length()))).exists();
+        assertThat(tempDir.resolve("events/posters/26_08/poster_1.png")).doesNotExist();
     }
 
     private MockMultipartFile imageFile(String filename, String contentType) {

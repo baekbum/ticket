@@ -17,7 +17,7 @@ import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.service.event.event.EventManagementService;
-import dev.bum.ticket_service.service.event.file.FileStorageService;
+import dev.bum.ticket_service.service.event.file.EventPosterService;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,7 +53,7 @@ class EventManagementServiceTest {
     private EventRepository repository;
 
     @Mock
-    private FileStorageService fileStorageService;
+    private EventPosterService eventPosterService;
 
     @Test
     @DisplayName("다회차 이벤트 등록 시 공통 정보와 회차별 일정으로 여러 이벤트 생성")
@@ -75,7 +75,7 @@ class EventManagementServiceTest {
                         && request.getEventDateTime().equals(LocalDateTime.of(2026, 9, 19, 18, 0))
                         && request.getTicketLimitScope() == TicketLimitScope.PER_GROUP
         ))).willReturn(secondEvent);
-        given(fileStorageService.saveEventPoster(posterImage)).willReturn(
+        given(eventPosterService.saveForTransaction(posterImage, null)).willReturn(
                 "/ticket/uploads/events/posters/1/poster.png",
                 "/ticket/uploads/events/posters/2/poster.png"
         );
@@ -86,7 +86,7 @@ class EventManagementServiceTest {
         assertThat(response).extracting(EventResponse::getEventId).containsExactly(1L, 2L);
         assertThat(response).extracting(EventResponse::getPosterUrl)
                 .containsExactly("/ticket/uploads/events/posters/1/poster.png", "/ticket/uploads/events/posters/2/poster.png");
-        then(fileStorageService).should(times(2)).saveEventPoster(posterImage);
+        then(eventPosterService).should(times(2)).saveForTransaction(posterImage, null);
     }
 
     @Test
@@ -153,15 +153,14 @@ class EventManagementServiceTest {
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
         given(repository.selectById(1L)).willReturn(event);
-        given(fileStorageService.saveEventPoster(posterImage)).willReturn("/ticket/uploads/events/posters/1/new.png");
+        given(eventPosterService.saveForTransaction(posterImage, "/ticket/uploads/events/posters/1/old.png")).willReturn("/ticket/uploads/events/posters/1/new.png");
 
         EventResponse response = eventManagementService.update(1L, info, posterImage);
 
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/new.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
         then(repository).should().selectById(1L);
-        then(fileStorageService).should().saveEventPoster(posterImage);
-        then(fileStorageService).should().deleteByPublicUrl("/ticket/uploads/events/posters/1/old.png");
+        then(eventPosterService).should().saveForTransaction(posterImage, "/ticket/uploads/events/posters/1/old.png");
     }
 
     @Test
@@ -172,14 +171,13 @@ class EventManagementServiceTest {
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
         given(repository.selectById(1L)).willReturn(event);
-        given(fileStorageService.saveEventPoster(null)).willReturn(null);
+        given(eventPosterService.saveForTransaction(null, "/ticket/uploads/events/posters/1/old.png")).willReturn(null);
 
         EventResponse response = eventManagementService.update(1L, info, null);
 
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/old.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
-        then(fileStorageService).should().saveEventPoster(null);
-        then(fileStorageService).should(never()).deleteByPublicUrl(ArgumentMatchers.any());
+        then(eventPosterService).should().saveForTransaction(null, "/ticket/uploads/events/posters/1/old.png");
     }
 
     @Test
