@@ -19,6 +19,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -67,6 +68,7 @@ public class AuditLogAspect {
 
             LocalDateTime occurredAt = LocalDateTime.now();
             AuditLogEvent event = AuditLogEvent.builder()
+                    .idempotencyKey(occurredAt.toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + UUID.randomUUID())
                     .occurredAt(occurredAt)
                     .serviceName(serviceName)
                     .actorType(actorType)

@@ -5,6 +5,7 @@ import dev.bum.auth_service.jpa.Auth;
 import dev.bum.auth_service.kafka.LoginLogProducer;
 import dev.bum.auth_service.service.AuthService;
 import dev.bum.common.kafka.audit.AuditLogProducer;
+import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.kafka.login.LoginLogEvent;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.service.user.user.enums.UserRole;
@@ -15,14 +16,44 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.format.DateTimeFormatter;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 
 class AuditLogAspectTest {
+
+    @Test
+    @DisplayName("서로 다른 감사 작업은 내용이 같아도 별도 멱등키를 발급")
+    void separate_audit_operations_receive_different_keys() throws Throwable {
+        AuditLogProducer producer = mock(AuditLogProducer.class);
+        AuditLogAspect aspect = new AuditLogAspect(producer, mock(LoginLogProducer.class));
+        ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+        MethodSignature signature = mock(MethodSignature.class);
+        AuditLog auditLog = mock(AuditLog.class);
+        given(joinPoint.proceed()).willReturn("ok");
+        given(joinPoint.getArgs()).willReturn(new Object[]{new LoginRequest("member", "password")});
+        given(joinPoint.getSignature()).willReturn(signature);
+        given(signature.getDeclaringType()).willReturn(AuthService.class);
+        given(signature.getMethod()).willReturn(AuthService.class.getMethod("LoginAndCreateToken", LoginRequest.class));
+        given(auditLog.action()).willReturn("LOGOUT");
+        given(auditLog.targetType()).willReturn("AUTH");
+
+        aspect.writeAuditLog(joinPoint, auditLog);
+        aspect.writeAuditLog(joinPoint, auditLog);
+
+        ArgumentCaptor<AuditLogEvent> events = ArgumentCaptor.forClass(AuditLogEvent.class);
+        verify(producer, times(2)).send(events.capture());
+        assertThat(events.getAllValues()).allSatisfy(event ->
+                assertThat(event.getIdempotencyKey()).hasSize(45)
+                        .startsWith(event.getOccurredAt().toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE) + "-")
+        ).extracting(AuditLogEvent::getIdempotencyKey).doesNotHaveDuplicates();
+    }
 
     @AfterEach
     void clearContext() {

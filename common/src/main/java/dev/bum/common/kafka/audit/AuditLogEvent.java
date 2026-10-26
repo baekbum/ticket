@@ -14,6 +14,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class AuditLogEvent {
 
+    private String idempotencyKey;
     private LocalDateTime occurredAt;
     private String serviceName;
     private String actorType;
