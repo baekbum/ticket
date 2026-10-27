@@ -27,3 +27,23 @@ CREATE INDEX IF NOT EXISTS idx_dlq_handle_history_status_handled_at
 
 CREATE INDEX IF NOT EXISTS idx_dlq_handle_history_action_handled_at
     ON dlq_message_handle_histories(action, handled_at);
+
+-- DLT 원본 보관: 수집 오프셋과 관리자의 처리 상태는 독립적이다.
+CREATE TABLE IF NOT EXISTS dlq_messages (
+    id BIGSERIAL PRIMARY KEY,
+    dlt_topic VARCHAR(150) NOT NULL,
+    partition_no INTEGER NOT NULL,
+    message_offset BIGINT NOT NULL,
+    message_key BYTEA,
+    payload BYTEA,
+    headers_json TEXT NOT NULL,
+    record_timestamp BIGINT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    current_history_id BIGINT REFERENCES dlq_message_handle_histories(id),
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_dlq_message_source UNIQUE(dlt_topic, partition_no, message_offset),
+    CONSTRAINT chk_dlq_message_status CHECK (status IN
+      ('PENDING', 'REPLAYING', 'REPLAYED', 'MODIFIED_REPLAYED', 'DISCARDED', 'FAILED', 'UNKNOWN'))
+);
+CREATE INDEX IF NOT EXISTS idx_dlq_message_list ON dlq_messages(dlt_topic, record_timestamp DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_dlq_message_status ON dlq_messages(dlt_topic, status, record_timestamp DESC, id DESC);

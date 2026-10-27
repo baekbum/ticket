@@ -1,6 +1,8 @@
 package dev.bum.admin_service.kafka.dlq;
 
 public enum DlqMessageHandleStatus {
+    PROCESSING,
+    UNKNOWN,
     /**
      * replay 또는 discard 처리가 정상 완료된 상태.
      */

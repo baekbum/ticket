@@ -69,6 +69,11 @@ public class DlqMessageHandleHistory {
     @Column(nullable = false)
     private LocalDateTime handledAt;
 
+    public void complete(DlqMessageHandleStatus status, String errorMessage) {
+        this.status = status;
+        this.errorMessage = errorMessage;
+    }
+
     @Builder
     public DlqMessageHandleHistory(
             String dltTopic,

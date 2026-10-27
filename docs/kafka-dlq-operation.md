@@ -18,7 +18,38 @@
 2. `DefaultErrorHandler`가 1초 간격으로 최대 3회 재시도한다.
 3. 재시도 후에도 실패하면 `DeadLetterPublishingRecoverer`가 원본 topic 뒤에 `.DLT` suffix를 붙여 DLT topic으로 발행한다.
 4. DLT 발행 시점에 `KafkaDltSlackNotifier`가 Slack webhook으로 알림을 전송한다.
-5. 운영자는 `admin-service`의 DLQ 관리 화면/API에서 DLT 메시지를 조회하고 처리한다.
+5. `admin-service`의 전용 DLT 리스너가 원본 key/payload/header 바이트와 topic/partition/offset을 `dlq_messages`에 저장한다.
+6. DB 커밋 후 리스너 그룹의 Kafka 오프셋을 커밋한다. DB 장애는 계속 재시도하며 건너뛰지 않는다. DB 커밋 후 오프셋 커밋 전에 종료되어도 원본 위치의 UNIQUE 제약으로 중복 수집을 막는다.
+7. 운영자는 DB에 수집된 메시지를 조회하고 처리한다. 목록·상세·재발행은 Kafka 원본 조회를 하지 않는다.
+
+## DB 수집 전환 및 상태
+
+배포 전에 `admin-service/src/main/resources/sql/schema.sql`의 `dlq_messages` 테이블과 인덱스를 적용한다. 기존 이력 테이블은 유지한다. 별도 Outbox나 자동 재발행 스케줄러는 사용하지 않는다.
+
+전용 그룹 기본값은 `admin-dlq-inbox-v1`이며 `app.kafka-dlq.inbox-group-id`로 변경할 수 있다. 처음 시작하면 Kafka에 **아직 보존된** 가장 오래된 메시지부터 수집한다. 보존 기간이 지나 이미 삭제된 원본은 복구할 수 없다. 전환 전 SUCCESS 이력이 있는 메시지는 완료 상태로 수집한다. 전환 시 이전 버전 관리 서버를 먼저 내려 구버전 재발행과 수집이 경쟁하지 않게 한다.
+
+원본의 중복 헤더 이름, 순서, null 값도 보존한다. 재발행은 원본 업무 헤더를 전달하되 `kafka_dlt-`, `kafka_exception-` 진단 헤더는 제외한다. payload 내부 멱등키는 변경하지 않는다. 수집 그룹의 오프셋 이동은 관리자의 재처리 여부와 무관하며 Kafka 레코드를 삭제하지 않는다.
+
+| 상태 | 의미 |
+| --- | --- |
+| PENDING | 수집되었고 아직 처리하지 않음 |
+| REPLAYING | 처리권과 PROCESSING 시도 이력을 커밋함 |
+| REPLAYED / MODIFIED_REPLAYED | 브로커 발행 성공 응답을 받고 DB에도 기록함 |
+| DISCARDED | 관리자가 폐기 처리함 |
+| FAILED | 직렬화 오류 등 발행 불가가 확인됨 |
+| UNKNOWN | 타임아웃·통신 오류 등으로 발행 여부 확인 필요 |
+
+재발행은 짧은 REQUIRES_NEW 트랜잭션에서 메시지 행을 잠그고 처리권/이력을 저장한 후, 트랜잭션 밖에서 브로커 응답을 기다린다. 성공 또는 실패 결과는 별도 REQUIRES_NEW 트랜잭션에서 메시지와 이력에 함께 반영한다. 동시 요청은 REPLAYING 상태를 보고 거부한다. 기본 응답 대기 시간은 10초(`app.kafka-dlq.send-timeout-ms`)이고 producer `acks=all`을 사용한다.
+
+브로커 발행 성공은 소비자의 업무 처리 성공을 뜻하지 않는다. 발행은 성공했으나 결과 기록에 실패하거나 프로세스가 종료되면 REPLAYING으로 남는다. UNKNOWN과 FAILED는 운영자가 직접 재시도할 수 있으며 자동으로 재발행하지 않는다.
+
+10분 이상 REPLAYING으로 남은 건은 기존 발행 작업이 종료되었는지와 원본 토픽/소비 결과를 확인한 후 화면의 `장시간 진행 건 확인`을 사용한다. API는 `POST /api/v1/manage/kafka-dlq/replay/release-stalled`이며 재발행과 같은 위치·처리자·사유를 받는다. UNKNOWN으로만 전환하며 자동 발행하지 않는다. 늦게 반환된 이전 시도 결과는 현재 시도 ID 검증으로 거부한다. 재시도 시 메시지가 중복 발행될 수 있으므로 소비자의 멱등 처리는 여전히 필요하다.
+
+목록은 기존 응답 형식을 유지하며 `page`(0부터), `size`(최대 100), `status` 필터를 지원한다. 기본 정렬은 최신 발생 시각/ID 순이다. `fromOffset`을 지정하려면 `partition`도 지정해야 하며 해당 파티션의 오프셋 오름차순으로 조회한다.
+
+DB에 저장한 DLT 원본은 Kafka retention과 독립적으로 남는다. 민감한 payload 접근 권한과 DB 보관/삭제 정책을 적용해야 한다.
+
+검증용 환경변수 `DLQ_POSTGRES_PORT`를 지정하면 격리된 PostgreSQL의 `dlq_test` DB(사용자/비밀번호 `dlq_test`)에서 통합 테스트를 실행한다. 해당 DB는 테스트 중 스키마를 생성·삭제하므로 운영 DB를 사용하면 안 된다. `DLQ_KAFKA_BOOTSTRAP`도 지정하면 테스트 전용 토픽/그룹으로 실제 Kafka의 DB 저장 실패 재시도, 오프셋 커밋, DB 기반 재발행까지 검증한다.
 
 Slack webhook URL은 각 서비스 프로세스 환경변수 `SLACK_WEBHOOK_URL`로 전달한다.
 값이 없거나 `app.kafka-dlt.slack.enabled=false`이면 DLT Slack 알림은 전송하지 않는다.

@@ -1,257 +1,102 @@
 package dev.bum.admin_service.kafka.dlq;
 
-import dev.bum.admin_service.config.KafkaDlqProperties;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import dev.bum.admin_service.config.KafkaDlqProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.TopicPartition;
-import org.springframework.kafka.core.ConsumerFactory;
+import org.apache.kafka.common.errors.SerializationException;
+import org.apache.kafka.common.errors.RecordTooLargeException;
+import org.apache.kafka.common.errors.AuthorizationException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KafkaDlqReplayService {
-
-    private static final Duration POLL_TIMEOUT = Duration.ofSeconds(3);
-
     private final KafkaDlqProperties properties;
-    private final ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory;
     private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
-    private final DlqMessageHandleHistoryJpaRepository historyRepository;
+    private final DlqReplayTransactionService transactions;
+    private final DlqRecordCodec codec;
     private final ObjectMapper objectMapper;
 
+    @Value("${app.kafka-dlq.send-timeout-ms:10000}")
+    private long sendTimeoutMs = 10000;
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DlqMessageHandleResponse replay(DlqMessageHandleRequest request) {
-        String targetTopic = resolveTargetTopic(request.getDltTopic());
-        assertNotAlreadyHandled(request);
-
-        try {
-            ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
-            String messageKey = messageKeyOf(record);
-            String originalPayload = payloadOf(record);
-
-            kafkaTemplate.send(new ProducerRecord<>(targetTopic, record.partition(), record.key(), record.value())).join();
-
-            saveHistory(request, DlqMessageHandleAction.REPLAY, DlqMessageHandleStatus.SUCCESS, targetTopic, messageKey, null, originalPayload, null, false);
-
-            log.info("[DLQ-REPLAY] DLT 메시지 재발행 완료. dltTopic={}, partition={}, offset={}, targetTopic={}, operator={}, reason={}",
-                    request.getDltTopic(), request.getPartition(), request.getOffset(), targetTopic, request.getOperator(), request.getReason());
-
-            return response("REPLAYED", request, targetTopic, messageKey);
-        } catch (RuntimeException e) {
-            saveHistory(request, DlqMessageHandleAction.REPLAY, DlqMessageHandleStatus.FAILED, targetTopic, null, e.getMessage(), null, null, false);
-            throw e;
-        }
+        return publish(request, DlqMessageHandleAction.REPLAY, null);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DlqMessageHandleResponse replayModified(DlqMessageModifiedReplayRequest request) {
-        String targetTopic = resolveTargetTopic(request.getDltTopic());
-        DlqMessageHandleRequest handleRequest = handleRequestOf(request);
-        assertNotAlreadyHandled(handleRequest);
-
         try {
-            validateJsonPayload(request.getModifiedPayload());
-            ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
-            String messageKey = messageKeyOf(record);
-            String originalPayload = payloadOf(record);
-            byte[] modifiedValue = request.getModifiedPayload().getBytes(StandardCharsets.UTF_8);
-
-            kafkaTemplate.send(new ProducerRecord<>(targetTopic, record.partition(), record.key(), modifiedValue)).join();
-
-            saveHistory(
-                    handleRequest,
-                    DlqMessageHandleAction.MODIFIED_REPLAY,
-                    DlqMessageHandleStatus.SUCCESS,
-                    targetTopic,
-                    messageKey,
-                    null,
-                    originalPayload,
-                    request.getModifiedPayload(),
-                    true
-            );
-
-            log.info("[DLQ-MODIFIED-REPLAY] DLT 메시지 payload 보정 후 재발행 완료. dltTopic={}, partition={}, offset={}, targetTopic={}, operator={}, reason={}",
-                    request.getDltTopic(), request.getPartition(), request.getOffset(), targetTopic, request.getOperator(), request.getReason());
-
-            return response("MODIFIED_REPLAYED", handleRequest, targetTopic, messageKey);
-        } catch (RuntimeException e) {
-            saveHistory(
-                    handleRequest,
-                    DlqMessageHandleAction.MODIFIED_REPLAY,
-                    DlqMessageHandleStatus.FAILED,
-                    targetTopic,
-                    null,
-                    e.getMessage(),
-                    null,
-                    request.getModifiedPayload(),
-                    true
-            );
-            throw e;
+            if (!StringUtils.hasText(request.getModifiedPayload()) || objectMapper.readTree(request.getModifiedPayload()) == null) {
+                throw new IllegalArgumentException("수정 payload는 유효한 JSON 형식이어야 합니다.");
+            }
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("수정 payload는 유효한 JSON 형식이어야 합니다.", e);
         }
+        return publish(new DlqMessageHandleRequest(request.getDltTopic(), request.getPartition(), request.getOffset(),
+                request.getOperator(), request.getReason()), DlqMessageHandleAction.MODIFIED_REPLAY, request.getModifiedPayload());
     }
 
     public DlqMessageHandleResponse discard(DlqMessageHandleRequest request) {
         resolveTargetTopic(request.getDltTopic());
-        assertNotAlreadyHandled(request);
+        DlqReplayAttempt attempt = transactions.begin(request, null, DlqMessageHandleAction.DISCARD, null);
+        return response("DISCARDED", request, attempt);
+    }
 
+    public void releaseStalled(DlqMessageHandleRequest request) {
+        resolveTargetTopic(request.getDltTopic());
+        transactions.releaseStalled(request);
+    }
+
+    private DlqMessageHandleResponse publish(DlqMessageHandleRequest request, DlqMessageHandleAction action, String modifiedPayload) {
+        String target = resolveTargetTopic(request.getDltTopic());
+        // A: 발행 전에 처리권과 시도 이력을 먼저 커밋한다.
+        DlqReplayAttempt attempt = transactions.begin(request, target, action, modifiedPayload);
         try {
-            ConsumerRecord<byte[], byte[]> record = readRecord(request.getDltTopic(), request.getPartition(), request.getOffset());
-            String messageKey = messageKeyOf(record);
-            String originalPayload = payloadOf(record);
-
-            saveHistory(request, DlqMessageHandleAction.DISCARD, DlqMessageHandleStatus.SUCCESS, null, messageKey, null, originalPayload, null, false);
-
-            log.info("[DLQ-DISCARD] DLT 메시지 폐기 처리. dltTopic={}, partition={}, offset={}, operator={}, reason={}",
-                    request.getDltTopic(), request.getPartition(), request.getOffset(), request.getOperator(), request.getReason());
-
-            return response("DISCARDED", request, null, messageKey);
-        } catch (RuntimeException e) {
-            saveHistory(request, DlqMessageHandleAction.DISCARD, DlqMessageHandleStatus.FAILED, null, null, e.getMessage(), null, null, false);
-            throw e;
+            ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(target, request.getPartition(), attempt.key(), attempt.payload());
+            codec.headers(attempt.headersJson()).stream()
+                    // DLT 진단 헤더는 DB에 보관하고 원본 업무 헤더만 다시 전달한다.
+                    .filter(h -> !h.key().startsWith("kafka_dlt-") && !h.key().startsWith("kafka_exception-"))
+                    .forEach(h -> record.headers().add(h.key(), h.value()));
+            kafkaTemplate.send(record).get(sendTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+            // 타임아웃/통신 단절은 브로커에 저장되었을 수도 있으므로 확정 실패와 구분한다.
+            DlqMessageHandleStatus status = cause instanceof SerializationException
+                    || cause instanceof RecordTooLargeException || cause instanceof AuthorizationException
+                    ? DlqMessageHandleStatus.FAILED : DlqMessageHandleStatus.UNKNOWN;
+            try {
+                transactions.finish(request, attempt.historyId(), status, cause.getClass().getSimpleName());
+            } catch (RuntimeException recordingFailure) {
+                e.addSuppressed(recordingFailure);
+            }
+            throw new IllegalStateException("재발행 결과를 확인해 주세요. 상태=" + status, e);
         }
+        // B: 발행 성공 후 상태 저장 실패를 Kafka 실패로 덮어쓰지 않는다. REPLAYING 이력으로 복구한다.
+        transactions.finish(request, attempt.historyId(), DlqMessageHandleStatus.SUCCESS, null);
+        return response(action == DlqMessageHandleAction.REPLAY ? "REPLAYED" : "MODIFIED_REPLAYED", request, attempt);
     }
 
-    private String resolveTargetTopic(String dltTopic) {
-        String targetTopic = properties.targetTopicOf(dltTopic);
-        if (!StringUtils.hasText(targetTopic)) {
-            throw new IllegalArgumentException("허용되지 않은 DLT topic입니다: " + dltTopic);
-        }
-        return targetTopic;
+    private String resolveTargetTopic(String topic) {
+        String target = properties.targetTopicOf(topic);
+        if (!StringUtils.hasText(target)) throw new IllegalArgumentException("허용되지 않은 DLT topic입니다: " + topic);
+        return target;
     }
 
-    private void assertNotAlreadyHandled(DlqMessageHandleRequest request) {
-        boolean alreadyHandled = historyRepository.existsByDltTopicAndPartitionNoAndMessageOffsetAndStatus(
-                request.getDltTopic(),
-                request.getPartition(),
-                request.getOffset(),
-                DlqMessageHandleStatus.SUCCESS
-        );
-        if (alreadyHandled) {
-            throw new IllegalStateException("이미 처리된 DLT 메시지입니다. dltTopic="
-                    + request.getDltTopic()
-                    + ", partition="
-                    + request.getPartition()
-                    + ", offset="
-                    + request.getOffset());
-        }
-    }
-
-    private ConsumerRecord<byte[], byte[]> readRecord(String topic, int partition, long offset) {
-        TopicPartition topicPartition = new TopicPartition(topic, partition);
-
-        try (Consumer<byte[], byte[]> consumer = kafkaDlqConsumerFactory.createConsumer()) {
-            consumer.assign(List.of(topicPartition));
-            consumer.seek(topicPartition, offset);
-
-            ConsumerRecords<byte[], byte[]> records = consumer.poll(POLL_TIMEOUT);
-            Optional<ConsumerRecord<byte[], byte[]>> matchedRecord = records.records(topicPartition)
-                    .stream()
-                    .filter(record -> record.offset() == offset)
-                    .findFirst();
-
-            return matchedRecord.orElseThrow(() ->
-                    new IllegalArgumentException("DLT 메시지를 찾을 수 없습니다. topic=" + topic + ", partition=" + partition + ", offset=" + offset)
-            );
-        }
-    }
-
-    private DlqMessageHandleResponse response(
-            String result,
-            DlqMessageHandleRequest request,
-            String targetTopic,
-            String messageKey
-    ) {
-        return new DlqMessageHandleResponse(
-                result,
-                request.getDltTopic(),
-                request.getPartition(),
-                request.getOffset(),
-                targetTopic,
-                messageKey,
-                request.getOperator(),
-                request.getReason()
-        );
-    }
-
-    private void saveHistory(
-            DlqMessageHandleRequest request,
-            DlqMessageHandleAction action,
-            DlqMessageHandleStatus status,
-            String targetTopic,
-            String messageKey,
-            String errorMessage,
-            String originalPayload,
-            String modifiedPayload,
-            boolean payloadModified
-    ) {
-        try {
-            historyRepository.save(DlqMessageHandleHistory.builder()
-                    .dltTopic(request.getDltTopic())
-                    .partitionNo(request.getPartition())
-                    .messageOffset(request.getOffset())
-                    .messageKey(messageKey)
-                    .targetTopic(targetTopic)
-                    .action(action)
-                    .status(status)
-                    .operator(request.getOperator())
-                    .reason(request.getReason())
-                    .errorMessage(errorMessage)
-                    .originalPayload(originalPayload)
-                    .modifiedPayload(modifiedPayload)
-                    .payloadModified(payloadModified)
-                    .build());
-        } catch (RuntimeException historyException) {
-            log.warn("[DLQ-HISTORY] DLT 처리 이력 저장 실패. dltTopic={}, partition={}, offset={}, action={}, status={}",
-                    request.getDltTopic(), request.getPartition(), request.getOffset(), action, status, historyException);
-        }
-    }
-
-    private void validateJsonPayload(String payload) {
-        try {
-            objectMapper.readTree(payload);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("수정 payload는 유효한 JSON 형식이어야 합니다.", e);
-        }
-    }
-
-    private DlqMessageHandleRequest handleRequestOf(DlqMessageModifiedReplayRequest request) {
-        return new DlqMessageHandleRequest(
-                request.getDltTopic(),
-                request.getPartition(),
-                request.getOffset(),
-                request.getOperator(),
-                request.getReason()
-        );
-    }
-
-    private String messageKeyOf(ConsumerRecord<byte[], byte[]> record) {
-        if (record.key() == null || record.key().length == 0) {
-            return null;
-        }
-
-        return new String(record.key(), StandardCharsets.UTF_8);
-    }
-
-    private String payloadOf(ConsumerRecord<byte[], byte[]> record) {
-        if (record.value() == null) {
-            return null;
-        }
-
-        return new String(record.value(), StandardCharsets.UTF_8);
+    private DlqMessageHandleResponse response(String result, DlqMessageHandleRequest request, DlqReplayAttempt attempt) {
+        return new DlqMessageHandleResponse(result, request.getDltTopic(), request.getPartition(), request.getOffset(),
+                attempt.targetTopic(), DlqRecordCodec.decode(attempt.key()), request.getOperator(), request.getReason());
     }
 }

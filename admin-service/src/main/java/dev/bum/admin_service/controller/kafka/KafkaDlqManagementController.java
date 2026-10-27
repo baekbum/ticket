@@ -11,6 +11,7 @@ import dev.bum.admin_service.kafka.dlq.DlqTopicResponse;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqHistoryService;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqQueryService;
 import dev.bum.admin_service.kafka.dlq.KafkaDlqReplayService;
+import dev.bum.admin_service.kafka.dlq.DlqMessageStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -44,9 +45,11 @@ public class KafkaDlqManagementController {
             @RequestParam("dltTopic") String dltTopic,
             @RequestParam(value = "partition", required = false) Integer partition,
             @RequestParam(value = "fromOffset", required = false) Long fromOffset,
-            @RequestParam(value = "size", required = false) Integer size
+            @RequestParam(value = "size", required = false) Integer size,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "status", required = false) DlqMessageStatus status
     ) {
-        return ResponseEntity.ok(kafkaDlqQueryService.messages(dltTopic, partition, fromOffset, size));
+        return ResponseEntity.ok(kafkaDlqQueryService.messages(dltTopic, partition, fromOffset, size, page, status));
     }
 
     @GetMapping("/messages/detail")
@@ -71,6 +74,12 @@ public class KafkaDlqManagementController {
     @PostMapping("/discard")
     public ResponseEntity<DlqMessageHandleResponse> discard(@Valid @RequestBody DlqMessageHandleRequest request) {
         return ResponseEntity.ok(kafkaDlqReplayService.discard(request));
+    }
+
+    @PostMapping("/replay/release-stalled")
+    public ResponseEntity<Void> releaseStalled(@Valid @RequestBody DlqMessageHandleRequest request) {
+        kafkaDlqReplayService.releaseStalled(request);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/histories")
