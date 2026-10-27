@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,13 +21,21 @@ import java.util.Map;
 
 @Getter
 @Entity
-@Table(name = "audit_log")
+@Table(name = "audit_log", uniqueConstraints = @UniqueConstraint(
+        name = "uk_audit_log_service_idempotency", columnNames = {"service_name", "idempotency_key"}
+))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AuditLogEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "idempotency_key", nullable = false, length = 100)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", nullable = false, length = 64)
+    private String requestHash;
 
     @Column(nullable = false)
     private LocalDateTime occurredAt;
@@ -87,6 +96,8 @@ public class AuditLogEntity {
 
     @Builder
     public AuditLogEntity(
+            String idempotencyKey,
+            String requestHash,
             LocalDateTime occurredAt,
             String serviceName,
             String actorType,
@@ -106,6 +117,8 @@ public class AuditLogEntity {
             Map<String, Object> metadata
     ) {
         LocalDateTime now = LocalDateTime.now();
+        this.idempotencyKey = idempotencyKey;
+        this.requestHash = requestHash;
         this.occurredAt = occurredAt != null ? occurredAt : now;
         this.serviceName = serviceName;
         this.actorType = actorType;
@@ -126,8 +139,10 @@ public class AuditLogEntity {
         this.createdAt = now;
     }
 
-    public static AuditLogEntity from(AuditLogEvent event) {
+    public static AuditLogEntity from(AuditLogEvent event, String requestHash) {
         return AuditLogEntity.builder()
+                .idempotencyKey(event.getIdempotencyKey())
+                .requestHash(requestHash)
                 .occurredAt(event.getOccurredAt())
                 .serviceName(event.getServiceName())
                 .actorType(event.getActorType())

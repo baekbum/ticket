@@ -44,6 +44,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final StringRedisTemplate redisTemplate;
     private final TokenStateStore tokenStateStore;
+    private final UserEventIdempotencyService userEventIdempotencyService;
 
     /**
      * 토큰을 발급하는 메서드.
@@ -132,11 +133,23 @@ public class AuthService {
      */
     public void insertUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
+            republishCurrentState(event);
+            return;
+        }
+
         log.info("[유저 추가] userId={}", event.getUserId());
-        repository.insert(event);
+
+        boolean created = repository.insert(event);
         Auth auth = repository.findByUserId(event.getUserId());
+
         TokenState previous = tokenStateStore.get(auth.getUserId());
-        if (previous != null) auth.startAfterPreviousAccount(previous.version());
+
+        if (created && previous != null) auth.startAfterPreviousAccount(previous.version());
         publishAfterCommit(auth.getUserId(), stateOf(auth));
     }
 
@@ -146,6 +159,15 @@ public class AuthService {
      */
     public void updateUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
+            republishCurrentState(event);
+            return;
+        }
+
         log.info("[유저 수정] userId={}", event.getUserId());
         Auth auth = repository.update(event);
         publishAfterCommit(auth.getUserId(), stateOf(auth));
@@ -157,6 +179,12 @@ public class AuthService {
      */
     public void deleteUserTopic(UserDtoForEvent event) {
         event.setUserId(normalizeUserId(event.getUserId()));
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+        if (result == UserEventRegistrationResult.STALE) {
+            republishCurrentState(event);
+            return;
+        }
+        // DELETE 중복도 아래로 진행하여 DB 삭제 후 실패했던 Redis 폐기를 재시도한다.
         log.info("[유저 삭제] userId={}", event.getUserId());
         try {
             Auth auth = repository.findByUserId(event.getUserId());
@@ -287,6 +315,21 @@ public class AuthService {
                     redisKey, userId, e);
             throw new RedisException("Redis Refresh Token 삭제 중 오류가 발생했습니다.");
         }
+    }
+
+    private void republishCurrentState(UserDtoForEvent event) {
+        Auth current;
+
+        try {
+            current = repository.findByUserId(event.getUserId());
+        } catch (UserNotExistException e) {
+            // 이미 삭제된 계정의 과거 CREATE 재전달로 계정을 다시 만들지 않는다.
+            return;
+        }
+
+        if (!event.getId().equals(current.getId())) return;
+        // DB 중복 반영은 생략하지만, 커밋 후 Redis 갱신이 실패했던 경우는 복구한다.
+        publishAfterCommit(current.getUserId(), stateOf(current));
     }
 
     private TokenState stateOf(Auth auth) {

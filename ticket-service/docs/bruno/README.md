@@ -27,7 +27,7 @@ ticket-service/docs/bruno
 4. `checkout / Prepare Checkout`으로 예매, 배송, 할인 스냅샷, 결제를 생성합니다.
 5. 응답의 `paymentNo`, `reservationId`를 환경변수에 반영합니다.
 6. 카드 결제는 `payment / Approve Card Payment`로 결제 완료를 처리합니다.
-7. 무통장은 `payment / Issue Virtual Account`로 계좌를 발급한 뒤 응답의 `accountNumber`, `amount`를 환경변수에 반영합니다.
+7. 무통장은 `checkout / Confirm Checkout`에서 `paymentMethod=BANK_TRANSFER`, `bankCode=KB` 등으로 요청하고 응답의 `accountNumber`, `amount`를 환경변수에 반영합니다. `payment / Issue Virtual Account`는 PG 발급만 검증하는 요청이며 티켓의 결제 상태는 변경하지 않습니다.
 8. 무통장 입금 시뮬레이션은 관리자 토큰으로 `payment / Deposit Virtual Account`를 실행합니다.
 9. `manage-reservation / Select Reservation Detail`로 예매 상세를 확인합니다.
 

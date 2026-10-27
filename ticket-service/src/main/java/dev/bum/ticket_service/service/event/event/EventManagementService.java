@@ -6,7 +6,7 @@ import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
-import dev.bum.ticket_service.service.event.file.FileStorageService;
+import dev.bum.ticket_service.service.event.file.EventPosterService;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -33,7 +33,7 @@ import java.util.List;
 public class EventManagementService {
 
     private final EventRepository repository;
-    private final FileStorageService fileStorageService;
+    private final EventPosterService eventPosterService;
 
     /**
      * 공통 공연 정보와 다중 회차 정보를 받아 여러 이벤트를 하나의 트랜잭션으로 등록한다.
@@ -49,7 +49,7 @@ public class EventManagementService {
         for (InsertEventScheduleRequest schedule : info.getSchedules()) {
             InsertEventRequest request = toInsertEventRequest(info.getCommon(), schedule);
             Event event = repository.insert(request);
-            String posterUrl = fileStorageService.saveEventPoster(event.getEventId(), posterImage);
+            String posterUrl = eventPosterService.saveForTransaction(posterImage, null);
             event.updatePosterUrl(posterUrl);
             responses.add(event.toResponse());
         }
@@ -114,17 +114,13 @@ public class EventManagementService {
         Event event = repository.selectById(id);
         AuditDataMapper.setChangedData(event, info, "description", "venueAddress", "posterUrl");
         String previousPosterUrl = event.getPosterUrl();
-        String newPosterUrl = fileStorageService.saveEventPoster(id, posterImage);
+        String newPosterUrl = eventPosterService.saveForTransaction(posterImage, previousPosterUrl);
 
         if (newPosterUrl != null) {
             info.setPosterUrl(newPosterUrl);
         }
 
         event.update(info);
-
-        if (newPosterUrl != null) {
-            fileStorageService.deleteByPublicUrl(previousPosterUrl);
-        }
 
         return event.toResponse();
     }

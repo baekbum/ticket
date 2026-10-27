@@ -19,5 +19,4 @@ public class GatewayVirtualAccountIssueRequest {
     private BankCompany bankCompany;
     private BigDecimal amount;
     private LocalDateTime eventDateTime;
-    private Boolean ticketPaymentApplyRequired;
 }

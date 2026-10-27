@@ -6,8 +6,6 @@ package dev.bum.common.service.ticket.payment.enums;
 public enum GatewayVirtualAccountStatus {
     WAITING_DEPOSIT,
     DEPOSITED,
-    TICKET_PAYMENT_COMPLETED,
-    TICKET_PAYMENT_FAILED,
     EXPIRED,
     CANCELLED
 }

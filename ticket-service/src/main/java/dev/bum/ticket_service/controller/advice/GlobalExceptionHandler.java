@@ -12,6 +12,7 @@ import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
 import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.exception.reservation.ReservationDuplicateException;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
+import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.exception.seat.*;
 import dev.bum.ticket_service.exception.ticket.TicketDuplicateException;
 import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
@@ -30,6 +31,13 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ReservationCancellationInProgressException.class)
+    public ResponseEntity<ErrorResponse> handleReservationCancellationInProgress(
+            ReservationCancellationInProgressException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(ErrorCode.RESERVATION_CANCELLATION_IN_PROGRESS, ex.getMessage()));
+    }
 
     // ==========================================
     // 데이터를 발견하지 못했을 경우의 예외 처리

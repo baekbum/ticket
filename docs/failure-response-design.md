@@ -224,7 +224,7 @@ Redis는 용도별로 장애 시 서비스 영향도가 다르다.
 
 구매 매수는 Redis에 저장하지 않는다. seat_occupy에서는 이번 선택 매수가 공연의 1인 최대 매수 이내인지 확인하고, prepare에서는 매수를 검증하지 않는다. confirm이 호출하는 예매 저장 단계에서 ticket_purchase_locks의 (user_id, limit_scope, scope_key) 행에 비관적 락을 걸고 ticket_count + 요청 매수를 검증한 뒤 카운트 증가와 티켓 생성을 같은 DB 트랜잭션으로 커밋한다. PER_EVENT는 이벤트 ID, PER_GROUP은 이벤트 그룹 코드를 범위 키로 사용한다. 카운트에는 PENDING_PAYMENT와 PAID 티켓을 포함하며, 카드 승인 또는 입금 완료 전환에서는 중복 증가시키지 않는다. 취소·결제 만료·부분 환불은 티켓 상태 변경 전에 최신 상태를 잠금으로 재조회하고 유효 매수만 차감한다. 관리자 상태 보정도 같은 구매 잠금에서 상태 전후 매수 차이를 반영한다. 최초 카운트 행은 0으로 생성하며, 기존 유효 예매 데이터가 없는 상태에서 적용한다. 기존 잠금 행은 배포 전에 add-ticket-purchase-count.sql로 매수를 보정해야 한다. 기존 Redis 구매 매수 키는 더 이상 사용하지 않고 기존 TTL로 만료된다.
 
-좌석 상태 동기화는 DB 커밋 이후 좌석별로 수행한다. 각 좌석의 상태 저장과 임시 lock 삭제는 Lua로 함께 실행하며, 한 좌석이 실패해도 나머지 좌석을 계속 처리한다. 실패한 좌석만 좌석당 한 건의 보정 이력으로 저장한다.
+좌석 상태 변경과 동기화 Outbox를 같은 DB 트랜잭션에 저장한다. 커밋 후 별도 작업자가 최신 DB 좌석 상태를 읽어 Redis에 반영한다. Lua는 상태 저장과 소유 잠금 해제를 함께 실행하고, 다른 예매의 선점을 보호한다. 한 좌석이 실패해도 나머지는 계속 처리하며 PENDING 작업은 스케줄러가 재시도한다. [좌석 Outbox](seat-cache-outbox.md)를 참고한다.
 
 관리자 재처리는 이력 및 대상 좌석을 DB 잠금으로 조회하고, 실패 당시 target value 대신 현재 DB 상태와 공연 종료 기준 TTL을 반영한다. Redis에 사용자 선점 값(`LOCKED:...`) 또는 `:lock` 키가 있으면 변경하지 않고 PENDING 및 실패 원인을 유지한다. 현재 이력에는 선점 소유 정보가 없으므로 남아 있는 잠금을 임의로 해제하지 않으며, 선점 종료 후 다시 처리한다. 기존 여러 좌석이 묶인 이력도 같은 검증으로 처리하며, 모든 좌석 처리에 성공한 경우에만 RESOLVED로 변경한다.
 
@@ -298,10 +298,10 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 | Producer | 정책 |
 | --- | --- |
 | 감사 로그 Producer | 본 요청을 실패시키지 않고 경고 로그만 남긴다. |
-| 사용자 이벤트 Producer | DB 커밋 이후 발행하거나 outbox로 전환한다. 현재 직접 발행이면 실패 로그를 운영 알림 대상으로 둔다. |
+| 사용자 이벤트 Producer | 회원 변경과 Outbox를 함께 커밋한 뒤 즉시 발행을 시도한다. 실패·중단된 PENDING 이벤트는 스케줄러가 재발행한다. |
 | 결제 완료 Producer | Consumer 도입 후 DB 커밋 이후 발행한다. 실패 시 outbox 또는 재발행 대상에 남긴다. |
 
-운영 안정성을 높이려면 `user-event`, `payment-completed`는 outbox 패턴으로 전환하는 것이 최종 목표다.
+`user-event`의 저장·발행·재시도와 검증 범위는 [회원 이벤트 Outbox](./user-event-outbox.md)를 따른다. `payment-completed`의 outbox 전환은 별도 작업이다.
 
 ## 운영 알림 기준
 
@@ -332,7 +332,7 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 1. Feign timeout 설정을 `admin-service`, `ticket-service`에 추가한다.
 2. `queue-service-client`는 짧은 timeout을 별도로 적용한다.
 3. Redis 장애 로그에 key prefix, eventId, userId, orderId 같은 복구 단서를 포함한다.
-4. DB 커밋 후 Redis 좌석 동기화 실패를 운영 보정 대상으로 남기는 테이블 또는 Kafka 이벤트를 추가한다.
+4. 좌석 DB 변경과 Outbox 기록을 함께 커밋하고, 미완료 Redis 동기화를 자동 재처리한다.
 5. `payment-completed` 후속 Consumer가 생기면 실제 DLT 재처리 통합 테스트를 추가한다.
 
 ## 우선순위
@@ -350,7 +350,7 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 - 조회 후 다른 사용자가 좌석을 선점했더라도 선점 API가 Redis 상태와 lock을 검사하여 `SEAT_ALREADY_OCCUPIED`를 반환한다. 클라이언트는 이 오류를 받으면 선택을 초기화하고 좌석 목록을 다시 조회한다.
 - 따라서 자동 polling이나 SSE/WebSocket은 현재 좌석 선택의 정확성을 위한 필수 작업으로 두지 않는다.
 
-DB 커밋 후 Redis 동기화 실패 이력(`seat_cache_sync_failures`)은 별도 보정 대상으로 유지한다. 보정은 DB 상태를 기준으로 Redis seat key와 lock key를 다시 맞춘다.
+기존 Redis 동기화 실패 이력(`seat_cache_sync_failures`)의 수동 보정 기능은 유지한다. 새 동기화 작업과 실패·재시도 상태는 `seat_cache_sync_outbox`에서 관리한다. 현재 DB 상태와 Redis 선점 소유자를 확인한 뒤 좌석 캐시를 보정한다.
 
 현재 상태:
 

@@ -73,7 +73,6 @@ CREATE TABLE dummy_virtual_accounts (
     status VARCHAR(40) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     deposited_at TIMESTAMP,
-    ticket_completed_at TIMESTAMP,
     failure_reason VARCHAR(500),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,3 +128,50 @@ CREATE TABLE virtual_account_outbox_events (
 
 CREATE INDEX idx_virtual_account_outbox_type_status_id ON virtual_account_outbox_events(event_type, status, outbox_id);
 CREATE INDEX idx_virtual_account_outbox_payment_no ON virtual_account_outbox_events(payment_no);
+
+-- 입금 사실과 함께 커밋하고 ticket HTTP 성공 응답까지 재전달하는 Outbox.
+CREATE TABLE virtual_account_deposit_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    bank_company VARCHAR(30) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL,
+    account_number VARCHAR(30) NOT NULL,
+    depositor_name VARCHAR(50) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    deposited_at TIMESTAMP NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error_type VARCHAR(100),
+    delivered_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_va_deposit_outbox_payment_no UNIQUE (payment_no),
+    CONSTRAINT chk_va_deposit_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
+    CONSTRAINT chk_va_deposit_outbox_amount CHECK (amount > 0),
+    CONSTRAINT chk_va_deposit_outbox_retry_count CHECK (retry_count >= 0)
+);
+CREATE INDEX idx_va_deposit_outbox_ready ON virtual_account_deposit_outbox(status, next_attempt_at, outbox_id);
+
+-- 환불 프로세스별 최초 요청을 보존하고 성공·실패·미실행 종료 상태를 기록한다.
+CREATE TABLE gateway_refunds (
+    payment_refund_process_id BIGINT PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    refund_amount NUMERIC(15, 2) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'REQUESTED',
+    failure_reason VARCHAR(1000),
+    version BIGINT NOT NULL DEFAULT 0,
+    transaction_id VARCHAR(100),
+    refund_bank_company VARCHAR(30),
+    refund_account_number VARCHAR(100),
+    refund_account_holder VARCHAR(100),
+    card_status VARCHAR(40),
+    message VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_gateway_refunds_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'FAILED', 'CLOSED')),
+    CONSTRAINT chk_gateway_refunds_process_id CHECK (payment_refund_process_id > 0),
+    CONSTRAINT chk_gateway_refunds_amount CHECK (refund_amount > 0)
+);
+CREATE INDEX idx_gateway_refunds_payment_no ON gateway_refunds(payment_no);

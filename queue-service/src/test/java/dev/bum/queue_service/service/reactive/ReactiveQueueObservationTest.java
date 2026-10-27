@@ -32,7 +32,7 @@ class ReactiveQueueObservationTest {
         });
         var waiting = mock(ReactiveWaitingQueueService.class);
         var active = mock(ReactiveActiveQueueService.class);
-        when(waiting.pruneExpiredWaitingTokens(1L, "user"))
+        when(waiting.pruneExpiredWaitingTokens(1L))
                 .thenReturn(Mono.delay(Duration.ofMillis(30)).then());
         when(active.pruneExpiredActiveTokens(1L)).thenReturn(Mono.empty());
         when(active.admit(1L, "user", "missing")).thenReturn(Mono.error(new QueueTokenInvalidException("유효하지 않은 토큰")));
@@ -48,7 +48,7 @@ class ReactiveQueueObservationTest {
         assertThat(stopped.get()).isEqualTo(1);
         assertThat(error.get()).isInstanceOf(QueueTokenInvalidException.class);
 
-        when(waiting.pruneExpiredWaitingTokens(1L, "user")).thenReturn(Mono.never());
+        when(waiting.pruneExpiredWaitingTokens(1L)).thenReturn(Mono.never());
         StepVerifier.create(queue.status(1L, "user", "missing"))
                 .then(() -> assertThat(stopped.get()).isEqualTo(1))
                 .thenCancel().verify(Duration.ofSeconds(3));

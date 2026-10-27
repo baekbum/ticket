@@ -1,18 +1,28 @@
 package dev.bum.auth_service.service;
 
 import dev.bum.auth_service.exception.PasswordIncorrectException;
+import dev.bum.auth_service.exception.RedisException;
 import dev.bum.auth_service.exception.UserLoginLockedException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.auth_service.jpa.*;
+import dev.bum.auth_service.jpa.event.ProcessedUserEventJpaRepository;
+import dev.bum.auth_service.jpa.event.UserEventVersionJpaRepository;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
+import dev.bum.common.security.TokenState;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.service.user.user.enums.UserRole;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -28,14 +38,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.datasource.url=jdbc:h2:mem:login_attempts;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-@Import({LoginAttemptService.class, AuthService.class, AuthRepositoryImpl.class,
+@Import({LoginAttemptService.class, AuthService.class, AuthRepositoryImpl.class, UserEventIdempotencyService.class,
         LoginAttemptIntegrationTest.PasswordConfiguration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class LoginAttemptIntegrationTest {
@@ -44,11 +56,13 @@ class LoginAttemptIntegrationTest {
     @Autowired private AuthRepository repository;
     @Autowired private AuthJpaRepository auths;
     @Autowired private UserLoginLockJpaRepository locks;
+    @Autowired private ProcessedUserEventJpaRepository receipts;
+    @Autowired private UserEventVersionJpaRepository eventVersions;
     @Autowired private PasswordEncoder encoder;
     @Autowired private PlatformTransactionManager transactionManager;
     @MockitoBean private JwtTokenProvider tokenProvider;
     @MockitoBean private StringRedisTemplate redis;
-    @MockitoBean private dev.bum.common.security.TokenStateStore tokenStateStore;
+    @MockitoBean private TokenStateStore tokenStateStore;
 
     @TestConfiguration
     static class PasswordConfiguration {
@@ -59,6 +73,8 @@ class LoginAttemptIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        receipts.deleteAll();
+        eventVersions.deleteAll();
         locks.deleteAll();
         auths.deleteAll();
         auths.saveAndFlush(Auth.builder().id(1L).userId("user01")
@@ -136,46 +152,71 @@ class LoginAttemptIntegrationTest {
 
     @Test
     void recreated_account_uses_higher_version_and_ignores_old_delete_event() {
-        var deleted = UserDtoForEvent.builder().id(1L).userId("user01").build();
+        var deleted = UserDtoForEvent.builder().id(1L).userId("user01").eventType(TopicEventType.DELETE)
+                .idempotencyKey(UUID.randomUUID().toString()).eventVersion(1L).build();
         authService.deleteUserTopic(deleted);
-        org.mockito.Mockito.when(tokenStateStore.get("user01"))
-                .thenReturn(dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
+        Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
         authService.insertUserTopic(UserDtoForEvent.builder().id(2L).userId("user01")
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
+                .eventVersion(1L)
                 .password(encoder.encode("new-password")).role("ROLE_USER").build());
         assertThat(auths.findById(2L).orElseThrow().getTokenVersion()).isEqualTo(3L);
-        org.mockito.Mockito.clearInvocations(tokenStateStore);
+        Mockito.clearInvocations(tokenStateStore);
         authService.deleteUserTopic(deleted);
         assertThat(auths.existsById(2L)).isTrue();
-        org.mockito.Mockito.verifyNoInteractions(tokenStateStore);
+        Mockito.verifyNoInteractions(tokenStateStore);
+    }
+
+    @Test
+    void repeatedCreateKeepsCurrentPasswordAndTokenVersion() {
+        var event = UserDtoForEvent.builder().id(1L).userId("user01")
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.CREATE)
+                .eventVersion(1L)
+                .password("old-password").role("ROLE_ADMIN").build();
+        var before = auths.findById(1L).orElseThrow();
+        long version = before.getTokenVersion();
+        String password = before.getPassword();
+        Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(TokenState.builder().version(version).active(true).role("ROLE_USER").build());
+
+        authService.insertUserTopic(event);
+
+        var after = auths.findById(1L).orElseThrow();
+        assertThat(after.getPassword()).isEqualTo(password);
+        assertThat(after.getTokenVersion()).isEqualTo(version);
+        assertThat(after.getRole()).isEqualTo(before.getRole());
+        Mockito.verify(tokenStateStore).publish(ArgumentMatchers.eq("user01"), ArgumentMatchers.argThat(state -> state.version() == version));
     }
 
     @Test
     void deleted_account_revocation_is_retried_after_redis_failure() {
-        var event = UserDtoForEvent.builder().id(1L).userId("user01").build();
-        org.mockito.Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
-                .when(tokenStateStore).publish(org.mockito.ArgumentMatchers.eq("user01"), org.mockito.ArgumentMatchers.any());
+        var event = UserDtoForEvent.builder().id(1L).userId("user01").eventType(TopicEventType.DELETE)
+                .idempotencyKey(UUID.randomUUID().toString()).eventVersion(1L).build();
+        Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
+                .when(tokenStateStore).publish(ArgumentMatchers.eq("user01"), ArgumentMatchers.any());
         assertThatThrownBy(() -> authService.deleteUserTopic(event))
-                .isInstanceOf(dev.bum.auth_service.exception.RedisException.class);
+                .isInstanceOf(RedisException.class);
         assertThat(auths.existsById(1L)).isFalse();
-        org.mockito.Mockito.when(tokenStateStore.get("user01"))
-                .thenReturn(dev.bum.common.security.TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
+        Mockito.when(tokenStateStore.get("user01"))
+                .thenReturn(TokenState.builder().version(1L).active(true).role("ROLE_USER").build());
         authService.deleteUserTopic(event);
-        org.mockito.Mockito.verify(tokenStateStore, org.mockito.Mockito.times(2))
-                .publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
+        Mockito.verify(tokenStateStore, Mockito.times(2))
+                .publish("user01", TokenState.builder().version(2L).active(false).role("ROLE_USER").build());
     }
 
     @Test
     void redis_failure_after_commit_can_be_retried_without_incrementing_version_again() {
         var event = resetEvent();
-        org.mockito.Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
-                .when(tokenStateStore).publish(org.mockito.ArgumentMatchers.eq("user01"), org.mockito.ArgumentMatchers.any());
+        Mockito.doThrow(new IllegalStateException("Redis unavailable")).doNothing()
+                .when(tokenStateStore).publish(ArgumentMatchers.eq("user01"), ArgumentMatchers.any());
         assertThatThrownBy(() -> authService.updateUserTopic(event))
-                .isInstanceOf(dev.bum.auth_service.exception.RedisException.class);
+                .isInstanceOf(RedisException.class);
         assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(2L);
         authService.updateUserTopic(event);
         assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(2L);
-        org.mockito.Mockito.verify(tokenStateStore, org.mockito.Mockito.times(2))
-                .publish("user01", dev.bum.common.security.TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
+        Mockito.verify(tokenStateStore, Mockito.times(2))
+                .publish("user01", TokenState.builder().version(2L).active(true).role("ROLE_USER").build());
     }
 
     @Test
@@ -185,7 +226,7 @@ class LoginAttemptIntegrationTest {
             throw new IllegalStateException("rollback");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(auths.findById(1L).orElseThrow().getTokenVersion()).isEqualTo(1L);
-        org.mockito.Mockito.verifyNoInteractions(tokenStateStore);
+        Mockito.verifyNoInteractions(tokenStateStore);
     }
 
     @Test
@@ -206,6 +247,7 @@ class LoginAttemptIntegrationTest {
         lockAccount();
         UserDtoForEvent event = resetEvent();
         event.setPasswordReset(null);
+        event.setPasswordResetVersion(0L);
         update(event);
         assertThat(lock().isLocked()).isTrue();
         assertThatThrownBy(() -> attempts.validatePassword(1L, "new-password"))
@@ -261,7 +303,9 @@ class LoginAttemptIntegrationTest {
     }
 
     private UserDtoForEvent resetEvent() {
-        return UserDtoForEvent.builder().userId("user01").password(encoder.encode("new-password"))
+        return UserDtoForEvent.builder().id(1L).userId("user01").password(encoder.encode("new-password"))
+                .idempotencyKey(UUID.randomUUID().toString()).eventType(TopicEventType.UPDATE)
+                .eventVersion(1L).passwordResetVersion(1L)
                 .passwordReset(true).build();
     }
 

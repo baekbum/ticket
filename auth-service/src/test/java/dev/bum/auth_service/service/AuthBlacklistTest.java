@@ -7,8 +7,10 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.auth.dto.LoginRequest;
 import dev.bum.common.service.user.user.enums.UserRole;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,7 +60,7 @@ class AuthBlacklistTest {
         assertThatThrownBy(() -> service.LoginAndCreateToken(new LoginRequest("user", "password")))
                 .isInstanceOf(BlacklistedUserException.class)
                 .extracting("blacklistedUntil").isEqualTo(LocalDate.of(2026, 12, 31));
-        verify(tokenProvider, never()).createToken(org.mockito.ArgumentMatchers.eq("user"), org.mockito.ArgumentMatchers.eq("ROLE_USER"), org.mockito.ArgumentMatchers.anyLong());
+        verify(tokenProvider, never()).createToken(ArgumentMatchers.eq("user"), ArgumentMatchers.eq("ROLE_USER"), ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -74,6 +76,6 @@ class AuthBlacklistTest {
 
         assertThatThrownBy(() -> service.reissueToken("refresh"))
                 .isInstanceOf(BlacklistedUserException.class);
-        verify(tokenProvider, never()).createToken(org.mockito.ArgumentMatchers.eq("user"), org.mockito.ArgumentMatchers.eq("ROLE_USER"), org.mockito.ArgumentMatchers.anyLong());
+        verify(tokenProvider, never()).createToken(ArgumentMatchers.eq("user"), ArgumentMatchers.eq("ROLE_USER"), ArgumentMatchers.anyLong());
     }
 }

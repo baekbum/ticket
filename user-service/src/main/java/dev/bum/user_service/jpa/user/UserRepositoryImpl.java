@@ -13,6 +13,8 @@ import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.UserDuplicateException;
 import dev.bum.user_service.exception.UserNotExistException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,6 +37,8 @@ public class UserRepositoryImpl implements UserRepository {
     private final JPAQueryFactory queryFactory;
     private final UserJpaRepository jpaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EntityManager entityManager;
+    private final UserKafkaEventStateJpaRepository eventStates;
     private QUser user;
 
     /**
@@ -183,7 +187,7 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User update(String userId, UpdateUserRequest info) {
-        User user = selectById(userId);
+        User user = selectByIdForUpdate(userId);
 
         if (StringUtils.hasText(info.getPassword())) {
             String encodePassword = passwordEncoder.encode(info.getPassword());
@@ -202,9 +206,19 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User delete(String userId) {
-        User user = selectById(userId);
+        User user = selectByIdForUpdate(userId);
+        eventStates.deleteById(user.getId());
         jpaRepository.delete(user);
 
+        return user;
+    }
+
+    @Override
+    public User selectByIdForUpdate(String userId) {
+        User user = jpaRepository.findByUserIdForUpdate(normalizeUserId(userId))
+                .orElseThrow(() -> new UserNotExistException("해당 사용자를 찾을 수 없습니다."));
+        // 이미 영속성 컨텍스트에 있던 회원도 잠금 획득 후 최신 상태와 버전으로 갱신한다.
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
         return user;
     }
 

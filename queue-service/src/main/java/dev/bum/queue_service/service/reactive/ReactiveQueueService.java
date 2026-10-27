@@ -33,7 +33,7 @@ public class ReactiveQueueService {
         return logged("enter", eventId, userId, () -> {
             validateUserId(userId);
 
-            return cleanupEventQueue(eventId, userId)
+            return cleanupEventQueue(eventId)
                     .then(sessions.prune(userId))
                     .then(sessions.count(userId))
                     .flatMap(count -> {
@@ -52,10 +52,10 @@ public class ReactiveQueueService {
         return logged("status", eventId, userId, () -> {
             validateUserId(userId);
             // 대기 토큰 삭제 여부보다 Lua의 기존 승격 매핑·소유권 판단을 우선한다.
-            return cleanupEventQueue(eventId, userId)
+            return cleanupEventQueue(eventId)
                     .then(Mono.defer(() -> active.admit(eventId, userId, waitingToken)
                             .flatMap(token -> active.readyStatusResponse(eventId, token))
-                            .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, userId, waitingToken)))));
+                            .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, waitingToken)))));
         });
     }
 
@@ -98,7 +98,7 @@ public class ReactiveQueueService {
 
     private Mono<QueueStatusResponse> createWaiting(Long eventId, String userId) {
         return waiting.createWaiting(eventId, userId)
-                .flatMap(token -> waiting.waitingStatusResponse(eventId, userId, token))
+                .flatMap(token -> waiting.waitingStatusResponse(eventId, token))
                 .switchIfEmpty(Mono.defer(() -> sessionLimitResponse(eventId)));
     }
 
@@ -121,8 +121,8 @@ public class ReactiveQueueService {
                         eventId, STATUS_SESSION_LIMIT_CONFIRM_REQUIRED, null, count, null, null, null, null));
     }
 
-    private Mono<Void> cleanupEventQueue(Long eventId, String userId) {
-        return waiting.pruneExpiredWaitingTokens(eventId, userId)
+    private Mono<Void> cleanupEventQueue(Long eventId) {
+        return waiting.pruneExpiredWaitingTokens(eventId)
                 .then(active.pruneExpiredActiveTokens(eventId));
     }
 

@@ -1,9 +1,13 @@
 package dev.bum.common.jwt;
 
 import dev.bum.common.jwt.dto.TokenResponse;
+
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SecurityException;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -103,7 +107,7 @@ public class JwtTokenProvider {
         } catch (ExpiredJwtException e) {
             log.info("만료된 JWT 토큰입니다.");
             throw e;
-        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
+        } catch (SecurityException | MalformedJwtException e) {
             log.info("잘못된 JWT 서명입니다.");
             throw e;
         } catch (UnsupportedJwtException e) {

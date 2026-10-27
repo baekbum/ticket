@@ -31,6 +31,7 @@ import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepositoryImpl;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -62,7 +63,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
 @Import({
-        ReservationRepositoryImpl.class,
+        ReservationRepositoryImpl.class, UserCouponRepositoryImpl.class,
         TicketRepositoryImpl.class,
         SeatRepositoryImpl.class,
         AreaRepositoryImpl.class,

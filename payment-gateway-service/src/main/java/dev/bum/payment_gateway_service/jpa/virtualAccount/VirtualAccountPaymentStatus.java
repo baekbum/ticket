@@ -5,14 +5,8 @@ public enum VirtualAccountPaymentStatus {
     // 가상계좌가 발급되어 입금을 기다리는 상태.
     WAITING_DEPOSIT,
 
-    // 사용자가 입금했고 ticket-service 결제 완료 반영을 기다리는 상태.
+    // 입금이 완료된 상태. 티켓 반영 여부는 입금 Outbox에서 관리한다.
     DEPOSITED,
-
-    // ticket-service 결제 완료 반영까지 성공한 상태.
-    TICKET_PAYMENT_COMPLETED,
-
-    // ticket-service 결제 완료 반영에 실패한 상태.
-    TICKET_PAYMENT_FAILED,
 
     // 입금 기한이 지나 더 이상 입금할 수 없는 상태.
     EXPIRED,

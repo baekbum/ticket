@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class GatewayVirtualAccountRefundRequest {
 
+    private Long paymentRefundProcessId;
     private String paymentNo;
     private BankCompany refundBankCompany;
     private String refundAccountNumber;

@@ -3,22 +3,31 @@ package dev.bum.payment_gateway_service.service.card;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
+import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
 import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
 import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.card.*;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundCreator;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundFailureRecorder;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -27,6 +36,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
@@ -35,14 +49,16 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @ContextConfiguration(classes = GatewayCardFlowIntegrationTest.PersistenceConfig.class)
-@Import({GatewayCardPaymentService.class, GatewayCardApprovalService.class, GatewayCardSettlementService.class})
+@Import({GatewayCardPaymentService.class, GatewayCardApprovalService.class, GatewayCardSettlementService.class,
+        GatewayRefundProcessService.class, GatewayRefundCreator.class, GatewayRefundFailureRecorder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class GatewayCardFlowIntegrationTest {
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = DummyCard.class)
-    @EnableJpaRepositories(basePackageClasses = DummyCardJpaRepository.class)
+    @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
+    @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
     static class PersistenceConfig { }
+    @Autowired GatewayRefundJpaRepository refunds;
     @Autowired GatewayCardPaymentService payments;
     @Autowired DummyCardJpaRepository cards;
     @Autowired DummyCardPaymentHistoryJpaRepository histories;
@@ -52,6 +68,7 @@ class GatewayCardFlowIntegrationTest {
 
     @BeforeEach
     void setup() {
+        refunds.deleteAll();
         histories.deleteAll();
         cards.deleteAll();
         cards.save(DummyCard.builder().userId("user").cardCompany(CardCompany.SHINHAN)
@@ -69,7 +86,7 @@ class GatewayCardFlowIntegrationTest {
         when(ticket.settleCardPayment(any())).thenAnswer(invocation -> {
             CardPaymentCompleteRequest request = invocation.getArgument(0);
             TransactionTemplate independent = new TransactionTemplate(transactionManager);
-            independent.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            independent.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
             independent.executeWithoutResult(status -> {
                 assertThat(histories.findByPaymentNo("PAY-1")).isPresent();
                 assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("10000");
@@ -201,27 +218,27 @@ class GatewayCardFlowIntegrationTest {
         when(ticket.settleCardPayment(any())).thenAnswer(invocation -> completed(invocation.getArgument(0)));
         payments.approve("user", request());
         assertThatThrownBy(() -> payments.status("other", "PAY-1"))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
     void concurrentApprovalRequestsCannotChargeTwice() throws Exception {
         when(ticket.settleCardPayment(any())).thenAnswer(invocation -> completed(invocation.getArgument(0)));
-        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
-        try (java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
-            java.util.concurrent.Callable<String> attempt = () -> {
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Callable<String> attempt = () -> {
                 start.await();
                 try {
                     return payments.approve("user", request()).getTransactionId();
-                } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+                } catch (DataIntegrityViolationException duplicate) {
                     return null; // 최초 요청이 동시에 들어오면 paymentNo 유일성 제약으로 한쪽의 저장이 실패할 수 있다.
                 }
             };
             var first = executor.submit(attempt);
             var second = executor.submit(attempt);
             start.countDown();
-            String firstId = first.get(15, java.util.concurrent.TimeUnit.SECONDS);
-            String secondId = second.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            String firstId = first.get(15, TimeUnit.SECONDS);
+            String secondId = second.get(15, TimeUnit.SECONDS);
             String storedId = histories.findByPaymentNo("PAY-1").orElseThrow().getTransactionId();
             assertThat(firstId == null || firstId.equals(storedId)).isTrue();
             assertThat(secondId == null || secondId.equals(storedId)).isTrue();
@@ -261,9 +278,9 @@ class GatewayCardFlowIntegrationTest {
         assertThat(payments.approve("child", request()).getTransactionId()).isEqualTo(response.getTransactionId());
         assertThat(payments.status("child", "PAY-1").status()).isEqualTo(CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED);
         assertThatThrownBy(() -> payments.status("user", "PAY-1"))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> payments.approve("user", request())).isInstanceOf(IllegalArgumentException.class);
-        payments.refund(dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest.builder()
+        payments.refund(GatewayCardPaymentRefundRequest.builder().paymentRefundProcessId(1L)
                 .paymentNo("PAY-1").transactionId(response.getTransactionId()).refundAmount(BigDecimal.valueOf(10000)).build());
         assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
         verify(ticket, times(1)).settleCardPayment(any());
@@ -293,9 +310,9 @@ class GatewayCardFlowIntegrationTest {
 
     @Test
     void validCardCannotPayForAnotherUsersBooking() {
-        when(ticket.validateCardPayment(any())).thenThrow(new org.springframework.security.access.AccessDeniedException("다른 사용자의 결제 요청입니다."));
+        when(ticket.validateCardPayment(any())).thenThrow(new AccessDeniedException("다른 사용자의 결제 요청입니다."));
         assertThatThrownBy(() -> payments.approve("child", request()))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(AccessDeniedException.class);
         assertThat(histories.count()).isZero();
         assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("0");
         verify(ticket, never()).settleCardPayment(any());

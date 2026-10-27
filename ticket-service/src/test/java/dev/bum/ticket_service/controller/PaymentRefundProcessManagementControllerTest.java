@@ -12,7 +12,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.controller.payment.PaymentRefundProcessManagementController;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.payment.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -105,39 +105,39 @@ paymentNo unique 제약은 중복 승인 저장을 차단한다. 완료/취소/�
    무통장 입금 API 호출
    계좌번호, 입금자명, 금액 검증
    DummyVirtualAccount.status = DEPOSITED
-   입금 이력 저장
+   입금 이력과 PENDING 입금 Outbox 저장 → 함께 커밋
 
 8. payment-gateway-service -> ticket-service
-   입금 완료 내부 API 호출
-   ticket-service 결제 완료 반영 요청. 타임아웃/5xx는 동일 요청으로 최대 3회 시도
+   커밋 후 입금 Outbox로 입금 완료 내부 API 호출
+   실패·응답 유실·응답 불일치는 PENDING 유지, 일정 간격으로 동일 요청 재전달
 
 9. ticket-service
    Payment.status = PAID
    예약/티켓/좌석 상태 확정
 
 10. payment-gateway-service
-    PAID 응답의 결제번호·결제수단·금액·계좌번호를 확인한 뒤 DummyVirtualAccount.status = TICKET_PAYMENT_COMPLETED
-    4xx, 응답 불일치 또는 3회 시도 후에도 완료를 확인하지 못하면 DummyVirtualAccount.status = TICKET_PAYMENT_FAILED
-    실패 사유 저장
+    완료 응답의 결제번호·결제수단·금액·은행·계좌·입금자·입금 시각 확인
+    입금 Outbox = DELIVERED로 커밋. 계좌 상태는 DEPOSITED 유지
 ```
 
-Ticket은 같은 입금 완료 요청을 다시 받아도 이미 `PAID`인 결제를 확인해 완료 응답을 반환한다. 따라서 PG는 앞선 호출의 응답만 유실된 경우에도 동일한 요청으로 결과를 확인할 수 있다.
+Ticket은 같은 입금 완료 요청을 다시 받아도 이미 `PAID`·부분 환불·전액 환불인 결제의 최초 입금 정보를 확인해 기존 결과를 반환한다. 따라서 PG는 응답만 유실된 경우에도 동일한 요청으로 결과를 확인할 수 있다. 상세 커밋·재시도·배포 절차는 [가상계좌 입금 Outbox](virtual-account-deposit-outbox.md)를 따른다.
 
 ### 관리자 입금 확인 및 재반영
 
 1. 관리자가 Ticket 관리자 화면에서 최신순 가상계좌 결제 목록을 확인한다. 결제번호 검색·Ticket 상태 필터·페이지 이동은 Ticket DB만 조회한다.
 2. 결제 행을 선택하면 상세 팝업에서 Ticket이 내부 서비스 토큰으로 PG 상태를 조회하고, Ticket 결제와 PG 입금 상태·금액·계좌·입금 시각을 함께 표시한다. PG가 `WAITING_DEPOSIT`이면 완료 처리를 허용하지 않는다.
-3. PG가 `DEPOSITED`, `TICKET_PAYMENT_FAILED`, `TICKET_PAYMENT_COMPLETED`이고 Ticket이 `WAITING_DEPOSIT`이면 관리자가 사유를 입력해 재반영할 수 있다.
+3. PG가 `DEPOSITED`이고 Ticket이 `WAITING_DEPOSIT`이면 관리자가 사유를 입력해 재반영할 수 있다.
 4. 재반영 요청은 PG 상태를 다시 조회하고 Ticket 결제를 잠근 뒤 금액·계좌·입금 기한·예약·티켓·좌석 상태를 검증한다. 기존 결제 완료 로직으로 `PAID`와 예약·티켓·좌석을 함께 확정한다.
 5. Ticket이 이미 `PAID`이거나 `EXPIRED`·`CANCELLED` 등 입금 대기가 아닌 상태면 재반영을 막는다. 만료·취소 건은 좌석이 풀렸을 수 있으므로 별도 조치가 필요하다.
 
-PG의 `TICKET_PAYMENT_FAILED`는 관리자 재반영 후에도 PG에 남을 수 있다. Ticket의 결제 완료 상태를 기준으로 운영자가 결과를 확인한다.
+PG의 계좌 상태는 입금 사실을 나타낸다. 전달 여부는 입금 Outbox, 예매 완료 여부는 Ticket의 결제 상태로 확인한다. 이전 PG 연동 상태는 배포 SQL로 `DEPOSITED`로 변환한다.
 
 ### 상태 흐름
 
 ```text
 ticket Payment: READY -> WAITING_DEPOSIT -> PAID
-gateway virtual account: WAITING_DEPOSIT -> DEPOSITED -> TICKET_PAYMENT_COMPLETED 또는 TICKET_PAYMENT_FAILED
+gateway virtual account: WAITING_DEPOSIT -> DEPOSITED
+gateway deposit outbox: PENDING -> DELIVERED
 ```
 
 ### 입금 만료 기준

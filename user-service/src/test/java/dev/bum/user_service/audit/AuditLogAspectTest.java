@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.format.DateTimeFormatter;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -51,6 +53,8 @@ class AuditLogAspectTest {
 
         var event = ArgumentCaptor.forClass(AuditLogEvent.class);
         verify(producer).send(event.capture());
+        assertThat(event.getValue().getIdempotencyKey()).hasSize(45)
+                .startsWith(event.getValue().getOccurredAt().toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE) + "-");
         assertThat(event.getValue().getTargetId()).isEqualTo("member");
         assertThat(event.getValue().getMetadata()).containsEntry("targetId", "member");
         assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(event.getValue()))

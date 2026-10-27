@@ -15,6 +15,10 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,9 +38,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class GatewayCardApprovalServiceTest {
+
+    @Mock
+    private GatewayRefundProcessService refundProcesses;
+
+    @BeforeEach
+    void prepareRefundRecord() {
+        lenient().when(refundProcesses.prepare(any(GatewayCardPaymentRefundRequest.class)))
+                .thenAnswer(invocation -> GatewayRefund.requested(invocation.getArgument(0, GatewayCardPaymentRefundRequest.class)));
+    }
 
     @Mock
     private DummyCardJpaRepository dummyCardJpaRepository;
@@ -310,6 +324,7 @@ assertThatThrownBy(() -> gatewayCardPaymentService.approve("IU", request))
 
     private GatewayCardPaymentRefundRequest refundRequest(BigDecimal amount) {
         return GatewayCardPaymentRefundRequest.builder()
+                .paymentRefundProcessId(1L)
                 .paymentNo("PAY-1")
                 .transactionId("CARD-1")
                 .refundAmount(amount)

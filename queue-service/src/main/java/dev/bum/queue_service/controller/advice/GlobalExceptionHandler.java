@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
-    public ResponseEntity<ErrorResponse> handleRedisException(DataAccessException ex) {
+    public ResponseEntity<ErrorResponse> handleRedisException() {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE));
     }

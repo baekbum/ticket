@@ -3,17 +3,20 @@ package dev.bum.ticket_service.service.queue;
 import dev.bum.common.service.queue.dto.QueueValidateRequest;
 import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.ticket_service.config.QueueAccessProperties;
-import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
 import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.feign.queue.QueueServiceClient;
-import feign.FeignException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import feign.FeignException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -75,7 +78,7 @@ class QueueAccessServiceTest {
     @Test
     void communication_failure_does_not_expire_token_and_can_be_retried() {
         given(queueServiceClient.validate(any()))
-                .willThrow(org.mockito.Mockito.mock(FeignException.class))
+                .willThrow(Mockito.mock(FeignException.class))
                 .willReturn(new QueueValidateResponse(true, "OK"));
 
         assertThatThrownBy(() -> queueAccessService.validate(1L, "user01", "queue-token"))
@@ -95,7 +98,7 @@ class QueueAccessServiceTest {
     @Test
     @DisplayName("active token 회수 실패는 결제 완료 흐름을 롤백하지 않도록 삼킨다")
     void complete_swallows_queue_service_failure() {
-        doThrow(org.mockito.Mockito.mock(FeignException.class))
+        doThrow(Mockito.mock(FeignException.class))
                 .when(queueServiceClient)
                 .complete(any());
 

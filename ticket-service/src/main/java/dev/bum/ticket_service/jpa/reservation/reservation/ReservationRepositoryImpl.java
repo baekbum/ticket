@@ -12,9 +12,10 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.ReservationNotExistException;
+import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
-import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponJpaRepository;
+import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.event.event.QEvent;
@@ -32,6 +33,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -54,7 +56,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     private final SeatRepository seatRepository;
     private final TicketRepository ticketRepository;
     private final TicketPurchaseCountService ticketPurchaseCountService;
-    private final UserCouponJpaRepository userCouponJpaRepository;
+    private final UserCouponRepository userCouponRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final EntityManager em;
     private QReservation reservation;
@@ -82,7 +84,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         List<Seat> seats = seatRepository.selectBySeatList(info.getEventId(), info.getSeats());
         List<Ticket> tickets = new ArrayList<>();
         int totalTicketAmount = calculateTotalTicketAmount(seats);
-        DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, reservation, totalTicketAmount);
+        DiscountSnapshot discountSnapshot = applyCouponIfRequested(info, totalTicketAmount);
 
         // 검증이 끝난 좌석들의 상태를 LOCKED로 변경하고 결제 대기 티켓 생성
         for (Seat seat : seats) {
@@ -119,6 +121,16 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     public Reservation selectById(long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
+    }
+
+    @Override
+    public Reservation selectByIdForUpdate(long id) {
+        try {
+            return jpaRepository.findByIdForUpdateNowait(id)
+                    .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
+        } catch (PessimisticLockingFailureException e) {
+            throw new ReservationCancellationInProgressException(e);
+        }
     }
 
     /**
@@ -196,17 +208,16 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     /**
      * 쿠폰을 사용했을 때, 할인 금액을 계산한 스냅샷을 반환
      * @param info
-     * @param reservation
      * @param totalTicketAmount
      * @return
      */
-    private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, Reservation reservation, int totalTicketAmount) {
+    private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, int totalTicketAmount) {
         if (info.getUserCouponId() == null) {
             return null;
         }
 
-        UserCoupon userCoupon = userCouponJpaRepository.findById(info.getUserCouponId())
-                .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
+        // 검증부터 사용·예매 저장까지 같은 트랜잭션에서 잠금을 유지한다.
+        UserCoupon userCoupon = userCouponRepository.selectByIdForUpdate(info.getUserCouponId());
         Coupon coupon = userCoupon.getCoupon();
         LocalDateTime now = LocalDateTime.now();
 

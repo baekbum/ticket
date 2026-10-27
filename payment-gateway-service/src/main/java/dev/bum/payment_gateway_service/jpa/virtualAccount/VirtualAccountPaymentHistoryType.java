@@ -8,12 +8,6 @@ public enum VirtualAccountPaymentHistoryType {
     // 입금이 확인된 이력.
     DEPOSITED,
 
-    // ticket-service 결제 완료 반영에 성공한 이력.
-    TICKET_PAYMENT_COMPLETED,
-
-    // ticket-service 결제 완료 반영에 실패한 이력.
-    TICKET_PAYMENT_FAILED,
-
     // 무통장 결제의 전액 또는 부분 환불 완료 이력.
     REFUNDED,
 

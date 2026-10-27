@@ -5,10 +5,10 @@ window.getAuthHeader = () => {
   const token = localStorage.getItem('admin.accessToken');
   return token ? `Bearer ${token}` : '';
 };
-window.switchMenu = (menuName, _button, context) => {
+window.switchMenu = (menuName, context) => {
   window.parent.postMessage({ type: 'admin:switch-menu', menu: menuName, context }, window.location.origin);
 };
-window.switchMenuWithContext = (menuName, context) => window.switchMenu(menuName, null, context);
+window.switchMenuWithContext = (menuName, context) => window.switchMenu(menuName, context);
 window.openDashboardEmbedWindow = (menuName) => {
   window.parent.postMessage({ type: 'admin:open-embed', menu: menuName }, window.location.origin);
 };

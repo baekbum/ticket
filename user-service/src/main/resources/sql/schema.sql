@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS user_addresses CASCADE;
+DROP TABLE IF EXISTS user_outbox_events;
+DROP TABLE IF EXISTS user_kafka_event_states;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- ==========================================
@@ -25,6 +27,14 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_user_id ON users(user_id);
 CREATE INDEX idx_users_email ON users(email);
+
+-- 회원 PK를 공유하는 1:1 Kafka 이벤트 발행 상태다.
+CREATE TABLE user_kafka_event_states (
+    user_pk BIGINT PRIMARY KEY REFERENCES users(id),
+    event_version BIGINT NOT NULL DEFAULT 0 CHECK (event_version >= 0),
+    password_reset_version BIGINT NOT NULL DEFAULT 0 CHECK (password_reset_version >= 0),
+    CONSTRAINT chk_user_kafka_reset_version CHECK (password_reset_version <= event_version)
+);
 
 -- ==========================================
 -- 2. UserAddress 테이블
@@ -56,7 +66,26 @@ CREATE UNIQUE INDEX uk_user_addresses_default_active
     WHERE default_address = TRUE AND status = 'ACTIVE';
 
 -- ==========================================
--- 3. 감사 로그 테이블
+-- 3. 회원 이벤트 Outbox (회원 삭제 이후에도 미발행 이벤트를 유지한다)
+-- ==========================================
+CREATE TABLE user_outbox_events (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL,
+    topic VARCHAR(255) NOT NULL,
+    payload TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error VARCHAR(100),
+    published_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_user_outbox_status CHECK (status IN ('PENDING', 'PUBLISHED'))
+);
+CREATE INDEX idx_user_outbox_pending ON user_outbox_events(status, next_attempt_at, outbox_id);
+CREATE INDEX idx_user_outbox_order ON user_outbox_events(user_id, status, outbox_id);
+
+-- ==========================================
+-- 4. 감사 로그 테이블
 -- ==========================================
 CREATE TABLE audit_log (
    id BIGSERIAL PRIMARY KEY,

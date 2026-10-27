@@ -1,13 +1,21 @@
 package dev.bum.common.security;
 
 import dev.bum.common.jwt.JwtTokenProvider;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+import jakarta.servlet.FilterChain;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import jakarta.servlet.FilterChain;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -63,10 +71,10 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test void legacy_token_without_type_is_rejected() throws Exception {
-        String token = io.jsonwebtoken.Jwts.builder().setSubject("user").claim("auth", "ROLE_USER")
-                .setExpiration(new java.util.Date(System.currentTimeMillis() + 900000))
-                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(
-                        "token-state-test-secret-012345678901234567890123456789".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        String token = Jwts.builder().setSubject("user").claim("auth", "ROLE_USER")
+                .setExpiration(new Date(System.currentTimeMillis() + 900000))
+                .signWith(Keys.hmacShaKeyFor(
+                        "token-state-test-secret-012345678901234567890123456789".getBytes(StandardCharsets.UTF_8)))
                 .compact();
         assertThat(request(token)).isEqualTo(401);
         verifyNoInteractions(chain, store);

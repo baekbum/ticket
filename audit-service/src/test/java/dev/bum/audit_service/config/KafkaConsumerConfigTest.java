@@ -65,6 +65,7 @@ class KafkaConsumerConfigTest {
             assertThat(consumerFactory.getValueDeserializer())
                     .isInstanceOf(ErrorHandlingDeserializer.class);
             AuditLogEvent event = AuditLogEvent.builder()
+                    .idempotencyKey("audit-key-1")
                     .serviceName("auth-service")
                     .action("LOGOUT")
                     .result("SUCCESS")
@@ -77,6 +78,7 @@ class KafkaConsumerConfigTest {
             assertThat(deserialized).isInstanceOf(AuditLogEvent.class);
             assertThat(deserialized.getServiceName()).isEqualTo("auth-service");
             assertThat(deserialized.getAction()).isEqualTo("LOGOUT");
+            assertThat(deserialized.getIdempotencyKey()).isEqualTo("audit-key-1");
         });
     }
 

@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class GatewayCardPaymentRefundRequest {
 
+    private Long paymentRefundProcessId;
     private String paymentNo;
     private String transactionId;
     private BigDecimal refundAmount;

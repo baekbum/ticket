@@ -1,11 +1,9 @@
 package dev.bum.user_service.controller;
 
-import dev.bum.common.security.TokenStateStore;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
 import dev.bum.common.service.user.user.dto.InsertUserRequest;
 import dev.bum.common.service.user.user.dto.UpdateUserRequest;
@@ -14,9 +12,13 @@ import dev.bum.common.service.user.user.dto.UserResponse;
 import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
+import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.controller.user.UserManagementController;
 import dev.bum.user_service.security.SecurityConfig;
 import dev.bum.user_service.service.user.UserService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -172,7 +174,7 @@ class UserManagementControllerTest {
     @DisplayName("관리자 내 정보 수정에서는 계정 상태를 변경할 수 없음")
     void update_my_info_rejects_status() throws Exception {
         UpdateUserRequest info = UpdateUserRequest.builder()
-                .status(dev.bum.common.service.user.user.enums.UserStatus.WITHDRAWN)
+                .status(UserStatus.WITHDRAWN)
                 .build();
 
         mockMvc.perform(put(baseUrl + "/update/me")

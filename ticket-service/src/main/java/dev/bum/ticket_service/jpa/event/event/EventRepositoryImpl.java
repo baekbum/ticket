@@ -20,7 +20,6 @@ import dev.bum.ticket_service.exception.event.EventNotExistException;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
-import dev.bum.ticket_service.jpa.event.event.QEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

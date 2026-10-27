@@ -4,6 +4,13 @@ import { SessionExpiredError, type createAuthenticatedRequest } from './authenti
 import { CARD_COMPANIES } from './cardPayment';
 
 type Ticket = { ticketId: number; seatName: string; zone: string; seatRow: number; seatCol: number; grade: string; price: number; status: string };
+type CancelReservationResponse = {
+  reservationId: number;
+  paymentRefundProcessId: number | null;
+  previousRequestRecovered: boolean;
+  cancelledTicketIds: number[];
+  message: string;
+};
 type Detail = {
   reservation: { reservationId: number; userId: string; eventId: number; eventTitle: string; eventDateTime: string; venue: string; cancelDeadlineAt: string | null };
   tickets: Ticket[];
@@ -66,9 +73,6 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const payment = detail?.payment;
   const fee = detail && payment ? payment.amount - Math.max(0, detail.totalTicketAmount - detail.totalDiscountAmount) : null;
   const isBankTransfer = payment?.method === 'BANK_TRANSFER';
-  const refundDeadlinePassed = detail?.reservation.cancelDeadlineAt
-    ? new Date(detail.reservation.cancelDeadlineAt).getTime() < Date.now()
-    : false;
   const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
   function beginRefund(ticket: Ticket) {
@@ -92,7 +96,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
     try {
-      await request(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
+      const result = await request<CancelReservationResponse>(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
         method: 'PUT',
         body: JSON.stringify({
           userId: detail.reservation.userId,
@@ -109,7 +113,16 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       setBankCompany('');
       setAccountNumber('');
       setAccountHolder('');
-      setRefundAlert({ message: '환불이 완료되었습니다.', kind: 'success' });
+      const cancelledSeats = result.cancelledTicketIds.map((id) => {
+        const cancelledTicket = detail.tickets.find((item) => item.ticketId === id);
+        return cancelledTicket ? seatName(cancelledTicket) : `티켓 #${id}`;
+      }).join(', ');
+      setRefundAlert({
+        message: result.previousRequestRecovered
+          ? `${result.message} 처리된 좌석: ${cancelledSeats}`
+          : result.message,
+        kind: 'success',
+      });
       setRetry((value) => value + 1);
       onRefunded?.();
     } catch (failure) {
@@ -161,8 +174,8 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
           <thead><tr><th>좌석 등급</th><th>좌석 번호</th><th>구매 금액</th><th>예매/취소</th><th>환불</th></tr></thead>
           <tbody>{detail.tickets.map((ticket) => <tr key={ticket.ticketId}><td>{ticket.grade}석</td><td>{seatName(ticket)}</td><td>{money(ticket.price)}</td><td>{ticketLabels[ticket.status] || ticket.status}</td><td>
             {ticket.status === 'PAID' && paymentIsRefundable ? <button className="my-ticket-refund-button" type="button"
-              disabled={refundDeadlinePassed || refundingTicketId != null} onClick={() => beginRefund(ticket)}>
-              {refundingTicketId === ticket.ticketId ? '처리 중…' : refundDeadlinePassed ? '마감' : '환불'}
+              disabled={refundingTicketId != null} onClick={() => beginRefund(ticket)}>
+              {refundingTicketId === ticket.ticketId ? '처리 중…' : '환불 / 재시도'}
             </button> : <span className="my-ticket-refund-unavailable">-</span>}
           </td></tr>)}</tbody>
         </table></div>{!detail.tickets.length && <p>발급된 티켓이 없습니다.</p>}
@@ -176,6 +189,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
             <div className="my-ticket-refund-actions"><button type="button" onClick={() => setRefundTicket(null)} disabled={refundingTicketId != null}>취소</button><button type="submit" disabled={refundingTicketId != null}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button></div>
           </form>}
           <p className="my-ticket-deadline">공연 취소 마감: {date(detail.reservation.cancelDeadlineAt)}</p>
+          <p className="my-ticket-deadline">신규 취소는 매일 23:50:00까지 가능합니다. 기한 내 접수한 미완료 요청은 마감 이후에도 재시도할 수 있습니다.</p>
         </section>
       </>}
     <footer><button type="button" onClick={onClose} disabled={refundingTicketId != null}>닫기</button></footer>

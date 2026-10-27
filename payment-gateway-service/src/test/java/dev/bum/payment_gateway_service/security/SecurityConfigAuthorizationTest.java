@@ -1,12 +1,14 @@
 package dev.bum.payment_gateway_service.security;
 
-import dev.bum.common.security.TokenStateStore;
-
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.security.TokenStateStore;
 import dev.bum.payment_gateway_service.controller.card.GatewayCardPaymentController;
+import dev.bum.payment_gateway_service.controller.refund.GatewayRefundController;
 import dev.bum.payment_gateway_service.controller.virtualAccount.GatewayVirtualAccountController;
 import dev.bum.payment_gateway_service.service.card.GatewayCardPaymentService;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionService;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {GatewayCardPaymentController.class, GatewayVirtualAccountController.class},
+        controllers = {GatewayCardPaymentController.class, GatewayVirtualAccountController.class, GatewayRefundController.class},
         properties = "app.ticket.base-url=http://localhost:8082"
 )
 @Import(SecurityConfig.class)
@@ -38,6 +40,9 @@ class SecurityConfigAuthorizationTest {
     private GatewayVirtualAccountService gatewayVirtualAccountService;
 
     @MockitoBean
+    private GatewayRefundResolutionService gatewayRefundResolutionService;
+
+    @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
@@ -51,6 +56,20 @@ class SecurityConfigAuthorizationTest {
     void user_can_query_card_status() throws Exception {
         mockMvc.perform(get("/api/v1/payments/card/PAY-1"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void user_cannot_close_internal_refund_requests() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/refunds/internal/resolve"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internal_service_can_reach_refund_resolution() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/refunds/internal/resolve")
+                .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

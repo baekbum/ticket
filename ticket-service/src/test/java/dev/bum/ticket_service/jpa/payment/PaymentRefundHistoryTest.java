@@ -1,5 +1,10 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
+
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -35,10 +40,7 @@ class PaymentRefundHistoryTest {
 
         PaymentRefundHistory history = PaymentRefundHistory.create(
                 process,
-                payment,
-                List.of(firstTicket, secondTicket),
-                125000,
-                false
+                payment
         );
 
         assertThat(history.getPaymentRefundProcess()).isEqualTo(process);
@@ -52,7 +54,7 @@ class PaymentRefundHistoryTest {
         assertThat(history.getPaymentStatusAfter()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
         assertThat(history.isFullCancellation()).isFalse();
         assertThat(history.getTickets()).hasSize(2);
-        assertThat(history.getTickets().get(0).getTicket()).isEqualTo(firstTicket);
+        assertThat(history.getTickets().get(0).getTicketId()).isEqualTo(firstTicket.getTicketId());
         assertThat(history.getTickets().get(0).getTicketPrice()).isEqualTo(150000);
     }
 

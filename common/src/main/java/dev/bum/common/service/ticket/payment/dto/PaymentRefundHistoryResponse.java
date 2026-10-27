@@ -28,7 +28,7 @@ public class PaymentRefundHistoryResponse {
     private boolean fullCancellation;
 
     @Builder.Default
-    private List<PaymentRefundHistoryTicketResponse> tickets = new ArrayList<>();
+    private List<PaymentRefundSnapshotTicketResponse> tickets = new ArrayList<>();
 
     private String createdAt;
 }

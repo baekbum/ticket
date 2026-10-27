@@ -22,13 +22,36 @@ import java.util.List;
 public class AuditLogPersistenceService {
 
     private final AuditLogJpaRepository repository;
+    private final AuditLogInsertRepository insertRepository;
+    private final AuditLogFingerprint fingerprint;
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 100;
 
     @Transactional
-    public AuditLogEntity save(AuditLogEvent event) {
-        return repository.save(AuditLogEntity.from(event));
+    public AuditLogSaveResult save(AuditLogEvent event) {
+        if (event == null || !StringUtils.hasText(event.getIdempotencyKey())
+                || event.getIdempotencyKey().length() > 100
+                || !StringUtils.hasText(event.getServiceName()) || event.getServiceName().length() > 50
+                || event.getOccurredAt() == null) {
+
+            throw new IllegalArgumentException("감사 이벤트의 멱등키·서비스·발생 시각이 올바르지 않습니다.");
+        }
+
+        String requestHash = fingerprint.calculate(event);
+        int inserted = insertRepository.insertIfAbsent(AuditLogEntity.from(event, requestHash));
+        if (inserted == 1) return AuditLogSaveResult.SAVED;
+
+        // 동시 최초 요청도 UNIQUE 검사에서 선행 트랜잭션의 종료를 기다린 뒤 이 경로로 진입한다.
+        AuditLogEntity recorded = repository.findByServiceNameAndIdempotencyKey(
+                event.getServiceName(), event.getIdempotencyKey()
+        ).orElseThrow(() -> new IllegalStateException("기존 감사 이벤트를 찾을 수 없습니다."));
+
+        if (!requestHash.equals(recorded.getRequestHash())) {
+            throw new IllegalArgumentException("같은 서비스의 멱등키로 다른 감사 이벤트를 저장할 수 없습니다.");
+        }
+
+        return AuditLogSaveResult.DUPLICATE;
     }
 
     @Transactional(readOnly = true)

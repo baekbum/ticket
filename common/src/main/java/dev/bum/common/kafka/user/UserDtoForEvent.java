@@ -14,7 +14,13 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserDtoForEvent {
-    private TopicEventType eventType; // CREATE, DELETE
+    // Outbox 저장 시 한 번 생성하며 재발행·DLT 재처리에서도 같은 키를 사용한다.
+    private String idempotencyKey;
+    // USER에서 회원별로 증가시킨다. 재발행 시 최초 버전을 유지한다.
+    private Long eventVersion;
+    // 비밀번호 찾기 재설정마다 별도로 1씩 증가하며 이후 스냅샷에도 유지한다.
+    private Long passwordResetVersion;
+    private TopicEventType eventType;
     private Long id;
     private String userId;
     @ToString.Exclude

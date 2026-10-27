@@ -2,6 +2,7 @@ package dev.bum.queue_service.security;
 
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenState;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -10,10 +11,12 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.server.WebFilterChain;
+
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,7 +64,7 @@ class ReactiveJwtAuthenticationFilterTest {
 
     @Test
     void missing_inactive_version_mismatch_and_role_mismatch_states_are_revoked() {
-        for (Mono<TokenState> state : java.util.List.of(
+        for (Mono<TokenState> state : List.of(
                 Mono.<TokenState>empty(),
                 Mono.just(new TokenState(1L, false, "ROLE_USER")),
                 Mono.just(new TokenState(2L, true, "ROLE_USER")),
