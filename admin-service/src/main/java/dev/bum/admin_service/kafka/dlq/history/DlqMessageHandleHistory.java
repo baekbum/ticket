@@ -1,4 +1,4 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.history;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

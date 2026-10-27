@@ -1,17 +1,18 @@
 package dev.bum.admin_service.controller.kafka;
 
-import dev.bum.admin_service.kafka.dlq.DlqMessageHandleRequest;
-import dev.bum.admin_service.kafka.dlq.DlqMessageHandleHistoryCondRequest;
-import dev.bum.admin_service.kafka.dlq.DlqMessageHandleHistoryResponse;
-import dev.bum.admin_service.kafka.dlq.DlqMessageHandleResponse;
-import dev.bum.admin_service.kafka.dlq.DlqMessageDetailResponse;
-import dev.bum.admin_service.kafka.dlq.DlqMessageModifiedReplayRequest;
-import dev.bum.admin_service.kafka.dlq.DlqMessageSummaryResponse;
-import dev.bum.admin_service.kafka.dlq.DlqTopicResponse;
-import dev.bum.admin_service.kafka.dlq.KafkaDlqHistoryService;
-import dev.bum.admin_service.kafka.dlq.KafkaDlqQueryService;
-import dev.bum.admin_service.kafka.dlq.KafkaDlqReplayService;
-import dev.bum.admin_service.kafka.dlq.DlqMessageStatus;
+import dev.bum.admin_service.kafka.dlq.dto.request.DlqMessageHandleHistoryCondRequest;
+import dev.bum.admin_service.kafka.dlq.dto.request.DlqMessageHandleRequest;
+import dev.bum.admin_service.kafka.dlq.dto.request.DlqMessageModifiedReplayRequest;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageDetailResponse;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageHandleHistoryResponse;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageHandleResponse;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageSummaryResponse;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqTopicResponse;
+import dev.bum.admin_service.kafka.dlq.history.KafkaDlqHistoryService;
+import dev.bum.admin_service.kafka.dlq.message.DlqMessageStatus;
+import dev.bum.admin_service.kafka.dlq.message.KafkaDlqQueryService;
+import dev.bum.admin_service.kafka.dlq.replay.KafkaDlqReplayService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

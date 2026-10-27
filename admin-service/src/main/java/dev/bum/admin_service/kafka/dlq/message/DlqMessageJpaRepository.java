@@ -1,4 +1,4 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.message;
 
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;

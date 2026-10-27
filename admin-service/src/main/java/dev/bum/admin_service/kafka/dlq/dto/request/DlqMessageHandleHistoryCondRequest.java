@@ -1,4 +1,4 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.dto.request;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

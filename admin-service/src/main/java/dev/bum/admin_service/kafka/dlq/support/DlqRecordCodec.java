@@ -1,4 +1,6 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.support;
+
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqHeaderResponse;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;

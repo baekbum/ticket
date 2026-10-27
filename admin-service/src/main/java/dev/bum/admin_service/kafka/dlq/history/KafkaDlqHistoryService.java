@@ -1,4 +1,7 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.history;
+
+import dev.bum.admin_service.kafka.dlq.dto.request.DlqMessageHandleHistoryCondRequest;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageHandleHistoryResponse;
 
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;

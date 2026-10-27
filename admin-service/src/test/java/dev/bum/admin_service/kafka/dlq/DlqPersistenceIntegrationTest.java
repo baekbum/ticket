@@ -1,5 +1,21 @@
 package dev.bum.admin_service.kafka.dlq;
 
+import dev.bum.admin_service.kafka.dlq.dto.request.DlqMessageHandleRequest;
+import dev.bum.admin_service.kafka.dlq.dto.response.DlqMessageSummaryResponse;
+import dev.bum.admin_service.kafka.dlq.history.DlqMessageHandleAction;
+import dev.bum.admin_service.kafka.dlq.history.DlqMessageHandleHistory;
+import dev.bum.admin_service.kafka.dlq.history.DlqMessageHandleHistoryJpaRepository;
+import dev.bum.admin_service.kafka.dlq.history.DlqMessageHandleStatus;
+import dev.bum.admin_service.kafka.dlq.ingestion.DlqMessageConsumer;
+import dev.bum.admin_service.kafka.dlq.ingestion.DlqMessageIngestionService;
+import dev.bum.admin_service.kafka.dlq.message.DlqMessage;
+import dev.bum.admin_service.kafka.dlq.message.DlqMessageJpaRepository;
+import dev.bum.admin_service.kafka.dlq.message.DlqMessageStatus;
+import dev.bum.admin_service.kafka.dlq.message.KafkaDlqQueryService;
+import dev.bum.admin_service.kafka.dlq.replay.DlqReplayTransactionService;
+import dev.bum.admin_service.kafka.dlq.replay.KafkaDlqReplayService;
+import dev.bum.admin_service.kafka.dlq.support.DlqRecordCodec;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.config.KafkaDlqConfig;
 import dev.bum.admin_service.config.KafkaDlqProperties;
@@ -58,8 +74,8 @@ import static org.awaitility.Awaitility.await;
 class DlqPersistenceIntegrationTest {
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = DlqMessage.class)
-    @EnableJpaRepositories(basePackageClasses = DlqMessageJpaRepository.class)
+    @EntityScan(basePackageClasses = {DlqMessage.class, DlqMessageHandleHistory.class})
+    @EnableJpaRepositories(basePackageClasses = {DlqMessageJpaRepository.class, DlqMessageHandleHistoryJpaRepository.class})
     static class PersistenceConfig {}
 
     @DynamicPropertySource

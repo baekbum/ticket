@@ -1,4 +1,7 @@
-package dev.bum.admin_service.kafka.dlq;
+package dev.bum.admin_service.kafka.dlq.message;
+
+import dev.bum.admin_service.kafka.dlq.history.DlqMessageHandleHistoryJpaRepository;
+import dev.bum.admin_service.kafka.dlq.support.DlqRecordCodec;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.admin_service.config.KafkaDlqProperties;
