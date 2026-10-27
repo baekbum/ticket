@@ -1,5 +1,9 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountPaymentInfo;
+
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;

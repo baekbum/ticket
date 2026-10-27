@@ -11,8 +11,12 @@ import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDelivery;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
+
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -207,7 +211,7 @@ public class ReservationDeliveryService {
      */
     private Specification<ReservationDelivery> makeSpec(ReservationDeliveryCondRequest cond) {
         return (root, query, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            List<Predicate> predicates = new ArrayList<>();
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("reservation", JoinType.LEFT);
             }
@@ -222,7 +226,7 @@ public class ReservationDeliveryService {
                 predicates.add(cb.equal(root.get("status"), cond.getStatus()));
             }
 
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
 

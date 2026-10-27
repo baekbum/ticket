@@ -4,20 +4,27 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.enums.TopicEventType;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.dto.DeleteUserBulkRequest;
-import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
+import dev.bum.common.service.user.user.dto.FindPasswordRequest;
+import dev.bum.common.service.user.user.dto.InsertUserRequest;
+import dev.bum.common.service.user.user.dto.ResetPasswordRequest;
+import dev.bum.common.service.user.user.dto.UpdateUserRequest;
+import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.common.service.user.user.dto.UserResponse;
+import dev.bum.common.service.user.user.dto.ValidatePasswordRequest;
 import dev.bum.common.service.user.user.enums.UserGrade;
 import dev.bum.common.service.user.user.enums.UserRole;
 import dev.bum.common.service.user.user.enums.UserStatus;
 import dev.bum.user_service.exception.PasswordIncorrectException;
 import dev.bum.user_service.exception.WithdrawnUserException;
 import dev.bum.user_service.jpa.user.User;
+import dev.bum.user_service.jpa.user.UserKafkaEventState;
+import dev.bum.user_service.service.user.UserKafkaEventStateService;
 import dev.bum.user_service.jpa.user.UserRepository;
-import dev.bum.common.service.user.user.dto.InsertUserRequest;
-import dev.bum.common.service.user.user.dto.UpdateUserRequest;
-import dev.bum.common.service.user.user.dto.UserCondRequest;
 import dev.bum.user_service.service.user.UserService;
+import dev.bum.user_service.service.outbox.UserOutboxService;
+
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,25 +34,34 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+    @Mock private UserKafkaEventStateService userKafkaEventStateService;
+
+    @BeforeEach
+    void prepareLockedLookup() {
+        lenient().when(userKafkaEventStateService.advance(any(), anyBoolean())).thenAnswer(invocation -> {
+            UserKafkaEventState state = UserKafkaEventState.builder().user(invocation.getArgument(0)).build();
+            state.advance(invocation.getArgument(1));
+            return state;
+        });
+        lenient().when(userRepository.selectByIdForUpdate(anyString()))
+                .thenAnswer(invocation -> userRepository.selectById(invocation.getArgument(0)));
+    }
 
     @Test
     void password_change_failures_do_not_lock_a_logged_in_user() {
@@ -57,11 +73,10 @@ class UserServiceTest {
                     .isInstanceOf(PasswordIncorrectException.class);
         }
         then(userRepository).should(never()).update(any(), any());
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(outboxService).should(never()).enqueue(any());
 
         given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
         given(userRepository.update(eq("user01"), any())).willReturn(updated);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
         userService.changeMyPassword("user01", "old-password", "new-password", "new-password");
         then(userRepository).should().update(eq("user01"), argThat(info -> "new-password".equals(info.getPassword())));
     }
@@ -75,15 +90,14 @@ class UserServiceTest {
                 .willReturn(user);
         given(userRepository.selectById("user01")).willReturn(user);
         given(userRepository.update(eq("user01"), any(UpdateUserRequest.class))).willReturn(user);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
         var response = userService.findPasswordByPhoneNumber(
-                dev.bum.common.service.user.user.dto.FindPasswordRequest.builder().userId("user01")
+                FindPasswordRequest.builder().userId("user01")
                         .name("홍길동").phoneNumber("01012345678").build());
 
-        userService.resetPassword(dev.bum.common.service.user.user.dto.ResetPasswordRequest.builder()
+        userService.resetPassword(ResetPasswordRequest.builder()
                 .resetToken(response.getResetToken()).password("new-password").build());
 
-        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 Boolean.TRUE.equals(event.getPasswordReset())
                         && "new-encoded-password".equals(event.getPassword())
                         && "user01".equals(event.getUserId())));
@@ -96,7 +110,7 @@ class UserServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    private UserOutboxService outboxService;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -126,13 +140,7 @@ class UserServiceTest {
                 .isBlacklisted(false)
                 .build();
 
-        // NPE 방지를 위한 가짜 Future (제네릭 에러 방지를 위해 명시적 타입 지정)
-        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
-
         given(userRepository.insert(any())).willReturn(user);
-
-        // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
         UserResponse response = userService.insert(userInfo);
 
@@ -147,7 +155,7 @@ class UserServiceTest {
         assertThat(response.getIsBlacklisted()).isFalse();
 
         then(userRepository).should().insert(userInfo);
-        then(kafkaTemplate).should(times(1)).send(any(), eq("iu"), any(UserDtoForEvent.class));
+        then(outboxService).should(times(1)).enqueue(any(UserDtoForEvent.class));
     }
 
     @Test
@@ -313,8 +321,6 @@ class UserServiceTest {
 
         given(userRepository.selectById(any())).willReturn(result);
         given(userRepository.update(any(), any())).willReturn(result);
-        given(kafkaTemplate.send(any(), any(), any()))
-                .willReturn(CompletableFuture.completedFuture(null));
 
         UserResponse response = userService.update(userId, info);
 
@@ -322,7 +328,7 @@ class UserServiceTest {
         assertThat(result.getIsBlacklisted()).isEqualTo(response.getIsBlacklisted());
 
         then(userRepository).should().update(userId, info);
-        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 Boolean.TRUE.equals(event.getIsBlacklisted())
                         && until.equals(event.getBlacklistedUntil())));
     }
@@ -340,14 +346,12 @@ class UserServiceTest {
             user.updateInfo(info);
             return user;
         });
-        given(kafkaTemplate.send(any(), any(), any()))
-                .willReturn(CompletableFuture.completedFuture(null));
 
         UserResponse response = userService.update("user", info);
 
         assertThat(response.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
         assertThat(response.getWithdrawAt()).isEqualTo(withdrawnAt);
-        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 "WITHDRAWN".equals(event.getStatus()) && "user".equals(event.getUserId())));
     }
 
@@ -362,14 +366,12 @@ class UserServiceTest {
             user.updateInfo(info);
             return user;
         });
-        given(kafkaTemplate.send(any(), any(), any()))
-                .willReturn(CompletableFuture.completedFuture(null));
 
         UserResponse response = userService.update("user", info);
 
         assertThat(response.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(response.getWithdrawAt()).isNull();
-        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 "ACTIVE".equals(event.getStatus())));
     }
 
@@ -404,14 +406,12 @@ class UserServiceTest {
             user.updateInfo(request);
             return user;
         });
-        given(kafkaTemplate.send(any(), any(), any()))
-                .willReturn(CompletableFuture.completedFuture(null));
 
         userService.update("user01", request);
 
         assertThat(user.getIsBlacklisted()).isFalse();
         assertThat(user.getBlacklistedUntil()).isNull();
-        then(kafkaTemplate).should().send(any(), any(), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 "user01".equals(event.getUserId()) && Boolean.FALSE.equals(event.getIsBlacklisted())));
     }
 
@@ -443,7 +443,7 @@ class UserServiceTest {
         UserResponse response = userService.update(userId, info);
 
         assertThat(response.getGrade()).isEqualTo(UserGrade.VIP);
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(outboxService).should(never()).enqueue(any());
     }
 
     @Test
@@ -457,13 +457,8 @@ class UserServiceTest {
                 .name("유저")
                 .build();
 
-        // NPE 방지를 위한 가짜 Future (제네릭 에러 방지를 위해 명시적 타입 지정)
-        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
-
         given(userRepository.delete(any())).willReturn(result);
-
-        // 인자를 any()로 설정하면 토픽명이 null이어도 에러 없이 future를 반환합니다.
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
+        given(userRepository.selectById(userId)).willReturn(result);
 
         UserResponse response = userService.delete(userId);
 
@@ -503,15 +498,12 @@ class UserServiceTest {
                 .role(UserRole.ROLE_USER)
                 .build();
 
-        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
-
         given(userRepository.selectById(userId)).willReturn(originalUser);
         given(userRepository.update(userId, info)).willReturn(updatedUser);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
 
         userService.update(userId, info);
 
-        then(kafkaTemplate).should().send(any(), eq(userId), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 event.getEventType() == TopicEventType.UPDATE && event.getUserId().equals(userId)
         ));
     }
@@ -568,12 +560,11 @@ class UserServiceTest {
         given(userRepository.selectById("user01")).willReturn(current);
         given(passwordEncoder.matches("old-password", "old-hash")).willReturn(true);
         given(userRepository.update(eq("user01"), any())).willReturn(updated);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
 
         userService.changeMyPassword("user01", "old-password", "new-password", "new-password");
 
         then(userRepository).should().update(eq("user01"), argThat(info -> "new-password".equals(info.getPassword())));
-        then(kafkaTemplate).should().send(any(), eq("user01"), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 event.getEventType() == TopicEventType.UPDATE && "new-hash".equals(event.getPassword())));
     }
 
@@ -587,7 +578,7 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.changeMyPassword("user01", "wrong-password", "new-password", "new-password"))
                 .isInstanceOf(PasswordIncorrectException.class);
         then(userRepository).should(never()).update(any(), any());
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(outboxService).should(never()).enqueue(any());
     }
 
     @Test
@@ -624,7 +615,7 @@ class UserServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("새로운 비밀번호는 이전 비밀번호와 같을 수 없습니다.");
         then(userRepository).should(never()).update(any(), any());
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(outboxService).should(never()).enqueue(any());
     }
 
     @Test
@@ -633,13 +624,12 @@ class UserServiceTest {
         User user = User.builder().id(1L).userId("user01").password("encoded-password").build();
         given(userRepository.selectById("user01")).willReturn(user);
         given(passwordEncoder.matches("plain-password", "encoded-password")).willReturn(true);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(CompletableFuture.completedFuture(null));
 
         UserResponse response = userService.withdraw("user01", "plain-password");
 
         assertThat(response.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
         assertThat(response.getWithdrawAt()).isNotNull();
-        then(kafkaTemplate).should().send(any(), eq("user01"), argThat(event ->
+        then(outboxService).should().enqueue(argThat(event ->
                 event.getEventType() == TopicEventType.UPDATE && "WITHDRAWN".equals(event.getStatus())));
     }
 
@@ -653,7 +643,7 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.withdraw("user01", "wrong-password"))
                 .isInstanceOf(PasswordIncorrectException.class);
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        then(kafkaTemplate).should(never()).send(any(), any(), any());
+        then(outboxService).should(never()).enqueue(any());
     }
 
     @Test
@@ -671,7 +661,14 @@ class UserServiceTest {
     void init_password() {
         String userId = "IU";
 
+        given(userRepository.update(eq(userId), any())).willReturn(
+                User.builder().id(1L).userId("iu").password("encoded-reset-password").build()
+        );
+
         userService.initPassword(userId);
+
+        then(outboxService).should().enqueue(argThat(event ->
+                "iu".equals(event.getUserId()) && "encoded-reset-password".equals(event.getPassword())));
 
         then(userRepository).should().update(eq(userId), argThat(info ->
                 "123456789!".equals(info.getPassword())
@@ -687,11 +684,11 @@ class UserServiceTest {
 
         User user01 = User.builder().id(1L).userId("user01").build();
         User user02 = User.builder().id(2L).userId("user02").build();
-        CompletableFuture<SendResult<String, UserDtoForEvent>> future = CompletableFuture.completedFuture(null);
 
         given(userRepository.delete("user01")).willReturn(user01);
         given(userRepository.delete("user02")).willReturn(user02);
-        given(kafkaTemplate.send(any(), any(), any())).willReturn(future);
+        given(userRepository.selectById("user01")).willReturn(user01);
+        given(userRepository.selectById("user02")).willReturn(user02);
 
         userService.deleteBulk(info);
 

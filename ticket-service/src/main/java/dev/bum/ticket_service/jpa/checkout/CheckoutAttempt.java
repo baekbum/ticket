@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.jpa.checkout;
 
-import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

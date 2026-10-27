@@ -1,6 +1,6 @@
 package dev.bum.audit_service.kafka;
 
-import dev.bum.audit_service.audit.AuditLogEntity;
+import dev.bum.audit_service.audit.AuditLogSaveResult;
 import dev.bum.audit_service.audit.AuditLogPersistenceService;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +21,17 @@ public class AuditLogConsumer {
             containerFactory = "auditLogKafkaListenerContainerFactory"
     )
     public void consume(AuditLogEvent event) {
-        AuditLogEntity savedAuditLog = persistenceService.save(event);
+        AuditLogSaveResult result = persistenceService.save(event);
+
+        if (result == AuditLogSaveResult.DUPLICATE) {
+            log.info("중복 감사 이벤트 저장 생략: serviceName={}, idempotencyKey={}",
+                    event.getServiceName(), event.getIdempotencyKey());
+            return;
+        }
 
         log.info(
-                "Saved audit log. id={}, serviceName={}, action={}, targetType={}, targetId={}, result={}, traceId={}",
-                savedAuditLog.getId(),
+                "Saved audit log. idempotencyKey={}, serviceName={}, action={}, targetType={}, targetId={}, result={}, traceId={}",
+                event.getIdempotencyKey(),
                 event.getServiceName(),
                 event.getAction(),
                 event.getTargetType(),

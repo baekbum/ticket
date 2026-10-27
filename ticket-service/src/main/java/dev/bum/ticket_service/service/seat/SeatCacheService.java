@@ -17,29 +17,30 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
+
 import io.micrometer.observation.annotation.Observed;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
-import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,17 +57,12 @@ public class SeatCacheService {
     private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
     private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
     private static final DefaultRedisScript<Long> SAFE_WARM_UP_SCRIPT = safeWarmUpScript();
-    private static final DefaultRedisScript<Long> SYNC_SEAT_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('psetex', KEYS[1], ARGV[1], ARGV[2])
-            redis.call('del', KEYS[2])
-            return 1
-            """, Long.class);
     private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final SeatRepository repository;
     private final EventRepository eventRepository;
     private final StringRedisTemplate seatRedisTemplate;
-    private final SeatCacheSyncFailureService seatCacheSyncFailureService;
+    private final SeatCacheSyncOutboxService seatCacheSyncOutboxService;
     private final SeatCacheMissOccupationService seatCacheMissOccupationService;
 
     /**
@@ -337,7 +333,7 @@ public class SeatCacheService {
             throw new SeatAlreadyOccupiedException("선택하신 좌석 중 이미 선택된 좌석이 포함되어 있습니다.");
         } else if (!Long.valueOf(1L).equals(result)) {
             // null 또는 예상하지 못한 값: 선점 성공을 확인할 수 없으므로 예외로 처리한다.
-            throw new org.springframework.dao.DataRetrievalFailureException("좌석 Redis 선점 결과를 확인할 수 없습니다.");
+            throw new DataRetrievalFailureException("좌석 Redis 선점 결과를 확인할 수 없습니다.");
         }
         // 1: 잠금 생성과 좌석 상태 변경이 완료됐다. 위 조건에 해당하지 않아 정상 진행한다.
     }
@@ -381,96 +377,20 @@ public class SeatCacheService {
         return earliestExpiresAt;
     }
 
-    /**
-     * 예매 확정 후 좌석 Redis 상태를 RESERVED로 동기화하는 메서드
-     * @param seats
-     */
+    /** 결제 완료 좌석의 Redis 반영 작업을 DB 변경과 함께 저장한다. */
     @Observed(name = "ticket.seat-cache.redis.sync-reserved-after-commit", contextualName = "ticket seat cache redis sync reserved after commit")
-    public void syncReservedSeatsAfterCommit(List<Seat> seats) {
-        List<SeatCacheUpdate> updates = seats.stream()
-                .map(seat -> new SeatCacheUpdate(
-                        buildSeatRedisKey(seat),
-                        SeatStatus.RESERVED.name(),
-                        calculateSeatCacheTtl(seat)
-                ))
-                .collect(Collectors.toList());
-
-        runAfterCommit(() -> syncSeatCacheUpdates("syncReservedSeatsAfterCommit", updates));
+    public void syncReservedSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+        seatCacheSyncOutboxService.enqueue(seats, "syncReservedSeatsAfterCommit", userId, orderId);
     }
 
-    /**
-     * 예매 결제 대기 보정 후 좌석 Redis 상태를 LOCKED로 동기화하는 메서드
-     * @param seats
-     */
-    public void syncLockedSeatsAfterCommit(List<Seat> seats) {
-        List<SeatCacheUpdate> updates = seats.stream()
-                .map(seat -> new SeatCacheUpdate(
-                        buildSeatRedisKey(seat),
-                        SeatStatus.LOCKED.name(),
-                        calculateSeatCacheTtl(seat)
-                ))
-                .collect(Collectors.toList());
-
-        runAfterCommit(() -> syncSeatCacheUpdates("syncLockedSeatsAfterCommit", updates));
+    /** 관리자 보정으로 입금 대기가 된 좌석의 Redis 반영 작업을 저장한다. */
+    public void syncLockedSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+        seatCacheSyncOutboxService.enqueue(seats, "syncLockedSeatsAfterCommit", userId, orderId);
     }
 
-    /**
-     * 예매 취소 후 좌석 Redis 상태를 AVAILABLE로 동기화하는 메서드
-     * @param seats
-     */
-    public void syncAvailableSeatsAfterCommit(List<Seat> seats) {
-        List<SeatCacheUpdate> updates = seats.stream()
-                .map(seat -> new SeatCacheUpdate(
-                        buildSeatRedisKey(seat),
-                        SeatStatus.AVAILABLE.name(),
-                        calculateSeatCacheTtl(seat)
-                ))
-                .collect(Collectors.toList());
-
-        runAfterCommit(() -> syncSeatCacheUpdates("syncAvailableSeatsAfterCommit", updates));
-    }
-
-    /**
-     * DB에 좌석 상태를 반영한 후,
-     * Redis에 동기화 할 떄, 실패한 좌석에 대해 재처리를 위해 따로 따로 이력을 생성한다.
-     * @param operation
-     * @param updates
-     */
-    private void syncSeatCacheUpdates(String operation, List<SeatCacheUpdate> updates) {
-        Map<SeatCacheUpdate, DataAccessException> failures = new LinkedHashMap<>();
-
-        for (SeatCacheUpdate update : updates) {
-            try {
-                Long result = seatRedisTemplate.execute(SYNC_SEAT_SCRIPT,
-                        List.of(update.getRedisKey(), update.getRedisKey() + ":lock"),
-                        String.valueOf(update.getTtl().toMillis()),
-                        update.getValue()
-                );
-
-                if (!Long.valueOf(1L).equals(result)) {
-                    throw new org.springframework.dao.DataRetrievalFailureException("좌석 Redis 동기화 결과를 확인할 수 없습니다.");
-                }
-            } catch (DataAccessException e) {
-                failures.put(update, e);
-                log.error("[REDIS-ERROR] DB 커밋 후 좌석 Redis 동기화 실패. operation={}, redisKey={}, value={}",
-                        operation, update.getRedisKey(), update.getValue(), e);
-            }
-        }
-
-        failures.forEach((update, exception) -> {
-            try {
-                seatCacheSyncFailureService.recordFailure(
-                        operation,
-                        "event:{eventId}:seat",
-                        List.of(update.getRedisKey()),
-                        List.of(update.getValue()),
-                        exception
-                );
-            } catch (Exception recordException) {
-                log.error("[REDIS-ERROR] 좌석 Redis 동기화 실패 이력 저장 실패. operation={}, redisKey={}",
-                        operation, update.getRedisKey(), recordException);
-            }
-        });
+    /** 취소·환불·만료된 좌석의 Redis 반영 작업을 저장한다. */
+    public void syncAvailableSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+        seatCacheSyncOutboxService.enqueue(seats, "syncAvailableSeatsAfterCommit", userId, orderId);
     }
 
     /** 선점을 시도한 좌석 중 이번 요청이 소유한 잠금만 원자적으로 해제한다. */
@@ -799,83 +719,5 @@ public class SeatCacheService {
         return "LOCKED:" + userId + ":" + orderId;
     }
 
-    /**
-     * 공연 종료 시점까지 좌석 캐시를 유지하기 위한 TTL 계산 메서드
-     * @param seat
-     * @return
-     */
-    private Duration calculateSeatCacheTtl(Seat seat) {
-        if (seat.getEvent() == null || seat.getEvent().getEventDateTime() == null) {
-            return SEAT_CACHE_TTL;
-        }
 
-        int runningMinutes = seat.getEvent().getRunningMinutes() != null
-                ? seat.getEvent().getRunningMinutes()
-                : 0;
-        LocalDateTime eventEndAt = seat.getEvent().getEventDateTime().plusMinutes(runningMinutes);
-        Duration ttl = Duration.between(LocalDateTime.now(), eventEndAt);
-
-        return ttl.isPositive() ? ttl : Duration.ofMinutes(1);
-    }
-
-    /**
-     * DB 트랜잭션 커밋 이후 Redis 상태를 동기화하기 위한 후처리 등록 메서드
-     * DB 처리 중 오류가 생기면 호출되지 않는다. (즉, 트랜잭션 롤백 시 실행되지 않음)
-     * @param runnable
-     */
-    private void runAfterCommit(Runnable runnable) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            runnable.run();
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            /**
-             * 좌석 DB 트랜잭션 커밋 이후 Redis 동기화 작업을 실행한다.
-             */
-            @Override
-            public void afterCommit() {
-                runnable.run();
-            }
-        });
-    }
-
-    /**
-     * 좌석 Redis 동기화 정보를 임시 보관하는 내부 클래스
-     */
-    private static class SeatCacheUpdate {
-        private final String redisKey;
-        private final String value;
-        private final Duration ttl;
-
-        /**
-         * Redis key, 저장 값, TTL을 하나의 동기화 작업 단위로 묶는다.
-         */
-        private SeatCacheUpdate(String redisKey, String value, Duration ttl) {
-            this.redisKey = redisKey;
-            this.value = value;
-            this.ttl = ttl;
-        }
-
-        /**
-         * 동기화할 Redis key를 반환한다.
-         */
-        private String getRedisKey() {
-            return redisKey;
-        }
-
-        /**
-         * Redis에 저장할 좌석 상태 값을 반환한다.
-         */
-        private String getValue() {
-            return value;
-        }
-
-        /**
-         * Redis key에 적용할 만료 시간을 반환한다.
-         */
-        private Duration getTtl() {
-            return ttl;
-        }
-    }
 }

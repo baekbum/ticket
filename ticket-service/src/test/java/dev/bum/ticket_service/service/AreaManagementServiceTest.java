@@ -19,19 +19,22 @@ import dev.bum.ticket_service.jpa.event.eventLayout.EventLayout;
 import dev.bum.ticket_service.jpa.event.eventLayout.EventLayoutJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.area.AreaManagementService;
+import dev.bum.ticket_service.service.area.SvgLayoutSanitizer;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
-import dev.bum.ticket_service.service.area.SvgLayoutSanitizer;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -73,9 +76,9 @@ class AreaManagementServiceTest {
     @DisplayName("SVG 파일로 이벤트 그룹 구역 등록")
     void insert_svg() throws Exception {
         MockMultipartFile svgFile = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml",
-                new String(svgFile().getBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                new String(svgFile().getBytes(), StandardCharsets.UTF_8)
                         .replace("</svg>", "<script>alert(1)</script><image href='https://evil.test'/></svg>")
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        .getBytes(StandardCharsets.UTF_8));
         Event event = event();
 
         given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event));
@@ -112,11 +115,11 @@ class AreaManagementServiceTest {
     void rejects_doctype_before_replacing_layout() {
         given(eventRepository.selectByEventGroupCode("IU_2026")).willReturn(List.of(event()));
         MockMultipartFile file = new MockMultipartFile("svgFile", "layout.svg", "image/svg+xml",
-                "<!DOCTYPE svg SYSTEM 'https://evil.test/svg.dtd'><svg/>".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                "<!DOCTYPE svg SYSTEM 'https://evil.test/svg.dtd'><svg/>".getBytes(StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> areaManagementService.insertSvgByEventGroupCode("IU_2026", file, true))
                 .isInstanceOf(IllegalArgumentException.class);
-        org.mockito.Mockito.verifyNoInteractions(layoutJpaRepository, areaJpaRepository, seatJpaRepository, repository);
+        Mockito.verifyNoInteractions(layoutJpaRepository, areaJpaRepository, seatJpaRepository, repository);
     }
 
     @Test

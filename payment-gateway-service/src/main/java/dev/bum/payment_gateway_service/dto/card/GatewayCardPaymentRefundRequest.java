@@ -16,6 +16,10 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class GatewayCardPaymentRefundRequest {
 
+    @NotNull
+    @Positive
+    private Long paymentRefundProcessId;
+
     @NotBlank
     private String paymentNo;
 

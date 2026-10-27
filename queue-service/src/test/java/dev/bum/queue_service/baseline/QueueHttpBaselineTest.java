@@ -1,19 +1,31 @@
 package dev.bum.queue_service.baseline;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import dev.bum.common.config.TokenStateConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenState;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.queue_service.QueueServiceApplication;
+import dev.bum.queue_service.security.ReactiveTokenStateStore;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.*;
 
+import reactor.test.StepVerifier;
+
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -21,8 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** 실제 HTTP·JWT·Redis 동작을 검증한다. 명시적으로 지정한 테스트 Redis에서만 실행한다. */
 // 동기 인증 저장소는 테스트 데이터 준비에만 사용하며 실행 앱에서는 가져오지 않는다.
-@org.springframework.context.annotation.Import(dev.bum.common.config.TokenStateConfig.class)
-@org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability
+@Import(TokenStateConfig.class)
+@AutoConfigureObservability
 @EnabledIfEnvironmentVariable(named = "QUEUE_TEST_REDIS_PORT", matches = "\\d+")
 @SpringBootTest(classes = QueueServiceApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -43,8 +55,8 @@ class QueueHttpBaselineTest {
     @Autowired JwtTokenProvider jwt;
     @Autowired TokenStateStore tokenStates;
     @Autowired StringRedisTemplate redis;
-    @Autowired org.springframework.data.redis.core.ReactiveStringRedisTemplate reactiveRedis;
-    @Autowired dev.bum.queue_service.security.ReactiveTokenStateStore reactiveTokenStates;
+    @Autowired ReactiveStringRedisTemplate reactiveRedis;
+    @Autowired ReactiveTokenStateStore reactiveTokenStates;
     private long event;
     private String user;
     private String bearer;
@@ -182,9 +194,9 @@ class QueueHttpBaselineTest {
     @Test
     void expired_waiting_token_is_rejected_and_removed_from_event_indexes() {
         String waiting = enter(bearer);
-        redis.expire("queue:waiting-token:" + waiting, java.time.Duration.ofMillis(1));
+        redis.expire("queue:waiting-token:" + waiting, Duration.ofMillis(1));
         redis.opsForZSet().add("queue:event:" + event + ":waiting-expiry", waiting, 0);
-        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(3))
+        Awaitility.await().atMost(Duration.ofSeconds(3))
                 .until(() -> !Boolean.TRUE.equals(redis.hasKey("queue:waiting-token:" + waiting)));
         assertThat(status(bearer, waiting).getStatusCode().value()).isEqualTo(400);
         assertThat(redis.opsForZSet().score("queue:event:" + event + ":waiting", waiting)).isNull();
@@ -203,15 +215,15 @@ class QueueHttpBaselineTest {
     @Test
     void reactive_queue_operations_share_the_existing_queue_database_and_support_lua() {
         String key = "baseline:reactive:" + UUID.randomUUID();
-        reactor.test.StepVerifier.create(reactiveRedis.opsForValue()
-                .set(key, "queue-value", java.time.Duration.ofSeconds(30)))
+        StepVerifier.create(reactiveRedis.opsForValue()
+                .set(key, "queue-value", Duration.ofSeconds(30)))
                 .expectNext(true).verifyComplete();
         assertThat(redis.opsForValue().get(key)).isEqualTo("queue-value");
-        var script = new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+        var script = new DefaultRedisScript<>(
                 "return redis.call('GET', KEYS[1])", String.class);
-        reactor.test.StepVerifier.create(reactiveRedis.execute(script, List.of(key)))
+        StepVerifier.create(reactiveRedis.execute(script, List.of(key)))
                 .expectNext("queue-value").verifyComplete();
-        reactor.test.StepVerifier.create(reactiveRedis.delete(key)).expectNext(1L).verifyComplete();
+        StepVerifier.create(reactiveRedis.delete(key)).expectNext(1L).verifyComplete();
         assertThat(redis.hasKey(key)).isFalse();
     }
 
@@ -219,11 +231,11 @@ class QueueHttpBaselineTest {
     void reactive_authentication_reads_auth_database_and_observes_revocation() {
         // 대기열 DB에 같은 키가 있어도 별도 인증 DB의 상태를 조회해야 한다.
         String key = TokenStateStore.key(user);
-        redis.opsForValue().set(key, "99:0:ROLE_ADMIN", java.time.Duration.ofSeconds(30));
-        reactor.test.StepVerifier.create(reactiveTokenStates.get(user))
+        redis.opsForValue().set(key, "99:0:ROLE_ADMIN", Duration.ofSeconds(30));
+        StepVerifier.create(reactiveTokenStates.get(user))
                 .expectNext(new TokenState(1L, true, "ROLE_USER")).verifyComplete();
         tokenStates.publish(user, new TokenState(2L, false, "ROLE_USER"));
-        reactor.test.StepVerifier.create(reactiveTokenStates.get(user))
+        StepVerifier.create(reactiveTokenStates.get(user))
                 .expectNext(new TokenState(2L, false, "ROLE_USER")).verifyComplete();
         assertThat(redis.opsForValue().get(key)).isEqualTo("99:0:ROLE_ADMIN");
         redis.delete(key);
@@ -231,7 +243,7 @@ class QueueHttpBaselineTest {
 
     @Test
     void reactive_authentication_completes_empty_for_unknown_user() {
-        reactor.test.StepVerifier.create(reactiveTokenStates.get("baseline-missing-" + UUID.randomUUID()))
+        StepVerifier.create(reactiveTokenStates.get("baseline-missing-" + UUID.randomUUID()))
                 .verifyComplete();
     }
 

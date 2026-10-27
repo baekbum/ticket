@@ -113,11 +113,15 @@
     const reasonInput = document.getElementById('dlq-handle-reason');
     const modifiedPayloadInput = document.getElementById('dlq-modified-payload');
     const alreadyHandled = isHandledStatus(currentDetail?.processingStatus);
+    const replaying = currentDetail?.processingStatus === 'REPLAYING';
+    const releaseButton = document.getElementById('dlq-release-btn');
+    if (releaseButton) releaseButton.style.display = replaying ? 'inline-flex' : 'none';
 
     if (notice) {
       notice.textContent = alreadyHandled
         ? `이미 ${formatDateTime(currentDetail?.handledAt)}에 처리된 DLT 메시지입니다.`
-        : '';
+        : replaying ? '재발행 중입니다. 10분 이상 지속되면 실행 프로세스 종료 여부와 원본 토픽을 확인한 뒤 해제하세요.'
+          : currentDetail?.processingStatus === 'UNKNOWN' ? '발행됐을 가능성이 있습니다. 재발행 전 원본 토픽과 소비 결과를 확인하세요.' : '';
     }
     if (replayButton) replayButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
     if (modifiedReplayButton) modifiedReplayButton.style.display = alreadyHandled ? 'none' : 'inline-flex';
@@ -126,6 +130,11 @@
     if (operatorInput) operatorInput.disabled = alreadyHandled;
     if (reasonInput) reasonInput.disabled = alreadyHandled;
     if (modifiedPayloadInput) modifiedPayloadInput.disabled = alreadyHandled;
+    if (replaying) {
+      if (replayButton) replayButton.style.display = 'none';
+      if (modifiedReplayButton) modifiedReplayButton.style.display = 'none';
+      if (discardButton) discardButton.style.display = 'none';
+    }
   }
 
   function openDlqConfirm(action, body) {
@@ -206,6 +215,13 @@
     const fromOffset = inputValue('dlq-from-offset-input');
     if (partition) params.set('partition', partition);
     if (fromOffset) params.set('fromOffset', fromOffset);
+    if (fromOffset && !partition) {
+      showToast('시작 오프셋을 지정할 때는 파티션도 입력하세요.', true);
+      return;
+    }
+    params.set('page', String(Math.max(0, Number(inputValue('dlq-page-input') || '1') - 1)));
+    const status = inputValue('dlq-status-input');
+    if (status) params.set('status', status);
 
     try {
       setListLoading(true);
@@ -326,7 +342,7 @@
       showToast('DLT 메시지 상세 정보를 먼저 조회하세요.', true);
       return;
     }
-    if (isHandledStatus(currentDetail.processingStatus)) {
+    if (isHandledStatus(currentDetail.processingStatus) || currentDetail.processingStatus === 'REPLAYING') {
       showToast('이미 처리된 DLT 메시지입니다.', true);
       return;
     }
@@ -368,6 +384,7 @@
     if (!confirmed) {
       return;
     }
+    if (currentDetail.processingStatus === 'UNKNOWN' && !window.confirm('이전 발행이 성공했을 수도 있습니다. 소비 결과를 확인했으며 중복 가능성을 이해하고 진행할까요?')) return;
 
     const body = {
       dltTopic: currentDetail.dltTopic,
@@ -401,7 +418,32 @@
       showToast('DLT 메시지 처리 통신 오류가 발생했습니다.', true);
     } finally {
       setHandleLoading(false);
+      if (currentDetail) {
+        const params = new URLSearchParams({dltTopic: currentDetail.dltTopic, partition: currentDetail.partition, offset: currentDetail.offset});
+        try {
+          const latest = await Fetch(`${DLQ_URL}/messages/detail?${params}`, {method: 'GET'});
+          if (latest.ok) currentDetail = await latest.json();
+        } catch (e) { console.error('DLT 상태 갱신 실패', e); }
+        refreshHandleControls();
+      }
     }
+  };
+
+  window.releaseStalledDlq = async function () {
+    if (!currentDetail || currentDetail.processingStatus !== 'REPLAYING') return;
+    const operator = inputValue('dlq-handle-operator');
+    const reason = inputValue('dlq-handle-reason');
+    if (!operator || !reason) { showToast('처리자와 확인 사유를 입력하세요.', true); return; }
+    if (!window.confirm('기존 발행 작업이 종료되었는지 확인했나요? 결과 확인 필요 상태로 전환하며, 자동 재발행은 하지 않습니다.')) return;
+    try {
+      const res = await Fetch(`${DLQ_URL}/replay/release-stalled`, {method: 'POST', body: {
+        dltTopic: currentDetail.dltTopic, partition: currentDetail.partition, offset: currentDetail.offset, operator, reason
+      }});
+      if (!res.ok) { await showResponseError(res, '진행 상태 해제에 실패했습니다.'); return; }
+      currentDetail.processingStatus = 'UNKNOWN';
+      refreshHandleControls();
+      await loadDlqMessages();
+    } catch (e) { showToast('진행 상태 해제 통신 오류가 발생했습니다.', true); }
   };
 
   window.resetModifiedPayload = function () {
@@ -438,6 +480,8 @@
     setValue('dlq-partition-input', '');
     setValue('dlq-from-offset-input', '');
     setValue('dlq-size-input', '20');
+    setValue('dlq-page-input', '1');
+    setValue('dlq-status-input', '');
     currentMessages = [];
     document.getElementById('dlq-message-table-body').innerHTML =
       '<tr><td colspan="9" class="dlq-empty-cell">DLT topic을 선택하고 조회하세요.</td></tr>';

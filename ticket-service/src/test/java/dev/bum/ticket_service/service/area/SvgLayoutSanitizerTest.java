@@ -1,8 +1,14 @@
 package dev.bum.ticket_service.service.area;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPathFactory;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.xml.sax.InputSource;
+
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,9 +25,9 @@ class SvgLayoutSanitizerTest {
             original = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
         String clean = sanitizer.sanitize(original);
-        var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
-                .parse(new org.xml.sax.InputSource(new java.io.StringReader(clean)));
-        var xpath = javax.xml.xpath.XPathFactory.newInstance().newXPath();
+        var document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new InputSource(new StringReader(clean)));
+        var xpath = XPathFactory.newInstance().newXPath();
         assertThat(xpath.evaluate("//rect[@class='bg']/@fill", document)).isEqualTo("#cfe7f4");
         assertThat(xpath.evaluate("//text[@class='title']/@fill", document)).isEqualTo("#69a8d1");
         assertThat(xpath.evaluate("//text[@class='title']/@font-size", document)).isEqualTo("38px");

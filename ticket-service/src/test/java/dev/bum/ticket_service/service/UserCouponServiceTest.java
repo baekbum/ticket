@@ -142,14 +142,14 @@ class UserCouponServiceTest {
                 .expiresAt(LocalDateTime.of(2026, 2, 1, 0, 0))
                 .build();
 
-        given(userCouponRepository.selectById(1L)).willReturn(userCoupon);
+        given(userCouponRepository.selectByIdForUpdate(1L)).willReturn(userCoupon);
         given(userCouponRepository.update(userCoupon)).willReturn(userCoupon);
 
         UserCouponResponse response = userCouponService.update(1L, request);
 
         assertThat(response.getStatus()).isEqualTo(UserCouponStatus.EXPIRED);
         assertThat(response.getExpiresAt()).isEqualTo("2026-02-01 00:00:00");
-        then(userCouponRepository).should().selectById(1L);
+        then(userCouponRepository).should().selectByIdForUpdate(1L);
         then(userCouponRepository).should().update(userCoupon);
     }
 

@@ -162,6 +162,7 @@ Content-Type: application/json
 
 ```json
 {
+  "paymentRefundProcessId": 123,
   "paymentNo": "PAY-...",
   "transactionId": "CARD-...",
   "refundAmount": 250000
@@ -170,14 +171,14 @@ Content-Type: application/json
 
 처리 규칙:
 
-```text
-1. paymentNo + transactionId로 gateway 카드 승인 이력 조회
-2. gateway card history = TICKET_PAYMENT_COMPLETED 상태 검증
-3. 전체 환불 금액이 승인 금액과 일치하는지 검증
-4. DummyCard.currentMonthUsedAmount에서 환불 금액 차감
-5. gateway card history = REFUNDED
-6. ticket-service는 환불 성공 후 Payment.status=REFUNDED, 예매/티켓=CANCELLED, 좌석=AVAILABLE 반영
-```
+1. paymentRefundProcessId가 없거나 양수가 아니면 거부한다.
+2. 같은 ID의 성공 기록이 있으면 결제번호·금액·거래번호 일치를 검증하고 최초 응답을 반환한다.
+3. 신규 요청은 카드 승인 이력을 잠근 뒤 같은 ID의 성공 기록을 다시 확인한다.
+4. 환불 가능한 결제 상태와 남은 환불 금액을 검증한다. 부분 환불도 허용한다.
+5. 카드 사용액 차감, 누적 환불액 변경, gateway_refunds 기록을 같은 트랜잭션으로 커밋한다.
+6. ticket-service는 PG 성공 후 결제·예매·티켓·좌석의 취소를 반영한다.
+
+가상계좌 환불도 같은 프로세스 ID를 사용하고 환불 은행·계좌번호·예금주 일치를 검증한다. 상세 동시성·배포 규칙은 [환불 멱등성](refund-idempotency.md)을 참고한다.
 
 ## Gateway 가상계좌 입금
 
@@ -206,10 +207,10 @@ Content-Type: application/json
   "accountNumber": "1111-2222-3333",
   "depositorName": "홍길동",
   "amount": 180000,
-  "status": "TICKET_PAYMENT_COMPLETED",
+  "status": "DEPOSITED",
   "expiresAt": "2026-08-20T23:59:59",
   "depositedAt": "2026-08-20T12:00:00",
-  "message": "가상계좌 입금과 티켓 결제 완료 반영이 완료되었습니다."
+  "message": "가상계좌 입금이 완료되었습니다. 티켓 서비스에 입금 정보를 전달합니다."
 }
 ```
 
@@ -219,15 +220,18 @@ Content-Type: application/json
 1. accountNumber로 gateway 가상계좌 조회
 2. WAITING_DEPOSIT 상태, 입금 금액, 만료 시각 검증
 3. gateway virtual account = DEPOSITED
-4. 입금 이력 저장
-5. ticket-service 내부 무통장 입금 완료 API 호출
-6. 성공 시 gateway virtual account = TICKET_PAYMENT_COMPLETED
-7. 실패 시 gateway virtual account = TICKET_PAYMENT_FAILED, 실패 사유 저장
+4. 입금 이력과 PENDING 입금 Outbox 저장 후 함께 커밋
+5. 커밋 이후 ticket-service 내부 무통장 입금 완료 API 호출
+6. 일치하는 성공 응답을 확인하면 Outbox = DELIVERED, 계좌는 DEPOSITED 유지
+7. 전달 실패·응답 유실은 PENDING 유지 후 스케줄러로 동일 입금 정보를 재전달
+8. 동일 입금 재요청은 기존 이력·Outbox 재사용, 다른 입금 정보는 거부
 ```
 
 ## ticket-service 내부 API
 
 gateway가 ticket-service에 결제 상태를 반영할 때만 사용한다.
+
+가상계좌 발급 정보는 ticket-service가 checkout 중 PG 발급 응답을 받아 직접 저장한다. 발급 요청은 결제번호·은행사·금액·공연일시를 전달한다.
 
 ```text
 X-Service-Token: {internalServiceToken}
@@ -239,7 +243,6 @@ POST /ticket/api/v1/payments/internal/card/validate
 POST /ticket/api/v1/payments/internal/card/settle
 POST /ticket/api/v1/payments/internal/card/complete
 POST /ticket/api/v1/payments/internal/card/fail
-POST /ticket/api/v1/payments/internal/virtual-account/issued
 POST /ticket/api/v1/payments/internal/virtual-account/deposit/complete
 ```
 

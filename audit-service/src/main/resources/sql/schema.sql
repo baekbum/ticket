@@ -3,6 +3,8 @@ DROP TABLE IF EXISTS login_log CASCADE;
 
 CREATE TABLE audit_log (
     id BIGSERIAL PRIMARY KEY,
+    idempotency_key VARCHAR(100) NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
     occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     service_name VARCHAR(50) NOT NULL,
@@ -29,7 +31,8 @@ CREATE TABLE audit_log (
     after_data JSONB,
     metadata JSONB,
 
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_audit_log_service_idempotency UNIQUE (service_name, idempotency_key)
 );
 
 CREATE INDEX idx_audit_log_occurred_at ON audit_log(occurred_at);

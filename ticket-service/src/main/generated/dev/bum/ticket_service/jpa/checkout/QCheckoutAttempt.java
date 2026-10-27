@@ -32,7 +32,7 @@ public class QCheckoutAttempt extends EntityPathBase<CheckoutAttempt> {
 
     public final StringPath orderId = createString("orderId");
 
-    public final dev.bum.ticket_service.jpa.payment.QPayment payment;
+    public final dev.bum.ticket_service.jpa.payment.payment.QPayment payment;
 
     public final StringPath paymentNo = createString("paymentNo");
 
@@ -60,8 +60,7 @@ public class QCheckoutAttempt extends EntityPathBase<CheckoutAttempt> {
 
     public QCheckoutAttempt(Class<? extends CheckoutAttempt> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.payment = inits.isInitialized("payment") ? new dev.bum.ticket_service.jpa.payment.QPayment(forProperty("payment"), inits.get("payment")) : null;
+        this.payment = inits.isInitialized("payment") ? new dev.bum.ticket_service.jpa.payment.payment.QPayment(forProperty("payment"), inits.get("payment")) : null;
     }
 
 }
-

@@ -4,9 +4,11 @@ import dev.bum.auth_service.exception.UserAlreadyExistException;
 import dev.bum.auth_service.exception.UserNotExistException;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 import dev.bum.common.service.user.user.enums.UserRole;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -51,6 +53,7 @@ class AuthRepositoryImplTest {
     @DisplayName("중복 유저 저장 시 예외 발생")
     void insert_fail_with_duplicate_user() {
         UserDtoForEvent event = userEvent("user01");
+        event.setId(2L);
         Auth auth = auth("user01");
 
         given(jpaRepository.findByUserId("user01")).willReturn(Optional.of(auth));
@@ -59,7 +62,18 @@ class AuthRepositoryImplTest {
                 .isInstanceOf(UserAlreadyExistException.class);
 
         then(jpaRepository).should().findByUserId("user01");
-        then(jpaRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
+        then(jpaRepository).should(never()).save(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("같은 회원 PK의 가입 이벤트 재전달은 기존 계정을 수정하거나 중복 저장하지 않는다")
+    void repeated_create_for_same_account_is_idempotent() {
+        Auth existing = auth("user01");
+        given(jpaRepository.findByUserId("user01")).willReturn(Optional.of(existing));
+        String password = existing.getPassword();
+        assertThat(authRepository.insert(userEvent("user01"))).isFalse();
+        assertThat(existing.getPassword()).isEqualTo(password);
+        then(jpaRepository).should(never()).save(ArgumentMatchers.any());
     }
 
     @Test

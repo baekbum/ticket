@@ -1,20 +1,33 @@
 package dev.bum.queue_service.service.reactive;
 
+import dev.bum.common.service.queue.enums.QueueRedisInspectMode;
 import dev.bum.queue_service.QueueServiceApplication;
+import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
-import org.junit.jupiter.api.BeforeEach;
+import dev.bum.queue_service.service.QueueRedisKeys;
+import dev.bum.queue_service.service.QueueRedisScripts;
+
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,12 +46,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReactiveQueueIdempotencyTest {
     @Autowired ReactiveQueueService queue;
     @Autowired StringRedisTemplate redis;
-    @Autowired org.springframework.data.redis.core.ReactiveStringRedisTemplate reactiveRedis;
+    @Autowired ReactiveStringRedisTemplate reactiveRedis;
     @Autowired ReactiveActiveQueueService active;
     @Autowired ReactiveUserQueueSessionService sessions;
     @Autowired ReactiveQueueRedisInspectService inspect;
     @Autowired ReactiveQueueTestManagementService management;
-    private final java.util.List<String> waitingTokens = new java.util.ArrayList<>();
+    private final List<String> waitingTokens = new ArrayList<>();
     private long event;
     private String user;
 
@@ -64,8 +77,8 @@ class ReactiveQueueIdempotencyTest {
     private String reverse(String activeToken) { return "queue:active-waiting:" + activeToken; }
 
     private Long expiresAt(String key) {
-        return redis.execute(org.springframework.data.redis.core.script.RedisScript.of(
-                "return redis.call('PEXPIRETIME', KEYS[1])", Long.class), java.util.List.of(key));    }
+        return redis.execute(RedisScript.of(
+                "return redis.call('PEXPIRETIME', KEYS[1])", Long.class), List.of(key));    }
 
     private void invalid(Mono<?> request) {
         StepVerifier.create(request).expectError(QueueTokenInvalidException.class).verify(Duration.ofSeconds(10));
@@ -80,7 +93,7 @@ class ReactiveQueueIdempotencyTest {
 
     @AfterEach
     void cleanupFixture() {
-        var deleteKeys = new java.util.ArrayList<String>();
+        var deleteKeys = new ArrayList<String>();
         for (String token : redis.opsForZSet().range("queue:event:" + event + ":active", 0, -1)) {
             deleteKeys.add("queue:active-token:" + token);
             deleteKeys.add(reverse(token));
@@ -89,7 +102,7 @@ class ReactiveQueueIdempotencyTest {
             deleteKeys.add("queue:waiting-token:" + token);
             deleteKeys.add(forward(token));
         }
-        deleteKeys.addAll(java.util.List.of("queue:event:" + event + ":active", "queue:event:" + event + ":waiting",
+        deleteKeys.addAll(List.of("queue:event:" + event + ":active", "queue:event:" + event + ":waiting",
                 "queue:event:" + event + ":waiting-expiry", "queue:user-sessions:" + user));
         redis.delete(deleteKeys);
         waitingTokens.clear();
@@ -100,13 +113,13 @@ class ReactiveQueueIdempotencyTest {
         String waiting = enter();
         String activeToken = value(queue.status(event, user, waiting)).token();
         String candidate = UUID.randomUUID().toString();
-        var keys = new dev.bum.queue_service.service.QueueRedisKeys();
-        StepVerifier.create(reactiveRedis.execute(dev.bum.queue_service.service.QueueRedisScripts.STATUS_WITH_IDEMPOTENCY,
-                java.util.List.of(keys.waitingKey(event), keys.activeKey(event), keys.activeTokenKey(candidate),
+        var keys = new QueueRedisKeys();
+        StepVerifier.create(reactiveRedis.execute(QueueRedisScripts.STATUS_WITH_IDEMPOTENCY,
+                List.of(keys.waitingKey(event), keys.activeKey(event), keys.activeTokenKey(candidate),
                         keys.userSessionsKey(user), keys.waitingTokenKey(waiting), keys.waitingExpiryKey(event),
                         keys.waitingActiveMappingKey(waiting), keys.activeWaitingMappingKey(candidate),
                         keys.activeTokenKey(candidate), keys.activeWaitingMappingKey(candidate)),
-                java.util.List.of(waiting, candidate, event + ":" + user, "1200000", "2", "60000",
+                List.of(waiting, candidate, event + ":" + user, "1200000", "2", "60000",
                         keys.activeSessionMember(candidate), keys.waitingSessionMember(waiting), "")))
                 .expectNext("RETRY").verifyComplete();
         assertThat(redis.hasKey(keys.activeTokenKey(candidate))).isFalse();
@@ -122,7 +135,7 @@ class ReactiveQueueIdempotencyTest {
         invalid(queue.status(event, user, waiting));
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isZero();
         // 직접 손상한 인덱스와 무관하게 테스트가 생성한 토큰·역매핑은 정리한다.
-        redis.delete(java.util.List.of("queue:active-token:" + activeToken, reverse(activeToken)));
+        redis.delete(List.of("queue:active-token:" + activeToken, reverse(activeToken)));
     }
 
     @Test
@@ -181,7 +194,7 @@ class ReactiveQueueIdempotencyTest {
     void cancellation_after_committed_promotion_is_recovered_by_status() {
         String waiting = enter();
         var saved = new AtomicReference<String>();
-        var committed = new java.util.concurrent.CountDownLatch(1);
+        var committed = new CountDownLatch(1);
         Mono<Void> lostResponse = active.admit(event, user, waiting).flatMap(token -> {
             saved.set(token);
             committed.countDown();
@@ -189,7 +202,7 @@ class ReactiveQueueIdempotencyTest {
         });
         StepVerifier.create(lostResponse).then(() -> {
             try {
-                assertThat(committed.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                assertThat(committed.await(5, TimeUnit.SECONDS)).isTrue();
             } catch (InterruptedException error) {
                 throw new AssertionError(error);
             }
@@ -211,7 +224,7 @@ class ReactiveQueueIdempotencyTest {
         String waiting = enter();
         String activeToken = value(queue.status(event, user, waiting)).token();
         assertThat(value(inspect.removeToken(event, activeToken,
-                dev.bum.common.service.queue.enums.QueueRedisInspectMode.ACTIVE))).isTrue();
+                QueueRedisInspectMode.ACTIVE))).isTrue();
         mappingRemoved(waiting, activeToken);
     }
 
@@ -239,10 +252,10 @@ class ReactiveQueueIdempotencyTest {
     @Test
     void redis_expiration_removes_both_mappings_and_retry_cannot_reissue_a_token() {
         String waiting = enter();
-        var shortTtl = new dev.bum.queue_service.config.QueueProperties();
+        var shortTtl = new QueueProperties();
         shortTtl.setActiveTokenTtl(Duration.ofSeconds(1));
         var shortLivedActive = new ReactiveActiveQueueService(reactiveRedis, shortTtl,
-                new dev.bum.queue_service.service.QueueRedisKeys(), sessions);
+                new QueueRedisKeys(), sessions);
         String activeToken = value(shortLivedActive.admit(event, user, waiting));
         value(Mono.delay(Duration.ofMillis(1500)));
         mappingRemoved(waiting, activeToken);
@@ -272,9 +285,9 @@ class ReactiveQueueIdempotencyTest {
         String waiting = enter();
         String activeToken = value(queue.status(event, user, waiting)).token();
         // 활성 목록을 비어 있다고 조회한 직후 새 승격이 발생한 상황을 재현한다.
-        StepVerifier.create(reactiveRedis.execute(dev.bum.queue_service.service.QueueRedisScripts.CLEAR_EVENT,
-                java.util.List.of("queue:event:" + event + ":waiting", "queue:event:" + event + ":active"),
-                java.util.List.of())).expectNext(-1L).verifyComplete();
+        StepVerifier.create(reactiveRedis.execute(QueueRedisScripts.CLEAR_EVENT,
+                List.of("queue:event:" + event + ":waiting", "queue:event:" + event + ":active"),
+                List.of())).expectNext(-1L).verifyComplete();
         assertThat(value(queue.status(event, user, waiting)).token()).isEqualTo(activeToken);
         assertThat(value(management.clearEventQueue(event))).isEqualTo(4L);
         mappingRemoved(waiting, activeToken);
@@ -284,7 +297,7 @@ class ReactiveQueueIdempotencyTest {
         String waiting = enter();
         redis.opsForZSet().add(forward(waiting), "잘못된 타입", 0);
         StepVerifier.create(queue.status(event, user, waiting))
-                .expectError(org.springframework.dao.DataAccessException.class).verify(Duration.ofSeconds(10));
+                .expectError(DataAccessException.class).verify(Duration.ofSeconds(10));
         assertThat(redis.hasKey("queue:waiting-token:" + waiting)).isTrue();
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isZero();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "waiting:" + waiting)).isNotNull();

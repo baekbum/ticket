@@ -1,10 +1,11 @@
 package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
-import dev.bum.ticket_service.jpa.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import lombok.Builder;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -91,12 +92,13 @@ public final class CancellationFeeCalculator {
                 calculateCancellationFee(reservation, cancelledTicketAmount, cancelledAt),
                 settleableAmount);
 
-        return new CancellationRefundCalculation(
-                settleableAmount - cancellationFeeAmount,
-                cancellationFeeAmount,
-                deliveryRefundAmount,
-                discountCalculation.deductionAmount(),
-                discountCalculation.restoreCoupon());
+        return CancellationRefundCalculation.builder()
+                .refundAmount(settleableAmount - cancellationFeeAmount)
+                .cancellationFeeAmount(cancellationFeeAmount)
+                .deliveryRefundAmount(deliveryRefundAmount)
+                .discountDeductionAmount(discountCalculation.deductionAmount())
+                .restoreCoupon(discountCalculation.restoreCoupon())
+                .build();
     }
 
     private static void validateCancellationContext(
@@ -154,7 +156,10 @@ public final class CancellationFeeCalculator {
             }
         }
 
-        return new DiscountCalculation(deductionAmount, restoreCoupon);
+        return DiscountCalculation.builder()
+                .deductionAmount(deductionAmount)
+                .restoreCoupon(restoreCoupon)
+                .build();
     }
 
     private static int calculateCancellationFee(
@@ -233,6 +238,7 @@ public final class CancellationFeeCalculator {
         return 0;
     }
 
+    @Builder
     public record CancellationRefundCalculation(
             int refundAmount,
             int cancellationFeeAmount,
@@ -242,6 +248,7 @@ public final class CancellationFeeCalculator {
     ) {
     }
 
+    @Builder
     private record DiscountCalculation(int deductionAmount, boolean restoreCoupon) {
     }
 }

@@ -23,6 +23,7 @@ spring:
   kafka:
     bootstrap-servers: localhost:9094
     producer:
+      acks: all
       key-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 

@@ -2,6 +2,7 @@ package dev.bum.common.kafka.dlt;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,11 +31,11 @@ class KafkaDltSlackNotifierTest {
 
         server.expect(requestTo("http://localhost/slack"))
                 .andExpect(method(POST))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("[DLT] Kafka 메시지 처리 실패")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*Service:* auth-service")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*Origin Topic:* user-event")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLT Topic:* user-event.DLT")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("*DLQ 확인:* <http://localhost/admin/?menu=kafkaDlq|관리자 DLQ 메뉴로 이동>")))
+                .andExpect(content().string(Matchers.containsString("[DLT] Kafka 메시지 처리 실패")))
+                .andExpect(content().string(Matchers.containsString("*Service:* auth-service")))
+                .andExpect(content().string(Matchers.containsString("*Origin Topic:* user-event")))
+                .andExpect(content().string(Matchers.containsString("*DLT Topic:* user-event.DLT")))
+                .andExpect(content().string(Matchers.containsString("*DLQ 확인:* <http://localhost/admin/?menu=kafkaDlq|관리자 DLQ 메뉴로 이동>")))
                 .andRespond(withSuccess());
 
         boolean notified = notifier.notifyDlt(

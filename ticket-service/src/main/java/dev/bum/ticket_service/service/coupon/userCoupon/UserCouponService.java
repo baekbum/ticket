@@ -83,7 +83,7 @@ public class UserCouponService {
      */
     @AuditLog(action = "USER_COUPON_UPDATE", targetType = "USER_COUPON")
     public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
-        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        UserCoupon userCoupon = userCouponRepository.selectByIdForUpdate(userCouponId);
         AuditDataMapper.setChangedData(userCoupon, request);
         userCoupon.update(request);
         return userCouponRepository.update(userCoupon).toResponse();

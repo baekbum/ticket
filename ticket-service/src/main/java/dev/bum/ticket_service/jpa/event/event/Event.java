@@ -1,16 +1,20 @@
 package dev.bum.ticket_service.jpa.event.event;
 
 import dev.bum.common.service.ticket.event.event.dto.EventResponse;
+import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventGenre;
 import dev.bum.common.service.ticket.event.event.enums.EventRegion;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.event.event.enums.EventTheme;
 import dev.bum.common.service.ticket.event.event.enums.TicketLimitScope;
+import dev.bum.common.service.ticket.reservation.policy.ReservationCancellationPolicy;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.seat.Seat;
-import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
+
 import jakarta.persistence.*;
+
 import lombok.*;
+
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.util.StringUtils;
@@ -118,6 +122,10 @@ public class Event {
     @Builder.Default
     private List<Area> areas = new ArrayList<>();
 
+    public LocalDateTime getCancelDeadlineAt() {
+        return ReservationCancellationPolicy.effectiveDeadline(cancelDeadlineAt);
+    }
+
     public EventResponse toResponse() {
         EventStatus.valueOf(this.status.name());
         return EventResponse.builder()
@@ -132,7 +140,7 @@ public class Event {
                 .eventDateTime(this.eventDateTime != null ? this.eventDateTime.format(EVENT_FORMATTER) : null)
                 .saleStartAt(this.saleStartAt != null ? this.saleStartAt.format(EVENT_FORMATTER) : null)
                 .saleEndAt(this.saleEndAt != null ? this.saleEndAt.format(EVENT_FORMATTER) : null)
-                .cancelDeadlineAt(this.cancelDeadlineAt != null ? this.cancelDeadlineAt.format(EVENT_FORMATTER) : null)
+                .cancelDeadlineAt(getCancelDeadlineAt() != null ? getCancelDeadlineAt().format(EVENT_FORMATTER) : null)
                 .runningMinutes(this.runningMinutes)
                 .ageLimit(this.ageLimit)
                 .totalSeats(this.totalSeats)

@@ -12,11 +12,15 @@ import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponFilter;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.coupon.QCoupon;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -31,6 +35,7 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
 
     private final UserCouponJpaRepository jpaRepository;
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
 
     @Override
     public UserCoupon insert(UserCoupon userCoupon) {
@@ -46,6 +51,23 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     public UserCoupon selectById(Long userCouponId) {
         return jpaRepository.findById(userCouponId)
                 .orElseThrow(() -> new IllegalArgumentException("User coupon not found."));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UserCoupon selectByIdForUpdate(Long userCouponId) {
+        UserCoupon userCoupon = jpaRepository.findByIdForUpdate(userCouponId)
+                .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
+        // 같은 영속성 컨텍스트에서 미리 읽었더라도, 잠금 획득 후 최신 상태로 검증한다.
+        entityManager.refresh(userCoupon, LockModeType.PESSIMISTIC_WRITE);
+        return userCoupon;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockForUpdate(UserCoupon userCoupon) {
+        // 취소·만료 처리에서 연관관계로 읽은 쿠폰도 사용 처리와 같은 행을 잠근다.
+        entityManager.refresh(userCoupon, LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Override

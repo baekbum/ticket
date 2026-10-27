@@ -2,21 +2,29 @@ package dev.bum.ticket_service.config;
 
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
+import dev.bum.ticket_service.kafka.payment.VirtualAccountExpiredConsumer;
+
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.core.log.LogAccessor;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.support.serializer.SerializationUtils;
-import org.apache.kafka.common.header.internals.RecordHeaders;
+import org.springframework.util.ReflectionUtils;
+
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -45,11 +53,11 @@ class KafkaConsumerConfigTest {
     @SuppressWarnings("unchecked")
     void consumesHeaderlessGatewayEventWithSharedFactoryAndErrorHandler() {
         contextRunner.run(context -> {
-            var listener = org.springframework.core.annotation.AnnotatedElementUtils.findMergedAnnotation(
-                    org.springframework.util.ReflectionUtils.findMethod(
-                            dev.bum.ticket_service.kafka.payment.VirtualAccountExpiredConsumer.class,
+            var listener = AnnotatedElementUtils.findMergedAnnotation(
+                    ReflectionUtils.findMethod(
+                            VirtualAccountExpiredConsumer.class,
                             "consume", VirtualAccountExpiredEvent.class),
-                    org.springframework.kafka.annotation.KafkaListener.class);
+                    KafkaListener.class);
             assertThat(listener.containerFactory()).isEqualTo("eventKafkaListenerContainerFactory");
             var factory = (ConcurrentKafkaListenerContainerFactory<String, Object>)
                     context.getBean("eventKafkaListenerContainerFactory");
@@ -94,12 +102,12 @@ class KafkaConsumerConfigTest {
             assertThat(deserializer
                     .deserialize("virtual-account-expired", headers, payload)).isNull();
             assertThat(headers.lastHeader(SerializationUtils.VALUE_DESERIALIZER_EXCEPTION_HEADER)).isNotNull();
-            var record = new org.apache.kafka.clients.consumer.ConsumerRecord<String, Object>(
+            var record = new ConsumerRecord<String, Object>(
                     "virtual-account-expired", 1, 0, "PAY-test", null);
             headers.forEach(record.headers()::add);
             var exception = SerializationUtils.getExceptionFromHeader(record,
                     SerializationUtils.VALUE_DESERIALIZER_EXCEPTION_HEADER,
-                    new org.springframework.core.log.LogAccessor(KafkaConsumerConfigTest.class));
+                    new LogAccessor(KafkaConsumerConfigTest.class));
             assertThat(exception).isNotNull();
             assertThat(exception.getData()).isEqualTo(payload);
         });

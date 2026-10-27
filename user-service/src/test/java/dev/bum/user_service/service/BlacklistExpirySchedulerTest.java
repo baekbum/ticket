@@ -5,8 +5,10 @@ import dev.bum.user_service.jpa.user.User;
 import dev.bum.user_service.jpa.user.UserJpaRepository;
 import dev.bum.user_service.service.user.BlacklistExpiryScheduler;
 import dev.bum.user_service.service.user.UserService;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,7 +36,7 @@ class BlacklistExpirySchedulerTest {
 
         scheduler.releaseExpiredBlacklists();
 
-        verify(userService).update(org.mockito.ArgumentMatchers.eq("user01"),
+        verify(userService).update(ArgumentMatchers.eq("user01"),
                 argThat((UpdateUserRequest request) -> Boolean.FALSE.equals(request.getIsBlacklisted())));
         verify(userJpaRepository).findByIsBlacklistedTrueAndBlacklistedUntilLessThan(
                 argThat(today -> today.isAfter(expired.getBlacklistedUntil())));

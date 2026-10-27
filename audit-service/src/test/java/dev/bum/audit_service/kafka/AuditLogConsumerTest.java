@@ -1,6 +1,6 @@
 package dev.bum.audit_service.kafka;
 
-import dev.bum.audit_service.audit.AuditLogEntity;
+import dev.bum.audit_service.audit.AuditLogSaveResult;
 import dev.bum.audit_service.audit.AuditLogPersistenceService;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +23,18 @@ class AuditLogConsumerTest {
     @DisplayName("감사 로그 이벤트를 저장 서비스로 위임")
     void consume_saves_audit_log_event() {
         AuditLogEvent event = auditLogEvent();
-        given(persistenceService.save(event)).willReturn(auditLogEntity());
+        given(persistenceService.save(event)).willReturn(AuditLogSaveResult.SAVED);
+
+        consumer.consume(event);
+
+        then(persistenceService).should().save(event);
+    }
+
+    @Test
+    @DisplayName("중복 이벤트는 오류 없이 소비를 완료")
+    void consume_completes_duplicate_event() {
+        AuditLogEvent event = auditLogEvent();
+        given(persistenceService.save(event)).willReturn(AuditLogSaveResult.DUPLICATE);
 
         consumer.consume(event);
 
@@ -45,6 +56,7 @@ class AuditLogConsumerTest {
 
     private AuditLogEvent auditLogEvent() {
         return AuditLogEvent.builder()
+                .idempotencyKey("audit-key-1")
                 .occurredAt(LocalDateTime.now())
                 .serviceName("auth-service")
                 .actorType("USER")
@@ -58,13 +70,4 @@ class AuditLogConsumerTest {
                 .build();
     }
 
-    private AuditLogEntity auditLogEntity() {
-        return AuditLogEntity.builder()
-                .occurredAt(LocalDateTime.now())
-                .serviceName("auth-service")
-                .actorType("USER")
-                .action("LOGIN")
-                .result("SUCCESS")
-                .build();
-    }
 }

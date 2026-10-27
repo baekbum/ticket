@@ -50,6 +50,7 @@ public enum ErrorCode {
     // Reservation
     RESERVATION_NOT_FOUND("존재하지 않는 예매입니다."),
     RESERVATION_DUPLICATE("이미 존재하는 예매입니다."),
+    RESERVATION_CANCELLATION_IN_PROGRESS("이미 해당 예매의 취소·환불 처리가 진행 중입니다. 잠시 후 다시 확인해 주세요."),
 
     // Ticket
     TICKET_NOT_FOUND("존재하지 않는 티켓입니다."),

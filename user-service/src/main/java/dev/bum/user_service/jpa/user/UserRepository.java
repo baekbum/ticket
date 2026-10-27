@@ -10,6 +10,7 @@ public interface UserRepository {
     User insert(InsertUserRequest info);
     void validateIsUserIdDuplicated(String userId);
     User selectById(String userId);
+    User selectByIdForUpdate(String userId);
     User selectByNameAndPhoneNumber(String name, String phoneNumber);
     User selectByNameAndEmail(String name, String email);
     User selectByUserIdAndNameAndPhoneNumber(String userId, String name, String phoneNumber);

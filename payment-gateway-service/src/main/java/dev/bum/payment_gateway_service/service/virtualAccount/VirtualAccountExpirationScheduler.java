@@ -31,7 +31,7 @@ public class VirtualAccountExpirationScheduler {
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
     private final VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
 
-    @Scheduled(cron = "${app.virtual-account.expiration.cron:0 5 0 * * *}")
+    @Scheduled(cron = "${app.virtual-account.expiration.cron:0 0 0 * * *}")
     @Transactional
     public void expireWaitingAccounts() {
         LocalDateTime now = LocalDateTime.now();
@@ -42,6 +42,7 @@ public class VirtualAccountExpirationScheduler {
                             VirtualAccountPaymentStatus.WAITING_DEPOSIT,
                             now
                     );
+
             if (expiredAccounts.isEmpty()) {
                 return;
             }
@@ -52,6 +53,11 @@ public class VirtualAccountExpirationScheduler {
 
     private void expireWaitingAccountBatch(List<DummyVirtualAccount> expiredAccounts, LocalDateTime expiredAt) {
         for (DummyVirtualAccount virtualAccount : expiredAccounts) {
+            // 잠금을 획득한 계좌 중 입금 대기 상태이고 기한이 지난 경우에만 만료한다.
+            if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.WAITING_DEPOSIT
+                    || virtualAccount.getExpiresAt().isAfter(expiredAt)) {
+                continue;
+            }
             virtualAccount.expire();
 
             dummyVirtualAccountPaymentHistoryJpaRepository.save(

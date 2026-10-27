@@ -83,11 +83,7 @@ public class DummyVirtualAccount {
     @Column(name = "deposited_at")
     private LocalDateTime depositedAt;
 
-    // ticket-service 결제 완료 반영 시각.
-    @Column(name = "ticket_completed_at")
-    private LocalDateTime ticketCompletedAt;
-
-    // ticket-service 결제 완료 요청 실패 사유.
+    // 계좌 취소 사유.
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
@@ -125,15 +121,8 @@ public class DummyVirtualAccount {
         this.depositedAt = depositedAt != null ? depositedAt : LocalDateTime.now();
     }
 
-    public void completeTicketPayment(LocalDateTime ticketCompletedAt) {
-        this.status = VirtualAccountPaymentStatus.TICKET_PAYMENT_COMPLETED;
-        this.ticketCompletedAt = ticketCompletedAt != null ? ticketCompletedAt : LocalDateTime.now();
-        this.failureReason = null;
-    }
-
-    public void failTicketPayment(String failureReason) {
-        this.status = VirtualAccountPaymentStatus.TICKET_PAYMENT_FAILED;
-        this.failureReason = failureReason;
+    public boolean hasDeposit() {
+        return status == VirtualAccountPaymentStatus.DEPOSITED;
     }
 
     public void expire() {

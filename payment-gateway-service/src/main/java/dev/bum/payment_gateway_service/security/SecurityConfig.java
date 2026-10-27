@@ -4,7 +4,9 @@ import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.security.TokenStateStore;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -44,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/*").hasRole(ROLE_USER) // 카드 상태 조회
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/virtual-account/internal/*/status").hasRole(ROLE_INTERNAL)
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/refund").hasRole(ROLE_INTERNAL) // 환불의 경우 ticket 서비스에서 요청
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/refunds/internal/resolve").hasRole(ROLE_INTERNAL)
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/*/payments/virtual-account/issue",

@@ -1,9 +1,9 @@
 package dev.bum.payment_gateway_service.service.card;
 
-import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveResponse;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
@@ -14,16 +14,22 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCard;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardJpaRepository;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
+import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
+
 import jakarta.annotation.Nonnull;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -40,6 +46,7 @@ public class GatewayCardApprovalService {
     private final DummyCardPaymentHistoryJpaRepository dummyCardPaymentHistoryJpaRepository;
     private final TicketPaymentClient ticketPaymentClient;
     private final PasswordEncoder passwordEncoder;
+    private final GatewayRefundProcessService refundProcesses;
 
     @Transactional
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
@@ -99,25 +106,40 @@ public class GatewayCardApprovalService {
 
     @Transactional
     public GatewayCardPaymentRefundResponse refund(GatewayCardPaymentRefundRequest request) {
+        if (request.getPaymentRefundProcessId() == null || request.getPaymentRefundProcessId() <= 0) {
+            throw new IllegalArgumentException("환불 프로세스 ID가 필요합니다.");
+        }
+        // A는 원래 결제 행을 잠근다. 최초 환불 기록 B를 생성하는 동안에도 잠금을 유지한다.
         DummyCardPaymentHistory paymentHistory = dummyCardPaymentHistoryJpaRepository
                 .findByPaymentNoAndTransactionId(request.getPaymentNo(), request.getTransactionId())
                 .orElseThrow(() -> new IllegalArgumentException("카드 결제 승인 이력을 찾을 수 없습니다."));
+        GatewayRefund refund = refundProcesses.prepare(request);
+        if (refund.isSucceeded()) return refund.replay(request);
 
-        validateRefundableHistory(paymentHistory, request);
-        DummyCard card = dummyCardJpaRepository.findByIdForUpdate(paymentHistory.getDummyCard().getDummyCardId())
-                .orElseThrow(() -> new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다."));
-        card.cancelApproval(request.getRefundAmount());
-        paymentHistory.refund(request.getRefundAmount());
+        try {
+            validateRefundableHistory(paymentHistory, request);
+            DummyCard card = dummyCardJpaRepository.findByIdForUpdate(paymentHistory.getDummyCard().getDummyCardId())
+                    .orElseThrow(() -> new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다."));
+            card.cancelApproval(request.getRefundAmount());
+            paymentHistory.refund(request.getRefundAmount());
 
-        return GatewayCardPaymentRefundResponse.builder()
-                .paymentNo(paymentHistory.getPaymentNo())
-                .transactionId(paymentHistory.getTransactionId())
-                .refundedAmount(request.getRefundAmount())
-                .status(paymentHistory.getStatus())
-                .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
-                        ? "카드 결제 전체 환불이 완료되었습니다."
-                        : "카드 결제 부분 환불이 완료되었습니다.")
-                .build();
+            GatewayCardPaymentRefundResponse response = GatewayCardPaymentRefundResponse.builder()
+                    .paymentNo(paymentHistory.getPaymentNo())
+                    .transactionId(paymentHistory.getTransactionId())
+                    .refundedAmount(request.getRefundAmount().setScale(2, RoundingMode.UNNECESSARY))
+                    .status(paymentHistory.getStatus())
+                    .message(paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED
+                            ? "카드 결제 전체 환불이 완료되었습니다."
+                            : "카드 결제 부분 환불이 완료되었습니다.")
+                    .build();
+            // 실제 환불 변경과 성공 상태를 A에서 함께 커밋한다.
+            refund.succeeded(response);
+            return response;
+        } catch (RuntimeException e) {
+            refund.failed(e.getMessage());
+            // A 롤백으로 잠금이 해제된 뒤 등록한 후처리에서 실패 상태를 별도로 보존한다.
+            throw e;
+        }
     }
 
     private void validateCurrentUser(String currentUserId) {

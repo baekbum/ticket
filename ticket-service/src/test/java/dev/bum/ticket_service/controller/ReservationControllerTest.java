@@ -7,6 +7,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
+import dev.bum.common.service.ticket.reservation.dto.CancelReservationResponse;
 import dev.bum.common.service.ticket.reservation.dto.ReservationCondRequest;
 import dev.bum.common.service.ticket.reservation.dto.ReservationResponse;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
@@ -114,12 +115,18 @@ class ReservationControllerTest {
     @DisplayName("내 예약을 취소한다")
     void reservation_cancel() throws Exception {
         CancelReservationRequest info = cancelRequest("other-user");
+        given(reservationService.cancelMyReservation("user01", 1L, info)).willReturn(CancelReservationResponse.recovered(1L, 10L, List.of(1L)));
 
         mockMvc.perform(put(baseUrl + "/cancel/id/1")
                         .with(authentication(userAuthentication("user01")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(info)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousRequestRecovered").value(true))
+                .andExpect(jsonPath("$.paymentRefundProcessId").value(10))
+                .andExpect(jsonPath("$.cancelledTicketIds[0]").value(1))
+                .andExpect(jsonPath("$.cancelledTicketIds.length()").value(1))
+                .andExpect(jsonPath("$.message").value("이전 요청의 환불·취소를 완료했습니다. 이번 변경 요청은 추가로 처리하지 않았습니다. 남은 좌석은 다시 취소를 신청해 주세요."));
 
         then(reservationService).should().cancelMyReservation("user01", 1L, info);
     }
