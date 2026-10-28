@@ -83,9 +83,7 @@ flowchart LR
 
 ## 테이블 생성
 
-결제·환불 테이블을 삭제하고 다시 만들 때는 `ticket-service/src/main/resources/sql/reset-payment-tables.sql`을 사용한다. 대상 데이터는 삭제되며, PG 멱등 키 충돌을 막기 위해 환불 프로세스 ID 시퀀스는 기존 값을 이어간다. 결제·입금 콜백·환불·관련 스케줄러의 쓰기를 중단한 상태에서 실행한다.
-
-새 DB 전체를 초기화할 때는 `schema.sql`을 사용한다.
+결제·환불 테이블을 포함한 테이블 정의는 `ticket-service/src/main/resources/sql/schema.sql`에서 관리한다.
 
 기존 ticket DB에는 새 스냅샷 필드를 추가한다. 기존 미완료 부분 환불의 쿠폰 복원 여부는 기존 할인 정책과 아직 취소되지 않은 티켓을 기준으로 초기화한다. 관련 쓰기를 중단한 상태에서 실행한다.
 

@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
@@ -22,6 +23,8 @@ import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDel
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -36,8 +39,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -46,6 +55,7 @@ public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private final SeatCacheService seatCacheService;
+    private final SeatJpaRepository seatJpaRepository;
     private final QueueAccessService queueAccessService;
     private final ReservationRepository reservationRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
@@ -69,11 +79,12 @@ public class CheckoutService {
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
-                request.getSeats()
+                seats
         );
 
         LocalDateTime preparedAt = LocalDateTime.now();
@@ -82,6 +93,7 @@ public class CheckoutService {
                 currentUserId,
                 request.getOrderId(),
                 request.getEventId(),
+                seatIds(seats),
                 generatePaymentNo(),
                 expiresAt
         );
@@ -90,7 +102,7 @@ public class CheckoutService {
         return CheckoutPrepareResponse.builder()
                 .eventId(request.getEventId())
                 .orderId(request.getOrderId())
-                .seats(request.getSeats())
+                .seats(seats)
                 .idempotencyKey(checkoutAttempt.getIdempotencyKey())
                 .prepared(true)
                 .preparedAt(preparedAt)
@@ -127,14 +139,15 @@ public class CheckoutService {
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         LocalDateTime seatExpiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
-                request.getSeats()
+                seats
         );
 
-        Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
+        Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request, seats));
 
         if (request.getDelivery() != null) {
             ReservationDelivery delivery = ReservationDelivery.builder()
@@ -195,6 +208,14 @@ public class CheckoutService {
                 || !checkoutAttempt.getEventId().equals(request.getEventId())) {
             throw new IllegalArgumentException("prepare 요청과 결제 확정 정보가 일치하지 않습니다.");
         }
+
+        // 재요청과 결제수단 전환도 최초 prepare에서 검증한 좌석을 유지해야 한다.
+        if (checkoutAttempt.getSeatIds().isEmpty()) {
+            throw new IllegalArgumentException("좌석 준비 정보가 없습니다. 좌석 선택부터 다시 진행해주세요.");
+        }
+        if (!checkoutAttempt.getSeatIds().equals(seatIds(request.getSeats()))) {
+            throw new IllegalArgumentException("prepare 요청과 결제 확정 좌석이 일치하지 않습니다.");
+        }
     }
 
     private PaymentResponse handleConfirmedPayment(
@@ -247,8 +268,9 @@ public class CheckoutService {
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         seatCacheService.validateOccupiedSeat(
-                request.getEventId(), currentUserId, request.getOrderId(), request.getSeats());
+                request.getEventId(), currentUserId, request.getOrderId(), seats);
 
         if (!Boolean.FALSE.equals(
                 paymentGatewayCardClient.hasApprovalHistory(payment.getPaymentNo()))) {
@@ -261,15 +283,52 @@ public class CheckoutService {
     }
 
     private InsertReservationRequest toReservationRequest(
-            String currentUserId, CheckoutConfirmRequest request) {
+            String currentUserId, CheckoutConfirmRequest request, List<SeatInfo> seats) {
 
         return InsertReservationRequest.builder()
                 .orderId(request.getOrderId())
                 .userId(currentUserId)
                 .eventId(request.getEventId())
-                .seats(request.getSeats())
+                .seats(seats)
                 .userCouponId(request.getUserCouponId())
                 .build();
+    }
+
+    /** 요청의 ID와 좌표를 검증하고 Redis 검증과 예약 생성에는 DB의 좌표만 전달한다. */
+    private List<SeatInfo> validateSeatsFromDatabase(Long eventId, List<SeatInfo> requestedSeats) {
+        Set<Long> ids = seatIds(requestedSeats);
+        Map<Long, Seat> seats = seatJpaRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Seat::getSeatId, Function.identity()));
+
+        if (eventId == null || seats.size() != ids.size()) {
+            throw new IllegalArgumentException("요청한 좌석을 찾을 수 없습니다.");
+        }
+
+        return requestedSeats.stream().map(info -> {
+            Seat seat = seats.get(info.getId());
+            if (seat.getEvent() == null || !eventId.equals(seat.getEvent().getEventId())
+                    || !Objects.equals(seat.getZone(), info.getZone())
+                    || !Objects.equals(seat.getSeatRow(), info.getRow())
+                    || !Objects.equals(seat.getSeatCol(), info.getCol())) {
+                throw new IllegalArgumentException("좌석 ID와 공연 또는 좌표 정보가 일치하지 않습니다.");
+            }
+            return SeatInfo.builder()
+                    .id(seat.getSeatId()).zone(seat.getZone())
+                    .row(seat.getSeatRow()).col(seat.getSeatCol()).build();
+        }).toList();
+    }
+
+    private Set<Long> seatIds(List<SeatInfo> seats) {
+        if (seats == null || seats.isEmpty()) {
+            throw new IllegalArgumentException("좌석을 한 개 이상 선택해야 합니다.");
+        }
+        Set<Long> ids = new HashSet<>();
+        for (SeatInfo seat : seats) {
+            if (seat == null || seat.getId() <= 0 || !ids.add(seat.getId())) {
+                throw new IllegalArgumentException("좌석 ID가 올바르지 않거나 중복되었습니다.");
+            }
+        }
+        return ids;
     }
 
     private int calculateTotalTicketAmount(Reservation reservation) {

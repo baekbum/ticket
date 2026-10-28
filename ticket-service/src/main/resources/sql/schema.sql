@@ -332,6 +332,14 @@ CREATE TABLE checkout_attempts (
 
 CREATE INDEX idx_checkout_attempts_status_expires_at ON checkout_attempts(status, expires_at);
 
+-- prepare에서 검증한 좌석 ID 스냅샷. confirm은 이 목록을 변경할 수 없다.
+CREATE TABLE checkout_attempt_seats (
+    idempotency_key VARCHAR(100) NOT NULL REFERENCES checkout_attempts(idempotency_key) ON DELETE CASCADE,
+    seat_id BIGINT NOT NULL,
+    CONSTRAINT uk_checkout_attempt_seats PRIMARY KEY (idempotency_key, seat_id),
+    CONSTRAINT chk_checkout_attempt_seats_id CHECK (seat_id > 0)
+);
+
 
 -- ==========================================
 -- 12. Payment refund processes

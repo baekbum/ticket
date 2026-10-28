@@ -36,6 +36,8 @@ public class QCheckoutAttempt extends EntityPathBase<CheckoutAttempt> {
 
     public final StringPath paymentNo = createString("paymentNo");
 
+    public final SetPath<Long, NumberPath<Long>> seatIds = this.<Long, NumberPath<Long>>createSet("seatIds", Long.class, NumberPath.class, PathInits.DIRECT2);
+
     public final EnumPath<CheckoutAttemptStatus> status = createEnum("status", CheckoutAttemptStatus.class);
 
     public final DateTimePath<java.time.LocalDateTime> updatedAt = createDateTime("updatedAt", java.time.LocalDateTime.class);
