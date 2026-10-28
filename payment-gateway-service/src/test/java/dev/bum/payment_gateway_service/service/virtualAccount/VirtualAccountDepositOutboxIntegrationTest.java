@@ -1,6 +1,8 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
+import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteResponse;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -53,7 +55,8 @@ import static org.mockito.Mockito.*;
 @DataJpaTest(showSql = false)
 @ContextConfiguration(classes = VirtualAccountDepositOutboxIntegrationTest.PersistenceConfig.class)
 @Import({GatewayVirtualAccountService.class, VirtualAccountDepositOutboxService.class,
-        VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class})
+        VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
+        VirtualAccountCancellationService.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class VirtualAccountDepositOutboxIntegrationTest {
@@ -64,6 +67,7 @@ class VirtualAccountDepositOutboxIntegrationTest {
     static class PersistenceConfig { }
 
     @Autowired GatewayVirtualAccountService gateway;
+    @Autowired VirtualAccountCancellationService cancellation;
     @Autowired VirtualAccountDepositOutboxJpaRepository outbox;
     @Autowired VirtualAccountOutboxEventJpaRepository expirationOutbox;
     @Autowired DummyVirtualAccountJpaRepository accounts;
@@ -229,7 +233,7 @@ class VirtualAccountDepositOutboxIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"amount", "account", "depositor", "time", "status", "null"})
     void doesNotAcknowledgeMismatchedOrMissingResponse(String mismatch) {
-        PaymentResponse response = response();
+        PaymentResponse response = paymentResponse();
         switch (mismatch) {
             case "amount" -> response.setAmount(9999);
             case "account" -> response.setAccountNumber("다른 계좌");
@@ -238,7 +242,8 @@ class VirtualAccountDepositOutboxIntegrationTest {
             case "status" -> response.setStatus(PaymentStatus.WAITING_DEPOSIT);
             case "null" -> response = null;
         }
-        when(ticket.completeVirtualAccountDeposit(any())).thenReturn(response);
+        when(ticket.completeVirtualAccountDeposit(any())).thenReturn(
+                response == null ? null : VirtualAccountDepositCompleteResponse.of(response));
         gateway.deposit(request());
         assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.PENDING);
         assertThat(record().getRetryCount()).isEqualTo(1);
@@ -285,6 +290,142 @@ class VirtualAccountDepositOutboxIntegrationTest {
         return outbox.findByPaymentNo("PAY-1").orElseThrow();
     }
 
+    @Test
+    void cancellationIsIdempotentAndPreventsDeposit() {
+        cancellation.cancel(cancelRequest());
+        cancellation.cancel(cancelRequest());
+        assertThat(accounts.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
+        assertThat(histories.findAll()).extracting(DummyVirtualAccountPaymentHistory::getHistoryType)
+                .containsExactly(VirtualAccountPaymentHistoryType.CANCELLED);
+        assertThatThrownBy(() -> gateway.deposit(request())).hasMessage("입금 처리할 수 없는 가상계좌 상태입니다.");
+        verifyNoInteractions(ticket);
+    }
+
+    @Test
+    void cancelledAccountStillRejectsMismatchedCancellationPayload() {
+        cancellation.cancel(cancelRequest());
+        assertThatThrownBy(() -> cancellation.cancel(new GatewayVirtualAccountCancelRequest(
+                "PAY-1", BankCompany.KB.getBankName(), "another-account", new BigDecimal("10000"))))
+                .hasMessage("가상계좌 취소 정보가 일치하지 않습니다.");
+        assertThat(histories.count()).isEqualTo(1);
+    }
+
+    @Test
+    void cancelledTicketResponseCancelsDepositedAccountAndCompletesNotification() {
+        when(ticket.completeVirtualAccountDeposit(any())).thenReturn(cancelledResponse());
+        gateway.deposit(request());
+        var account = accounts.findByPaymentNo("PAY-1").orElseThrow();
+        assertThat(account.getStatus()).isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
+        assertThat(account.getDepositorName()).isEqualTo("입금자");
+        assertThat(account.getDepositedAt()).isEqualTo(request().getDepositedAt());
+        assertThat(histories.findAll()).extracting(DummyVirtualAccountPaymentHistory::getHistoryType)
+                .containsExactly(VirtualAccountPaymentHistoryType.DEPOSITED, VirtualAccountPaymentHistoryType.CANCELLED);
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.DELIVERED);
+        cancellation.cancel(cancelRequest());
+        assertThat(histories.count()).isEqualTo(2);
+    }
+
+    @Test
+    void explicitCancellationBeforeRejectedNotificationDoesNotDuplicateHistory() {
+        doNothing().when(dispatcher).deliverSafely(any());
+        gateway.deposit(request());
+        cancellation.cancel(cancelRequest());
+        when(ticket.completeVirtualAccountDeposit(any())).thenReturn(cancelledResponse());
+        doCallRealMethod().when(dispatcher).deliverSafely(any());
+        dispatcher.retryPendingEvents();
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.DELIVERED);
+        assertThat(histories.count()).isEqualTo(2);
+    }
+
+    @Test
+    void lostCancelledResponseRetriesAndTerminatesWithoutRevivingDeposit() {
+        AtomicInteger attempts = new AtomicInteger();
+        when(ticket.completeVirtualAccountDeposit(any())).thenAnswer(invocation -> {
+            if (attempts.incrementAndGet() == 1) throw new IllegalStateException("취소 응답 유실");
+            return cancelledResponse();
+        });
+        gateway.deposit(request());
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.PENDING);
+        makeReady();
+        dispatcher.retryPendingEvents();
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.DELIVERED);
+        assertThat(accounts.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
+        assertThat(histories.count()).isEqualTo(2);
+    }
+
+    @Test
+    void accountCancellationAndNotificationCompletionRollBackTogether() {
+        AtomicBoolean failCommit = new AtomicBoolean(true);
+        when(ticket.completeVirtualAccountDeposit(any())).thenAnswer(invocation -> {
+            if (failCommit.getAndSet(false)) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override public void beforeCommit(boolean readOnly) { throw new IllegalStateException("취소 커밋 실패"); }
+                });
+            }
+            return cancelledResponse();
+        });
+        gateway.deposit(request());
+        assertThat(accounts.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(histories.count()).isEqualTo(1);
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.PENDING);
+        dispatcher.retryPendingEvents();
+        assertThat(accounts.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
+        assertThat(histories.count()).isEqualTo(2);
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.DELIVERED);
+    }
+
+    @Test
+    void cancelledResultWithAnotherAccountCannotCancelThePgAccount() {
+        var payment = paymentResponse();
+        payment.setStatus(PaymentStatus.CANCELLED);
+        payment.setAccountNumber("other-account");
+        when(ticket.completeVirtualAccountDeposit(any())).thenReturn(VirtualAccountDepositCompleteResponse.of(payment));
+        gateway.deposit(request());
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountDepositOutboxStatus.PENDING);
+        assertThat(accounts.findByPaymentNo("PAY-1").orElseThrow().getStatus())
+                .isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(histories.count()).isEqualTo(1);
+    }
+
+    @Test
+    void depositWaitsForCancellationLockAndIsRejectedAfterCommit() throws Exception {
+        CountDownLatch locked = new CountDownLatch(1), release = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            try {
+                var cancel = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                    cancellation.cancel(cancelRequest());
+                    locked.countDown();
+                    await(release);
+                }));
+                await(locked);
+                var deposit = pool.submit(() -> gateway.deposit(request()));
+                assertThatThrownBy(() -> deposit.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                release.countDown();
+                cancel.get(10, TimeUnit.SECONDS);
+                assertThatThrownBy(() -> deposit.get(10, TimeUnit.SECONDS))
+                        .hasRootCauseMessage("입금 처리할 수 없는 가상계좌 상태입니다.");
+            } finally { release.countDown(); }
+        }
+        assertThat(histories.count()).isEqualTo(1);
+        assertThat(outbox.count()).isZero();
+    }
+
+    private GatewayVirtualAccountCancelRequest cancelRequest() {
+        return new GatewayVirtualAccountCancelRequest("PAY-1", BankCompany.KB.getBankName(), "1111-123456", new BigDecimal("10000"));
+    }
+
+    private VirtualAccountDepositCompleteResponse cancelledResponse() {
+        PaymentResponse payment = paymentResponse();
+        payment.setStatus(PaymentStatus.CANCELLED);
+        payment.setPaidAt(null);
+        payment.setDepositorName(null);
+        return VirtualAccountDepositCompleteResponse.of(payment);
+    }
+
     private void makeReady() {
         jdbc.update("update virtual_account_deposit_outbox set next_attempt_at = ?", LocalDateTime.now().minusMinutes(1));
     }
@@ -295,7 +436,11 @@ class VirtualAccountDepositOutboxIntegrationTest {
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0)).build();
     }
 
-    private PaymentResponse response() {
+    private VirtualAccountDepositCompleteResponse response() {
+        return VirtualAccountDepositCompleteResponse.of(paymentResponse());
+    }
+
+    private PaymentResponse paymentResponse() {
         return PaymentResponse.builder().paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER)
                 .status(PaymentStatus.PAID).amount(10000).bankName(BankCompany.KB.getBankName())
                 .accountNumber("1111-123456").depositorName("입금자")

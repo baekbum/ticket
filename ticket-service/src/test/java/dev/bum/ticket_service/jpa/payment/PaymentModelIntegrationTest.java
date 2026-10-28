@@ -75,7 +75,9 @@ import static org.mockito.Mockito.times;
 @DataJpaTest
 @ActiveProfiles("test")
 @Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
-        VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class})
+        VirtualAccountPaymentService.class,
+        dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
+        PaymentCompletionService.class, PaymentExpirationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
     @MockitoBean PaymentGatewayRefundClient refundResolution;

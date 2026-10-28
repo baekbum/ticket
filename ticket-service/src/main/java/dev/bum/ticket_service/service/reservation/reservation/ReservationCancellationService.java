@@ -24,11 +24,14 @@ import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRequestContext;
 import dev.bum.ticket_service.service.payment.refund.RefundAction;
 import dev.bum.ticket_service.service.payment.refund.VirtualAccountPaymentRefundService;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService;
 import dev.bum.ticket_service.service.reservation.reservation.CancellationFeeCalculator.CancellationRefundCalculation;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 
 import lombok.RequiredArgsConstructor;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -37,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
 
 /** 사용자·관리자 공통 취소 절차. 호출자가 예매를 잠근 A 트랜잭션에 참여한다. */
@@ -55,6 +59,8 @@ public class ReservationCancellationService {
     private final TicketJpaRepository ticketJpaRepository;
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
     private final UserCouponRepository userCouponRepository;
+    private final EntityManager entityManager;
+    private final VirtualAccountCancelOutboxService virtualAccountCancelOutboxService;
 
     public CancelReservationResponse cancel(Reservation reservation, CancelReservationRequest request) {
         validateCancelableReservation(reservation);
@@ -78,8 +84,18 @@ public class ReservationCancellationService {
 
         // 3. 입금 전 무통장은 전체 취소만 허용하며, PG 환불 없이 로컬 취소 후 응답한다.
         if (isWaitingDeposit(payment, reservation, activeTickets)) {
+            // 예약은 호출자가 이미 잠갔다. 입금과 예약 → 결제 순서를 맞추고 구매 매수 → 티켓 → 좌석도 잠근다.
+            entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+            validateUnpaidCancellation(payment, reservation, fullCancellation, requestContext);
+            ticketPurchaseCountService.prepareStatusAdjustment(reservation, activeTickets);
+            activeTickets.stream().map(Ticket::getSeat).distinct()
+                    .sorted(Comparator.comparing(Seat::getSeatId))
+                    .forEach(seat -> entityManager.refresh(seat, LockModeType.PESSIMISTIC_WRITE));
+            CancellationTicketValidator.validate(reservation, selectedTickets);
             validateUnpaidCancellation(payment, reservation, fullCancellation, requestContext);
             applyLocalCancellation(reservation, selectedTickets, fullCancellation, false);
+            payment.cancel();
+            virtualAccountCancelOutboxService.enqueue(payment);
 
             return CancelReservationResponse.canceledWithoutGateway(
                     reservation.getReservationId(), selectedTickets.stream().map(Ticket::getTicketId).toList()

@@ -246,6 +246,12 @@ POST /ticket/api/v1/payments/internal/card/fail
 POST /ticket/api/v1/payments/internal/virtual-account/deposit/complete
 ```
 
+### 가상계좌 내부 입금·취소 계약
+
+가상계좌 입금 완료 내부 응답은 `{"result":"APPLIED","payment":{...}}`다. 티켓의 예약과 결제가 모두 취소된 경우에는 `{"result":"RESERVATION_CANCELLED","payment":{"paymentNo":"PAY-...","status":"CANCELLED",...}}`를 HTTP 200으로 반환한다. PG는 이를 장애와 구분하여 계좌 취소와 입금 통지 완료를 함께 처리한다. 양 서비스는 이 응답 계약을 함께 배포한다. [입금 전 취소 Outbox](virtual-account-cancellation-outbox.md)를 참고한다.
+
+티켓에서 PG로 보내는 계좌 취소는 내부 서비스 토큰을 사용하는 `POST /payment-gateway/api/v1/payments/virtual-account/cancel`이다. 요청은 `paymentNo`, `bankName`, `accountNumber`, `amount`를 포함한다. PG는 계좌 정보를 검증하고 같은 정보와 `status: CANCELLED`를 반환한다. 이미 취소된 계좌도 동일하게 성공하며, 결제번호가 같은데 계좌 정보가 다르면 거부한다.
+
 ### 카드 내부 검증/완료 계약
 
 `/card/validate` 요청은 `{"paymentNo":"PAY-...","userId":"user01"}`이며 userId는 gateway의 인증 컨텍스트에서 가져온다. 응답은 READY 상태의 PaymentResponse이다. 카드번호/CVC는 ticket으로 전달하지 않는다.

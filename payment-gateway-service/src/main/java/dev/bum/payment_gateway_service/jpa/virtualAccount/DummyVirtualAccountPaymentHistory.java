@@ -91,6 +91,15 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    public static DummyVirtualAccountPaymentHistory cancelled(DummyVirtualAccount virtualAccount) {
+        return DummyVirtualAccountPaymentHistory.builder()
+                .virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo())
+                .historyType(VirtualAccountPaymentHistoryType.CANCELLED)
+                .message("티켓 예매 취소로 가상계좌를 취소했습니다.")
+                .build();
+    }
+
     public static DummyVirtualAccountPaymentHistory refunded(
             DummyVirtualAccount virtualAccount,
             BankCompany refundBankCompany,

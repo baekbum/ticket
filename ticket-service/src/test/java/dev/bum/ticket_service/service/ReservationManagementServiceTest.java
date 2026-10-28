@@ -85,6 +85,12 @@ class ReservationManagementServiceTest {
     @Mock
     private TicketPurchaseCountService ticketPurchaseCountService;
 
+    @Mock
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Mock
+    private dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService virtualAccountCancelOutboxService;
+
     @InjectMocks
     private ReservationManagementService reservationManagementService;
 

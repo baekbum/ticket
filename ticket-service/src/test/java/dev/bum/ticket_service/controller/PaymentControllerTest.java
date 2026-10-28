@@ -249,10 +249,27 @@ class PaymentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paymentNo").value(request.getPaymentNo()))
-                .andExpect(jsonPath("$.status").value("PAID"));
+                .andExpect(jsonPath("$.result").value("APPLIED"))
+                .andExpect(jsonPath("$.payment.paymentNo").value(request.getPaymentNo()))
+                .andExpect(jsonPath("$.payment.status").value("PAID"));
 
         then(internalServiceTokenValidator).should().validate(serviceToken);
         then(paymentService).should().completeVirtualAccountDepositFromGateway(request);
+    }
+
+    @Test
+    void cancelledReservationIsReturnedAsBusinessResultToGateway() throws Exception {
+        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
+                .paymentNo("PAY-1").bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
+                .accountNumber("1111-123456").depositorName("입금자").amount(BigDecimal.valueOf(10000))
+                .depositedAt(LocalDateTime.of(2026,10,27,12,0)).build();
+        given(paymentService.completeVirtualAccountDepositFromGateway(request)).willReturn(PaymentResponse.builder()
+                .paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.CANCELLED).amount(10000).build());
+        mockMvc.perform(post(baseUrl + "/internal/virtual-account/deposit/complete")
+                        .header("X-Service-Token", serviceToken).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value("RESERVATION_CANCELLED"))
+                .andExpect(jsonPath("$.payment.status").value("CANCELLED"));
     }
 }

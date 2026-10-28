@@ -45,6 +45,7 @@ class VirtualAccountReconciliationCompletionServiceTest {
     private static final LocalDateTime DEPOSITED_AT = EXPIRES_AT.minusMinutes(1);
 
     @Mock private PaymentJpaRepository payments;
+    @Mock private VirtualAccountPaymentLockService paymentLocks;
     @Mock private TicketRepository tickets;
     @Mock private SeatCacheService seatCache;
 
@@ -52,8 +53,10 @@ class VirtualAccountReconciliationCompletionServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(paymentLocks.lock(PAYMENT_NO))
+                .thenAnswer(invocation -> payments.findByPaymentNoForUpdate(PAYMENT_NO).orElseThrow());
         service = new VirtualAccountReconciliationCompletionService(
-                payments,
+                paymentLocks,
                 new VirtualAccountReconciliationValidator(tickets),
                 new PaymentCompletionService(tickets, seatCache)
         );

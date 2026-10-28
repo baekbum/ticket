@@ -7,7 +7,10 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountI
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResponse;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
+import dev.bum.payment_gateway_service.service.virtualAccount.VirtualAccountCancellationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class GatewayVirtualAccountController {
 
     private final GatewayVirtualAccountService gatewayVirtualAccountService;
+    private final VirtualAccountCancellationService cancellationService;
+
+    @PostMapping("/cancel")
+    public ResponseEntity<GatewayVirtualAccountCancelResponse> cancel(
+            @Valid @RequestBody GatewayVirtualAccountCancelRequest request
+    ) {
+        return ResponseEntity.ok(cancellationService.cancel(request));
+    }
 
     @GetMapping("/internal/{paymentNo}/status")
     public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {

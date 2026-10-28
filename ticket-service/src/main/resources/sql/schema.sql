@@ -456,3 +456,24 @@ CREATE TABLE IF NOT EXISTS seat_cache_sync_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_seat_cache_outbox_ready
     ON seat_cache_sync_outbox(status, next_attempt_at, outbox_id);
+
+-- 입금 전 예매 취소와 함께 저장하는 PG 계좌 취소 작업. 같은 paymentNo의 취소는 한 번만 생성한다.
+CREATE TABLE IF NOT EXISTS virtual_account_cancel_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL,
+    account_number VARCHAR(50) NOT NULL,
+    amount INTEGER NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error_type VARCHAR(100),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    delivered_at TIMESTAMP,
+    CONSTRAINT uk_va_cancel_outbox_payment_no UNIQUE (payment_no),
+    CONSTRAINT chk_va_cancel_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
+    CONSTRAINT chk_va_cancel_outbox_retry_count CHECK (retry_count >= 0),
+    CONSTRAINT chk_va_cancel_outbox_amount CHECK (amount >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_va_cancel_outbox_ready
+    ON virtual_account_cancel_outbox(status, next_attempt_at, outbox_id);
