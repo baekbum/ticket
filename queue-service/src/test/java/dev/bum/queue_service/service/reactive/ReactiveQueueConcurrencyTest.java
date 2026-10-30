@@ -4,6 +4,7 @@ import dev.bum.common.service.queue.dto.QueueEnterResponse;
 import dev.bum.queue_service.QueueServiceApplication;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import dev.bum.queue_service.service.QueueRedisScripts;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,8 @@ class ReactiveQueueConcurrencyTest {
     @BeforeEach
     void fixture() {
         event = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event, 2);
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event == Long.MAX_VALUE ? event - 1 : event + 1, 2);
         user = "race-" + UUID.randomUUID();
     }
 
@@ -70,7 +73,7 @@ class ReactiveQueueConcurrencyTest {
     @Test
     void concurrent_status_consumes_a_waiting_token_only_once() {
         String token = value(queue.enter(event, user, false)).token();
-        var results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, token), 24).collectList());
+        List<QueueStatusResponse> results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, token), 24).collectList());
         assertThat(results).hasSize(24);
         assertThat(results).allSatisfy(response -> assertThat(response.status()).isEqualTo("READY"));
         assertThat(results.stream().map(response -> response.token()).distinct().toList()).hasSize(1);        assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isEqualTo(1L);
@@ -129,7 +132,7 @@ class ReactiveQueueConcurrencyTest {
         redis.opsForZSet().add(expiryKey, token, 0);
         long cutoff = System.currentTimeMillis();
         StepVerifier.create(waiting.refreshWaitingToken(event, user, token)).verifyComplete();
-        var template = new ReactiveStringRedisTemplate(
+        ReactiveStringRedisTemplate template = new ReactiveStringRedisTemplate(
                 (ReactiveRedisConnectionFactory) redis.getConnectionFactory());
         StepVerifier.create(template.execute(QueueRedisScripts.REMOVE_TOKEN,
                 List.of("queue:event:" + event + ":waiting", expiryKey,
@@ -143,7 +146,7 @@ class ReactiveQueueConcurrencyTest {
     @Test
     void cancellation_after_registration_keeps_a_complete_expiring_session() {
         AtomicReference<String> saved = new AtomicReference<>();
-        var registered = new CountDownLatch(1);
+        CountDownLatch registered = new CountDownLatch(1);
         Mono<Void> lostResponse = waiting.createWaiting(event, user).flatMap(token -> {
             saved.set(token);
             registered.countDown();
@@ -165,7 +168,7 @@ class ReactiveQueueConcurrencyTest {
     }
     @Test
     void concurrent_registration_respects_user_session_limit() {
-        var results = value(Flux.range(0, 24).flatMap(index -> queue.enter(event, user, false), 24).collectList());
+        List<QueueEnterResponse> results = value(Flux.range(0, 24).flatMap(index -> queue.enter(event, user, false), 24).collectList());
         assertThat(results.stream().filter(response -> "WAITING".equals(response.status())).count()).isEqualTo(2);
         assertThat(results.stream().filter(response -> "SESSION_LIMIT_CONFIRM_REQUIRED".equals(response.status())).count())
                 .isEqualTo(22);
@@ -176,7 +179,7 @@ class ReactiveQueueConcurrencyTest {
     @Test
     void refresh_after_promotion_cannot_resurrect_waiting_token() {
         String token = value(queue.enter(event, user, false)).token();
-        var ready = value(queue.status(event, user, token));
+        QueueStatusResponse ready = value(queue.status(event, user, token));
         assertThat(ready.status()).isEqualTo("READY");
         StepVerifier.create(waiting.refreshWaitingToken(event, user, token))
                 .expectError(QueueTokenInvalidException.class).verify(Duration.ofSeconds(5));

@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: queue-service
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_SERVER:kafka:29092}}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}

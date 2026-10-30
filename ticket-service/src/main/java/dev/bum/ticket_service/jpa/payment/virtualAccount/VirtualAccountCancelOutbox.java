@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -16,27 +17,40 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class VirtualAccountCancelOutbox {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "outbox_id")
     private Long outboxId;
+
     @Column(name = "payment_no", nullable = false, updatable = false, length = 60)
     private String paymentNo;
+
     @Column(name = "bank_name", nullable = false, updatable = false, length = 50)
     private String bankName;
+
     @Column(name = "account_number", nullable = false, updatable = false, length = 50)
     private String accountNumber;
+
     @Column(nullable = false, updatable = false)
     private Integer amount;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30)
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
     private VirtualAccountCancelOutboxStatus status;
+
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
+
     @Column(name = "next_attempt_at", nullable = false)
     private LocalDateTime nextAttemptAt;
+
     @Column(name = "last_error_type", length = 100)
     private String lastErrorType;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
 

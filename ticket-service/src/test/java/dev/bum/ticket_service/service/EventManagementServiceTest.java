@@ -18,6 +18,7 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.service.event.event.EventManagementService;
 import dev.bum.ticket_service.service.event.file.EventPosterService;
+import dev.bum.ticket_service.service.event.policy.EventPolicyOutboxService;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class EventManagementServiceTest {
     @Mock
     private EventPosterService eventPosterService;
 
+    @Mock
+    private EventPolicyOutboxService eventPolicyOutboxService;
+
     @Test
     @DisplayName("다회차 이벤트 등록 시 공통 정보와 회차별 일정으로 여러 이벤트 생성")
     void insert_bulk() {
@@ -87,6 +91,8 @@ class EventManagementServiceTest {
         assertThat(response).extracting(EventResponse::getPosterUrl)
                 .containsExactly("/ticket/uploads/events/posters/1/poster.png", "/ticket/uploads/events/posters/2/poster.png");
         then(eventPosterService).should(times(2)).saveForTransaction(posterImage, null);
+        then(eventPolicyOutboxService).should().enqueue(firstEvent, false);
+        then(eventPolicyOutboxService).should().enqueue(secondEvent, false);
     }
 
     @Test
@@ -142,6 +148,7 @@ class EventManagementServiceTest {
 
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
         then(repository).should().update(1L, info);
+        then(eventPolicyOutboxService).should().enqueue(event, false);
     }
 
     @Test
@@ -152,15 +159,16 @@ class EventManagementServiceTest {
         Event event = event(1L, "IU Concert");
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
-        given(repository.selectById(1L)).willReturn(event);
+        given(repository.selectByIdForUpdate(1L)).willReturn(event);
         given(eventPosterService.saveForTransaction(posterImage, "/ticket/uploads/events/posters/1/old.png")).willReturn("/ticket/uploads/events/posters/1/new.png");
 
         EventResponse response = eventManagementService.update(1L, info, posterImage);
 
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/new.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
-        then(repository).should().selectById(1L);
+        then(repository).should().selectByIdForUpdate(1L);
         then(eventPosterService).should().saveForTransaction(posterImage, "/ticket/uploads/events/posters/1/old.png");
+        then(eventPolicyOutboxService).should().enqueue(event, false);
     }
 
     @Test
@@ -170,7 +178,7 @@ class EventManagementServiceTest {
         Event event = event(1L, "IU Concert");
         event.updatePosterUrl("/ticket/uploads/events/posters/1/old.png");
 
-        given(repository.selectById(1L)).willReturn(event);
+        given(repository.selectByIdForUpdate(1L)).willReturn(event);
         given(eventPosterService.saveForTransaction(null, "/ticket/uploads/events/posters/1/old.png")).willReturn(null);
 
         EventResponse response = eventManagementService.update(1L, info, null);
@@ -178,6 +186,7 @@ class EventManagementServiceTest {
         assertThat(response.getPosterUrl()).isEqualTo("/ticket/uploads/events/posters/1/old.png");
         assertThat(response.getTitle()).isEqualTo("Updated Concert");
         then(eventPosterService).should().saveForTransaction(null, "/ticket/uploads/events/posters/1/old.png");
+        then(eventPolicyOutboxService).should().enqueue(event, false);
     }
 
     @Test
@@ -185,12 +194,14 @@ class EventManagementServiceTest {
     void delete() {
         Event event = event(1L, "IU Concert");
 
+        given(repository.selectByIdForUpdate(1L)).willReturn(event);
         given(repository.delete(1L)).willReturn(event);
 
         EventResponse response = eventManagementService.delete(1L);
 
         assertThat(response.getEventId()).isEqualTo(1L);
         then(repository).should().delete(1L);
+        then(eventPolicyOutboxService).should().enqueue(event, true);
     }
 
     @Test
@@ -202,6 +213,8 @@ class EventManagementServiceTest {
         Event event1 = event(1L, "Concert 1");
         Event event2 = event(2L, "Concert 2");
 
+        given(repository.selectByIdForUpdate(1L)).willReturn(event1);
+        given(repository.selectByIdForUpdate(2L)).willReturn(event2);
         given(repository.delete(1L)).willReturn(event1);
         given(repository.delete(2L)).willReturn(event2);
 
@@ -209,6 +222,8 @@ class EventManagementServiceTest {
 
         then(repository).should().delete(1L);
         then(repository).should().delete(2L);
+        then(eventPolicyOutboxService).should().enqueue(event1, true);
+        then(eventPolicyOutboxService).should().enqueue(event2, true);
     }
 
     @Test

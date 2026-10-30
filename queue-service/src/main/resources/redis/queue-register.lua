@@ -1,5 +1,5 @@
 -- 잘못된 키 타입은 쓰기 전에 거부한다. Lua 실행 오류 자체에는 롤백이 없다.
-local expected = {'zset', 'zset', 'string', 'zset'}
+local expected = {'zset', 'zset', 'string', 'zset', 'hash'}
 for index, key in ipairs(KEYS) do
     local actual = redis.call('TYPE', key).ok
     if actual ~= 'none' and actual ~= expected[index] then
@@ -7,6 +7,8 @@ for index, key in ipairs(KEYS) do
     end
 end
 -- 세션 한도 확인과 대기 토큰 등록을 한 번에 실행한다.
+local capacity, reason = eventPolicy(KEYS[5], false)
+if reason then return reason == 'POLICY_UNAVAILABLE' and -2 or -3 end
 if redis.call('ZCARD', KEYS[4]) >= tonumber(ARGV[6]) then
     return 0
 end

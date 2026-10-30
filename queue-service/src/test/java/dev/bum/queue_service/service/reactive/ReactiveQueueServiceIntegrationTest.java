@@ -47,6 +47,8 @@ class ReactiveQueueServiceIntegrationTest {
     @BeforeEach
     void fixture() {
         event = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event, 2);
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event == Long.MAX_VALUE ? event - 1 : event + 1, 2);
         user = newUser();
     }
 
@@ -63,14 +65,14 @@ class ReactiveQueueServiceIntegrationTest {
     }
 
     private String enter(String userId) {
-        var response = value(queue.enter(event, userId, false));
+        QueueEnterResponse response = value(queue.enter(event, userId, false));
         assertThat(response.status()).isEqualTo("WAITING");
         assertThat(response.token()).isNotBlank();
         return response.token();
     }
 
     private String admit(String userId) {
-        var response = value(queue.status(event, userId, enter(userId)));
+        QueueStatusResponse response = value(queue.status(event, userId, enter(userId)));
         assertThat(response.status()).isEqualTo("READY");
         return response.token();
     }
@@ -79,8 +81,8 @@ class ReactiveQueueServiceIntegrationTest {
     void enter_is_lazy_and_each_subscription_creates_its_own_token() {
         Mono<QueueEnterResponse> registration = queue.enter(event, user, false);
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":waiting")).isZero();
-        var first = value(registration);
-        var second = value(registration);
+        QueueEnterResponse first = value(registration);
+        QueueEnterResponse second = value(registration);
         assertThat(first.token()).isNotEqualTo(second.token());
         assertThat(first.expiresInSeconds()).isEqualTo(60L);
         assertThat(first.rank()).isEqualTo(1L);
@@ -97,7 +99,7 @@ class ReactiveQueueServiceIntegrationTest {
         redis.opsForZSet().add("queue:event:" + event + ":waiting", waitingToken, now);
         redis.opsForZSet().add("queue:event:" + event + ":waiting-expiry", waitingToken, now + 60_000);
         redis.opsForZSet().add("queue:user-sessions:" + user, "waiting:" + waitingToken, now + 60_000);
-        var ready = value(queue.status(event, user, waitingToken));
+        QueueStatusResponse ready = value(queue.status(event, user, waitingToken));
         assertThat(ready.status()).isEqualTo("READY");
         assertThat(ready.rank()).isZero();
         assertThat(ready.activeTokenExpiresAt()).isNotNull();
@@ -105,7 +107,7 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(redis.opsForZSet().score("queue:event:" + event + ":waiting-expiry", waitingToken)).isNull();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "waiting:" + waitingToken)).isNull();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + ready.token())).isNotNull();
-        var request = new QueueValidateRequest(event, user, ready.token());
+        QueueValidateRequest request = new QueueValidateRequest(event, user, ready.token());
         assertThat(value(queue.validate(request))).isEqualTo(new QueueValidateResponse(true, "OK"));
         assertThat(value(queue.complete(event, user, ready.token()))).isTrue();
         assertThat(value(queue.complete(event, user, ready.token()))).isFalse();
@@ -134,7 +136,7 @@ class ReactiveQueueServiceIntegrationTest {
         admit(newUser());
         admit(newUser());
         String token = enter(user);
-        var response = value(queue.status(event, user, token));
+        QueueStatusResponse response = value(queue.status(event, user, token));
         assertThat(response.status()).isEqualTo("WAITING");
         assertThat(response.rank()).isEqualTo(1L);
         assertThat(response.waitingCount()).isEqualTo(1L);
@@ -149,10 +151,10 @@ class ReactiveQueueServiceIntegrationTest {
     void session_limit_and_forced_waiting_replacement_match_existing_behavior() {
         String first = enter(user);
         enter(user);
-        var limited = value(queue.enter(event, user, false));
+        QueueEnterResponse limited = value(queue.enter(event, user, false));
         assertThat(limited.status()).isEqualTo("SESSION_LIMIT_CONFIRM_REQUIRED");
         assertThat(limited.token()).isNull();
-        var forced = value(queue.enter(event, user, true));
+        QueueEnterResponse forced = value(queue.enter(event, user, true));
         assertThat(forced.status()).isEqualTo("WAITING");
         assertThat(redis.hasKey("queue:waiting-token:" + first)).isFalse();
         assertThat(redis.opsForZSet().zCard("queue:user-sessions:" + user)).isEqualTo(2L);
@@ -162,7 +164,7 @@ class ReactiveQueueServiceIntegrationTest {
     void force_can_replace_an_active_session_when_it_expires_first() {
         String first = admit(user);
         admit(user);
-        var forced = value(queue.enter(event, user, true));
+        QueueEnterResponse forced = value(queue.enter(event, user, true));
         assertThat(forced.status()).isEqualTo("WAITING");
         assertThat(redis.hasKey("queue:active-token:" + first)).isFalse();
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isEqualTo(1L);
@@ -235,7 +237,7 @@ class ReactiveQueueServiceIntegrationTest {
         String waitingToken = enter(waitingUser);
         List<String> users = List.of(waitingUser, user);
         Map<String, String> tokens = Map.of(waitingUser, waitingToken);
-        var actual = value(admin.statuses(event, users, tokens));
+        List<QueueStatusResponse> actual = value(admin.statuses(event, users, tokens));
         assertThat(actual).extracting(QueueStatusResponse::status).containsExactly("WAITING", "READY");
         assertThat(actual).extracting(QueueStatusResponse::token)
                 .containsExactly(waitingToken, activeToken);
@@ -245,17 +247,17 @@ class ReactiveQueueServiceIntegrationTest {
     @Test
     void inspection_preserves_missing_values_negative_ttl_and_removal_results() {
         String token = enter(user);
-        var actual = value(inspect.inspectEventQueue(event, null, 0));
+        QueueRedisInspectResponse actual = value(inspect.inspectEventQueue(event, null, 0));
         assertThat(actual.getLimit()).isEqualTo(100);
         assertThat(actual.getEntries().getFirst().getValue()).isEqualTo(event + ":" + user);
         assertThat(actual.getEntries().getFirst().getRank()).isEqualTo(1L);
         redis.delete("queue:waiting-token:" + token);
-        var orphan = value(inspect.inspectEventQueue(event, QueueRedisInspectMode.WAITING, 1000));
+        QueueRedisInspectResponse orphan = value(inspect.inspectEventQueue(event, QueueRedisInspectMode.WAITING, 1000));
         assertThat(orphan.getLimit()).isEqualTo(500);
         assertThat(orphan.getEntries()).hasSize(1);
         assertThat(orphan.getEntries().getFirst().getValue()).isNull();
         assertThat(orphan.getEntries().getFirst().getTtlSeconds()).isEqualTo(-2L);
-        var missing = value(inspect.inspectToken("missing"));
+        QueueRedisInspectResponse missing = value(inspect.inspectToken("missing"));
         assertThat(missing.getEntries()).hasSize(1);
         assertThat(missing.getEntries().getFirst().getValue()).isNull();
         assertThat(missing.getEntries().getFirst().getTtlSeconds()).isEqualTo(-2L);
@@ -267,7 +269,7 @@ class ReactiveQueueServiceIntegrationTest {
     @Test
     void active_inspection_removal_also_removes_user_session() {
         String token = admit(user);
-        var state = value(inspect.inspectEventQueue(event, QueueRedisInspectMode.ACTIVE, 10));
+        QueueRedisInspectResponse state = value(inspect.inspectEventQueue(event, QueueRedisInspectMode.ACTIVE, 10));
         assertThat(state.getEntries()).hasSize(1);
         assertThat(state.getEntries().getFirst().getToken()).isEqualTo(token);
         assertThat(state.getEntries().getFirst().getRank()).isNull();
@@ -294,7 +296,7 @@ class ReactiveQueueServiceIntegrationTest {
             users.add(id);
             tokens.add(enter(id));
         }
-        var results = value(Flux.range(0, users.size())
+        List<QueueStatusResponse> results = value(Flux.range(0, users.size())
                 .flatMap(index -> queue.status(event, users.get(index), tokens.get(index)), 12).collectList());
         assertThat(results.stream().filter(response -> response.status().equals("READY")).count()).isEqualTo(2);
         assertThat(results.stream().filter(response -> response.status().equals("WAITING")).count()).isEqualTo(10);

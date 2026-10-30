@@ -34,6 +34,10 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -64,6 +68,7 @@ public class SeatCacheService {
     private final StringRedisTemplate seatRedisTemplate;
     private final SeatCacheSyncOutboxService seatCacheSyncOutboxService;
     private final SeatCacheMissOccupationService seatCacheMissOccupationService;
+    private final EventBookingGuard eventBookingGuard;
 
     /**
      * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
@@ -282,7 +287,9 @@ public class SeatCacheService {
     }
 
     @Observed(name = "ticket.seat-cache.redis.occupy", contextualName = "ticket seat cache redis occupy")
+    @Transactional
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
+        eventBookingGuard.requireBookable(request.getEventId(), false);
         long eventId = request.getEventId();
         String userId = request.getUserId();
         List<SeatInfo> seats = request.getSeats();
@@ -290,6 +297,15 @@ public class SeatCacheService {
         String lockValue = buildSeatLockValue(userId, orderId);
         LocalDateTime expiresAt = LocalDateTime.now().plus(SEAT_LOCK_TTL);
         List<String> attemptedRedisKeys = new ArrayList<>();
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) rollbackSeats(attemptedRedisKeys, lockValue);
+                }
+            });
+        }
 
         try {
             validateUserPurchaseLimit(request);

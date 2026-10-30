@@ -24,6 +24,7 @@ public class UpdateEventRequest {
     private LocalDateTime eventDateTime;
     private LocalDateTime saleStartAt;
     private LocalDateTime saleEndAt;
+    private Integer queueAdmissionSize;
     private LocalDateTime cancelDeadlineAt;
     private Integer runningMinutes;
     private Integer ageLimit;

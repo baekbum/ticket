@@ -3,6 +3,7 @@ package dev.bum.queue_service.controller.advice;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
+import dev.bum.queue_service.exception.EventPolicyException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,13 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(EventPolicyException.class)
+    public ResponseEntity<ErrorResponse> handleEventPolicy(EventPolicyException ex) {
+        return ResponseEntity.status(ex.isUnavailable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(ex.isUnavailable() ? ErrorCode.QUEUE_UNAVAILABLE : ErrorCode.EVENT_NOT_BOOKABLE,
+                        ex.getMessage()));
+    }
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleRedisException() {

@@ -75,6 +75,9 @@ class CheckoutServiceTest {
     private SeatCacheService seatCacheService;
 
     @Mock
+    private dev.bum.ticket_service.service.event.event.EventBookingGuard eventBookingGuard;
+
+    @Mock
     private SeatJpaRepository seatJpaRepository;
 
     @Mock
@@ -106,6 +109,35 @@ class CheckoutServiceTest {
 
     @InjectMocks
     private CheckoutService checkoutService;
+
+    @Test
+    @DisplayName("선점에 성공했어도 prepare 시 판매 종료이면 준비 정보를 저장하지 않는다")
+    void prepare_rejects_ended_sales_after_successful_occupation() {
+        given(eventBookingGuard.requireBookable(1L, true))
+                .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .hasMessage("판매가 종료된 공연입니다.");
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("confirm은 선점 또는 기존 확정 결과가 있어도 판매 종료를 우회하지 못한다")
+    void confirm_rejects_ended_sales_before_new_booking_or_replay(boolean confirmed) {
+        CheckoutAttempt attempt = preparedAttempt();
+        if (confirmed) attempt.confirm(payment(reservation(event(), "user01")));
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(attempt));
+        given(eventBookingGuard.requireBookable(1L, true))
+                .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token",
+                confirmRequest(PaymentMethod.CREDIT_CARD))).hasMessage("판매가 종료된 공연입니다.");
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(checkoutPaymentService).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"ID", "ZONE", "ROW", "COL", "EVENT"})

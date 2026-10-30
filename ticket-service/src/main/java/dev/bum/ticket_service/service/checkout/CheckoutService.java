@@ -28,6 +28,8 @@ import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,6 +57,7 @@ public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private final SeatCacheService seatCacheService;
+    private final EventBookingGuard eventBookingGuard;
     private final SeatJpaRepository seatJpaRepository;
     private final QueueAccessService queueAccessService;
     private final ReservationRepository reservationRepository;
@@ -77,8 +80,8 @@ public class CheckoutService {
     public CheckoutPrepareResponse prepare(
             String currentUserId, String activeToken, CheckoutPrepareRequest request) {
 
+        Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
-
         List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
@@ -87,6 +90,7 @@ public class CheckoutService {
                 seats
         );
 
+        eventBookingGuard.validate(event, true);
         LocalDateTime preparedAt = LocalDateTime.now();
         CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
                 idempotencyKeyGenerator.generate(),
@@ -125,6 +129,9 @@ public class CheckoutService {
 
         validateRequestMatchesAttempt(currentUserId, request, checkoutAttempt);
 
+        // 선점·대기열 통과 이력이나 기존 멱등 결과가 판매 종료 검증을 우회하지 못한다.
+        Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
+
         if (checkoutAttempt.isConfirmed()) {
             return handleConfirmedPayment(currentUserId, activeToken, request, checkoutAttempt);
         }
@@ -147,6 +154,7 @@ public class CheckoutService {
                 seats
         );
 
+        eventBookingGuard.validate(event, true);
         Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request, seats));
 
         if (request.getDelivery() != null) {
@@ -268,6 +276,7 @@ public class CheckoutService {
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        eventBookingGuard.requireBookable(request.getEventId(), true);
         List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         seatCacheService.validateOccupiedSeat(
                 request.getEventId(), currentUserId, request.getOrderId(), seats);

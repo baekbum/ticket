@@ -45,6 +45,9 @@ public class QueueAccessService {
         try {
             response = queueServiceClient.validate(new QueueValidateRequest(eventId, userId, activeToken));
         } catch (FeignException e) {
+            if (e.status() == 409) {
+                throw new QueueAccessDeniedException("판매 기간 또는 공연 상태에 따라 현재 예매할 수 없습니다.");
+            }
             log.warn("[QUEUE-VALIDATE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
             throw new QueueUnavailableException();
         }

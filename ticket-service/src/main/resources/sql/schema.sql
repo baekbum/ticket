@@ -13,6 +13,7 @@ CREATE TABLE events (
     event_date_time TIMESTAMP NOT NULL,
     sale_start_at TIMESTAMP,
     sale_end_at TIMESTAMP,
+    queue_admission_size INTEGER NOT NULL DEFAULT 100 CHECK (queue_admission_size > 0),
     cancel_deadline_at TIMESTAMP,
     running_minutes INTEGER,
     age_limit INTEGER,
@@ -32,6 +33,23 @@ CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
 CREATE INDEX idx_event_group_code ON events(event_group_code);
 CREATE INDEX idx_event_category ON events(genre, region, theme);
+
+-- 정책 스냅샷과 Outbox를 함께 보존한다. 최신 행은 Redis 초기 적재·복구에 사용한다.
+CREATE TABLE event_policy_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    sale_start_at BIGINT NOT NULL,
+    sale_end_at BIGINT NOT NULL,
+    event_date_time BIGINT NOT NULL,
+    admission_size INTEGER NOT NULL CHECK (admission_size > 0),
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_event_policy_ready ON event_policy_outbox(published, next_attempt_at, outbox_id);
+CREATE INDEX idx_event_policy_event ON event_policy_outbox(event_id, outbox_id);
 
 -- ==========================================
 -- 2. Areas 테이블

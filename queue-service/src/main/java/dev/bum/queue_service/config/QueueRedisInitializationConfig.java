@@ -34,6 +34,8 @@ public class QueueRedisInitializationConfig {
             QueueRedisScripts.STATUS_WITH_IDEMPOTENCY.getSha1();
             QueueRedisScripts.REMOVE_TOKEN.getSha1();
             QueueRedisScripts.CLEAR_EVENT.getSha1();
+            QueueRedisScripts.VALIDATE_POLICY.getSha1();
+            QueueRedisScripts.UPDATE_POLICY.getSha1();
         };
     }
 }

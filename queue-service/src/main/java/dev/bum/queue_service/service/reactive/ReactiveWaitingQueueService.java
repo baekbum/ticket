@@ -2,6 +2,7 @@ package dev.bum.queue_service.service.reactive;
 
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.queue_service.config.QueueProperties;
+import dev.bum.queue_service.exception.EventPolicyException;
 import dev.bum.queue_service.service.QueueRedisKeys;
 import dev.bum.queue_service.service.QueueRedisScripts;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
@@ -35,11 +36,15 @@ public class ReactiveWaitingQueueService {
             String token = UUID.randomUUID().toString();
             long now = nowMillis();
             long ttl = properties.getWaitingTokenTtl().toMillis();
-            return redis.execute(QueueRedisScripts.REGISTER_WAITING, waitingKeys(eventId, userId, token),
+            return redis.execute(QueueRedisScripts.REGISTER_WAITING,
+                            List.of(keys.waitingKey(eventId), keys.waitingExpiryKey(eventId),
+                                    keys.waitingTokenKey(token), keys.userSessionsKey(userId), keys.policyKey(eventId)),
                             List.of(token, tokenValue(eventId, userId), String.valueOf(now), String.valueOf(now + ttl),
                                     String.valueOf(ttl), String.valueOf(properties.getMaxSessionsPerUser()),
                                     keys.waitingSessionMember(token)))
                     .next()
+                    .flatMap(result -> result < 0 ? Mono.error(new EventPolicyException(
+                            result == -2 ? "POLICY_UNAVAILABLE" : "EVENT_NOT_BOOKABLE")) : Mono.just(result))
                     .filter(result -> result == 1L)
                     .map(result -> token);
         });

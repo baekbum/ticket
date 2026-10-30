@@ -1,5 +1,5 @@
 -- 스크립트가 사용하는 모든 키는 KEYS로 전달한다. 쓰기 전에 타입을 검증한다.
-local expected = {'zset', 'zset', 'string', 'zset', 'string', 'zset', 'string', 'string', 'string', 'string'}
+local expected = {'zset', 'zset', 'string', 'zset', 'string', 'zset', 'string', 'string', 'string', 'string', 'hash'}
 for index, key in ipairs(KEYS) do
     local actual = redis.call('TYPE', key).ok
     if actual ~= 'none' and actual ~= expected[index] then
@@ -32,6 +32,8 @@ local existingActiveToken = ARGV[9]
 local time = redis.call('TIME')
 local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
 local mappedToken = redis.call('GET', waitingActiveMappingKey)
+local capacity, policyError = eventPolicy(KEYS[11], mappedToken ~= false)
+if policyError then return policyError end
 if mappedToken then
     -- 사전 조회 이후 다른 요청이 승격한 경우, 해당 토큰의 키를 다시 전달받는다.
     -- 재조회 전에는 어떠한 쓰기도 하지 않는다.
@@ -57,7 +59,7 @@ if not rank then
     return 'INVALID'
 end
 
-local availableSlots = admissionSize - redis.call('ZCARD', activeKey)
+local availableSlots = capacity - redis.call('ZCARD', activeKey)
 if availableSlots <= 0 or rank >= availableSlots then
     -- 승격 판단과 대기 갱신 사이에도 다른 승격이 끼어들지 않게 한다.
     local expiresAt = now + waitingTtlMillis

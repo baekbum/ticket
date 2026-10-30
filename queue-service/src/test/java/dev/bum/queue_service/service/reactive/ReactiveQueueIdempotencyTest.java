@@ -6,6 +6,7 @@ import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import dev.bum.queue_service.service.QueueRedisKeys;
 import dev.bum.queue_service.service.QueueRedisScripts;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,8 @@ class ReactiveQueueIdempotencyTest {
     @BeforeEach
     void fixture() {
         event = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event, 2);
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event == Long.MAX_VALUE ? event - 1 : event + 1, 2);
         user = "idempotency-" + UUID.randomUUID();
     }
 
@@ -93,7 +96,7 @@ class ReactiveQueueIdempotencyTest {
 
     @AfterEach
     void cleanupFixture() {
-        var deleteKeys = new ArrayList<String>();
+        List<String> deleteKeys = new ArrayList<String>();
         for (String token : redis.opsForZSet().range("queue:event:" + event + ":active", 0, -1)) {
             deleteKeys.add("queue:active-token:" + token);
             deleteKeys.add(reverse(token));
@@ -113,12 +116,12 @@ class ReactiveQueueIdempotencyTest {
         String waiting = enter();
         String activeToken = value(queue.status(event, user, waiting)).token();
         String candidate = UUID.randomUUID().toString();
-        var keys = new QueueRedisKeys();
+        QueueRedisKeys keys = new QueueRedisKeys();
         StepVerifier.create(reactiveRedis.execute(QueueRedisScripts.STATUS_WITH_IDEMPOTENCY,
                 List.of(keys.waitingKey(event), keys.activeKey(event), keys.activeTokenKey(candidate),
                         keys.userSessionsKey(user), keys.waitingTokenKey(waiting), keys.waitingExpiryKey(event),
                         keys.waitingActiveMappingKey(waiting), keys.activeWaitingMappingKey(candidate),
-                        keys.activeTokenKey(candidate), keys.activeWaitingMappingKey(candidate)),
+                        keys.activeTokenKey(candidate), keys.activeWaitingMappingKey(candidate), keys.policyKey(event)),
                 List.of(waiting, candidate, event + ":" + user, "1200000", "2", "60000",
                         keys.activeSessionMember(candidate), keys.waitingSessionMember(waiting), "")))
                 .expectNext("RETRY").verifyComplete();
@@ -161,7 +164,7 @@ class ReactiveQueueIdempotencyTest {
         assertThat(expiresAt(reverse(activeToken))).isEqualTo(expiry);
         assertThat(redis.opsForZSet().score("queue:event:" + event + ":active", activeToken))
                 .isEqualTo(expiry.doubleValue());
-        var replay = value(Mono.delay(Duration.ofMillis(50)).then(queue.status(event, user, waiting)));
+        QueueStatusResponse replay = value(Mono.delay(Duration.ofMillis(50)).then(queue.status(event, user, waiting)));
         assertThat(replay.token()).isEqualTo(activeToken);
         assertThat(expiresAt(activeKey)).isEqualTo(expiry);
         assertThat(expiresAt(forward(waiting))).isEqualTo(expiry);
@@ -193,8 +196,8 @@ class ReactiveQueueIdempotencyTest {
     @Test
     void cancellation_after_committed_promotion_is_recovered_by_status() {
         String waiting = enter();
-        var saved = new AtomicReference<String>();
-        var committed = new CountDownLatch(1);
+        AtomicReference<String> saved = new AtomicReference<String>();
+        CountDownLatch committed = new CountDownLatch(1);
         Mono<Void> lostResponse = active.admit(event, user, waiting).flatMap(token -> {
             saved.set(token);
             committed.countDown();
@@ -252,9 +255,9 @@ class ReactiveQueueIdempotencyTest {
     @Test
     void redis_expiration_removes_both_mappings_and_retry_cannot_reissue_a_token() {
         String waiting = enter();
-        var shortTtl = new QueueProperties();
+        QueueProperties shortTtl = new QueueProperties();
         shortTtl.setActiveTokenTtl(Duration.ofSeconds(1));
-        var shortLivedActive = new ReactiveActiveQueueService(reactiveRedis, shortTtl,
+        ReactiveActiveQueueService shortLivedActive = new ReactiveActiveQueueService(reactiveRedis, shortTtl,
                 new QueueRedisKeys(), sessions);
         String activeToken = value(shortLivedActive.admit(event, user, waiting));
         value(Mono.delay(Duration.ofMillis(1500)));
@@ -306,8 +309,8 @@ class ReactiveQueueIdempotencyTest {
     @Test
     void retry_after_lost_promotion_response_returns_the_original_active_token() {
         String waiting = enter();
-        var first = value(queue.status(event, user, waiting));
-        var retry = value(queue.status(event, user, waiting));
+        QueueStatusResponse first = value(queue.status(event, user, waiting));
+        QueueStatusResponse retry = value(queue.status(event, user, waiting));
         assertThat(retry.status()).isEqualTo("READY");
         assertThat(retry.token()).isEqualTo(first.token());
         assertThat(retry.activeTokenExpiresAt()).isEqualTo(first.activeTokenExpiresAt());
@@ -319,7 +322,7 @@ class ReactiveQueueIdempotencyTest {
     @Test
     void concurrent_retries_return_one_active_token_without_consuming_extra_slots() {
         String waiting = enter();
-        var results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, waiting), 24).collectList());
+        List<QueueStatusResponse> results = value(Flux.range(0, 24).flatMap(index -> queue.status(event, user, waiting), 24).collectList());
         assertThat(results).hasSize(24);
         assertThat(results).allSatisfy(response -> assertThat(response.status()).isEqualTo("READY"));
         assertThat(results.stream().map(response -> response.token()).distinct().toList()).hasSize(1);
