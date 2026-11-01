@@ -35,6 +35,7 @@ import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,15 +51,18 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -110,15 +114,32 @@ class CheckoutServiceTest {
     @InjectMocks
     private CheckoutService checkoutService;
 
+    @BeforeEach
+    void prepareStorage() {
+        AtomicReference<CheckoutAttempt> inserted = new AtomicReference<>();
+        Mockito.lenient().when(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    inserted.set(invocation.getArgument(0));
+                    return 1;
+                });
+        Mockito.lenient().when(checkoutAttemptJpaRepository.findByOrderIdForUpdate(ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(inserted.get()));
+        Mockito.lenient().when(seatCacheService.validateOccupiedSeat(
+                        ArgumentMatchers.anyLong(), ArgumentMatchers.anyString(),
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyList()))
+                .thenReturn(LocalDateTime.now().plusMinutes(10));
+    }
+
     @Test
-    @DisplayName("선점에 성공했어도 prepare 시 판매 종료이면 준비 정보를 저장하지 않는다")
+    @DisplayName("선점에 성공했어도 prepare 시 판매 종료이면 예외를 반환한다")
     void prepare_rejects_ended_sales_after_successful_occupation() {
+        givenValidSeats();
         given(eventBookingGuard.requireBookable(1L, true))
                 .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
         assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
                 .hasMessage("판매가 종료된 공연입니다.");
-        then(seatCacheService).shouldHaveNoInteractions();
-        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+        then(queueAccessService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
@@ -355,10 +376,10 @@ class CheckoutServiceTest {
         assertThat(response.getSeats()).hasSize(1);
         assertThat(response.getIdempotencyKey()).matches("CHK-\\d{8}-[0-9a-f]{32}");
         assertThat(response.getPreparedAt()).isNotNull();
-        assertThat(response.getExpiresAt()).isEqualTo(seatExpiresAt);
+        assertThat(response.getExpiresAt()).isEqualTo(seatExpiresAt.truncatedTo(ChronoUnit.MICROS));
 
         ArgumentCaptor<CheckoutAttempt> checkoutAttemptCaptor = ArgumentCaptor.forClass(CheckoutAttempt.class);
-        then(checkoutAttemptJpaRepository).should().save(checkoutAttemptCaptor.capture());
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(checkoutAttemptCaptor.capture());
         CheckoutAttempt checkoutAttempt = checkoutAttemptCaptor.getValue();
         assertThat(checkoutAttempt.getIdempotencyKey()).isEqualTo(response.getIdempotencyKey());
         assertThat(checkoutAttempt.getUserId()).isEqualTo("user01");
@@ -367,16 +388,145 @@ class CheckoutServiceTest {
         assertThat(checkoutAttempt.getSeatIds()).containsExactly(1L);
         assertThat(checkoutAttempt.getPaymentNo()).startsWith("PAY-");
         assertThat(checkoutAttempt.getStatus()).isEqualTo(CheckoutAttemptStatus.PREPARED);
-        assertThat(checkoutAttempt.getExpiresAt()).isEqualTo(seatExpiresAt);
+        assertThat(checkoutAttempt.getExpiresAt()).isEqualTo(seatExpiresAt.truncatedTo(ChronoUnit.MICROS));
+        assertThat(response.getPreparedAt()).isEqualTo(checkoutAttempt.getCreatedAt());
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
-        then(seatCacheService).should().validateOccupiedSeat(
+        then(seatCacheService).should(Mockito.times(2)).validateOccupiedSeat(
                 ArgumentMatchers.eq(1L),
                 ArgumentMatchers.eq("user01"),
                 ArgumentMatchers.eq("order-1"),
                 ArgumentMatchers.argThat(seats -> seats.size() == 1)
         );
         then(queueAccessService).should(never()).complete(1L, "user01", "queue-token");
+    }
+
+    @Test
+    @DisplayName("prepare 재시도는 기존 멱등 키와 준비·만료 시각을 반환하고 새 준비 건을 만들지 않는다")
+    void prepare_replay_returns_the_original_key_and_timestamps() {
+        givenValidSeats();
+        CheckoutAttempt attempt = preparedAttempt();
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willReturn(attempt.getExpiresAt().plusMinutes(20));
+
+        CheckoutPrepareResponse response = checkoutService.prepare("user01", "queue-token", checkoutRequest());
+
+        assertThat(response.getIdempotencyKey()).isEqualTo(attempt.getIdempotencyKey());
+        assertThat(response.getPreparedAt()).isEqualTo(attempt.getCreatedAt());
+        assertThat(response.getExpiresAt()).isEqualTo(attempt.getExpiresAt());
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+        then(checkoutAttemptJpaRepository).should(never()).save(ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"USER", "EVENT", "SEATS"})
+    @DisplayName("prepare 재시도는 기존 준비 건과 사용자·공연·좌석이 다르면 거절한다")
+    void prepare_replay_rejects_a_different_request(String changed) {
+        CheckoutAttempt attempt = preparedAttempt();
+        CheckoutPrepareRequest request = checkoutRequest();
+        String currentUserId = "user01";
+        if ("USER".equals(changed)) currentUserId = "another-user";
+        if ("EVENT".equals(changed)) request.setEventId(2L);
+        if ("SEATS".equals(changed)) request.getSeats().getFirst().setId(2L);
+        SeatInfo requestedSeat = request.getSeats().getFirst();
+        Seat databaseSeat = Seat.builder().seatId(requestedSeat.getId())
+                .event(Event.builder().eventId(request.getEventId()).build())
+                .zone(requestedSeat.getZone()).seatRow(requestedSeat.getRow()).seatCol(requestedSeat.getCol()).build();
+        given(seatJpaRepository.findAllById(Set.of(requestedSeat.getId()))).willReturn(List.of(databaseSeat));
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+        String authenticatedUser = currentUserId;
+
+        assertThatThrownBy(() -> checkoutService.prepare(authenticatedUser, "queue-token", request))
+                .isInstanceOf("USER".equals(changed) ? AccessDeniedException.class : IllegalArgumentException.class);
+
+        then(eventBookingGuard).shouldHaveNoInteractions();
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXPIRED", "CONFIRMED"})
+    @DisplayName("prepare 재시도는 만료되거나 이미 확정된 준비 건을 재사용하지 않는다")
+    void prepare_replay_rejects_an_expired_or_confirmed_attempt(String state) {
+        givenValidSeats();
+        CheckoutAttempt attempt = preparedAttempt();
+        if ("EXPIRED".equals(state)) {
+            ReflectionTestUtils.setField(attempt, "expiresAt", LocalDateTime.now().minusSeconds(1));
+        } else {
+            ReflectionTestUtils.setField(attempt, "status", CheckoutAttemptStatus.CONFIRMED);
+        }
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(IllegalStateException.class);
+
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("prepare 재시도도 활성 토큰 만료를 검증한다")
+    void prepare_replay_does_not_bypass_active_token_validation() {
+        givenValidSeats();
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1"))
+                .willReturn(Optional.of(preparedAttempt()));
+        Mockito.doThrow(new ActiveTokenExpiredException())
+                .when(queueAccessService).validate(1L, "user01", "expired");
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", checkoutRequest()))
+                .isInstanceOf(ActiveTokenExpiredException.class);
+
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("prepare 재시도도 Redis 좌석 선점 소유권을 다시 검증한다")
+    void prepare_replay_rejects_a_lost_seat_hold() {
+        givenValidSeats();
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willThrow(new SeatOccupationFailedException("좌석 선점이 만료되었습니다."));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(SeatOccupationFailedException.class);
+
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+        then(idempotencyKeyGenerator).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("insertIfAbsent 이후에도 좌석 선점 소유권을 다시 검증한다")
+    void prepare_rechecks_the_seat_hold_after_acquiring_the_attempt_lock() {
+        givenValidSeats();
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willReturn(LocalDateTime.now().plusMinutes(10))
+                .willThrow(new SeatOccupationFailedException("대기 중 좌석 선점이 만료되었습니다."));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(SeatOccupationFailedException.class);
+
+        org.mockito.InOrder order = Mockito.inOrder(checkoutAttemptJpaRepository, seatCacheService);
+        order.verify(seatCacheService).validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats());
+        order.verify(checkoutAttemptJpaRepository).insertIfAbsent(ArgumentMatchers.any());
+        order.verify(checkoutAttemptJpaRepository).findByOrderIdForUpdate("order-1");
+        order.verify(seatCacheService).validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats());
+    }
+
+    @Test
+    @DisplayName("order_id 중복 이외의 무결성 오류는 그대로 반환한다")
+    void prepare_preserves_an_unrelated_integrity_failure() {
+        givenValidSeats();
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("another constraint");
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willThrow(failure);
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isSameAs(failure);
+
+        then(checkoutAttemptJpaRepository).should(never()).findByOrderIdForUpdate(ArgumentMatchers.anyString());
     }
 
     @Test
@@ -404,8 +554,9 @@ class CheckoutServiceTest {
     }
 
     @Test
-    @DisplayName("checkout 준비 검증에 실패하면 준비 정보를 저장하지 않는다")
+    @DisplayName("checkout 준비 도중 대기열 검증에 실패하면 예외를 반환한다")
     void prepare_does_not_save_attempt_when_validation_fails() {
+        givenValidSeats();
         CheckoutPrepareRequest request = checkoutRequest();
         Mockito.doThrow(new ActiveTokenExpiredException())
                 .when(queueAccessService).validate(1L, "user01", "expired");
@@ -413,8 +564,7 @@ class CheckoutServiceTest {
         assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", request))
                 .isInstanceOf(ActiveTokenExpiredException.class);
 
-        then(seatCacheService).shouldHaveNoInteractions();
-        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
     }
 
     @Test

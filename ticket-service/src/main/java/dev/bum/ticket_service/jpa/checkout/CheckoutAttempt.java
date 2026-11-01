@@ -19,10 +19,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -81,7 +81,6 @@ public class CheckoutAttempt {
     @Column(name = "expires_at", nullable = false, updatable = false)
     private LocalDateTime expiresAt;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -111,6 +110,8 @@ public class CheckoutAttempt {
                 .paymentNo(paymentNo)
                 .status(CheckoutAttemptStatus.PREPARED)
                 .expiresAt(expiresAt)
+                // 최초 응답과 DB 재조회 응답이 같은 준비 시각을 사용하도록 DB 정밀도에 맞춘다.
+                .createdAt(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS))
                 .build();
     }
 
