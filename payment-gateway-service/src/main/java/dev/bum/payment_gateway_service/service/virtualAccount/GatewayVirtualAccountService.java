@@ -115,11 +115,9 @@ public class GatewayVirtualAccountService {
                     )
             );
             log.info(
-                    "무통장 환불 성공: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}",
+                    "무통장 환불 성공: paymentNo={}, processId={}, refundAmount={}",
                     request.getPaymentNo(),
-                    request.getRefundBankCompany(),
-                    request.getRefundAccountNumber(),
-                    request.getRefundAccountHolder(),
+                    request.getPaymentRefundProcessId(),
                     request.getRefundAmount()
             );
 
@@ -137,13 +135,11 @@ public class GatewayVirtualAccountService {
         } catch (RuntimeException e) {
             refund.failed(e.getMessage());
             log.warn(
-                    "무통장 환불 실패: paymentNo={}, refundBank={}, refundAccount={}, refundAccountHolder={}, refundAmount={}, reason={}",
+                    "무통장 환불 실패: paymentNo={}, processId={}, refundAmount={}, errorType={}",
                     request.getPaymentNo(),
-                    request.getRefundBankCompany(),
-                    request.getRefundAccountNumber(),
-                    request.getRefundAccountHolder(),
+                    request.getPaymentRefundProcessId(),
                     request.getRefundAmount(),
-                    e.getMessage()
+                    e.getClass().getSimpleName()
             );
             throw e;
         }
