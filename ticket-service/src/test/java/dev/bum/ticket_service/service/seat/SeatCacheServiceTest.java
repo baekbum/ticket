@@ -15,6 +15,7 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -83,7 +84,8 @@ class SeatCacheServiceTest {
                 eventRepository,
                 seatRedisTemplate,
                 seatCacheSyncOutboxService,
-                seatCacheMissOccupationService
+                seatCacheMissOccupationService,
+                org.mockito.Mockito.mock(dev.bum.ticket_service.service.event.event.EventBookingGuard.class)
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -224,6 +226,29 @@ class SeatCacheServiceTest {
                 .isInstanceOf(TicketLimitExceededException.class);
         then(ticketRepository).shouldHaveNoInteractions();
         then(valueOperations).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("공연 읽기 트랜잭션의 커밋 실패는 해당 요청이 만든 Redis 선점을 정리한다")
+    void occupy_seat_releases_owned_hold_when_transaction_rolls_back_after_return() {
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            given(eventRepository.selectById(EVENT_ID)).willReturn(event());
+            given(seatRedisTemplate.execute(eq(SeatOccupationScripts.OCCUPY),
+                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")), anyString(), eq("600000"), eq("0")))
+                    .willReturn(1L);
+            SeatOccupyRequest request = SeatOccupyRequest.builder().eventId(EVENT_ID).userId(USER_ID)
+                    .seats(List.of(SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build())).build();
+            SeatOccupyResponse response = seatCacheService.occupySeat(request);
+            org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(callback -> callback.afterCompletion(
+                            org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK));
+            then(seatRedisTemplate).should().execute(eq(SeatOccupationScripts.ROLLBACK),
+                    eq(List.of(FIRST_SEAT_KEY, FIRST_SEAT_KEY + ":lock")),
+                    eq("LOCKED:" + USER_ID + ":" + response.getOrderId()), eq("604800000"));
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
     }
     @Test
     @DisplayName("좌석 선점 중 Redis 장애는 복구 단서 로깅 후 선점 실패로 변환한다")

@@ -22,6 +22,8 @@ import dev.bum.common.service.ticket.event.event.dto.InsertEventRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -43,35 +45,16 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class EventRepositoryImpl implements EventRepository {
 
-    @Override
-    public Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable) {
-        event = QEvent.event;
-        BooleanExpression title = event.title.containsIgnoreCase(keyword);
-        BooleanExpression artist = event.artistName.containsIgnoreCase(keyword);
-        BooleanExpression venue = event.venue.containsIgnoreCase(keyword);
-        BooleanExpression condition = switch (field) {
-            case TITLE -> title;
-            case ARTIST -> artist;
-            case VENUE -> venue;
-            case ALL -> title.or(artist).or(venue);
-        };
-        DateTimeExpression<LocalDateTime> start = event.eventDateTime.min();
-        DateTimeExpression<LocalDateTime> end = event.eventDateTime.max();
-        List<Tuple> groups = queryFactory.select(event.eventGroupCode, start, end)
-                .from(event).where(condition).groupBy(event.eventGroupCode)
-                .orderBy(start.desc(), event.eventGroupCode.asc())
-                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
-        Long total = queryFactory.select(event.eventGroupCode.countDistinct())
-                .from(event).where(condition).fetchOne();
-        return new PageImpl<>(toEventCardResponses(groups, start, end, null), pageable, total == null ? 0 : total);
-    }
-
     private final JPAQueryFactory queryFactory;
     private final EventJpaRepository jpaRepository;
+    private final EntityManager entityManager;
     private QEvent event;
 
     @Override
     public Event insert(InsertEventRequest info) {
+        if (info.getQueueAdmissionSize() != null && info.getQueueAdmissionSize() <= 0) {
+            throw new IllegalArgumentException("활성 인원 상한은 양수여야 합니다.");
+        }
         EventCondRequest cond = EventCondRequest.builder()
                 .artistName(info.getArtistName())
                 .title(info.getTitle())
@@ -95,6 +78,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .eventDateTime(info.getEventDateTime())
                 .saleStartAt(info.getSaleStartAt())
                 .saleEndAt(info.getSaleEndAt())
+                .queueAdmissionSize(info.getQueueAdmissionSize() == null ? 100 : info.getQueueAdmissionSize())
                 .cancelDeadlineAt(info.getCancelDeadlineAt())
                 .runningMinutes(info.getRunningMinutes())
                 .ageLimit(info.getAgeLimit())
@@ -108,6 +92,29 @@ public class EventRepositoryImpl implements EventRepository {
                 .theme(info.getTheme() != null ? info.getTheme() : EventTheme.IDOL)
                 .build();
         return jpaRepository.save(event);
+    }
+
+    @Override
+    public Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable) {
+        event = QEvent.event;
+        BooleanExpression title = event.title.containsIgnoreCase(keyword);
+        BooleanExpression artist = event.artistName.containsIgnoreCase(keyword);
+        BooleanExpression venue = event.venue.containsIgnoreCase(keyword);
+        BooleanExpression condition = switch (field) {
+            case TITLE -> title;
+            case ARTIST -> artist;
+            case VENUE -> venue;
+            case ALL -> title.or(artist).or(venue);
+        };
+        DateTimeExpression<LocalDateTime> start = event.eventDateTime.min();
+        DateTimeExpression<LocalDateTime> end = event.eventDateTime.max();
+        List<Tuple> groups = queryFactory.select(event.eventGroupCode, start, end)
+                .from(event).where(condition).groupBy(event.eventGroupCode)
+                .orderBy(start.desc(), event.eventGroupCode.asc())
+                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
+        Long total = queryFactory.select(event.eventGroupCode.countDistinct())
+                .from(event).where(condition).fetchOne();
+        return new PageImpl<>(toEventCardResponses(groups, start, end, null), pageable, total == null ? 0 : total);
     }
 
     @Override
@@ -135,6 +142,14 @@ public class EventRepositoryImpl implements EventRepository {
     public Event selectById(Long id) {
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
+    }
+
+    @Override
+    public Event selectByIdForUpdate(Long id) {
+        Event event = jpaRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
+        entityManager.refresh(event, LockModeType.PESSIMISTIC_WRITE);
+        return event;
     }
 
     @Override
@@ -331,6 +346,60 @@ public class EventRepositoryImpl implements EventRepository {
         return toEventCardResponses(groups, startDateTime, endDateTime, event.eventDateTime.goe(now));
     }
 
+    @Override
+    public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
+        event = QEvent.event;
+
+        // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
+        List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
+
+        pageable.getSort().forEach(order -> {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+            String property = order.getProperty();
+            PathBuilder<Event> entityPath = new PathBuilder<>(Event.class, "event");
+            orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(property)));
+        });
+
+        List<Event> content = queryFactory
+                .select(event)
+                .from(event)
+                .where(
+                        searchConditions(cond)
+                )
+                .offset(pageable.getOffset()) // 오프셋 적용
+                .limit(pageable.getPageSize()) // 페이지 크기 적용
+                .orderBy(orderSpecifiers.toArray(new OrderSpecifier[0])) // 정렬 정보 적용
+                .fetch();
+
+        Long total = queryFactory
+                .select(event.count())
+                .from(event)
+                .where(
+                        searchConditions(cond)
+                )
+                .fetchOne();
+
+        long totalCount = (total != null) ? total : 0L;
+
+        return new PageImpl<>(content, pageable, totalCount);
+    }
+
+    @Override
+    public Event update(Long id, UpdateEventRequest info) {
+        Event event = selectByIdForUpdate(id);
+        event.update(info);
+
+        return event;
+    }
+
+    @Override
+    public Event delete(Long id) {
+        Event event = selectByIdForUpdate(id);
+        jpaRepository.delete(event);
+
+        return event;
+    }
+
     private List<EventCardResponse> toEventCardResponses(
             List<Tuple> groups,
             DateTimeExpression<LocalDateTime> startDateTime,
@@ -381,60 +450,6 @@ public class EventRepositoryImpl implements EventRepository {
                 })
                 .filter(Objects::nonNull)
                 .toList();
-    }
-
-    @Override
-    public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
-        event = QEvent.event;
-
-        // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
-        List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
-
-        pageable.getSort().forEach(order -> {
-            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
-            String property = order.getProperty();
-            PathBuilder<Event> entityPath = new PathBuilder<>(Event.class, "event");
-            orderSpecifiers.add(new OrderSpecifier(direction, entityPath.get(property)));
-        });
-
-        List<Event> content = queryFactory
-                .select(event)
-                .from(event)
-                .where(
-                        searchConditions(cond)
-                )
-                .offset(pageable.getOffset()) // 오프셋 적용
-                .limit(pageable.getPageSize()) // 페이지 크기 적용
-                .orderBy(orderSpecifiers.toArray(new OrderSpecifier[0])) // 정렬 정보 적용
-                .fetch();
-
-        Long total = queryFactory
-                .select(event.count())
-                .from(event)
-                .where(
-                        searchConditions(cond)
-                )
-                .fetchOne();
-
-        long totalCount = (total != null) ? total : 0L;
-
-        return new PageImpl<>(content, pageable, totalCount);
-    }
-
-    @Override
-    public Event update(Long id, UpdateEventRequest info) {
-        Event event = selectById(id);
-        event.update(info);
-
-        return event;
-    }
-
-    @Override
-    public Event delete(Long id) {
-        Event event = selectById(id);
-        jpaRepository.delete(event);
-
-        return event;
     }
 
     // QueryDsl 동적 쿼리 관련 메서드

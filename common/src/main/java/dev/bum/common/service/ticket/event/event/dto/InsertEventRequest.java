@@ -43,6 +43,9 @@ public class InsertEventRequest {
     @NotNull
     private LocalDateTime saleEndAt;
 
+    @jakarta.validation.constraints.Positive
+    private Integer queueAdmissionSize;
+
     @NotNull
     private LocalDateTime cancelDeadlineAt;
 

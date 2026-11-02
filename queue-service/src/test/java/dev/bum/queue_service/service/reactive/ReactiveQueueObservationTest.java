@@ -2,6 +2,7 @@ package dev.bum.queue_service.service.reactive;
 
 import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.*;
 class ReactiveQueueObservationTest {
     @Test
     void observation_covers_subscription_until_error_and_closes_on_cancellation() {
-        var registry = ObservationRegistry.create();
+        ObservationRegistry registry = ObservationRegistry.create();
         AtomicInteger started = new AtomicInteger();
         AtomicInteger stopped = new AtomicInteger();
         AtomicReference<Throwable> error = new AtomicReference<>();
@@ -30,15 +31,15 @@ class ReactiveQueueObservationTest {
             public void onStop(Observation.Context context) { stopped.incrementAndGet(); }
             public void onError(Observation.Context context) { error.set(context.getError()); }
         });
-        var waiting = mock(ReactiveWaitingQueueService.class);
-        var active = mock(ReactiveActiveQueueService.class);
+        ReactiveWaitingQueueService waiting = mock(ReactiveWaitingQueueService.class);
+        ReactiveActiveQueueService active = mock(ReactiveActiveQueueService.class);
         when(waiting.pruneExpiredWaitingTokens(1L))
                 .thenReturn(Mono.delay(Duration.ofMillis(30)).then());
         when(active.pruneExpiredActiveTokens(1L)).thenReturn(Mono.empty());
         when(active.admit(1L, "user", "missing")).thenReturn(Mono.error(new QueueTokenInvalidException("유효하지 않은 토큰")));
-        var queue = new ReactiveQueueService(mock(ReactiveStringRedisTemplate.class), registry,
-                new QueueProperties(), waiting, active, mock(ReactiveUserQueueSessionService.class));
-        var operation = queue.status(1L, "user", "missing");
+        ReactiveQueueService queue = new ReactiveQueueService(mock(ReactiveStringRedisTemplate.class), registry,
+                new QueueProperties(), waiting, active, mock(ReactiveUserQueueSessionService.class), mock(EventQueuePolicyStore.class));
+        Mono<QueueStatusResponse> operation = queue.status(1L, "user", "missing");
         assertThat(started.get()).isZero();
         StepVerifier.create(operation)
                 .then(() -> {

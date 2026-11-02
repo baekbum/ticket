@@ -75,6 +75,11 @@ topic:
       name: audit-log
 
 app:
+  virtual-account:
+    cancel-outbox:
+      fixed-delay-ms: 30000
+      retry-delay-ms: 30000
+      batch-size: 100
   seat-cache:
     sync-outbox:
       fixed-delay-ms: 30000

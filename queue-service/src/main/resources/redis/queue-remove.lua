@@ -33,6 +33,7 @@ end
 removed = removed + redis.call('DEL', KEYS[3])
 if removeUserSession then
     removed = removed + redis.call('ZREM', KEYS[4], sessionMember)
+    updateUserSessionsExpiry(KEYS[4])
 end
 removed = removed + redis.call('ZREM', KEYS[1], token)
 removed = removed + redis.call('ZREM', KEYS[2], token)

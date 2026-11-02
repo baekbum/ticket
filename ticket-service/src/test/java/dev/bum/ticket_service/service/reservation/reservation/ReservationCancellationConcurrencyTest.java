@@ -95,7 +95,8 @@ import static org.mockito.Mockito.verify;
 @ActiveProfiles("test")
 @Import({ReservationRepositoryImpl.class, ReservationService.class, ReservationManagementService.class, ReservationCancellationService.class,
         PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class, CardPaymentRefundService.class,
-        UserCouponRepositoryImpl.class})
+        UserCouponRepositoryImpl.class,
+        dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReservationCancellationConcurrencyTest {

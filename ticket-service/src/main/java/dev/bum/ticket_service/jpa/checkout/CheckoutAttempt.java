@@ -2,6 +2,8 @@ package dev.bum.ticket_service.jpa.checkout;
 
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -17,10 +19,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -53,6 +57,16 @@ public class CheckoutAttempt {
     @Column(name = "event_id", nullable = false, updatable = false)
     private Long eventId;
 
+    @ElementCollection
+    @CollectionTable(
+            name = "checkout_attempt_seats",
+            joinColumns = @JoinColumn(name = "idempotency_key"),
+            uniqueConstraints = @UniqueConstraint(
+                    name = "uk_checkout_attempt_seats", columnNames = {"idempotency_key", "seat_id"}))
+    @Column(name = "seat_id", nullable = false)
+    @Builder.Default
+    private Set<Long> seatIds = new HashSet<>();
+
     @Column(name = "payment_no", length = 60, nullable = false, updatable = false)
     private String paymentNo;
 
@@ -67,7 +81,6 @@ public class CheckoutAttempt {
     @Column(name = "expires_at", nullable = false, updatable = false)
     private LocalDateTime expiresAt;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -80,18 +93,30 @@ public class CheckoutAttempt {
             String userId,
             String orderId,
             Long eventId,
+            Set<Long> seatIds,
             String paymentNo,
             LocalDateTime expiresAt
     ) {
+        if (seatIds == null || seatIds.isEmpty()
+                || seatIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("결제 준비에 유효한 좌석 ID 목록이 필요합니다.");
+        }
         return CheckoutAttempt.builder()
                 .idempotencyKey(idempotencyKey)
                 .userId(userId)
                 .orderId(orderId)
                 .eventId(eventId)
+                .seatIds(new HashSet<>(seatIds))
                 .paymentNo(paymentNo)
                 .status(CheckoutAttemptStatus.PREPARED)
                 .expiresAt(expiresAt)
+                // 최초 응답과 DB 재조회 응답이 같은 준비 시각을 사용하도록 DB 정밀도에 맞춘다.
+                .createdAt(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS))
                 .build();
+    }
+
+    public Set<Long> getSeatIds() {
+        return Set.copyOf(seatIds);
     }
 
     public void confirm(Payment payment) {

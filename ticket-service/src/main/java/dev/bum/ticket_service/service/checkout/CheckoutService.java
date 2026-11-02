@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.dto.InsertReservationRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationDeliveryStatus;
+import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.audit.AuditLog;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
@@ -22,9 +23,13 @@ import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDel
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.jpa.event.event.Event;
+import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,8 +41,16 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -46,6 +59,8 @@ public class CheckoutService {
 
     private static final DateTimeFormatter PAYMENT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private final SeatCacheService seatCacheService;
+    private final EventBookingGuard eventBookingGuard;
+    private final SeatJpaRepository seatJpaRepository;
     private final QueueAccessService queueAccessService;
     private final ReservationRepository reservationRepository;
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
@@ -67,35 +82,77 @@ public class CheckoutService {
     public CheckoutPrepareResponse prepare(
             String currentUserId, String activeToken, CheckoutPrepareRequest request) {
 
-        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        if (!StringUtils.hasText(request.getOrderId())) {
+            throw new IllegalArgumentException("주문 번호가 필요합니다.");
+        }
 
+        Set<Long> requestedSeatIds = seatIds(request.getSeats());
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats()).stream()
+                .sorted(Comparator.comparingLong(SeatInfo::getId))
+                .toList();
+
+        // INSERT에 필요한 만료 시각을 확인하고, 잠금을 얻은 뒤 선점 소유권을 다시 검증한다.
         LocalDateTime expiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
-                request.getSeats()
+                seats
         );
+        if (expiresAt != null) expiresAt = expiresAt.truncatedTo(ChronoUnit.MICROS);
 
-        LocalDateTime preparedAt = LocalDateTime.now();
-        CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
+        CheckoutAttempt candidate = CheckoutAttempt.prepare(
                 idempotencyKeyGenerator.generate(),
                 currentUserId,
                 request.getOrderId(),
                 request.getEventId(),
+                requestedSeatIds,
                 generatePaymentNo(),
                 expiresAt
         );
-        checkoutAttemptJpaRepository.save(checkoutAttempt);
+
+        checkoutAttemptJpaRepository.insertIfAbsent(candidate);
+
+        CheckoutAttempt checkoutAttempt = checkoutAttemptJpaRepository.findByOrderIdForUpdate(request.getOrderId())
+                .orElseThrow(() -> new IllegalStateException("checkout 준비 정보를 찾을 수 없습니다."));
+
+        validatePrepareMatchesAttempt(currentUserId, request, requestedSeatIds, checkoutAttempt);
+        validatePreparedAttempt(checkoutAttempt);
+        Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
+        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        seatCacheService.validateOccupiedSeat(request.getEventId(), currentUserId, request.getOrderId(), seats);
+        validatePreparedAttempt(checkoutAttempt);
+        eventBookingGuard.validate(event, true);
 
         return CheckoutPrepareResponse.builder()
-                .eventId(request.getEventId())
-                .orderId(request.getOrderId())
-                .seats(request.getSeats())
+                .eventId(checkoutAttempt.getEventId())
+                .orderId(checkoutAttempt.getOrderId())
+                .seats(seats)
                 .idempotencyKey(checkoutAttempt.getIdempotencyKey())
                 .prepared(true)
-                .preparedAt(preparedAt)
-                .expiresAt(expiresAt)
+                .preparedAt(checkoutAttempt.getCreatedAt())
+                .expiresAt(checkoutAttempt.getExpiresAt())
                 .build();
+    }
+
+    private void validatePrepareMatchesAttempt(
+            String currentUserId, CheckoutPrepareRequest request, Set<Long> requestedSeatIds, CheckoutAttempt attempt) {
+        if (!currentUserId.equals(attempt.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 checkout 준비 정보입니다.");
+        }
+        if (!attempt.getOrderId().equals(request.getOrderId())
+                || !attempt.getEventId().equals(request.getEventId())
+                || !attempt.getSeatIds().equals(requestedSeatIds)) {
+            throw new IllegalArgumentException("기존 checkout 준비 정보와 요청이 일치하지 않습니다.");
+        }
+    }
+
+    private void validatePreparedAttempt(CheckoutAttempt attempt) {
+        if (!attempt.isPrepared()) {
+            throw new IllegalStateException("결제를 진행할 수 없는 checkout 준비 상태입니다.");
+        }
+        if (attempt.isExpired(LocalDateTime.now())) {
+            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
+        }
     }
 
     /**
@@ -113,6 +170,9 @@ public class CheckoutService {
 
         validateRequestMatchesAttempt(currentUserId, request, checkoutAttempt);
 
+        // 선점·대기열 통과 이력이나 기존 멱등 결과가 판매 종료 검증을 우회하지 못한다.
+        Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
+
         if (checkoutAttempt.isConfirmed()) {
             return handleConfirmedPayment(currentUserId, activeToken, request, checkoutAttempt);
         }
@@ -127,14 +187,16 @@ public class CheckoutService {
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
 
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         LocalDateTime seatExpiresAt = seatCacheService.validateOccupiedSeat(
                 request.getEventId(),
                 currentUserId,
                 request.getOrderId(),
-                request.getSeats()
+                seats
         );
 
-        Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request));
+        eventBookingGuard.validate(event, true);
+        Reservation reservation = reservationRepository.insert(toReservationRequest(currentUserId, request, seats));
 
         if (request.getDelivery() != null) {
             ReservationDelivery delivery = ReservationDelivery.builder()
@@ -195,6 +257,14 @@ public class CheckoutService {
                 || !checkoutAttempt.getEventId().equals(request.getEventId())) {
             throw new IllegalArgumentException("prepare 요청과 결제 확정 정보가 일치하지 않습니다.");
         }
+
+        // 재요청과 결제수단 전환도 최초 prepare에서 검증한 좌석을 유지해야 한다.
+        if (checkoutAttempt.getSeatIds().isEmpty()) {
+            throw new IllegalArgumentException("좌석 준비 정보가 없습니다. 좌석 선택부터 다시 진행해주세요.");
+        }
+        if (!checkoutAttempt.getSeatIds().equals(seatIds(request.getSeats()))) {
+            throw new IllegalArgumentException("prepare 요청과 결제 확정 좌석이 일치하지 않습니다.");
+        }
     }
 
     private PaymentResponse handleConfirmedPayment(
@@ -247,8 +317,10 @@ public class CheckoutService {
         }
 
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        eventBookingGuard.requireBookable(request.getEventId(), true);
+        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
         seatCacheService.validateOccupiedSeat(
-                request.getEventId(), currentUserId, request.getOrderId(), request.getSeats());
+                request.getEventId(), currentUserId, request.getOrderId(), seats);
 
         if (!Boolean.FALSE.equals(
                 paymentGatewayCardClient.hasApprovalHistory(payment.getPaymentNo()))) {
@@ -261,15 +333,54 @@ public class CheckoutService {
     }
 
     private InsertReservationRequest toReservationRequest(
-            String currentUserId, CheckoutConfirmRequest request) {
+            String currentUserId, CheckoutConfirmRequest request, List<SeatInfo> seats) {
 
         return InsertReservationRequest.builder()
                 .orderId(request.getOrderId())
                 .userId(currentUserId)
                 .eventId(request.getEventId())
-                .seats(request.getSeats())
+                .seats(seats)
                 .userCouponId(request.getUserCouponId())
                 .build();
+    }
+
+    /** 요청의 ID와 좌표를 검증하고 Redis 검증과 예약 생성에는 DB의 좌표만 전달한다. */
+    private List<SeatInfo> validateSeatsFromDatabase(Long eventId, List<SeatInfo> requestedSeats) {
+        Set<Long> ids = seatIds(requestedSeats);
+        Map<Long, Seat> seats = seatJpaRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Seat::getSeatId, Function.identity()));
+
+        if (eventId == null || seats.size() != ids.size()) {
+            throw new IllegalArgumentException("요청한 좌석을 찾을 수 없습니다.");
+        }
+
+        return requestedSeats.stream().map(info -> {
+            Seat seat = seats.get(info.getId());
+
+            if (seat.getEvent() == null || !eventId.equals(seat.getEvent().getEventId())
+                    || !Objects.equals(seat.getZone(), info.getZone())
+                    || !Objects.equals(seat.getSeatRow(), info.getRow())
+                    || !Objects.equals(seat.getSeatCol(), info.getCol())) {
+                throw new IllegalArgumentException("좌석 ID와 공연 또는 좌표 정보가 일치하지 않습니다.");
+            }
+
+            return SeatInfo.builder()
+                    .id(seat.getSeatId()).zone(seat.getZone())
+                    .row(seat.getSeatRow()).col(seat.getSeatCol()).build();
+        }).toList();
+    }
+
+    private Set<Long> seatIds(List<SeatInfo> seats) {
+        if (seats == null || seats.isEmpty()) {
+            throw new IllegalArgumentException("좌석을 한 개 이상 선택해야 합니다.");
+        }
+        Set<Long> ids = new HashSet<>();
+        for (SeatInfo seat : seats) {
+            if (seat == null || seat.getId() <= 0 || !ids.add(seat.getId())) {
+                throw new IllegalArgumentException("좌석 ID가 올바르지 않거나 중복되었습니다.");
+            }
+        }
+        return ids;
     }
 
     private int calculateTotalTicketAmount(Reservation reservation) {

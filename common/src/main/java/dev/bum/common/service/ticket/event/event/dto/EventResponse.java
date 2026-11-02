@@ -27,6 +27,7 @@ public class EventResponse {
     private String eventDateTime;
     private String saleStartAt;
     private String saleEndAt;
+    private Integer queueAdmissionSize;
     private String cancelDeadlineAt;
     private Integer runningMinutes;
     private Integer ageLimit;

@@ -10,7 +10,9 @@ end
 if redis.call('GET', KEYS[3]) ~= ARGV[2] or not redis.call('ZSCORE', KEYS[1], ARGV[1]) then
     return 0
 end
-redis.call('SET', KEYS[3], ARGV[2], 'XX', 'PX', ARGV[3])
-redis.call('ZADD', KEYS[2], ARGV[4], ARGV[1])
-redis.call('ZADD', KEYS[4], ARGV[4], ARGV[5])
+local expiresAt = queueTimeMillis() + tonumber(ARGV[3])
+redis.call('SET', KEYS[3], ARGV[2], 'XX', 'PXAT', expiresAt)
+redis.call('ZADD', KEYS[2], expiresAt, ARGV[1])
+redis.call('ZADD', KEYS[4], expiresAt, ARGV[4])
+updateUserSessionsExpiry(KEYS[4])
 return 1

@@ -13,6 +13,7 @@ CREATE TABLE events (
     event_date_time TIMESTAMP NOT NULL,
     sale_start_at TIMESTAMP,
     sale_end_at TIMESTAMP,
+    queue_admission_size INTEGER NOT NULL DEFAULT 100 CHECK (queue_admission_size > 0),
     cancel_deadline_at TIMESTAMP,
     running_minutes INTEGER,
     age_limit INTEGER,
@@ -32,6 +33,23 @@ CREATE INDEX idx_event_artist_name ON events(artist_name);
 CREATE INDEX idx_event_status_date_time ON events(status, event_date_time);
 CREATE INDEX idx_event_group_code ON events(event_group_code);
 CREATE INDEX idx_event_category ON events(genre, region, theme);
+
+-- 정책 스냅샷과 Outbox를 함께 보존한다. 최신 행은 Redis 초기 적재·복구에 사용한다.
+CREATE TABLE event_policy_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    sale_start_at BIGINT NOT NULL,
+    sale_end_at BIGINT NOT NULL,
+    event_date_time BIGINT NOT NULL,
+    admission_size INTEGER NOT NULL CHECK (admission_size > 0),
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_event_policy_ready ON event_policy_outbox(published, next_attempt_at, outbox_id);
+CREATE INDEX idx_event_policy_event ON event_policy_outbox(event_id, outbox_id);
 
 -- ==========================================
 -- 2. Areas 테이블
@@ -332,6 +350,14 @@ CREATE TABLE checkout_attempts (
 
 CREATE INDEX idx_checkout_attempts_status_expires_at ON checkout_attempts(status, expires_at);
 
+-- prepare에서 검증한 좌석 ID 스냅샷. confirm은 이 목록을 변경할 수 없다.
+CREATE TABLE checkout_attempt_seats (
+    idempotency_key VARCHAR(100) NOT NULL REFERENCES checkout_attempts(idempotency_key) ON DELETE CASCADE,
+    seat_id BIGINT NOT NULL,
+    CONSTRAINT uk_checkout_attempt_seats PRIMARY KEY (idempotency_key, seat_id),
+    CONSTRAINT chk_checkout_attempt_seats_id CHECK (seat_id > 0)
+);
+
 
 -- ==========================================
 -- 12. Payment refund processes
@@ -456,3 +482,24 @@ CREATE TABLE IF NOT EXISTS seat_cache_sync_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_seat_cache_outbox_ready
     ON seat_cache_sync_outbox(status, next_attempt_at, outbox_id);
+
+-- 입금 전 예매 취소와 함께 저장하는 PG 계좌 취소 작업. 같은 paymentNo의 취소는 한 번만 생성한다.
+CREATE TABLE IF NOT EXISTS virtual_account_cancel_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL,
+    account_number VARCHAR(50) NOT NULL,
+    amount INTEGER NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error_type VARCHAR(100),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    delivered_at TIMESTAMP,
+    CONSTRAINT uk_va_cancel_outbox_payment_no UNIQUE (payment_no),
+    CONSTRAINT chk_va_cancel_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
+    CONSTRAINT chk_va_cancel_outbox_retry_count CHECK (retry_count >= 0),
+    CONSTRAINT chk_va_cancel_outbox_amount CHECK (amount >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_va_cancel_outbox_ready
+    ON virtual_account_cancel_outbox(status, next_attempt_at, outbox_id);

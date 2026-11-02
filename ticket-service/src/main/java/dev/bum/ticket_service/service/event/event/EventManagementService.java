@@ -7,6 +7,7 @@ import dev.bum.common.service.ticket.event.event.dto.InsertEventBulkRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventCommonRequest;
 import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.ticket_service.service.event.file.EventPosterService;
+import dev.bum.ticket_service.service.event.policy.EventPolicyOutboxService;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.common.service.ticket.event.event.dto.EventCondRequest;
@@ -34,6 +35,7 @@ public class EventManagementService {
 
     private final EventRepository repository;
     private final EventPosterService eventPosterService;
+    private final EventPolicyOutboxService eventPolicyOutboxService;
 
     /**
      * 공통 공연 정보와 다중 회차 정보를 받아 여러 이벤트를 하나의 트랜잭션으로 등록한다.
@@ -51,6 +53,7 @@ public class EventManagementService {
             Event event = repository.insert(request);
             String posterUrl = eventPosterService.saveForTransaction(posterImage, null);
             event.updatePosterUrl(posterUrl);
+            eventPolicyOutboxService.enqueue(event, false);
             responses.add(event.toResponse());
         }
 
@@ -99,9 +102,12 @@ public class EventManagementService {
     @AuditLog(action = "EVENT_UPDATE", targetType = "EVENT")
     public EventResponse update(Long id, UpdateEventRequest info) {
         log.info("[UPDATE] Id : {}, Info : {}", id, info);
-        Event beforeEvent = repository.selectById(id);
+        Event beforeEvent = repository.selectByIdForUpdate(id);
         AuditDataMapper.setChangedData(beforeEvent, info, "description", "venueAddress", "posterUrl");
-        return repository.update(id, info).toResponse();
+        Event event = repository.update(id, info);
+        eventPolicyOutboxService.enqueue(event, false);
+
+        return event.toResponse();
     }
 
     /**
@@ -111,7 +117,7 @@ public class EventManagementService {
     public EventResponse update(Long id, UpdateEventRequest info, MultipartFile posterImage) {
         log.info("[UPDATE WITH POSTER] Id : {}, Info : {}", id, info);
 
-        Event event = repository.selectById(id);
+        Event event = repository.selectByIdForUpdate(id);
         AuditDataMapper.setChangedData(event, info, "description", "venueAddress", "posterUrl");
         String previousPosterUrl = event.getPosterUrl();
         String newPosterUrl = eventPosterService.saveForTransaction(posterImage, previousPosterUrl);
@@ -121,6 +127,7 @@ public class EventManagementService {
         }
 
         event.update(info);
+        eventPolicyOutboxService.enqueue(event, false);
 
         return event.toResponse();
     }
@@ -133,6 +140,9 @@ public class EventManagementService {
     @AuditLog(action = "EVENT_DELETE", targetType = "EVENT")
     public EventResponse delete(Long id) {
         log.info("[DELETE] EventId : {}", id);
+
+        Event event = repository.selectByIdForUpdate(id);
+        eventPolicyOutboxService.enqueue(event, true);
 
         return repository.delete(id).toResponse();
     }
@@ -187,6 +197,7 @@ public class EventManagementService {
                 .eventDateTime(schedule.getEventDateTime())
                 .saleStartAt(schedule.getSaleStartAt())
                 .saleEndAt(schedule.getSaleEndAt())
+                .queueAdmissionSize(schedule.getQueueAdmissionSize())
                 .cancelDeadlineAt(schedule.getCancelDeadlineAt())
                 .runningMinutes(common.getRunningMinutes())
                 .ageLimit(common.getAgeLimit())

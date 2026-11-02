@@ -1,5 +1,8 @@
 package dev.bum.payment_gateway_service.service.virtualAccount;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
@@ -20,6 +23,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentH
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import dev.bum.payment_gateway_service.service.refund.GatewayRefundProcessService;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 
 
@@ -48,13 +53,24 @@ import static org.mockito.BDDMockito.then;
 @ExtendWith(MockitoExtension.class)
 class GatewayVirtualAccountServiceTest {
 
+    private final Logger refundLogger = (Logger) LoggerFactory.getLogger(GatewayVirtualAccountService.class);
+    private final ListAppender<ILoggingEvent> refundLogs = new ListAppender<>();
+
     @Mock
     private GatewayRefundProcessService refundProcesses;
 
     @BeforeEach
     void prepareRefundRecord() {
+        refundLogs.start();
+        refundLogger.addAppender(refundLogs);
         lenient().when(refundProcesses.prepare(any(GatewayVirtualAccountRefundRequest.class)))
                 .thenAnswer(invocation -> GatewayRefund.requested(invocation.getArgument(0, GatewayVirtualAccountRefundRequest.class)));
+    }
+
+    @AfterEach
+    void detachRefundLogs() {
+        refundLogger.detachAppender(refundLogs);
+        refundLogs.stop();
     }
 
     @Mock
@@ -255,6 +271,10 @@ class GatewayVirtualAccountServiceTest {
         assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
         assertRefundHistorySaved(virtualAccount, request);
         assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(refundLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage()).contains("무통장 환불 성공");
+            assertRefundLogIsSafe(event, request);
+        });
     }
 
     @Test
@@ -273,6 +293,28 @@ class GatewayVirtualAccountServiceTest {
         assertThat(response.getMessage()).isEqualTo("무통장 환불 입금이 완료되었습니다.");
         assertRefundHistorySaved(virtualAccount, request);
         assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(refundLogs.list).singleElement().satisfies(event -> assertRefundLogIsSafe(event, request));
+    }
+
+    @Test
+    @DisplayName("환불 실패 로그는 예외 메시지와 원인에 포함된 계좌번호·예금주를 출력하지 않는다")
+    void refund_failure_log_omits_sensitive_exception_details() {
+        DummyVirtualAccount virtualAccount = completedVirtualAccount();
+        GatewayVirtualAccountRefundRequest request = refundRequest(BigDecimal.valueOf(90000));
+        String sensitiveMessage = "환불 계좌 " + request.getRefundAccountNumber() + ", 예금주 " + request.getRefundAccountHolder();
+        IllegalStateException failure = new IllegalStateException(sensitiveMessage,
+                new IllegalArgumentException(sensitiveMessage));
+        given(dummyVirtualAccountJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo()))
+                .willReturn(Optional.of(virtualAccount));
+        given(dummyVirtualAccountPaymentHistoryJpaRepository.save(any(DummyVirtualAccountPaymentHistory.class)))
+                .willThrow(failure);
+
+        assertThatThrownBy(() -> gatewayVirtualAccountService.refund(request)).isSameAs(failure);
+
+        assertThat(refundLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage()).contains("무통장 환불 실패", "errorType=IllegalStateException");
+            assertRefundLogIsSafe(event, request);
+        });
     }
 
     @Test
@@ -387,6 +429,16 @@ class GatewayVirtualAccountServiceTest {
                 .amount(amount)
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
                 .build();
+    }
+
+    private void assertRefundLogIsSafe(ILoggingEvent event, GatewayVirtualAccountRefundRequest request) {
+        assertThat(event.getFormattedMessage()).contains(
+                        "paymentNo=" + request.getPaymentNo(),
+                        "processId=" + request.getPaymentRefundProcessId(),
+                        "refundAmount=" + request.getRefundAmount())
+                .doesNotContain(request.getRefundAccountNumber(), request.getRefundAccountHolder());
+        assertThat(event.getArgumentArray()).doesNotContain(request.getRefundAccountNumber(), request.getRefundAccountHolder());
+        assertThat(event.getThrowableProxy()).isNull();
     }
 
     private void assertRefundHistorySaved(DummyVirtualAccount virtualAccount, GatewayVirtualAccountRefundRequest request) {

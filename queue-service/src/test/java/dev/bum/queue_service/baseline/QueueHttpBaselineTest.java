@@ -64,6 +64,8 @@ class QueueHttpBaselineTest {
     @BeforeEach
     void fixture() {
         event = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event, 2);
+        dev.bum.queue_service.QueuePolicyFixture.seed(redis, event == Long.MAX_VALUE ? event - 1 : event + 1, 2);
         user = "baseline-" + UUID.randomUUID();
         bearer = credential(user);
     }
@@ -85,7 +87,7 @@ class QueueHttpBaselineTest {
     private String path(String action) { return "/events/" + event + "/" + action; }
 
     private String enter(String auth) {
-        var response = call(HttpMethod.POST, path("enter"), auth, Map.of(), null);
+        ResponseEntity<JsonNode> response = call(HttpMethod.POST, path("enter"), auth, Map.of(), null);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody().path("status").asText()).isEqualTo("WAITING");
         assertThat(response.getBody().path("token").asText()).isNotBlank();
@@ -101,14 +103,14 @@ class QueueHttpBaselineTest {
         String waiting = enter(bearer);
         assertThat(redis.opsForValue().get("queue:waiting-token:" + waiting)).isEqualTo(event + ":" + user);
         assertThat(redis.getExpire("queue:waiting-token:" + waiting)).isPositive();
-        var ready = status(bearer, waiting);
+        ResponseEntity<JsonNode> ready = status(bearer, waiting);
         assertThat(ready.getStatusCode().value()).isEqualTo(200);
         assertThat(ready.getBody().path("status").asText()).isEqualTo("READY");
         assertThat(ready.getBody().path("rank").asInt()).isZero();
         assertThat(ready.getBody().path("activeTokenExpiresAt").asText()).isNotBlank();
         String active = ready.getBody().path("token").asText();
         // 승격 응답이 유실되어도 동일한 대기 토큰으로 기존 활성 토큰을 복구한다.
-        var replay = status(bearer, waiting);
+        ResponseEntity<JsonNode> replay = status(bearer, waiting);
         assertThat(replay.getStatusCode().value()).isEqualTo(200);
         assertThat(replay.getBody().path("status").asText()).isEqualTo("READY");
         assertThat(replay.getBody().path("token").asText()).isEqualTo(active);
@@ -116,8 +118,8 @@ class QueueHttpBaselineTest {
                 .isEqualTo(ready.getBody().path("activeTokenExpiresAt"));
         assertThat(redis.hasKey("queue:waiting-token:" + waiting)).isFalse();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + active)).isNotNull();
-        var body = Map.of("eventId", event, "userId", user, "token", active);
-        var valid = call(HttpMethod.POST, "/validate", null, Map.of(), body);
+        Map<String, Object> body = Map.of("eventId", event, "userId", user, "token", active);
+        ResponseEntity<JsonNode> valid = call(HttpMethod.POST, "/validate", null, Map.of(), body);
         assertThat(valid.getStatusCode().value()).isEqualTo(200);
         assertThat(valid.getBody().path("allowed").asBoolean()).isTrue();
         assertThat(valid.getBody().path("reason").asText()).isEqualTo("OK");
@@ -148,10 +150,10 @@ class QueueHttpBaselineTest {
     void session_limit_requires_confirmation_and_force_replaces_oldest_session() {
         String first = enter(bearer);
         enter(bearer);
-        var limited = call(HttpMethod.POST, path("enter"), bearer, Map.of(), null);
+        ResponseEntity<JsonNode> limited = call(HttpMethod.POST, path("enter"), bearer, Map.of(), null);
         assertThat(limited.getStatusCode().value()).isEqualTo(200);
         assertThat(limited.getBody().path("status").asText()).isEqualTo("SESSION_LIMIT_CONFIRM_REQUIRED");
-        var forced = call(HttpMethod.POST, path("enter"), bearer, Map.of("X-Queue-Force-Enter", "true"), null);
+        ResponseEntity<JsonNode> forced = call(HttpMethod.POST, path("enter"), bearer, Map.of("X-Queue-Force-Enter", "true"), null);
         assertThat(forced.getBody().path("status").asText()).isEqualTo("WAITING");
         assertThat(redis.hasKey("queue:waiting-token:" + first)).isFalse();
         assertThat(redis.opsForZSet().zCard("queue:user-sessions:" + user)).isEqualTo(2L);
@@ -162,7 +164,7 @@ class QueueHttpBaselineTest {
         String waiting = enter(bearer);
         String other = credential("baseline-" + UUID.randomUUID());
         for (String token : List.of(waiting, "missing-token")) {
-            var response = status(other, token);
+            ResponseEntity<JsonNode> response = status(other, token);
             assertThat(response.getStatusCode().value()).isEqualTo(400);
             assertThat(response.getBody().path("code").asText()).isEqualTo("QUEUE_TOKEN_INVALID");
         }
@@ -172,7 +174,7 @@ class QueueHttpBaselineTest {
     @Test
     void invalid_request_body_returns_validation_error_without_authentication() {
         for (String endpoint : List.of("/validate", "/complete")) {
-            var response = call(HttpMethod.POST, endpoint, null, Map.of(), Map.of());
+            ResponseEntity<JsonNode> response = call(HttpMethod.POST, endpoint, null, Map.of(), Map.of());
             assertThat(response.getStatusCode().value()).isEqualTo(400);
             assertThat(response.getBody().path("code").asText()).isEqualTo("VALIDATION_FAILED");
             assertThat(response.getBody().path("details").has("eventId")).isTrue();
@@ -182,11 +184,11 @@ class QueueHttpBaselineTest {
     @Test
     void authentication_rejects_missing_revoked_refresh_and_malformed_tokens() {
         assertThat(call(HttpMethod.POST, path("enter"), null, Map.of(), null).getStatusCode().value()).isEqualTo(403);
-        var refresh = jwt.createToken(user, "ROLE_USER").getRefreshToken();
+        String refresh = jwt.createToken(user, "ROLE_USER").getRefreshToken();
         assertThat(call(HttpMethod.POST, path("enter"), refresh, Map.of(), null).getStatusCode().value()).isEqualTo(401);
         assertThat(call(HttpMethod.POST, path("enter"), "malformed", Map.of(), null).getStatusCode().value()).isEqualTo(403);
         tokenStates.publish(user, new TokenState(2L, false, "ROLE_USER"));
-        var revoked = call(HttpMethod.POST, path("enter"), bearer, Map.of(), null);
+        ResponseEntity<JsonNode> revoked = call(HttpMethod.POST, path("enter"), bearer, Map.of(), null);
         assertThat(revoked.getStatusCode().value()).isEqualTo(401);
         assertThat(revoked.getBody().path("error").asText()).isEqualTo("인증이 만료되었거나 취소되었습니다. 다시 로그인해주세요.");
     }
@@ -205,9 +207,9 @@ class QueueHttpBaselineTest {
 
     @Test
     void normal_user_cannot_call_management_api() {
-        var headers = new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(bearer);
-        var response = http.exchange("/api/v1/manage/queue/test/events/" + event + "/enter?userId=" + user,
+        ResponseEntity<String> response = http.exchange("/api/v1/manage/queue/test/events/" + event + "/enter?userId=" + user,
                 HttpMethod.POST, new HttpEntity<>(null, headers), String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
@@ -219,7 +221,7 @@ class QueueHttpBaselineTest {
                 .set(key, "queue-value", Duration.ofSeconds(30)))
                 .expectNext(true).verifyComplete();
         assertThat(redis.opsForValue().get(key)).isEqualTo("queue-value");
-        var script = new DefaultRedisScript<>(
+        DefaultRedisScript<String> script = new DefaultRedisScript<>(
                 "return redis.call('GET', KEYS[1])", String.class);
         StepVerifier.create(reactiveRedis.execute(script, List.of(key)))
                 .expectNext("queue-value").verifyComplete();
@@ -257,34 +259,34 @@ class QueueHttpBaselineTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         String base = "/api/v1/manage/queue";
         String testEvent = base + "/test/events/" + event;
-        var waiting = http.exchange(testEvent + "/enter?userId=" + user,
+        ResponseEntity<JsonNode> waiting = http.exchange(testEvent + "/enter?userId=" + user,
                 HttpMethod.POST, new HttpEntity<>(null, headers), JsonNode.class);
         assertThat(waiting.getStatusCode().value()).isEqualTo(200);
         String token = waiting.getBody().path("token").asText();
-        var inspection = http.exchange(base + "/redis/event/" + event,
+        ResponseEntity<JsonNode> inspection = http.exchange(base + "/redis/event/" + event,
                 HttpMethod.GET, new HttpEntity<>(null, headers), JsonNode.class);
         assertThat(inspection.getStatusCode().value()).isEqualTo(200);
         assertThat(inspection.getBody().path("entries").get(0).path("token").asText()).isEqualTo(token);
-        var bulk = http.exchange(testEvent + "/statuses", HttpMethod.POST,
+        ResponseEntity<JsonNode> bulk = http.exchange(testEvent + "/statuses", HttpMethod.POST,
                 new HttpEntity<>(Map.of("userIds", List.of(user), "tokenByUserId", Map.of(user, token)), headers),
                 JsonNode.class);
         assertThat(bulk.getStatusCode().value()).isEqualTo(200);
         String active = bulk.getBody().get(0).path("token").asText();
         assertThat(bulk.getBody().get(0).path("status").asText()).isEqualTo("READY");
-        var inspectedToken = http.exchange(base + "/redis/token/" + active, HttpMethod.GET,
+        ResponseEntity<JsonNode> inspectedToken = http.exchange(base + "/redis/token/" + active, HttpMethod.GET,
                 new HttpEntity<>(null, headers), JsonNode.class);
         assertThat(inspectedToken.getBody().path("entries").get(0).path("value").asText()).isEqualTo(event + ":" + user);
-        var removed = http.exchange(base + "/redis/event/" + event + "/token/" + active + "?mode=ACTIVE",
+        ResponseEntity<String> removed = http.exchange(base + "/redis/event/" + event + "/token/" + active + "?mode=ACTIVE",
                 HttpMethod.DELETE, new HttpEntity<>(null, headers), String.class);
         assertThat(removed.getStatusCode().value()).isEqualTo(204);
         assertThat(http.exchange(base + "/redis/event/" + event + "/token/" + active + "?mode=ACTIVE",
                 HttpMethod.DELETE, new HttpEntity<>(null, headers), String.class).getStatusCode().value()).isEqualTo(404);
         String another = http.exchange(testEvent + "/enter?userId=" + user, HttpMethod.POST,
                 new HttpEntity<>(null, headers), JsonNode.class).getBody().path("token").asText();
-        var ready = http.exchange(testEvent + "/status?userId=" + user + "&token=" + another, HttpMethod.GET,
+        ResponseEntity<JsonNode> ready = http.exchange(testEvent + "/status?userId=" + user + "&token=" + another, HttpMethod.GET,
                 new HttpEntity<>(null, headers), JsonNode.class);
         String nextActive = ready.getBody().path("token").asText();
-        var completed = http.exchange(testEvent + "/complete?userId=" + user + "&token=" + nextActive,
+        ResponseEntity<String> completed = http.exchange(testEvent + "/complete?userId=" + user + "&token=" + nextActive,
                 HttpMethod.POST, new HttpEntity<>(null, headers), String.class);
         assertThat(completed.getStatusCode().value()).isEqualTo(200);
         assertThat(completed.getBody()).isEqualTo("대기열 active 토큰을 완료 처리했습니다.");
@@ -293,7 +295,7 @@ class QueueHttpBaselineTest {
                 .path("code").asText()).isEqualTo("QUEUE_TOKEN_INVALID");
         http.exchange(testEvent + "/enter?userId=" + user, HttpMethod.POST,
                 new HttpEntity<>(null, headers), JsonNode.class);
-        var cleared = http.exchange(testEvent, HttpMethod.DELETE, new HttpEntity<>(null, headers), String.class);
+        ResponseEntity<String> cleared = http.exchange(testEvent, HttpMethod.DELETE, new HttpEntity<>(null, headers), String.class);
         assertThat(cleared.getStatusCode().value()).isEqualTo(200);
         assertThat(cleared.getBody()).contains("Redis key 1건");
         assertThat(redis.hasKey("queue:event:" + event + ":waiting")).isFalse();
@@ -302,14 +304,14 @@ class QueueHttpBaselineTest {
     @Test
     void valid_jwt_with_missing_authentication_state_is_revoked() {
         String unknown = jwt.createToken("baseline-unknown-" + UUID.randomUUID(), "ROLE_USER").getAccessToken();
-        var response = call(HttpMethod.POST, path("enter"), unknown, Map.of(), null);
+        ResponseEntity<JsonNode> response = call(HttpMethod.POST, path("enter"), unknown, Map.of(), null);
         assertThat(response.getStatusCode().value()).isEqualTo(401);
         assertThat(response.getBody().path("error").asText()).isEqualTo("인증이 만료되었거나 취소되었습니다. 다시 로그인해주세요.");
     }
     @Test
     void reactive_http_and_service_observations_are_exported_to_prometheus() {
         enter(bearer);
-        var response = http.getForEntity("/actuator/prometheus", String.class);
+        ResponseEntity<String> response = http.getForEntity("/actuator/prometheus", String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).contains("queue_enter_seconds_count", "http_server_requests_seconds_count");
     }
@@ -323,8 +325,8 @@ class QueueHttpBaselineTest {
             credentials.add(auth);
             waiting.add(enter(auth));
         }
-        var start = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(clients)) {
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(clients)) {
             List<Future<ResponseEntity<JsonNode>>> pending = new ArrayList<>();
             for (int i = 0; i < clients; i++) {
                 final int index = i;
@@ -335,8 +337,8 @@ class QueueHttpBaselineTest {
             }
             start.countDown();
             int ready = 0;
-            for (var future : pending) {
-                var response = future.get(15, TimeUnit.SECONDS);
+            for (Future<ResponseEntity<JsonNode>> future : pending) {
+                ResponseEntity<JsonNode> response = future.get(15, TimeUnit.SECONDS);
                 assertThat(response.getStatusCode().value()).isEqualTo(200);
                 String state = response.getBody().path("status").asText();
                 assertThat(state).isIn("READY", "WAITING");

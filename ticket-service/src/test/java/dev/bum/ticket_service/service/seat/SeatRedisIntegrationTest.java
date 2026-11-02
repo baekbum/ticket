@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureJpaRepository;
 import dev.bum.ticket_service.jpa.seat.cache.SeatCacheSyncFailureStatus;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
+import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 
 import io.lettuce.core.api.async.RedisAsyncCommands;
 
@@ -259,7 +260,8 @@ class SeatRedisIntegrationTest {
     }
     private SeatCacheService service(StringRedisTemplate template) {
         return new SeatCacheService(seats, events, template, mock(SeatCacheSyncOutboxService.class),
-                new SeatCacheMissOccupationService(currentSeats, template));
+                new SeatCacheMissOccupationService(currentSeats, template),
+                mock(dev.bum.ticket_service.service.event.event.EventBookingGuard.class));
     }
     private Seat seat(int col, SeatStatus status) {
         return Seat.builder().seatId((long) col).event(event).zone("VIP").seatRow(1).seatCol(col).status(status).build();
@@ -332,7 +334,7 @@ class SeatRedisIntegrationTest {
     void missing_cache_uses_database_available_seat() {
         String seatKey = key(1);
         given(currentSeats.findByIdForUpdate(1L)).willReturn(Optional.of(seat(1, SeatStatus.AVAILABLE)));
-        var response = service(redis).occupySeat(request(1));
+        SeatOccupyResponse response = service(redis).occupySeat(request(1));
         assertThat(redis.opsForValue().get(seatKey)).isEqualTo("LOCKED:user:" + response.getOrderId())
                 .isEqualTo(redis.opsForValue().get(seatKey + ":lock"));
         assertThat(redis.getExpire(seatKey, TimeUnit.SECONDS)).isBetween(590L, 600L);

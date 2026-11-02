@@ -452,7 +452,8 @@ public class PaymentRefundProcessService {
                 paymentRefundRollbackRecorder.record(record);
             } catch (RuntimeException e) {
                 // 기록까지 실패해도 B의 스냅샷과 PG 멱등 키로 다음 요청에서 결과를 조회해 복구할 수 있다.
-                log.error("환불 롤백 결과 기록 실패: processId={}", record.processId(), e);
+                log.error("환불 롤백 결과 기록 실패: processId={}, errorType={}",
+                        record.processId(), e.getClass().getSimpleName());
             }
         }
     }
