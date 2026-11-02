@@ -40,6 +40,15 @@ class VirtualAccountPaymentServiceTest {
     private PaymentJpaRepository paymentJpaRepository;
 
     @Mock
+    private VirtualAccountPaymentLockService paymentLocks;
+
+    @org.junit.jupiter.api.BeforeEach
+    void configureLocks() {
+        org.mockito.Mockito.lenient().when(paymentLocks.lock(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> paymentJpaRepository.findByPaymentNoForUpdate(invocation.getArgument(0)).orElseThrow());
+    }
+
+    @Mock
     private PaymentCompletionService paymentCompletionService;
 
     @Mock

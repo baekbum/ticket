@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class QueueRedisKeys {
 
+    public String policyKey(Long eventId) { return "queue:event:" + eventId + ":policy"; }
+
     public String waitingKey(Long eventId) {
         return "queue:event:" + eventId + ":waiting";
     }

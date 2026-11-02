@@ -1,5 +1,8 @@
 package dev.bum.ticket_service.service.payment.refund;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
@@ -46,7 +49,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Method;
 import java.time.Clock;
@@ -65,6 +71,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentRefundProcessServiceTest {
@@ -500,6 +507,49 @@ class PaymentRefundProcessServiceTest {
         then(paymentRefundHistoryJpaRepository).should().existsByPaymentRefundProcess(process);
         then(paymentRefundHistoryJpaRepository).shouldHaveNoMoreInteractions();
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
+    }
+
+    @Test
+    void rollback_recording_log_omits_sensitive_exception_messages_and_causes() {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = virtualAccountPayment(reservation);
+        Ticket ticket = ticket(1L, reservation, TicketStatus.CANCELLED);
+        PaymentRefundProcess process = refundProcess(
+                1L, payment, List.of(ticket), 100000, false, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED);
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
+        given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
+        given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
+        String accountNumber = "123-456-7890";
+        String accountHolder = "홍길동";
+        String sensitiveMessage = "계좌 " + accountNumber + ", 예금주 " + accountHolder;
+        doThrow(new IllegalStateException(sensitiveMessage, new IllegalArgumentException(sensitiveMessage)))
+                .when(rollbackRecorder).record(any(PaymentRefundRollbackRecord.class));
+        Logger logger = (Logger) LoggerFactory.getLogger(PaymentRefundProcessService.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThatThrownBy(() -> paymentRefundProcessService.completeLocal(1L))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+
+            then(rollbackRecorder).should().record(any(PaymentRefundRollbackRecord.class));
+            assertThat(logs.list).singleElement().satisfies(event -> {
+                assertThat(event.getFormattedMessage()).contains("processId=1", "errorType=IllegalStateException")
+                        .doesNotContain(accountNumber, accountHolder);
+                assertThat(event.getArgumentArray()).doesNotContain(accountNumber, accountHolder);
+                assertThat(event.getThrowableProxy()).isNull();
+            });
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            logger.detachAppender(logs);
+            logs.stop();
+        }
     }
 
     private PaymentRefundProcess refundProcess(

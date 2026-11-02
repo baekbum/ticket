@@ -46,6 +46,7 @@ class QueueNonBlockingTest {
     @Autowired JwtTokenProvider jwt;
     @Autowired TokenStateStore tokenStates;
     @Autowired ReactiveQueueService queue;
+    @Autowired dev.bum.queue_service.service.reactive.EventQueuePolicyStore policies;
 
     @Test
     void detector_rejects_blocking_on_a_reactor_thread() {
@@ -58,9 +59,10 @@ class QueueNonBlockingTest {
     void actual_http_authentication_registration_promotion_and_completion_are_non_blocking() {
         String user = "nonblocking-" + UUID.randomUUID();
         long event = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+        policies.apply(dev.bum.queue_service.QueuePolicyFixture.event(event, 2)).block(Duration.ofSeconds(5));
         tokenStates.publish(user, new TokenState(1L, true, "ROLE_USER"));
         String bearer = "Bearer " + jwt.createToken(user, "ROLE_USER").getAccessToken();
-        var client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port)
+        WebTestClient client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port)
                 .responseTimeout(Duration.ofSeconds(20)).defaultHeader("Authorization", bearer).build();
         Map<?, ?> entered = client.post().uri("/api/v1/queue/events/" + event + "/enter")
                 .exchange().expectStatus().isOk().expectBody(Map.class).returnResult().getResponseBody();

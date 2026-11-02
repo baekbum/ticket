@@ -3,6 +3,7 @@ package dev.bum.queue_service.service.reactive;
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
 import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
+import dev.bum.queue_service.exception.EventPolicyException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import dev.bum.queue_service.service.QueueRedisKeys;
 import dev.bum.queue_service.service.QueueRedisScripts;
@@ -57,7 +58,7 @@ public class ReactiveActiveQueueService {
                                     keys.userSessionsKey(userId), keys.waitingTokenKey(waitingToken), keys.waitingExpiryKey(eventId),
                                     keys.waitingActiveMappingKey(waitingToken), keys.activeWaitingMappingKey(activeToken),
                                     keys.activeTokenKey(existing.isEmpty() ? activeToken : existing),
-                                    keys.activeWaitingMappingKey(existing.isEmpty() ? activeToken : existing)),
+                                    keys.activeWaitingMappingKey(existing.isEmpty() ? activeToken : existing), keys.policyKey(eventId)),
                             List.of(waitingToken, activeToken, tokenValue(eventId, userId),
                                     String.valueOf(properties.getActiveTokenTtl().toMillis()),
                                     String.valueOf(properties.getAdmissionSize()),
@@ -71,6 +72,9 @@ public class ReactiveActiveQueueService {
                         }
                         if ("WAITING".equals(result)) return Mono.empty();
                         if ("INVALID".equals(result)) return Mono.error(invalidToken());
+                        if (List.of("POLICY_UNAVAILABLE", "SALE_NOT_STARTED", "SALE_ENDED", "EVENT_NOT_BOOKABLE").contains(result)) {
+                            return Mono.error(new EventPolicyException(result));
+                        }
                         // 첫 조회와 Lua 실행 사이에 승격한 요청이 있으면 정확한 키로 다시 검증한다.
                         if ("RETRY".equals(result) && attempt < 2) {
                             return admit(eventId, userId, waitingToken, attempt + 1);
@@ -148,9 +152,13 @@ public class ReactiveActiveQueueService {
                 .map(tuple -> Math.max(now, tuple.getScore().longValue()))
                 .sort()
                 .collectList()
-                .map(expirations -> {
+                .zipWith(redis.<String, String>opsForHash().get(keys.policyKey(eventId), "admissionSize")
+                        .switchIfEmpty(Mono.error(new EventPolicyException("POLICY_UNAVAILABLE"))))
+                .map(pair -> {
+                    List<Long> expirations = pair.getT1();
                     PriorityQueue<Long> slots = new PriorityQueue<>();
-                    int admissionSize = properties.getAdmissionSize();
+                    int admissionSize = Integer.parseInt(pair.getT2());
+                    if (admissionSize <= 0) throw new EventPolicyException("POLICY_UNAVAILABLE");
                     expirations.stream().skip(Math.max(0, expirations.size() - admissionSize)).forEach(slots::add);
                     for (int slot = expirations.size(); slot < admissionSize; slot++) slots.add(now);
                     return slots;

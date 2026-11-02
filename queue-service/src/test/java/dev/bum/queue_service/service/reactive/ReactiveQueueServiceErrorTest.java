@@ -1,6 +1,7 @@
 package dev.bum.queue_service.service.reactive;
 
 import dev.bum.queue_service.config.QueueProperties;
+import dev.bum.common.service.queue.dto.QueueStatusResponse;
 
 import io.micrometer.observation.ObservationRegistry;
 
@@ -18,15 +19,15 @@ import static org.mockito.Mockito.*;
 class ReactiveQueueServiceErrorTest {
     @Test
     void redis_failure_is_deferred_and_propagated_without_recovery_mutations() {
-        var redis = mock(ReactiveStringRedisTemplate.class);
-        var waiting = mock(ReactiveWaitingQueueService.class);
-        var active = mock(ReactiveActiveQueueService.class);
-        var sessions = mock(ReactiveUserQueueSessionService.class);
-        var failure = new DataAccessResourceFailureException("테스트 Redis 장애");
+        ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+        ReactiveWaitingQueueService waiting = mock(ReactiveWaitingQueueService.class);
+        ReactiveActiveQueueService active = mock(ReactiveActiveQueueService.class);
+        ReactiveUserQueueSessionService sessions = mock(ReactiveUserQueueSessionService.class);
+        DataAccessResourceFailureException failure = new DataAccessResourceFailureException("테스트 Redis 장애");
         when(waiting.pruneExpiredWaitingTokens(1L)).thenReturn(Mono.error(failure));
         when(active.pruneExpiredActiveTokens(1L)).thenReturn(Mono.empty());
-        var queue = new ReactiveQueueService(redis, ObservationRegistry.NOOP, new QueueProperties(), waiting, active, sessions);
-        var request = queue.status(1L, "user", "token");
+        ReactiveQueueService queue = new ReactiveQueueService(redis, ObservationRegistry.NOOP, new QueueProperties(), waiting, active, sessions, mock(EventQueuePolicyStore.class));
+        Mono<QueueStatusResponse> request = queue.status(1L, "user", "token");
         clearInvocations(waiting, active);
         verifyNoInteractions(waiting, active, sessions, redis);
         StepVerifier.create(request).expectErrorMatches(error -> error == failure).verify(Duration.ofSeconds(3));

@@ -47,6 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/virtual-account/internal/*/status").hasRole(ROLE_INTERNAL)
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/refund").hasRole(ROLE_INTERNAL) // 환불의 경우 ticket 서비스에서 요청
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/refunds/internal/resolve").hasRole(ROLE_INTERNAL)
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/virtual-account/cancel").hasRole(ROLE_INTERNAL)
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/*/payments/virtual-account/issue",

@@ -35,6 +35,9 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByPaymentNo(String paymentNo);
 
+    @Query("select p.reservation.reservationId from Payment p where p.paymentNo = :paymentNo")
+    Optional<Long> findReservationIdByPaymentNo(@Param("paymentNo") String paymentNo);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.paymentNo = :paymentNo")
     @Observed(name = "ticket.repository.payment.find-by-payment-no-for-update", contextualName = "ticket repository payment find by payment no for update")

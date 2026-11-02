@@ -33,6 +33,7 @@ public enum ErrorCode {
     // Event
     EVENT_NOT_FOUND("존재하지 않는 이벤트입니다."),
     EVENT_DUPLICATE("이미 존재하는 이벤트입니다."),
+    EVENT_NOT_BOOKABLE("현재 예매할 수 없는 공연입니다."),
 
     // Area
     AREA_NOT_FOUND("존재하지 않는 구역입니다."),

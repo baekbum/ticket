@@ -8,6 +8,7 @@ import dev.bum.payment_gateway_service.controller.virtualAccount.GatewayVirtualA
 import dev.bum.payment_gateway_service.service.card.GatewayCardPaymentService;
 import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionService;
 import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
+import dev.bum.payment_gateway_service.service.virtualAccount.VirtualAccountCancellationService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,45 @@ class SecurityConfigAuthorizationTest {
 
     @MockitoBean
     private GatewayVirtualAccountService gatewayVirtualAccountService;
+
+    @MockitoBean
+    private VirtualAccountCancellationService virtualAccountCancellationService;
+
+    @Test
+    void anonymous_cannot_cancel_virtual_account() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/virtual-account/cancel"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void invalid_internal_token_cannot_cancel_virtual_account() throws Exception {
+        org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("invalid"))
+                .when(internalServiceTokenValidator).validate("invalid-token");
+        mockMvc.perform(post("/api/v1/payments/virtual-account/cancel")
+                        .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "invalid-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "PAYMENT_PROVIDER")
+    void payment_provider_cannot_cancel_virtual_account() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/virtual-account/cancel"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void user_cannot_cancel_virtual_account_directly() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/virtual-account/cancel"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internal_service_can_reach_virtual_account_cancel() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/virtual-account/cancel")
+                        .header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
+                .andExpect(status().isBadRequest());
+    }
 
     @MockitoBean
     private GatewayRefundResolutionService gatewayRefundResolutionService;

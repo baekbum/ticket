@@ -28,12 +28,13 @@ public class ReactiveQueueService {
     private final ReactiveWaitingQueueService waiting;
     private final ReactiveActiveQueueService active;
     private final ReactiveUserQueueSessionService sessions;
+    private final EventQueuePolicyStore policies;
 
     public Mono<QueueEnterResponse> enter(Long eventId, String userId, boolean force) {
         return logged("enter", eventId, userId, () -> {
             validateUserId(userId);
 
-            return cleanupEventQueue(eventId)
+            return policies.validate(eventId, false).then(cleanupEventQueue(eventId))
                     .then(sessions.prune(userId))
                     .then(sessions.count(userId))
                     .flatMap(count -> {
@@ -61,7 +62,8 @@ public class ReactiveQueueService {
 
     public Mono<QueueValidateResponse> validate(QueueValidateRequest request) {
         return logged("validate", request.eventId(), request.userId(),
-                () -> active.isActiveTokenValid(request.eventId(), request.userId(), request.token())
+                () -> policies.validate(request.eventId(), true)
+                        .then(active.isActiveTokenValid(request.eventId(), request.userId(), request.token()))
                         .map(valid -> new QueueValidateResponse(valid, valid ? "OK" : "INVALID_QUEUE_TOKEN")));
     }
 
@@ -93,7 +95,7 @@ public class ReactiveQueueService {
                         .concatMap(waiting::pruneExpiredWaitingTokens)
                         .thenMany(scanEventIds("queue:event:*:active", ":active")
                                 .concatMap(active::pruneExpiredActiveTokens))
-                        .then());
+                        .then(Mono.defer(() -> sessions.prunePersistentIndexes(properties.getCleanupScanCount()))));
     }
 
     private Mono<QueueStatusResponse> createWaiting(Long eventId, String userId) {

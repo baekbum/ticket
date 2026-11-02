@@ -10,8 +10,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import jakarta.persistence.EntityManager;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,6 +33,23 @@ class CheckoutAttemptJpaRepositoryTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private EntityManager entityManager;
+
+    @Test
+    @DisplayName("prepare 좌석 ID 목록은 DB 재조회 후에도 유지된다")
+    void persists_prepared_seat_ids() {
+        checkoutAttemptJpaRepository.saveAndFlush(CheckoutAttempt.prepare(
+                "idem-seats", "user01", "order-seats", 1L, Set.of(101L, 202L), "PAY-SEATS",
+                LocalDateTime.now().plusMinutes(10)));
+        entityManager.clear();
+
+        CheckoutAttempt attempt = checkoutAttemptJpaRepository
+                .findByIdempotencyKeyForUpdate("idem-seats").orElseThrow();
+
+        assertThat(attempt.getSeatIds()).containsExactlyInAnyOrder(101L, 202L);
+    }
+
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("같은 멱등 키를 조회하는 두 번째 트랜잭션은 첫 번째 비관적 잠금이 끝날 때까지 대기한다")
@@ -42,6 +61,7 @@ class CheckoutAttemptJpaRepositoryTest {
                         "user01",
                         "order-1",
                         1L,
+                        Set.of(1L),
                         "PAY-1",
                         LocalDateTime.now().plusMinutes(10)
                 )

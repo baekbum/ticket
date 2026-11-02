@@ -342,6 +342,7 @@ _set('m-description-text', ev.description);
 _set('m-event-date-time',  formatToDatetimeLocal(ev.eventDateTime));
 _set('m-sale-start-at',    formatToDatetimeLocal(ev.saleStartAt));
 _set('m-sale-end-at',      formatToDatetimeLocal(ev.saleEndAt));
+_set('m-queue-admission-size', ev.queueAdmissionSize ?? 100);
 _set('m-cancel-deadline-at', formatToDatetimeLocal(ev.cancelDeadlineAt));
 _set('m-running-minutes',  ev.runningMinutes);
 _set('m-age-limit',        ev.ageLimit);
@@ -440,6 +441,10 @@ wrapper.innerHTML = `
       <label>판매 마감 #${rowId}</label>
       <input type="datetime-local" class="m-extra-sale-end-at">
     </div>
+    <div class="form-group">
+      <label>동시 예매 허용 인원 #${rowId}</label>
+      <input type="number" class="m-extra-queue-admission-size" min="1" step="1" value="100">
+    </div>
     ${actionButtons}
   </div>
 `;
@@ -464,7 +469,8 @@ return;
 ['.m-extra-event-date-time', '.m-extra-event-date-time'],
 ['.m-extra-cancel-deadline-at', '.m-extra-cancel-deadline-at'],
 ['.m-extra-sale-start-at', '.m-extra-sale-start-at'],
-['.m-extra-sale-end-at', '.m-extra-sale-end-at']
+['.m-extra-sale-end-at', '.m-extra-sale-end-at'],
+['.m-extra-queue-admission-size', '.m-extra-queue-admission-size']
 ].forEach(([sourceSelector, targetSelector]) => {
 const source = firstRow.querySelector(sourceSelector);
 const target = targetRow.querySelector(targetSelector);
@@ -480,6 +486,7 @@ return bulkRows.map(row => ({
 eventDateTime: row.querySelector('.m-extra-event-date-time')?.value || '',
 saleStartAt: row.querySelector('.m-extra-sale-start-at')?.value || '',
 saleEndAt: row.querySelector('.m-extra-sale-end-at')?.value || '',
+queueAdmissionSize: Number(row.querySelector('.m-extra-queue-admission-size')?.value ?? 100),
 cancelDeadlineAt: row.querySelector('.m-extra-cancel-deadline-at')?.value || ''
 }));
 }
@@ -488,6 +495,7 @@ return [{
 eventDateTime: document.getElementById('m-event-date-time').value,
 saleStartAt: document.getElementById('m-sale-start-at').value,
 saleEndAt: document.getElementById('m-sale-end-at').value,
+queueAdmissionSize: Number(document.getElementById('m-queue-admission-size').value),
 cancelDeadlineAt: document.getElementById('m-cancel-deadline-at').value
 }];
 }
@@ -536,6 +544,7 @@ posterUrl: posterUrlOverride !== undefined ? posterUrlOverride : (ev.posterUrl |
 eventDateTime: eventDateTime ? `${eventDateTime}:00` : ev.eventDateTime,
 saleStartAt: saleStartAt ? `${saleStartAt}:00` : ev.saleStartAt,
 saleEndAt: saleEndAt ? `${saleEndAt}:00` : ev.saleEndAt,
+queueAdmissionSize: ev.queueAdmissionSize ?? 100,
 cancelDeadlineAt: cancelDeadlineAt ? `${cancelDeadlineAt}:00` : ev.cancelDeadlineAt,
 runningMinutes: ev.runningMinutes,
 ageLimit: ev.ageLimit,
@@ -709,6 +718,7 @@ clearAdditionalSchedules();
 const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
+_set('m-queue-admission-size', '100');
 _set('m-max-tickets', '2');
 _set('m-ticket-limit-scope', 'PER_EVENT');
 _set('m-genre',       'CONCERT');
@@ -763,6 +773,9 @@ const themeVal     = document.getElementById('m-theme').value;
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 const schedules = collectEventSchedules();
+if (schedules.some(schedule => !Number.isSafeInteger(schedule.queueAdmissionSize) || schedule.queueAdmissionSize < 1)) {
+showToast('동시 예매 허용 인원은 1 이상의 정수로 입력해주세요.', true); return;
+}
 const missingFields = [];
 if (!artistVal) missingFields.push('아티스트');
 if (!titleVal) missingFields.push('공연 제목');
@@ -809,6 +822,7 @@ posterUrl: posterUrlVal || null,
 eventDateTime: datetimeInput + ':00',
 saleStartAt: saleStartInput + ':00',
 saleEndAt: saleEndInput + ':00',
+queueAdmissionSize: Number(document.getElementById('m-queue-admission-size').value),
 cancelDeadlineAt: cancelDeadlineInput + ':00',
 runningMinutes: runningMinutesVal,
 ageLimit: ageLimitVal,
@@ -843,6 +857,7 @@ schedules: schedules.map(schedule => ({
 eventDateTime: schedule.eventDateTime + ':00',
 saleStartAt: schedule.saleStartAt + ':00',
 saleEndAt: schedule.saleEndAt + ':00',
+queueAdmissionSize: schedule.queueAdmissionSize,
 cancelDeadlineAt: schedule.cancelDeadlineAt + ':00'
 }))
 }

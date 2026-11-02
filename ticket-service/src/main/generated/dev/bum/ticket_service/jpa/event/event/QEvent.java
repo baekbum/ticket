@@ -46,6 +46,8 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final StringPath posterUrl = createString("posterUrl");
 
+    public final NumberPath<Integer> queueAdmissionSize = createNumber("queueAdmissionSize", Integer.class);
+
     public final EnumPath<dev.bum.common.service.ticket.event.event.enums.EventRegion> region = createEnum("region", dev.bum.common.service.ticket.event.event.enums.EventRegion.class);
 
     public final NumberPath<Integer> runningMinutes = createNumber("runningMinutes", Integer.class);

@@ -9,7 +9,9 @@ import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.EventRepositoryImpl;
+import dev.bum.ticket_service.jpa.event.policy.EventPolicyOutboxJpaRepository;
 import dev.bum.ticket_service.service.event.event.EventManagementService;
+import dev.bum.common.service.ticket.event.event.dto.EventResponse;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,7 +50,7 @@ import static org.mockito.Mockito.doThrow;
 
 @DataJpaTest(showSql = false)
 @ContextConfiguration(classes = EventPosterTransactionIntegrationTest.PersistenceConfig.class)
-@Import({EventManagementService.class, EventPosterService.class, FileStorageService.class, EventRepositoryImpl.class})
+@Import({dev.bum.ticket_service.service.event.policy.EventPolicyOutboxService.class, EventManagementService.class, EventPosterService.class, FileStorageService.class, EventRepositoryImpl.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class EventPosterTransactionIntegrationTest {
     @Configuration
@@ -75,10 +78,12 @@ class EventPosterTransactionIntegrationTest {
     @Autowired EventPosterService posters;
     @MockitoSpyBean FileStorageService files;
     @Autowired EventJpaRepository events;
+    @Autowired EventPolicyOutboxJpaRepository outbox;
     @Autowired PlatformTransactionManager transactions;
 
     @BeforeEach
     void cleanDatabase() {
+        outbox.deleteAll();
         events.deleteAll();
     }
 
@@ -95,6 +100,7 @@ class EventPosterTransactionIntegrationTest {
         assertThat(events.findById(original.getEventId()).orElseThrow().getPosterUrl()).isEqualTo(newUrl);
         assertThat(path(original.getPosterUrl())).doesNotExist();
         assertThat(path(newUrl)).exists();
+        assertThat(outbox.count()).isEqualTo(1);
     }
 
     @Test
@@ -111,6 +117,7 @@ class EventPosterTransactionIntegrationTest {
                 .isEqualTo(original.getPosterUrl());
         assertThat(path(original.getPosterUrl())).exists();
         assertThat(path(newUrl[0])).doesNotExist();
+        assertThat(outbox.count()).isZero();
     }
 
     @Test
@@ -127,6 +134,7 @@ class EventPosterTransactionIntegrationTest {
         assertThat(persisted.getPosterUrl()).isEqualTo(original.getPosterUrl());
         assertThat(path(original.getPosterUrl())).exists();
         assertThat(fileCount()).isEqualTo(before);
+        assertThat(outbox.count()).isZero();
     }
 
     @Test
@@ -138,14 +146,16 @@ class EventPosterTransactionIntegrationTest {
         assertThatThrownBy(() -> service.insertBulk(request, image())).isInstanceOf(RuntimeException.class);
 
         assertThat(events.count()).isZero();
+        assertThat(outbox.count()).isZero();
         assertThat(fileCount()).isEqualTo(before);
     }
 
     @Test
     void successfulBulkInsertKeepsEveryNewPoster() {
-        var responses = service.insertBulk(bulkRequest(), image());
+        List<EventResponse> responses = service.insertBulk(bulkRequest(), image());
 
         assertThat(events.count()).isEqualTo(2);
+        assertThat(outbox.count()).isEqualTo(2);
         assertThat(responses).hasSize(2).allSatisfy(response -> assertThat(path(response.getPosterUrl())).exists());
         assertThat(responses.get(0).getPosterUrl()).isNotEqualTo(responses.get(1).getPosterUrl());
     }
@@ -154,7 +164,7 @@ class EventPosterTransactionIntegrationTest {
     void updateWithoutUploadKeepsExistingPoster() {
         Event original = fixture();
 
-        var response = service.update(original.getEventId(), update("수정 공연"), null);
+        EventResponse response = service.update(original.getEventId(), update("수정 공연"), null);
 
         assertThat(response.getPosterUrl()).isEqualTo(original.getPosterUrl());
         assertThat(path(original.getPosterUrl())).exists();
@@ -165,7 +175,7 @@ class EventPosterTransactionIntegrationTest {
         Event original = fixture();
         doThrow(new IllegalStateException("삭제 실패")).when(files).deleteByPublicUrl(original.getPosterUrl());
 
-        var response = service.update(original.getEventId(), update("수정 공연"), image());
+        EventResponse response = service.update(original.getEventId(), update("수정 공연"), image());
 
         assertThat(events.findById(original.getEventId()).orElseThrow().getPosterUrl())
                 .isEqualTo(response.getPosterUrl());
@@ -232,7 +242,7 @@ class EventPosterTransactionIntegrationTest {
     }
 
     private long fileCount() throws IOException {
-        try (var paths = Files.walk(uploadRoot)) {
+        try (Stream<Path> paths = Files.walk(uploadRoot)) {
             return paths.filter(Files::isRegularFile).count();
         }
     }

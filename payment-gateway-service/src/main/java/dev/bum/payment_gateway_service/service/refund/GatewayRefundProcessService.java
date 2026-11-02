@@ -78,7 +78,8 @@ public class GatewayRefundProcessService {
                 );
             } catch (RuntimeException e) {
                 // 기록이 실패해도 B의 최초 요청이 남아 있으므로 같은 ID로 다시 처리할 수 있다.
-                log.error("PG 환불 실패 상태 기록 실패: processId={}", refund.getId(), e);
+                log.error("PG 환불 실패 상태 기록 실패: paymentNo={}, processId={}, errorType={}",
+                        refund.getPaymentNo(), refund.getId(), e.getClass().getSimpleName());
             }
         }
     }

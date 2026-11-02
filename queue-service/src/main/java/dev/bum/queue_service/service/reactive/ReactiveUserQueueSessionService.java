@@ -1,13 +1,20 @@
 package dev.bum.queue_service.service.reactive;
 
-import dev.bum.queue_service.service.*;
+import dev.bum.queue_service.service.QueueRedisKeys;
+import dev.bum.queue_service.service.QueueRedisScripts;
+import dev.bum.queue_service.service.QueueSessionType;
+import dev.bum.queue_service.service.QueueUserSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -25,7 +32,7 @@ public class ReactiveUserQueueSessionService {
 
     private Mono<Void> removeMember(String userId, String member) {
         return Mono.defer(() -> StringUtils.hasText(userId)
-                ? redis.opsForZSet().remove(keys.userSessionsKey(userId), member)
+                ? redis.execute(QueueRedisScripts.REMOVE_USER_SESSION, List.of(keys.userSessionsKey(userId)), List.of(member))
                         .then() : Mono.empty());
     }
 
@@ -71,12 +78,22 @@ public class ReactiveUserQueueSessionService {
                 .flatMap(members -> {
                     if (members.isEmpty()) return Mono.empty();
 
-                    return redis.opsForValue().multiGet(members.stream().map(this::tokenKey).toList())
-                            .flatMap(values -> Flux.range(0, members.size())
-                                    .filter(index -> index >= values.size() || !StringUtils.hasText(values.get(index)))
-                                    .concatMap(index -> redis.opsForZSet().remove(keys.userSessionsKey(userId), members.get(index)))
-                                    .then());
+                    List<String> scriptKeys = new ArrayList<>();
+                    scriptKeys.add(keys.userSessionsKey(userId));
+                    members.stream().map(this::tokenKey).forEach(scriptKeys::add);
+                    return redis.execute(QueueRedisScripts.PRUNE_USER_SESSIONS, scriptKeys, members).then();
                 });
+    }
+
+    /** 이전 버전에서 TTL 없이 남은 인덱스를 요청 재방문 없이 정리·보정한다. */
+    public Mono<Void> prunePersistentIndexes(long scanCount) {
+        String prefix = keys.userSessionsKey("");
+        return redis.scan(ScanOptions.scanOptions().match(prefix + "*").count(scanCount).build())
+                .concatMap(key -> redis.getExpire(key)
+                        // ReactiveRedisTemplate은 Redis의 만료 없음(-1)을 Duration.ZERO로 변환한다.
+                        .filter(Duration::isZero)
+                        .flatMap(ttl -> prune(key.substring(prefix.length()))))
+                .then();
     }
 
     private Mono<QueueUserSession> toUserSession(String member) {

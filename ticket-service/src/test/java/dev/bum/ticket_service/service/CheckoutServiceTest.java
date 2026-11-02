@@ -14,6 +14,7 @@ import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.seat.SeatOccupationFailedException;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
@@ -26,6 +27,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDelivery.ReservationDeliveryJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscountJpaRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.service.checkout.CheckoutIdempotencyKeyGenerator;
 import dev.bum.ticket_service.service.checkout.CheckoutService;
@@ -33,9 +35,14 @@ import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
@@ -44,13 +51,19 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -64,6 +77,12 @@ class CheckoutServiceTest {
 
     @Mock
     private SeatCacheService seatCacheService;
+
+    @Mock
+    private dev.bum.ticket_service.service.event.event.EventBookingGuard eventBookingGuard;
+
+    @Mock
+    private SeatJpaRepository seatJpaRepository;
 
     @Mock
     private QueueAccessService queueAccessService;
@@ -95,9 +114,255 @@ class CheckoutServiceTest {
     @InjectMocks
     private CheckoutService checkoutService;
 
+    @BeforeEach
+    void prepareStorage() {
+        AtomicReference<CheckoutAttempt> inserted = new AtomicReference<>();
+        Mockito.lenient().when(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    inserted.set(invocation.getArgument(0));
+                    return 1;
+                });
+        Mockito.lenient().when(checkoutAttemptJpaRepository.findByOrderIdForUpdate(ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(inserted.get()));
+        Mockito.lenient().when(seatCacheService.validateOccupiedSeat(
+                        ArgumentMatchers.anyLong(), ArgumentMatchers.anyString(),
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyList()))
+                .thenReturn(LocalDateTime.now().plusMinutes(10));
+    }
+
+    @Test
+    @DisplayName("선점에 성공했어도 prepare 시 판매 종료이면 예외를 반환한다")
+    void prepare_rejects_ended_sales_after_successful_occupation() {
+        givenValidSeats();
+        given(eventBookingGuard.requireBookable(1L, true))
+                .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .hasMessage("판매가 종료된 공연입니다.");
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+        then(queueAccessService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("confirm은 선점 또는 기존 확정 결과가 있어도 판매 종료를 우회하지 못한다")
+    void confirm_rejects_ended_sales_before_new_booking_or_replay(boolean confirmed) {
+        CheckoutAttempt attempt = preparedAttempt();
+        if (confirmed) attempt.confirm(payment(reservation(event(), "user01")));
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(attempt));
+        given(eventBookingGuard.requireBookable(1L, true))
+                .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token",
+                confirmRequest(PaymentMethod.CREDIT_CARD))).hasMessage("판매가 종료된 공연입니다.");
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(checkoutPaymentService).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ID", "ZONE", "ROW", "COL", "EVENT"})
+    @DisplayName("prepare는 ID와 DB 공연·좌표가 일치하지 않으면 선점 검증과 저장을 진행하지 않는다")
+    void prepare_rejects_mismatched_seat_identity(String changed) {
+        CheckoutPrepareRequest request = checkoutRequest();
+        SeatInfo info = request.getSeats().getFirst();
+        Event event = event();
+        long id = 1L;
+        int col = 1;
+        switch (changed) {
+            case "ID" -> { info.setId(2L); id = 2L; col = 2; }
+            case "ZONE" -> info.setZone("R");
+            case "ROW" -> info.setRow(2);
+            case "COL" -> info.setCol(2);
+            case "EVENT" -> event = Event.builder().eventId(2L).build();
+        }
+        Seat databaseSeat = Seat.builder().seatId(id).event(event)
+                .zone("VIP").seatRow(1).seatCol(col).build();
+        given(seatJpaRepository.findAllById(Set.of(id))).willReturn(List.of(databaseSeat));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("좌석 ID와 공연 또는 좌표 정보가 일치하지 않습니다.");
+
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("prepare는 존재하지 않는 좌석 ID를 거절한다")
+    void prepare_rejects_missing_database_seat() {
+        given(seatJpaRepository.findAllById(Set.of(1L))).willReturn(List.of());
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("요청한 좌석을 찾을 수 없습니다.");
+
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidSeatLists")
+    @DisplayName("prepare는 비어 있거나 중복·잘못된 ID가 있는 좌석 목록을 거절한다")
+    void prepare_rejects_invalid_seat_lists(List<SeatInfo> seats) {
+        CheckoutPrepareRequest request = checkoutRequest();
+        request.setSeats(seats);
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        then(seatJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("confirm은 A 좌표와 B ID를 보내면 최초 요청과 확정 후 재요청 모두 거절한다")
+    void confirm_rejects_changed_seat_id_even_on_replay(boolean confirmed) {
+        CheckoutAttempt attempt = preparedAttempt();
+        if (confirmed) attempt.confirm(payment(reservation(event(), "user01")));
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(attempt));
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        request.getSeats().getFirst().setId(2L);
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("prepare 요청과 결제 확정 좌석이 일치하지 않습니다.");
+
+        then(seatJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+        then(checkoutPaymentService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ZONE", "ROW", "COL"})
+    @DisplayName("confirm은 저장된 ID가 같아도 요청 좌표가 DB와 다르면 거절한다")
+    void confirm_rejects_changed_coordinates(String changed) {
+        givenValidSeats();
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(preparedAttempt()));
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        SeatInfo info = request.getSeats().getFirst();
+        switch (changed) {
+            case "ZONE" -> info.setZone("R");
+            case "ROW" -> info.setRow(2);
+            case "COL" -> info.setCol(2);
+        }
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("좌석 ID와 공연 또는 좌표 정보가 일치하지 않습니다.");
+
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidSeatLists")
+    @DisplayName("confirm은 비어 있거나 중복·잘못된 ID가 있는 좌석 목록을 거절한다")
+    void confirm_rejects_invalid_seat_lists(List<SeatInfo> seats) {
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(preparedAttempt()));
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        request.setSeats(seats);
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        then(seatJpaRepository).shouldHaveNoInteractions();
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("confirm은 같은 좌석이라도 Redis 선점 소유권이 없으면 예약을 생성하지 않는다")
+    void confirm_rechecks_redis_ownership() {
+        givenValidSeats();
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(preparedAttempt()));
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
+                .willThrow(new SeatOccupationFailedException("선점 소유권이 없습니다."));
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
+                .isInstanceOf(SeatOccupationFailedException.class);
+
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("좌석 스냅샷이 없는 checkout은 검증을 생략하지 않고 거절한다")
+    void confirm_rejects_attempt_without_seat_snapshot() {
+        CheckoutAttempt attempt = preparedAttempt();
+        ReflectionTestUtils.setField(attempt, "seatIds", Set.of());
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(attempt));
+
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token",
+                confirmRequest(PaymentMethod.CREDIT_CARD)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("좌석 준비 정보가 없습니다. 좌석 선택부터 다시 진행해주세요.");
+
+        then(seatCacheService).shouldHaveNoInteractions();
+        then(reservationRepository).shouldHaveNoInteractions();
+        then(paymentJpaRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("confirm은 같은 좌석의 순서 변경을 허용하고 DB 좌표로 선점 검증과 예약을 진행한다")
+    void confirm_accepts_reordered_seats_using_database_coordinates() {
+        Seat first = seat(event());
+        Seat second = Seat.builder().seatId(2L).event(event()).zone("VIP")
+                .seatRow(1).seatCol(2).grade(SeatGrade.VIP).price(180000).build();
+        CheckoutAttempt attempt = CheckoutAttempt.prepare("idem-1", "user01", "order-1", 1L,
+                Set.of(1L, 2L), "PAY-PREPARED", LocalDateTime.now().plusMinutes(9));
+        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
+        request.setSeats(List.of(SeatInfo.builder().id(2L).zone("VIP").row(1).col(2).build(),
+                request.getSeats().getFirst()));
+        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
+                .willReturn(Optional.of(attempt));
+        given(seatJpaRepository.findAllById(Set.of(1L, 2L))).willReturn(List.of(first, second));
+        Reservation reservation = reservation(event(), "user01");
+        given(reservationRepository.insert(ArgumentMatchers.any())).willReturn(reservation);
+        given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
+        given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
+        then(seatCacheService).should().validateOccupiedSeat(
+                ArgumentMatchers.eq(1L), ArgumentMatchers.eq("user01"), ArgumentMatchers.eq("order-1"),
+                ArgumentMatchers.argThat(seats -> seats.equals(request.getSeats())
+                        && seats.getFirst() != request.getSeats().getFirst()));
+        then(reservationRepository).should().insert(ArgumentMatchers.argThat(info ->
+                info.getSeats().equals(request.getSeats())
+                        && info.getSeats().getFirst() != request.getSeats().getFirst()));
+        assertThat(attempt.getSeatIds()).containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    private static Stream<Arguments> invalidSeatLists() {
+        SeatInfo valid = SeatInfo.builder().id(1L).zone("VIP").row(1).col(1).build();
+        return Stream.of(
+                Arguments.of((Object) null),
+                Arguments.of(List.of()),
+                Arguments.of(List.of(valid, valid)),
+                Arguments.of(java.util.Arrays.asList((SeatInfo) null)),
+                Arguments.of(List.of(SeatInfo.builder().id(0L).build())),
+                Arguments.of(List.of(SeatInfo.builder().id(-1L).build())));
+    }
+
     @Test
     @DisplayName("checkout 준비 요청은 active token과 좌석 선점 상태를 검증한다")
     void prepare_validates_active_token_and_occupied_seats() {
+        givenValidSeats();
         CheckoutPrepareRequest request = checkoutRequest();
         LocalDateTime seatExpiresAt = LocalDateTime.now().plusMinutes(9);
         given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
@@ -111,21 +376,23 @@ class CheckoutServiceTest {
         assertThat(response.getSeats()).hasSize(1);
         assertThat(response.getIdempotencyKey()).matches("CHK-\\d{8}-[0-9a-f]{32}");
         assertThat(response.getPreparedAt()).isNotNull();
-        assertThat(response.getExpiresAt()).isEqualTo(seatExpiresAt);
+        assertThat(response.getExpiresAt()).isEqualTo(seatExpiresAt.truncatedTo(ChronoUnit.MICROS));
 
         ArgumentCaptor<CheckoutAttempt> checkoutAttemptCaptor = ArgumentCaptor.forClass(CheckoutAttempt.class);
-        then(checkoutAttemptJpaRepository).should().save(checkoutAttemptCaptor.capture());
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(checkoutAttemptCaptor.capture());
         CheckoutAttempt checkoutAttempt = checkoutAttemptCaptor.getValue();
         assertThat(checkoutAttempt.getIdempotencyKey()).isEqualTo(response.getIdempotencyKey());
         assertThat(checkoutAttempt.getUserId()).isEqualTo("user01");
         assertThat(checkoutAttempt.getOrderId()).isEqualTo("order-1");
         assertThat(checkoutAttempt.getEventId()).isEqualTo(1L);
+        assertThat(checkoutAttempt.getSeatIds()).containsExactly(1L);
         assertThat(checkoutAttempt.getPaymentNo()).startsWith("PAY-");
         assertThat(checkoutAttempt.getStatus()).isEqualTo(CheckoutAttemptStatus.PREPARED);
-        assertThat(checkoutAttempt.getExpiresAt()).isEqualTo(seatExpiresAt);
+        assertThat(checkoutAttempt.getExpiresAt()).isEqualTo(seatExpiresAt.truncatedTo(ChronoUnit.MICROS));
+        assertThat(response.getPreparedAt()).isEqualTo(checkoutAttempt.getCreatedAt());
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
-        then(seatCacheService).should().validateOccupiedSeat(
+        then(seatCacheService).should(Mockito.times(2)).validateOccupiedSeat(
                 ArgumentMatchers.eq(1L),
                 ArgumentMatchers.eq("user01"),
                 ArgumentMatchers.eq("order-1"),
@@ -135,8 +402,137 @@ class CheckoutServiceTest {
     }
 
     @Test
+    @DisplayName("prepare 재시도는 기존 멱등 키와 준비·만료 시각을 반환하고 새 준비 건을 만들지 않는다")
+    void prepare_replay_returns_the_original_key_and_timestamps() {
+        givenValidSeats();
+        CheckoutAttempt attempt = preparedAttempt();
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willReturn(attempt.getExpiresAt().plusMinutes(20));
+
+        CheckoutPrepareResponse response = checkoutService.prepare("user01", "queue-token", checkoutRequest());
+
+        assertThat(response.getIdempotencyKey()).isEqualTo(attempt.getIdempotencyKey());
+        assertThat(response.getPreparedAt()).isEqualTo(attempt.getCreatedAt());
+        assertThat(response.getExpiresAt()).isEqualTo(attempt.getExpiresAt());
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+        then(checkoutAttemptJpaRepository).should(never()).save(ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"USER", "EVENT", "SEATS"})
+    @DisplayName("prepare 재시도는 기존 준비 건과 사용자·공연·좌석이 다르면 거절한다")
+    void prepare_replay_rejects_a_different_request(String changed) {
+        CheckoutAttempt attempt = preparedAttempt();
+        CheckoutPrepareRequest request = checkoutRequest();
+        String currentUserId = "user01";
+        if ("USER".equals(changed)) currentUserId = "another-user";
+        if ("EVENT".equals(changed)) request.setEventId(2L);
+        if ("SEATS".equals(changed)) request.getSeats().getFirst().setId(2L);
+        SeatInfo requestedSeat = request.getSeats().getFirst();
+        Seat databaseSeat = Seat.builder().seatId(requestedSeat.getId())
+                .event(Event.builder().eventId(request.getEventId()).build())
+                .zone(requestedSeat.getZone()).seatRow(requestedSeat.getRow()).seatCol(requestedSeat.getCol()).build();
+        given(seatJpaRepository.findAllById(Set.of(requestedSeat.getId()))).willReturn(List.of(databaseSeat));
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+        String authenticatedUser = currentUserId;
+
+        assertThatThrownBy(() -> checkoutService.prepare(authenticatedUser, "queue-token", request))
+                .isInstanceOf("USER".equals(changed) ? AccessDeniedException.class : IllegalArgumentException.class);
+
+        then(eventBookingGuard).shouldHaveNoInteractions();
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXPIRED", "CONFIRMED"})
+    @DisplayName("prepare 재시도는 만료되거나 이미 확정된 준비 건을 재사용하지 않는다")
+    void prepare_replay_rejects_an_expired_or_confirmed_attempt(String state) {
+        givenValidSeats();
+        CheckoutAttempt attempt = preparedAttempt();
+        if ("EXPIRED".equals(state)) {
+            ReflectionTestUtils.setField(attempt, "expiresAt", LocalDateTime.now().minusSeconds(1));
+        } else {
+            ReflectionTestUtils.setField(attempt, "status", CheckoutAttemptStatus.CONFIRMED);
+        }
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1")).willReturn(Optional.of(attempt));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(IllegalStateException.class);
+
+        then(queueAccessService).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("prepare 재시도도 활성 토큰 만료를 검증한다")
+    void prepare_replay_does_not_bypass_active_token_validation() {
+        givenValidSeats();
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willReturn(0);
+        given(checkoutAttemptJpaRepository.findByOrderIdForUpdate("order-1"))
+                .willReturn(Optional.of(preparedAttempt()));
+        Mockito.doThrow(new ActiveTokenExpiredException())
+                .when(queueAccessService).validate(1L, "user01", "expired");
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", checkoutRequest()))
+                .isInstanceOf(ActiveTokenExpiredException.class);
+
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("prepare 재시도도 Redis 좌석 선점 소유권을 다시 검증한다")
+    void prepare_replay_rejects_a_lost_seat_hold() {
+        givenValidSeats();
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willThrow(new SeatOccupationFailedException("좌석 선점이 만료되었습니다."));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(SeatOccupationFailedException.class);
+
+        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+        then(idempotencyKeyGenerator).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("insertIfAbsent 이후에도 좌석 선점 소유권을 다시 검증한다")
+    void prepare_rechecks_the_seat_hold_after_acquiring_the_attempt_lock() {
+        givenValidSeats();
+        given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats()))
+                .willReturn(LocalDateTime.now().plusMinutes(10))
+                .willThrow(new SeatOccupationFailedException("대기 중 좌석 선점이 만료되었습니다."));
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isInstanceOf(SeatOccupationFailedException.class);
+
+        org.mockito.InOrder order = Mockito.inOrder(checkoutAttemptJpaRepository, seatCacheService);
+        order.verify(seatCacheService).validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats());
+        order.verify(checkoutAttemptJpaRepository).insertIfAbsent(ArgumentMatchers.any());
+        order.verify(checkoutAttemptJpaRepository).findByOrderIdForUpdate("order-1");
+        order.verify(seatCacheService).validateOccupiedSeat(1L, "user01", "order-1", checkoutRequest().getSeats());
+    }
+
+    @Test
+    @DisplayName("order_id 중복 이외의 무결성 오류는 그대로 반환한다")
+    void prepare_preserves_an_unrelated_integrity_failure() {
+        givenValidSeats();
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("another constraint");
+        given(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any())).willThrow(failure);
+
+        assertThatThrownBy(() -> checkoutService.prepare("user01", "queue-token", checkoutRequest()))
+                .isSameAs(failure);
+
+        then(checkoutAttemptJpaRepository).should(never()).findByOrderIdForUpdate(ArgumentMatchers.anyString());
+    }
+
+    @Test
     @DisplayName("checkout 준비 커밋 후에도 active token을 유지하여 결제를 계속할 수 있다")
     void prepare_keeps_active_token_after_commit() {
+        givenValidSeats();
         TransactionSynchronizationManager.initSynchronization();
         try {
             CheckoutPrepareRequest request = checkoutRequest();
@@ -158,8 +554,9 @@ class CheckoutServiceTest {
     }
 
     @Test
-    @DisplayName("checkout 준비 검증에 실패하면 준비 정보를 저장하지 않는다")
+    @DisplayName("checkout 준비 도중 대기열 검증에 실패하면 예외를 반환한다")
     void prepare_does_not_save_attempt_when_validation_fails() {
+        givenValidSeats();
         CheckoutPrepareRequest request = checkoutRequest();
         Mockito.doThrow(new ActiveTokenExpiredException())
                 .when(queueAccessService).validate(1L, "user01", "expired");
@@ -167,13 +564,13 @@ class CheckoutServiceTest {
         assertThatThrownBy(() -> checkoutService.prepare("user01", "expired", request))
                 .isInstanceOf(ActiveTokenExpiredException.class);
 
-        then(seatCacheService).shouldHaveNoInteractions();
-        then(checkoutAttemptJpaRepository).shouldHaveNoInteractions();
+        then(checkoutAttemptJpaRepository).should().insertIfAbsent(ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("checkout 확정 요청은 예약, 배송, 카드 결제 READY 정보를 생성한다")
     void confirm_creates_reservation_delivery_and_card_payment() {
+        givenValidSeats();
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Seat seat = seat(event);
@@ -231,6 +628,7 @@ class CheckoutServiceTest {
     @Test
     @DisplayName("checkout 확정 요청이 무통장이면 가상계좌를 발급하고 입금 대기 결제를 생성한다")
     void confirm_issues_virtual_account_for_bank_transfer() {
+        givenValidSeats();
         Event event = event();
         Reservation reservation = reservation(event, "user01");
         Seat seat = seat(event);
@@ -298,6 +696,7 @@ class CheckoutServiceTest {
     @Test
     @DisplayName("카드 READY 결제에 승인 이력이 없으면 같은 결제번호로 무통장 전환한다")
     void confirm_switches_card_to_bank_transfer_before_approval() {
+        givenValidSeats();
         Reservation reservation = reservation(event(), "user01");
         Payment payment = Payment.builder()
                 .paymentId(1L)
@@ -336,6 +735,7 @@ class CheckoutServiceTest {
     @Test
     @DisplayName("PG에 카드 승인 이력이 있으면 READY 결제도 무통장으로 바꾸지 않는다")
     void confirm_rejects_card_to_bank_transfer_after_approval() {
+        givenValidSeats();
         Reservation reservation = reservation(event(), "user01");
         Payment payment = Payment.builder()
                 .paymentId(1L).reservation(reservation).paymentNo("PAY-1")
@@ -434,6 +834,7 @@ class CheckoutServiceTest {
                 "user01",
                 "order-1",
                 1L,
+                Set.of(1L),
                 "PAY-PREPARED",
                 LocalDateTime.now().minusSeconds(1)
         );
@@ -547,6 +948,7 @@ class CheckoutServiceTest {
                 "user01",
                 "order-1",
                 1L,
+                Set.of(1L),
                 "PAY-PREPARED",
                 LocalDateTime.now().plusMinutes(9)
         );
@@ -554,11 +956,15 @@ class CheckoutServiceTest {
 
     private CheckoutAttempt confirmedAttempt(Payment payment) {
         CheckoutAttempt checkoutAttempt = CheckoutAttempt.prepare(
-                "idem-1", "user01", "order-1", 1L, payment.getPaymentNo(),
+                "idem-1", "user01", "order-1", 1L, Set.of(1L), payment.getPaymentNo(),
                 LocalDateTime.now().plusMinutes(9)
         );
         checkoutAttempt.confirm(payment);
         return checkoutAttempt;
+    }
+
+    private void givenValidSeats() {
+        given(seatJpaRepository.findAllById(Set.of(1L))).willReturn(List.of(seat(event())));
     }
 
 }

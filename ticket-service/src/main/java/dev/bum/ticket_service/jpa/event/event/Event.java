@@ -68,6 +68,10 @@ public class Event {
 
     private LocalDateTime saleEndAt;
 
+    @Column(nullable = false, columnDefinition = "integer default 100")
+    @Builder.Default
+    private int queueAdmissionSize = 100;
+
     private LocalDateTime cancelDeadlineAt;
 
     private Integer runningMinutes;
@@ -126,6 +130,8 @@ public class Event {
         return ReservationCancellationPolicy.effectiveDeadline(cancelDeadlineAt);
     }
 
+    public void changeStatus(EventStatus status) { this.status = status; }
+
     public EventResponse toResponse() {
         EventStatus.valueOf(this.status.name());
         return EventResponse.builder()
@@ -140,6 +146,7 @@ public class Event {
                 .eventDateTime(this.eventDateTime != null ? this.eventDateTime.format(EVENT_FORMATTER) : null)
                 .saleStartAt(this.saleStartAt != null ? this.saleStartAt.format(EVENT_FORMATTER) : null)
                 .saleEndAt(this.saleEndAt != null ? this.saleEndAt.format(EVENT_FORMATTER) : null)
+                .queueAdmissionSize(queueAdmissionSize)
                 .cancelDeadlineAt(getCancelDeadlineAt() != null ? getCancelDeadlineAt().format(EVENT_FORMATTER) : null)
                 .runningMinutes(this.runningMinutes)
                 .ageLimit(this.ageLimit)
@@ -166,6 +173,10 @@ public class Event {
         if (info.getEventDateTime() != null) this.eventDateTime = info.getEventDateTime();
         if (info.getSaleStartAt() != null) this.saleStartAt = info.getSaleStartAt();
         if (info.getSaleEndAt() != null) this.saleEndAt = info.getSaleEndAt();
+        if (info.getQueueAdmissionSize() != null) {
+            if (info.getQueueAdmissionSize() <= 0) throw new IllegalArgumentException("활성 인원 상한은 양수여야 합니다.");
+            this.queueAdmissionSize = info.getQueueAdmissionSize();
+        }
         if (info.getCancelDeadlineAt() != null) this.cancelDeadlineAt = info.getCancelDeadlineAt();
         if (info.getRunningMinutes() != null) this.runningMinutes = info.getRunningMinutes();
         if (info.getAgeLimit() != null) this.ageLimit = info.getAgeLimit();

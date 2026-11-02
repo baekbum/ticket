@@ -136,6 +136,12 @@ class ReservationServiceTest {
     @Mock
     private UserCouponRepository userCouponRepository;
 
+    @Mock
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Mock
+    private dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService virtualAccountCancelOutboxService;
+
     @Spy
     @InjectMocks
     private ReservationCancellationService reservationCancellationService;
@@ -748,8 +754,8 @@ class ReservationServiceTest {
         CancelReservationRequest request = CancelReservationRequest.builder().selectedTicketIdList(List.of(1L)).build();
         given(repository.selectByIdForUpdate(1L)).willReturn(reservation);
         given(ticketJpaRepository.findByReservation(reservation)).willReturn(List.of(ticket));
-        given(paymentJpaRepository.findByReservation(reservation))
-                .willReturn(Optional.of(virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0)));
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, 0);
+        given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
 
         var response = reservationService.cancelMyReservation("user01", 1L, request);
 
@@ -763,6 +769,8 @@ class ReservationServiceTest {
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.CANCELLED);
         assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        then(virtualAccountCancelOutboxService).should().enqueue(payment);
     }
 
     @Test
@@ -781,7 +789,7 @@ class ReservationServiceTest {
                 .hasMessage("신규 예매 취소는 매일 23시 50분 00초까지 가능합니다.");
 
         then(paymentRefundProcessService).should(never()).startGatewayAttempt(any(), any(), anyBoolean(), any(), any());
-        then(ticketPurchaseCountService).shouldHaveNoInteractions();
+        then(ticketPurchaseCountService).should(never()).release(any(), any());
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
         assertThat(ticket.getSeat().getStatus()).isEqualTo(SeatStatus.LOCKED);
     }

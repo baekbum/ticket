@@ -69,6 +69,11 @@ topic:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
 
 app:
+  virtual-account:
+    cancel-outbox:
+      fixed-delay-ms: ${APP_VA_CANCEL_OUTBOX_FIXED_DELAY_MS:30000}
+      retry-delay-ms: ${APP_VA_CANCEL_OUTBOX_RETRY_DELAY_MS:30000}
+      batch-size: ${APP_VA_CANCEL_OUTBOX_BATCH_SIZE:100}
   internal:
     service-token: ${APP_INTERNAL_SERVICE_TOKEN}
   upload:
