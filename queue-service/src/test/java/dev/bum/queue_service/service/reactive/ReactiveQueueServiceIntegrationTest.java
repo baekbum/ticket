@@ -223,7 +223,7 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":active")).isZero();
         assertThat(redis.opsForZSet().zCard("queue:event:" + event + ":waiting")).isZero();
         assertThat(redis.opsForZSet().zCard("queue:user-sessions:" + expiredUser)).isZero();
-        // 스케줄러의 waiting 정리는 userId를 모르므로 사용자 인덱스는 prune에서 정리한다.
+        // 사용자 인덱스가 이미 만료·정리된 경우에도 재정리는 멱등적이다.
         complete(sessions.prune(user));
         assertThat(value(sessions.count(user))).isZero();
         redis.delete("queue:event:invalid.id:waiting-expiry");

@@ -95,7 +95,7 @@ public class ReactiveQueueService {
                         .concatMap(waiting::pruneExpiredWaitingTokens)
                         .thenMany(scanEventIds("queue:event:*:active", ":active")
                                 .concatMap(active::pruneExpiredActiveTokens))
-                        .then());
+                        .then(Mono.defer(() -> sessions.prunePersistentIndexes(properties.getCleanupScanCount()))));
     }
 
     private Mono<QueueStatusResponse> createWaiting(Long eventId, String userId) {

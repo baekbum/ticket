@@ -9,11 +9,13 @@ end
 -- 세션 한도 확인과 대기 토큰 등록을 한 번에 실행한다.
 local capacity, reason = eventPolicy(KEYS[5], false)
 if reason then return reason == 'POLICY_UNAVAILABLE' and -2 or -3 end
-if redis.call('ZCARD', KEYS[4]) >= tonumber(ARGV[6]) then
+if redis.call('ZCARD', KEYS[4]) >= tonumber(ARGV[5]) then
     return 0
 end
-redis.call('SET', KEYS[3], ARGV[2], 'PX', ARGV[5])
+local expiresAt = queueTimeMillis() + tonumber(ARGV[4])
+redis.call('SET', KEYS[3], ARGV[2], 'PXAT', expiresAt)
 redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
-redis.call('ZADD', KEYS[2], ARGV[4], ARGV[1])
-redis.call('ZADD', KEYS[4], ARGV[4], ARGV[7])
+redis.call('ZADD', KEYS[2], expiresAt, ARGV[1])
+redis.call('ZADD', KEYS[4], expiresAt, ARGV[6])
+updateUserSessionsExpiry(KEYS[4])
 return 1

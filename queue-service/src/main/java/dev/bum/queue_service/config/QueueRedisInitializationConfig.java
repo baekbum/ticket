@@ -33,6 +33,8 @@ public class QueueRedisInitializationConfig {
             QueueRedisScripts.REFRESH_WAITING.getSha1();
             QueueRedisScripts.STATUS_WITH_IDEMPOTENCY.getSha1();
             QueueRedisScripts.REMOVE_TOKEN.getSha1();
+            QueueRedisScripts.REMOVE_USER_SESSION.getSha1();
+            QueueRedisScripts.PRUNE_USER_SESSIONS.getSha1();
             QueueRedisScripts.CLEAR_EVENT.getSha1();
             QueueRedisScripts.VALIDATE_POLICY.getSha1();
             QueueRedisScripts.UPDATE_POLICY.getSha1();

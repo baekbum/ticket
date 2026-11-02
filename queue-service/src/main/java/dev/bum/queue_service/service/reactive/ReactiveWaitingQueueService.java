@@ -39,7 +39,7 @@ public class ReactiveWaitingQueueService {
             return redis.execute(QueueRedisScripts.REGISTER_WAITING,
                             List.of(keys.waitingKey(eventId), keys.waitingExpiryKey(eventId),
                                     keys.waitingTokenKey(token), keys.userSessionsKey(userId), keys.policyKey(eventId)),
-                            List.of(token, tokenValue(eventId, userId), String.valueOf(now), String.valueOf(now + ttl),
+                            List.of(token, tokenValue(eventId, userId), String.valueOf(now),
                                     String.valueOf(ttl), String.valueOf(properties.getMaxSessionsPerUser()),
                                     keys.waitingSessionMember(token)))
                     .next()
@@ -114,8 +114,7 @@ public class ReactiveWaitingQueueService {
         return Mono.defer(() -> {
             long ttl = properties.getWaitingTokenTtl().toMillis();
             return redis.execute(QueueRedisScripts.REFRESH_WAITING, waitingKeys(eventId, userId, token),
-                            List.of(token, tokenValue(eventId, userId), String.valueOf(ttl),
-                                    String.valueOf(nowMillis() + ttl), keys.waitingSessionMember(token)))
+                            List.of(token, tokenValue(eventId, userId), String.valueOf(ttl), keys.waitingSessionMember(token)))
                     .next()
                     .filter(result -> result == 1L)
                     .switchIfEmpty(Mono.error(new QueueTokenInvalidException("대기 토큰이 만료되었거나 이미 처리되었습니다.")))
