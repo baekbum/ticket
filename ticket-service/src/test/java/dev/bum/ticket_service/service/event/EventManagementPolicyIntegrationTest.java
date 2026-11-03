@@ -80,6 +80,23 @@ class EventManagementPolicyIntegrationTest {
     }
 
     @Test
+    void bulk_insert_defaults_missing_size_and_publishes_each_schedule_size() {
+        InsertEventBulkRequest request = bulkRequest();
+        request.getSchedules().getFirst().setQueueAdmissionSize(null);
+        request.getSchedules().getLast().setQueueAdmissionSize(250);
+
+        List<EventResponse> responses = service.insertBulk(request, null);
+
+        assertThat(responses).extracting(EventResponse::getQueueAdmissionSize).containsExactly(1000, 250);
+        for (EventResponse response : responses) {
+            assertThat(service.selectById(response.getEventId()).getQueueAdmissionSize())
+                    .isEqualTo(response.getQueueAdmissionSize());
+            assertThat(policies(response.getEventId())).singleElement().satisfies(policy ->
+                    assertThat(policy.getAdmissionSize()).isEqualTo(response.getQueueAdmissionSize()));
+        }
+    }
+
+    @Test
     void both_update_paths_and_bulk_delete_commit_ordered_policy_snapshots() {
         List<Long> ids = service.insertBulk(bulkRequest(), null).stream().map(response -> response.getEventId()).toList();
         Long first = ids.getFirst();
