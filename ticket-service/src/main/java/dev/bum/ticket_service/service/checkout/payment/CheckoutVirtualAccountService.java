@@ -18,9 +18,14 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class CheckoutVirtualAccountService {
 
+    // 게이트웨이 가상계좌 API를 호출하는 클라이언트.
     private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
 
+    /**
+     * 가상계좌를 발급한다.
+     */
     public void issue(CheckoutConfirmRequest request, Payment payment) {
+
         GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
         if (virtualAccount == null || !Boolean.TRUE.equals(virtualAccount.getIssued())
                 || virtualAccount.getStatus() != GatewayVirtualAccountStatus.WAITING_DEPOSIT
@@ -37,10 +42,14 @@ public class CheckoutVirtualAccountService {
         );
     }
 
+    /**
+     * 게이트웨이에 가상계좌 발급을 요청한다.
+     */
     private GatewayVirtualAccountIssueResponse issueVirtualAccountFromGateway(
             CheckoutConfirmRequest request,
             Payment payment
     ) {
+
         BankCompany bankCompany = resolveBankCompany(request);
         return paymentGatewayVirtualAccountClient.issue(
                 GatewayVirtualAccountIssueRequest.builder()
@@ -52,7 +61,11 @@ public class CheckoutVirtualAccountService {
         );
     }
 
+    /**
+     * 요청에 사용할 은행 정보를 결정한다.
+     */
     private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
+
         if (!StringUtils.hasText(request.getBankCode())) {
             throw new IllegalArgumentException("은행 코드가 필요합니다.");
         }

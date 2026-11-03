@@ -21,11 +21,15 @@ public class AuditLogController {
 
     @GetMapping("/select/id/{id}")
     public ResponseEntity<AuditLogResponse> selectById(@PathVariable Long id) {
+
         return ResponseEntity.ok(auditLogPersistenceService.selectById(id));
     }
 
     @PostMapping("/select")
-    public ResponseEntity<CustomPageResponse<AuditLogResponse>> selectByCond(@RequestBody(required = false) AuditLogCondRequest cond) {
+    public ResponseEntity<CustomPageResponse<AuditLogResponse>> selectByCond(
+            @RequestBody(required = false) AuditLogCondRequest cond
+    ) {
+
         return ResponseEntity.ok(auditLogPersistenceService.selectByCond(cond));
     }
 }

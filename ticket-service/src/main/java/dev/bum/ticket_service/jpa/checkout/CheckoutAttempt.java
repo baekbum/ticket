@@ -44,19 +44,24 @@ import java.util.Set;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class CheckoutAttempt {
 
+    // 중복 처리를 방지하는 멱등성 키.
     @Id
     @Column(name = "idempotency_key", length = 100, nullable = false, updatable = false)
     private String idempotencyKey;
 
+    // 사용자 ID.
     @Column(name = "user_id", length = 100, nullable = false, updatable = false)
     private String userId;
 
+    // 주문 식별자.
     @Column(name = "order_id", length = 50, nullable = false, updatable = false)
     private String orderId;
 
+    // 공연 식별자.
     @Column(name = "event_id", nullable = false, updatable = false)
     private Long eventId;
 
+    // 좌석 식별자 목록.
     @ElementCollection
     @CollectionTable(
             name = "checkout_attempt_seats",
@@ -67,27 +72,34 @@ public class CheckoutAttempt {
     @Builder.Default
     private Set<Long> seatIds = new HashSet<>();
 
+    // 결제 번호.
     @Column(name = "payment_no", length = 60, nullable = false, updatable = false)
     private String paymentNo;
 
+    // 결제 정보.
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_id")
     private Payment payment;
 
+    // 결제 준비 시도 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private CheckoutAttemptStatus status;
 
+    // 만료 시각.
     @Column(name = "expires_at", nullable = false, updatable = false)
     private LocalDateTime expiresAt;
 
+    // 생성 시각.
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 마지막 수정 시각.
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 결제 준비 시도 처리에서 처리에 필요한 상태와 데이터를 준비한다.
     public static CheckoutAttempt prepare(
             String idempotencyKey,
             String userId,
@@ -97,6 +109,7 @@ public class CheckoutAttempt {
             String paymentNo,
             LocalDateTime expiresAt
     ) {
+
         if (seatIds == null || seatIds.isEmpty()
                 || seatIds.stream().anyMatch(id -> id == null || id <= 0)) {
             throw new IllegalArgumentException("결제 준비에 유효한 좌석 ID 목록이 필요합니다.");
@@ -115,14 +128,19 @@ public class CheckoutAttempt {
                 .build();
     }
 
+    // 처리 대상 좌석 식별자 목록을 반환한다.
     public Set<Long> getSeatIds() {
+
         return Set.copyOf(seatIds);
     }
 
+    // 준비된 요청을 확정 상태로 변경한다.
     public void confirm(Payment payment) {
+
         if (status != CheckoutAttemptStatus.PREPARED) {
             throw new IllegalStateException("결제 준비 상태에서만 checkout을 확정할 수 있습니다.");
         }
+
         if (payment == null) {
             throw new IllegalArgumentException("확정할 결제 정보가 필요합니다.");
         }
@@ -131,15 +149,21 @@ public class CheckoutAttempt {
         this.status = CheckoutAttemptStatus.CONFIRMED;
     }
 
+    // 요청이 확정되었는지 확인한다.
     public boolean isConfirmed() {
+
         return status == CheckoutAttemptStatus.CONFIRMED;
     }
 
+    // 요청 준비가 완료되었는지 확인한다.
     public boolean isPrepared() {
+
         return status == CheckoutAttemptStatus.PREPARED;
     }
 
+    // 유효 기간이 만료되었는지 확인한다.
     public boolean isExpired(LocalDateTime now) {
+
         return expiresAt == null || !expiresAt.isAfter(now);
     }
 }

@@ -24,17 +24,20 @@ public class NoticeRepositoryImpl implements NoticeRepository {
 
     @Override
     public Notice save(Notice notice) {
+
         return noticeJpaRepository.save(notice);
     }
 
     @Override
     public Notice findById(Long noticeId) {
+
         return noticeJpaRepository.findById(noticeId)
                 .orElseThrow(() -> new NoticeNotFoundException("존재하지 않는 공지사항입니다."));
     }
 
     @Override
     public Notice findPublishedById(Long noticeId) {
+
         QNotice notice = QNotice.notice;
         Notice selectedNotice = queryFactory
                 .selectFrom(notice)
@@ -56,6 +59,7 @@ public class NoticeRepositoryImpl implements NoticeRepository {
             String keyword,
             Pageable pageable
     ) {
+
         QNotice notice = QNotice.notice;
         BooleanExpression[] conditions = {
                 notice.status.eq(PublicationStatus.PUBLISHED),
@@ -80,6 +84,7 @@ public class NoticeRepositoryImpl implements NoticeRepository {
 
     @Override
     public Page<Notice> findForManagement(NoticeSearchRequest request, Pageable pageable) {
+
         QNotice notice = QNotice.notice;
         BooleanExpression[] conditions = {
                 statusEquals(notice, request.getStatus()),
@@ -100,6 +105,7 @@ public class NoticeRepositoryImpl implements NoticeRepository {
 
     @Override
     public void increaseViewCount(Long noticeId) {
+
         int updatedRows = noticeJpaRepository.increaseViewCount(noticeId, PublicationStatus.PUBLISHED);
         if (updatedRows == 0) {
             throw publishedNoticeNotFound();
@@ -107,6 +113,7 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     }
 
     private long count(BooleanExpression... conditions) {
+
         QNotice notice = QNotice.notice;
         Long count = queryFactory
                 .select(notice.count())
@@ -117,14 +124,17 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     }
 
     private BooleanExpression statusEquals(QNotice notice, PublicationStatus status) {
+
         return status == null ? null : notice.status.eq(status);
     }
 
     private BooleanExpression categoryEquals(QNotice notice, NoticeCategory category) {
+
         return category == null ? null : notice.category.eq(category);
     }
 
     private BooleanExpression keywordContains(QNotice notice, String keyword) {
+
         if (!StringUtils.hasText(keyword)) {
             return null;
         }
@@ -134,6 +144,7 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     }
 
     private NoticeNotFoundException publishedNoticeNotFound() {
+
         return new NoticeNotFoundException("존재하지 않거나 공개되지 않은 공지사항입니다.");
     }
 }

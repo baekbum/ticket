@@ -36,6 +36,7 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
+
         http
                 .securityMatcher("/uploads/**", "/actuator/health", "/actuator/prometheus", "/h2-console/**")
                 .csrf(csrf -> csrf.disable())
@@ -50,6 +51,7 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain publicEventFilterChain(HttpSecurity http) throws Exception {
+
         http
                 .securityMatcher("/api/*/event/**")
                 .csrf(csrf -> csrf.disable())
@@ -66,6 +68,7 @@ public class SecurityConfig {
     @Bean
     @Order(3)
     public SecurityFilterChain internalFilterChain(HttpSecurity http) throws Exception {
+
         http
                 .securityMatcher("/api/*/payments/internal/**")
                 .csrf(csrf -> csrf.disable())
@@ -88,6 +91,7 @@ public class SecurityConfig {
     @Bean
     @Order(4)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
@@ -116,6 +120,7 @@ public class SecurityConfig {
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+
         localCorsConfig.ifPresent(config ->
                 cors.configurationSource(config.corsConfigurationSource())
         );
@@ -127,6 +132,7 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+
         return config.getAuthenticationManager(); // 로그인 로직에서 인증을 시도할 매니저
     }
 }

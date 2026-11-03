@@ -19,12 +19,21 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class ReactiveQueueRedisInspectService {
+
+    // 대기열 상태와 토큰을 저장하고 조회하는 Redis 클라이언트.
     private final ReactiveStringRedisTemplate redis;
+    // 대기열 작업에 사용할 Redis 키 생성 도구.
     private final QueueRedisKeys keys;
+    // 사용자 업무 처리를 담당하는 서비스.
     private final ReactiveUserQueueSessionService sessions;
+    // 대기열 입장 업무 처리를 담당하는 서비스.
     private final ReactiveActiveQueueService activeQueue;
 
+    /**
+     * 공연 대기열의 Redis 저장 상태를 점검한다.
+     */
     public Mono<QueueRedisInspectResponse> inspectEventQueue(Long eventId, QueueRedisInspectMode mode, int limit) {
+
         return Mono.defer(() -> {
             QueueRedisInspectMode inspectMode = mode == null ? QueueRedisInspectMode.WAITING : mode;
             int normalizedLimit = limit <= 0 ? 100 : Math.min(limit, 500);
@@ -44,7 +53,11 @@ public class ReactiveQueueRedisInspectService {
         });
     }
 
+    /**
+     * 지정한 대기열 토큰의 Redis 저장 상태를 점검한다.
+     */
     public Mono<QueueRedisInspectResponse> inspectToken(String token) {
+
         String key = keys.activeTokenKey(token);
         return tokenValue(key)
                 .flatMap(value -> ttl(key)
@@ -66,7 +79,11 @@ public class ReactiveQueueRedisInspectService {
                         }));
     }
 
+    /**
+     * 지정한 대기열 토큰을 제거한다.
+     */
     public Mono<Boolean> removeToken(Long eventId, String token, QueueRedisInspectMode mode) {
+
         return Mono.defer(() -> {
             if (!StringUtils.hasText(token) || mode == null || mode == QueueRedisInspectMode.TOKEN) return Mono.just(false);
             boolean active = mode == QueueRedisInspectMode.ACTIVE;
@@ -91,7 +108,16 @@ public class ReactiveQueueRedisInspectService {
         });
     }
 
-    private Mono<QueueRedisEntryResponse> entry(String key, ZSetOperations.TypedTuple<String> tuple, Long rank, boolean active) {
+    /**
+     * Redis 항목을 점검 응답으로 구성한다.
+     */
+    private Mono<QueueRedisEntryResponse> entry(
+            String key,
+            ZSetOperations.TypedTuple<String> tuple,
+            Long rank,
+            boolean active
+    ) {
+
         String tokenKey = active ? keys.activeTokenKey(tuple.getValue()) : keys.waitingTokenKey(tuple.getValue());
         return tokenValue(tokenKey)
                 .flatMap(value -> ttl(tokenKey)
@@ -109,20 +135,32 @@ public class ReactiveQueueRedisInspectService {
                         }));
     }
 
+    /**
+     * 스크립트 결과에서 대기열 토큰 값을 추출한다.
+     */
     private Mono<Optional<String>> tokenValue(String key) {
+
         // GET 결과가 없어도 관리자 조회 항목과 TTL 정보는 응답에 남긴다.
         return redis.opsForValue().get(key)
                 .map(Optional::of)
                 .defaultIfEmpty(Optional.empty());
     }
 
+    /**
+     * 대기열 처리에서 남은 유효 시간을 반환한다.
+     */
     private Mono<Long> ttl(String key) {
+
         return redis.getExpire(key)
                 .defaultIfEmpty(Duration.ofSeconds(-2))
                 .map(ReactiveQueueRedisSupport::ttlSeconds);
     }
 
+    /**
+     * 사용자의 대기열 세션을 제거한다.
+     */
     private Mono<Void> removeSession(String value, String token, boolean active) {
+
         if (!StringUtils.hasText(value)) return Mono.empty();
         String[] parts = value.split(":", 2);
         if (parts.length != 2 || !StringUtils.hasText(parts[1])) return Mono.empty();

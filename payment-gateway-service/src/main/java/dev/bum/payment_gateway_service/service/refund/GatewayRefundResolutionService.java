@@ -16,12 +16,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class GatewayRefundResolutionService {
+
+    // 게이트웨이 환불 데이터를 조회하고 저장하는 레포지토리.
     private final GatewayRefundJpaRepository refunds;
+    // 모의 카드 결제 이력 데이터를 조회하고 저장하는 레포지토리.
     private final DummyCardPaymentHistoryJpaRepository cardPayments;
+    // 모의 가상계좌 데이터를 조회하고 저장하는 레포지토리.
     private final DummyVirtualAccountJpaRepository virtualAccounts;
 
+    /**
+     * 환불 처리에서 현재 상태에 맞는 후속 처리 또는 해결 결과를 결정한다.
+     */
     @Transactional
     public GatewayRefundResolutionResponse resolve(GatewayRefundResolutionRequest request) {
+
         // 환불 실행과 같은 결제 행을 잠가, 결과 확인·종료와 늦게 도착한 환불 요청을 직렬화한다.
         switch (request.method()) {
             case CREDIT_CARD -> cardPayments.findByPaymentNoForUpdate(request.paymentNo())

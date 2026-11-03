@@ -39,8 +39,23 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EventService {
 
+    // 가까운 판매 중 공연을 조회할 최대 건수.
+    private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
+    // 홈 화면 탭별 공연을 조회할 최대 건수.
+    private static final int HOME_TAB_EVENT_LIMIT = 4;
+    // 예매 화면에 표시할 공연 날짜 형식.
+    private static final DateTimeFormatter BOOKING_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
+    private final EventRepository repository;
+    // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
+    private final AreaJpaRepository areaJpaRepository;
+
+    /**
+     * 공연 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<EventCardResponse> search(String keyword, EventSearchField field, int page, int size) {
+
         if (keyword == null || keyword.isBlank() || keyword.trim().length() > 100 || page < 0 || size < 1 || size > 100) {
             throw new IllegalArgumentException("검색어는 1~100자, 페이지는 0 이상, 크기는 1~100이어야 합니다.");
         }
@@ -48,18 +63,12 @@ public class EventService {
         return CustomPageResponse.of(results.getContent(), size, page, results.getTotalElements(), results.getTotalPages());
     }
 
-    private static final int SOONEST_ON_SALE_EVENT_LIMIT = 10;
-    private static final int HOME_TAB_EVENT_LIMIT = 4;
-    private static final DateTimeFormatter BOOKING_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
-
-    private final EventRepository repository;
-    private final AreaJpaRepository areaJpaRepository;
-
     /**
      * 판매 중인 공연만 사용자 화면에 노출되도록 ID로 조회한다.
      */
     @Transactional(readOnly = true)
     public EventResponse selectVisibleById(Long id) {
+
         Event event = repository.selectById(id);
         if (event.getStatus() != EventStatus.ON_SALE) {
             throw new EventNotExistException("노출 가능한 이벤트 정보가 존재하지 않습니다.");
@@ -67,8 +76,12 @@ public class EventService {
         return event.toResponse();
     }
 
+    /**
+     * 공연 그룹 코드로 예매 상세 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public EventBookingDetailResponse selectBookingDetailByEventGroupCode(String eventGroupCode) {
+
         LocalDateTime now = LocalDateTime.now();
         List<Event> events = repository.selectByEventGroupCode(eventGroupCode).stream()
                 .sorted(Comparator.comparing(Event::getEventDateTime))
@@ -141,7 +154,98 @@ public class EventService {
                 .build();
     }
 
+    /**
+     * 판매 중인 공연만 사용자 화면에 노출되도록 조건 검색한다.
+     */
+    @Transactional(readOnly = true)
+    public CustomPageResponse<EventResponse> selectVisibleByCond(EventCondRequest cond) {
+
+        cond.setStatus(EventStatus.ON_SALE);
+        log.info("[SELECT VISIBLE] Info : {}", cond);
+        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+        Page<EventResponse> eventPage = repository.selectByCond(cond, pageRequest).map(Event::toResponse);
+
+        return CustomPageResponse.of(
+                eventPage.getContent(),
+                eventPage.getSize(),
+                eventPage.getNumber(),
+                eventPage.getTotalElements(),
+                eventPage.getTotalPages()
+        );
+    }
+
+    /**
+     * 판매 중인 공연을 가까운 일정 순으로 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectSoonestOnSaleCards() {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectSoonestOnSaleCards(now, SOONEST_ON_SALE_EVENT_LIMIT);
+    }
+
+    /**
+     * 페스티벌 공연 카드 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectFestivalCards() {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectFestivalCards(now, HOME_TAB_EVENT_LIMIT);
+    }
+
+    /**
+     * 판매 시작을 앞둔 공연 카드 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectOpenSoonCards() {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectOpenSoonCards(now, now.plusDays(10), HOME_TAB_EVENT_LIMIT);
+    }
+
+    /**
+     * 주간 추천 공연 카드 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectWeeklyRecommendedCards() {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return repository.selectWeeklyRecommendedCards(now, now.plusDays(14), HOME_TAB_EVENT_LIMIT);
+    }
+
+    /**
+     * 콘서트 공연 카드 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectConcertCards(String sort, int page, int size) {
+
+        return selectGenreCards(EventGenre.CONCERT, sort, page, size);
+    }
+
+    /**
+     * 지정한 장르의 공연 카드 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public List<EventCardResponse> selectGenreCards(EventGenre genre, String sort, int page, int size) {
+
+        LocalDateTime now = LocalDateTime.now();
+        String normalizedSort = "latest".equals(sort) ? "latest" : "soonest";
+        int normalizedPage = Math.max(page, 0);
+        int normalizedSize = Math.max(size, 1);
+
+        return repository.selectGenreOnSaleCards(genre, now, normalizedSort, normalizedPage, normalizedSize);
+    }
+
+    /**
+     * 좌석 등급별 가격을 응답 목록으로 변환한다.
+     */
     private List<EventSeatPriceResponse> toSeatPrices(List<Area> areas) {
+
         Map<SeatGrade, Integer> priceByGrade = areas.stream()
                 .filter(area -> area.getGrade() != null && area.getPrice() != null)
                 .collect(Collectors.toMap(
@@ -160,73 +264,12 @@ public class EventService {
     }
 
     /**
-     * 판매 중인 공연만 사용자 화면에 노출되도록 조건 검색한다.
-     */
-    @Transactional(readOnly = true)
-    public CustomPageResponse<EventResponse> selectVisibleByCond(EventCondRequest cond) {
-        cond.setStatus(EventStatus.ON_SALE);
-        log.info("[SELECT VISIBLE] Info : {}", cond);
-        PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-        Page<EventResponse> eventPage = repository.selectByCond(cond, pageRequest).map(Event::toResponse);
-
-        return CustomPageResponse.of(
-                eventPage.getContent(),
-                eventPage.getSize(),
-                eventPage.getNumber(),
-                eventPage.getTotalElements(),
-                eventPage.getTotalPages()
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectSoonestOnSaleCards() {
-        LocalDateTime now = LocalDateTime.now();
-
-        return repository.selectSoonestOnSaleCards(now, SOONEST_ON_SALE_EVENT_LIMIT);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectFestivalCards() {
-        LocalDateTime now = LocalDateTime.now();
-
-        return repository.selectFestivalCards(now, HOME_TAB_EVENT_LIMIT);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectOpenSoonCards() {
-        LocalDateTime now = LocalDateTime.now();
-
-        return repository.selectOpenSoonCards(now, now.plusDays(10), HOME_TAB_EVENT_LIMIT);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectWeeklyRecommendedCards() {
-        LocalDateTime now = LocalDateTime.now();
-
-        return repository.selectWeeklyRecommendedCards(now, now.plusDays(14), HOME_TAB_EVENT_LIMIT);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectConcertCards(String sort, int page, int size) {
-        return selectGenreCards(EventGenre.CONCERT, sort, page, size);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventCardResponse> selectGenreCards(EventGenre genre, String sort, int page, int size) {
-        LocalDateTime now = LocalDateTime.now();
-        String normalizedSort = "latest".equals(sort) ? "latest" : "soonest";
-        int normalizedPage = Math.max(page, 0);
-        int normalizedSize = Math.max(size, 1);
-
-        return repository.selectGenreOnSaleCards(genre, now, normalizedSort, normalizedPage, normalizedSize);
-    }
-
-    /**
      * 검색 조건에서 sort 옵션을 처리하기 위한 메서드
      * @param sorts
      * @return
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -246,12 +289,15 @@ public class EventService {
         return sort;
     }
 
+    /**
+     * 공연 회차의 날짜 범위를 표시 문자열로 변환한다.
+     */
     private String formatEventDateRange(LocalDateTime start, LocalDateTime end) {
+
         if (start.toLocalDate().equals(end.toLocalDate())) {
             return start.format(BOOKING_DATE_FORMATTER);
         }
 
         return start.format(BOOKING_DATE_FORMATTER) + " ~ " + end.format(BOOKING_DATE_FORMATTER);
     }
-
 }

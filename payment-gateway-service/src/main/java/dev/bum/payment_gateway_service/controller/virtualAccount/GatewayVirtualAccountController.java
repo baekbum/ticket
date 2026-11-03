@@ -29,29 +29,25 @@ public class GatewayVirtualAccountController {
     private final GatewayVirtualAccountService gatewayVirtualAccountService;
     private final VirtualAccountCancellationService cancellationService;
 
-    @PostMapping("/cancel")
-    public ResponseEntity<GatewayVirtualAccountCancelResponse> cancel(
-            @Valid @RequestBody GatewayVirtualAccountCancelRequest request
-    ) {
-        return ResponseEntity.ok(cancellationService.cancel(request));
-    }
-
-    @GetMapping("/internal/{paymentNo}/status")
-    public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
-        return ResponseEntity.ok(gatewayVirtualAccountService.status(paymentNo));
-    }
-
     @PostMapping("/issue")
     public ResponseEntity<GatewayVirtualAccountIssueResponse> issue(
             @Valid @RequestBody GatewayVirtualAccountIssueRequest request
     ) {
+
         return ResponseEntity.ok(gatewayVirtualAccountService.issue(request));
+    }
+
+    @GetMapping("/internal/{paymentNo}/status")
+    public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
+
+        return ResponseEntity.ok(gatewayVirtualAccountService.status(paymentNo));
     }
 
     @PostMapping("/deposit")
     public ResponseEntity<GatewayVirtualAccountDepositResponse> deposit(
             @Valid @RequestBody GatewayVirtualAccountDepositRequest request
     ) {
+
         return ResponseEntity.ok(gatewayVirtualAccountService.deposit(request));
     }
 
@@ -59,6 +55,15 @@ public class GatewayVirtualAccountController {
     public ResponseEntity<GatewayVirtualAccountRefundResponse> refund(
             @Valid @RequestBody GatewayVirtualAccountRefundRequest request
     ) {
+
         return ResponseEntity.ok(gatewayVirtualAccountService.refund(request));
+    }
+
+    @PostMapping("/cancel")
+    public ResponseEntity<GatewayVirtualAccountCancelResponse> cancel(
+            @Valid @RequestBody GatewayVirtualAccountCancelRequest request
+    ) {
+
+        return ResponseEntity.ok(cancellationService.cancel(request));
     }
 }

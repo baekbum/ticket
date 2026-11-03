@@ -25,8 +25,9 @@ public interface PaymentRefundProcessJpaRepository
                 + " p2.refund.payment.reservation=:reservation and p2.status in :statuses)")
     Optional<PaymentRefundProcess>
             findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
-                    @Param("reservation")
+            @Param("reservation")
                             Reservation reservation,
-                    @Param("statuses")
-                            Collection<PaymentRefundProcessStatus> statuses);
+            @Param("statuses")
+                            Collection<PaymentRefundProcessStatus> statuses
+    );
 }

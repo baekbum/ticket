@@ -36,11 +36,13 @@ public class InquiryManagementController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+
         return ResponseEntity.ok(inquiryManagementService.select(status, category, keyword, page, size));
     }
 
     @GetMapping("/select/id/{inquiryId}")
     public ResponseEntity<InquiryResponse> selectById(@PathVariable Long inquiryId) {
+
         return ResponseEntity.ok(inquiryManagementService.selectById(inquiryId));
     }
 
@@ -50,6 +52,7 @@ public class InquiryManagementController {
             @Valid @RequestBody InquiryAnswerRequest request,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(inquiryManagementService.answer(inquiryId, request, currentUserId));
     }
@@ -59,6 +62,7 @@ public class InquiryManagementController {
             @PathVariable Long inquiryId,
             @Valid @RequestBody InquiryAnswerRequest request
     ) {
+
         return ResponseEntity.ok(inquiryManagementService.updateAnswer(inquiryId, request));
     }
 }

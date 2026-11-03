@@ -13,10 +13,16 @@ import org.springframework.util.StringUtils;
 @Service
 @RequiredArgsConstructor
 public class VirtualAccountCancelOutboxService {
+
+    // 가상계좌 취소 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountCancelOutboxJpaRepository repository;
 
+    /**
+     * 가상계좌 취소 Outbox 이벤트 처리에서 발행 대기 이벤트로 저장한다.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public void enqueue(Payment payment) {
+
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getStatus() != PaymentStatus.CANCELLED
                 || payment.getReservation() == null || payment.getReservation().getStatus() != ReservationStatus.CANCELLED
                 || !StringUtils.hasText(payment.getPaymentNo()) || !StringUtils.hasText(payment.getAccountNumber())

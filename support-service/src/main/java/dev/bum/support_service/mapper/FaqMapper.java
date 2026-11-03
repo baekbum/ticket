@@ -9,6 +9,7 @@ public final class FaqMapper {
     }
 
     public static FaqResponse toResponse(Faq faq) {
+
         return new FaqResponse(
                 faq.getId(), faq.getQuestion(), faq.getAnswer(), faq.getCategory(), faq.getStatus(),
                 faq.getDisplayOrder(), faq.getAuthorId(), faq.getCreatedAt(), faq.getUpdatedAt()

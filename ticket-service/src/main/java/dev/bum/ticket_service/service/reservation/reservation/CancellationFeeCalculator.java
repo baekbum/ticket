@@ -21,24 +21,65 @@ import java.util.List;
 @NoArgsConstructor
 public final class CancellationFeeCalculator {
 
+    // 예매 후 취소 수수료를 면제하는 유예 일수.
     private static final int BOOKING_GRACE_PERIOD_DAYS = 7;
 
+    /**
+     * 환불 수수료 계산
+     * @param reservation
+     * @param cancelledAt
+     * @return
+     */
+    static int resolveFeeRate(Reservation reservation, LocalDateTime cancelledAt) {
+
+        LocalDate eventDate = reservation.getEvent().getEventDateTime().toLocalDate();
+        long daysBeforeEvent = ChronoUnit.DAYS.between(cancelledAt.toLocalDate(), eventDate);
+        if (daysBeforeEvent < 1) {
+            throw new IllegalArgumentException("관람일 당일 또는 이후에는 취소할 수 없습니다.");
+        }
+
+        if (reservation.getReservedAt() != null
+                && !cancelledAt.isAfter(reservation.getReservedAt().plusDays(BOOKING_GRACE_PERIOD_DAYS))) {
+            return 0;
+        }
+
+        if (daysBeforeEvent >= 7 && daysBeforeEvent <= 9) {
+            return 10;
+        }
+
+        if (daysBeforeEvent >= 3 && daysBeforeEvent <= 6) {
+            return 20;
+        }
+
+        if (daysBeforeEvent >= 1 && daysBeforeEvent <= 2) {
+            return 30;
+        }
+        return 0;
+    }
+
+    /**
+     * 취소 대상의 환불 금액을 계산한다.
+     */
     public static int calculateRefundAmount(
             Reservation reservation,
             int refundAmountBeforeFee,
             List<Ticket> cancelledTickets,
             LocalDateTime cancelledAt
     ) {
+
         if (refundAmountBeforeFee <= 0) {
             throw new IllegalArgumentException("수수료 적용 전 환불 금액은 0보다 커야 합니다.");
         }
+
         if (reservation == null || reservation.getEvent() == null
                 || reservation.getEvent().getEventDateTime() == null) {
             throw new IllegalArgumentException("관람 일시를 확인할 수 없습니다.");
         }
+
         if (cancelledTickets == null || cancelledTickets.isEmpty()) {
             throw new IllegalArgumentException("취소 수수료를 계산할 티켓이 없습니다.");
         }
+
         if (cancelledAt == null) {
             throw new IllegalArgumentException("취소 시각을 확인할 수 없습니다.");
         }
@@ -55,6 +96,9 @@ public final class CancellationFeeCalculator {
         return Math.max(refundAmountBeforeFee - cancellationFee, 0);
     }
 
+    /**
+     * 취소 대상의 환불액과 공제 금액을 계산한다.
+     */
     public static CancellationRefundCalculation calculate(
             Reservation reservation,
             Payment payment,
@@ -64,10 +108,12 @@ public final class CancellationFeeCalculator {
             boolean fullCancellation,
             LocalDateTime cancelledAt
     ) {
+
         validateCancellationContext(reservation, cancelledTickets, cancelledAt);
         if (payment == null) {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
         }
+
         if (activeTickets == null || activeTickets.isEmpty()) {
             throw new IllegalArgumentException("취소 가능한 티켓이 없습니다.");
         }
@@ -101,23 +147,32 @@ public final class CancellationFeeCalculator {
                 .build();
     }
 
+    /**
+     * 취소 요청의 예매, 결제와 티켓 정보를 검증한다.
+     */
     private static void validateCancellationContext(
             Reservation reservation,
             List<Ticket> cancelledTickets,
             LocalDateTime cancelledAt
     ) {
+
         if (reservation == null || reservation.getEvent() == null
                 || reservation.getEvent().getEventDateTime() == null) {
             throw new IllegalArgumentException("관람 일시를 확인할 수 없습니다.");
         }
+
         if (cancelledTickets == null || cancelledTickets.isEmpty()) {
             throw new IllegalArgumentException("취소 수수료를 계산할 티켓이 없습니다.");
         }
+
         if (cancelledAt == null) {
             throw new IllegalArgumentException("취소 시각을 확인할 수 없습니다.");
         }
     }
 
+    /**
+     * 환불 시 공제할 할인 금액을 계산한다.
+     */
     private static DiscountCalculation calculateDiscountDeduction(
             List<ReservationDiscount> discounts,
             int activeTicketAmount,
@@ -125,6 +180,7 @@ public final class CancellationFeeCalculator {
             int remainingTicketAmount,
             boolean fullCancellation
     ) {
+
         int deductionAmount = 0;
         boolean restoreCoupon = false;
 
@@ -162,11 +218,15 @@ public final class CancellationFeeCalculator {
                 .build();
     }
 
+    /**
+     * 취소 정책에 따른 수수료를 계산한다.
+     */
     private static int calculateCancellationFee(
             Reservation reservation,
             int cancelledTicketAmount,
             LocalDateTime cancelledAt
     ) {
+
         int feeRate = resolveFeeRate(reservation, cancelledAt);
         return BigDecimal.valueOf(cancelledTicketAmount)
                 .multiply(BigDecimal.valueOf(feeRate))
@@ -174,19 +234,27 @@ public final class CancellationFeeCalculator {
                 .intValueExact();
     }
 
+    /**
+     * 전체 금액에서 대상 비율에 해당하는 금액을 계산한다.
+     */
     private static int proportionalAmount(int amount, int selectedAmount, int totalAmount) {
+
         return BigDecimal.valueOf(amount)
                 .multiply(BigDecimal.valueOf(selectedAmount))
                 .divide(BigDecimal.valueOf(totalAmount), 0, RoundingMode.DOWN)
                 .intValueExact();
     }
 
+    /**
+     * 할인 스냅샷이 없는 티켓의 환불 금액을 계산한다.
+     */
     private static int calculateTicketRefundWithoutDiscountSnapshot(
             Payment payment,
             int activeTicketAmount,
             int cancelledTicketAmount,
             boolean fullCancellation
     ) {
+
         int refundableTicketPool = Math.max(payment.getRefundableAmount() - payment.getDeliveryFeeAmount(), 0);
         if (fullCancellation) {
             return Math.min(activeTicketAmount, refundableTicketPool);
@@ -197,58 +265,51 @@ public final class CancellationFeeCalculator {
                 activeTicketAmount);
     }
 
+    /**
+     * 적용된 할인 금액이 존재하는지 확인한다.
+     */
     private static boolean hasPositiveDiscount(List<ReservationDiscount> discounts) {
+
         return discounts != null && discounts.stream()
                 .anyMatch(discount -> discount.getDiscountAmount() != null && discount.getDiscountAmount() > 0);
     }
 
+    /**
+     * 처리 대상 티켓 금액을 합산한다.
+     */
     private static int sumTicketAmount(List<Ticket> tickets) {
+
         return tickets.stream()
                 .mapToInt(ticket -> ticket.getPrice() != null ? ticket.getPrice() : 0)
                 .sum();
     }
 
-    /**
-     * 환불 수수료 계산
-     * @param reservation
-     * @param cancelledAt
-     * @return
-     */
-    static int resolveFeeRate(Reservation reservation, LocalDateTime cancelledAt) {
-        LocalDate eventDate = reservation.getEvent().getEventDateTime().toLocalDate();
-        long daysBeforeEvent = ChronoUnit.DAYS.between(cancelledAt.toLocalDate(), eventDate);
-        if (daysBeforeEvent < 1) {
-            throw new IllegalArgumentException("관람일 당일 또는 이후에는 취소할 수 없습니다.");
-        }
-
-        if (reservation.getReservedAt() != null
-                && !cancelledAt.isAfter(reservation.getReservedAt().plusDays(BOOKING_GRACE_PERIOD_DAYS))) {
-            return 0;
-        }
-
-        if (daysBeforeEvent >= 7 && daysBeforeEvent <= 9) {
-            return 10;
-        }
-        if (daysBeforeEvent >= 3 && daysBeforeEvent <= 6) {
-            return 20;
-        }
-        if (daysBeforeEvent >= 1 && daysBeforeEvent <= 2) {
-            return 30;
-        }
-        return 0;
-    }
-
     @Builder
     public record CancellationRefundCalculation(
+            // 환불 금액.
             int refundAmount,
+
+            // 취소 수수료 금액.
             int cancellationFeeAmount,
+
+            // 배송비 환불 금액.
             int deliveryRefundAmount,
+
+            // 환불에서 공제할 할인 금액.
             int discountDeductionAmount,
+
+            // 쿠폰 복원 여부.
             boolean restoreCoupon
     ) {
     }
 
     @Builder
-    private record DiscountCalculation(int deductionAmount, boolean restoreCoupon) {
+    private record DiscountCalculation(
+            // 공제 금액.
+            int deductionAmount,
+
+            // 쿠폰 복원 여부.
+            boolean restoreCoupon
+    ) {
     }
 }

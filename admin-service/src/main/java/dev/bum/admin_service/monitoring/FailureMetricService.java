@@ -15,11 +15,14 @@ import java.util.List;
 @Slf4j
 public class FailureMetricService {
 
+    // 메트릭 조회의 기본 시간 범위.
     private static final String DEFAULT_RANGE = "5m";
+    // 서비스 중단 메트릭을 식별하는 키.
     private static final String SERVICE_DOWN_KEY = "service_down_count";
+    // 서비스 중단 상세 정보를 조회하는 PromQL.
     private static final String SERVICE_DOWN_DETAIL_PROMQL =
             "up{job=~\"local-(auth|user|ticket|queue|audit|admin)-service|ticket-services|admin-service\"} == 0";
-
+    // 조회할 장애 메트릭의 정의 목록.
     private static final List<FailureMetricDefinition> DEFINITIONS = List.of(
             new FailureMetricDefinition(
                     "service_down_count",
@@ -85,11 +88,16 @@ public class FailureMetricService {
                     1
             )
     );
-
+    // Prometheus 메트릭 조회 API를 호출하는 클라이언트.
     private final PrometheusQueryClient prometheusQueryClient;
+    // 장애 메트릭 처리에 적용할 설정.
     private final FailureMetricProperties failureMetricProperties;
 
+    /**
+     * 실패 관련 메트릭 목록을 조회한다.
+     */
     public FailureMetricSummaryResponse failureMetrics(String range) {
+
         String resolvedRange = StringUtils.hasText(range) ? range : DEFAULT_RANGE;
         List<FailureMetricResponse> metrics = DEFINITIONS.stream()
                 .map(definition -> failureMetric(definition, resolvedRange))
@@ -98,7 +106,11 @@ public class FailureMetricService {
         return new FailureMetricSummaryResponse(OffsetDateTime.now(), resolvedRange, metrics);
     }
 
+    /**
+     * 지정한 실패 메트릭의 상세 정보를 조회한다.
+     */
     private FailureMetricResponse failureMetric(FailureMetricDefinition definition, String range) {
+
         Double value = null;
         String promql = definition.promql(range);
         List<FailureMetricDetailResponse> details = List.of();

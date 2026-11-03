@@ -32,6 +32,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<Object, Object> kafkaTemplate,
             KafkaDltSlackNotifier kafkaDltSlackNotifier
     ) {
+
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> {
@@ -57,9 +58,11 @@ public class KafkaConsumerConfig {
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> eventKafkaListenerContainerFactory(
-            KafkaProperties kafkaProperties, DefaultErrorHandler kafkaErrorHandler,
+            KafkaProperties kafkaProperties,
+            DefaultErrorHandler kafkaErrorHandler,
             @Value("${topic.payment.virtual-account.expired.name}") String virtualAccountExpiredTopic
     ) {
+
         // 새 이벤트의 토픽과 타입을 여기에 등록하면 리스너들이 같은 컨테이너 팩토리를 사용할 수 있다.
         Map<String, Class<?>> eventTypes = Map.of(
                 virtualAccountExpiredTopic, VirtualAccountExpiredEvent.class

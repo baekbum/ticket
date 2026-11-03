@@ -27,11 +27,19 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     Page<Payment> findByMethodAndStatus(PaymentMethod method, PaymentStatus status, Pageable pageable);
 
     @EntityGraph(attributePaths = "reservation")
-    Page<Payment> findByMethodAndPaymentNoContainingIgnoreCase(PaymentMethod method, String paymentNo, Pageable pageable);
+    Page<Payment> findByMethodAndPaymentNoContainingIgnoreCase(
+            PaymentMethod method,
+            String paymentNo,
+            Pageable pageable
+    );
 
     @EntityGraph(attributePaths = "reservation")
     Page<Payment> findByMethodAndStatusAndPaymentNoContainingIgnoreCase(
-            PaymentMethod method, PaymentStatus status, String paymentNo, Pageable pageable);
+            PaymentMethod method,
+            PaymentStatus status,
+            String paymentNo,
+            Pageable pageable
+    );
 
     Optional<Payment> findByPaymentNo(String paymentNo);
 

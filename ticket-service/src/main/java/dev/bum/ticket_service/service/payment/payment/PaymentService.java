@@ -23,20 +23,16 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PaymentService {
 
+    // 카드 결제 업무 처리를 담당하는 서비스.
     private final CardPaymentService cardPaymentService;
+    // 가상계좌 결제 업무 처리를 담당하는 서비스.
     private final VirtualAccountPaymentService virtualAccountPaymentService;
-
-    /**
-     * payment-gateway가 카드 승인을 요청하기 전에 결제 소유자, 결제수단, 상태 및 만료 여부를 검증한다.
-     */
-    public PaymentResponse validateCardBeforeApproval(CardPaymentValidationRequest request) {
-        return cardPaymentService.validateBeforeApproval(request);
-    }
 
     /**
      * payment-gateway의 카드 승인 결과를 검증하고 결제 완료 또는 승인 거절 상태로 정산한다.
      */
     public CardPaymentSettlementResponse settleCardFromGateway(CardPaymentCompleteRequest request) {
+
         return cardPaymentService.settleFromGateway(request);
     }
 
@@ -46,16 +42,8 @@ public class PaymentService {
     @AuditLog(action = "CARD_PAYMENT_COMPLETE_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-card-from-gateway", contextualName = "ticket payment complete card from gateway")
     public PaymentResponse completeCardFromGateway(CardPaymentCompleteRequest request) {
-        return cardPaymentService.completeFromGateway(request);
-    }
 
-    /**
-     * payment-gateway에서 카드 승인 실패 또는 승인 취소가 발생한 결제를 실패 상태로 반영한다.
-     */
-    @AuditLog(action = "CARD_PAYMENT_FAIL_FROM_GATEWAY", targetType = "PAYMENT")
-    @Observed(name = "ticket.payment.fail-card-from-gateway", contextualName = "ticket payment fail card from gateway")
-    public PaymentResponse failCardFromGateway(CardPaymentFailRequest request) {
-        return cardPaymentService.failFromGateway(request);
+        return cardPaymentService.completeFromGateway(request);
     }
 
     /**
@@ -64,6 +52,7 @@ public class PaymentService {
     @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
     public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
+
         return virtualAccountPaymentService.completeDepositFromGateway(request);
     }
 
@@ -73,7 +62,25 @@ public class PaymentService {
     @AuditLog(action = "VIRTUAL_ACCOUNT_EXPIRED_FROM_GATEWAY", targetType = "PAYMENT")
     @Observed(name = "ticket.payment.expire-virtual-account-from-gateway", contextualName = "ticket payment expire virtual account from gateway")
     public PaymentResponse expireVirtualAccountFromGateway(VirtualAccountExpiredEvent event) {
+
         return virtualAccountPaymentService.expireFromGateway(event);
     }
 
+    /**
+     * payment-gateway가 카드 승인을 요청하기 전에 결제 소유자, 결제수단, 상태 및 만료 여부를 검증한다.
+     */
+    public PaymentResponse validateCardBeforeApproval(CardPaymentValidationRequest request) {
+
+        return cardPaymentService.validateBeforeApproval(request);
+    }
+
+    /**
+     * payment-gateway에서 카드 승인 실패 또는 승인 취소가 발생한 결제를 실패 상태로 반영한다.
+     */
+    @AuditLog(action = "CARD_PAYMENT_FAIL_FROM_GATEWAY", targetType = "PAYMENT")
+    @Observed(name = "ticket.payment.fail-card-from-gateway", contextualName = "ticket payment fail card from gateway")
+    public PaymentResponse failCardFromGateway(CardPaymentFailRequest request) {
+
+        return cardPaymentService.failFromGateway(request);
+    }
 }

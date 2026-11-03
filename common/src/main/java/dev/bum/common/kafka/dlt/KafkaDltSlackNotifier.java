@@ -19,14 +19,13 @@ import java.util.Map;
 public class KafkaDltSlackNotifier {
 
     private static final int MIN_PAYLOAD_PREVIEW_LENGTH = 100;
-
     private final KafkaDltSlackProperties properties;
     private final RestClient.Builder restClientBuilder;
-
     @Value("${spring.application.name:unknown-service}")
     private String serviceName;
 
     public boolean notifyDlt(ConsumerRecord<?, ?> record, Exception exception, TopicPartition dltTopicPartition) {
+
         if (!properties.isEnabled() || !StringUtils.hasText(properties.getWebhookUrl())) {
             return false;
         }
@@ -54,6 +53,7 @@ public class KafkaDltSlackNotifier {
     }
 
     private String messageOf(ConsumerRecord<?, ?> record, Exception exception, TopicPartition dltTopicPartition) {
+
         return """
                 [DLT] Kafka 메시지 처리 실패
                 *Service:* %s
@@ -82,6 +82,7 @@ public class KafkaDltSlackNotifier {
     }
 
     private String adminDlqLink() {
+
         if (!StringUtils.hasText(properties.getAdminDlqUrl())) {
             return "-";
         }
@@ -89,6 +90,7 @@ public class KafkaDltSlackNotifier {
     }
 
     private String exceptionMessage(Exception exception) {
+
         Throwable cause = exception.getCause() == null ? exception : exception.getCause();
         String message = cause.getMessage();
         if (!StringUtils.hasText(message)) {
@@ -98,6 +100,7 @@ public class KafkaDltSlackNotifier {
     }
 
     private String preview(Object value) {
+
         if (value == null) {
             return "null";
         }

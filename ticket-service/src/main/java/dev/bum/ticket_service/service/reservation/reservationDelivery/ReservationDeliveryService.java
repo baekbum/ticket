@@ -35,7 +35,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReservationDeliveryService {
 
+    // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationRepository reservationRepository;
+    // 예매 배송 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
 
     /**
@@ -43,6 +45,7 @@ public class ReservationDeliveryService {
      */
     @Transactional(readOnly = true)
     public ReservationDeliveryResponse selectById(long id) {
+
         return selectEntityById(id).toResponse();
     }
 
@@ -51,6 +54,7 @@ public class ReservationDeliveryService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<ReservationDeliveryResponse> selectByCond(ReservationDeliveryCondRequest cond) {
+
         PageRequest pageable = PageRequest.of(
                 cond.getPage() != null ? cond.getPage() : 0,
                 cond.getSize() != null ? cond.getSize() : 10,
@@ -75,6 +79,7 @@ public class ReservationDeliveryService {
      */
     @Transactional(readOnly = true)
     public ReservationDeliveryResponse selectMyById(String currentUserId, long id) {
+
         ReservationDelivery delivery = selectEntityById(id);
         validateOwner(currentUserId, delivery.getReservation());
 
@@ -86,6 +91,7 @@ public class ReservationDeliveryService {
      */
     @Transactional(readOnly = true)
     public ReservationDeliveryResponse selectByReservationId(long reservationId) {
+
         Reservation reservation = reservationRepository.selectById(reservationId);
 
         return reservationDeliveryJpaRepository.findByReservation(reservation)
@@ -94,15 +100,17 @@ public class ReservationDeliveryService {
     }
 
     /**
-     * 배송 상태를 출고 준비 중으로 변경한다.
+     * 로그인 사용자가 본인 예매의 배송 스냅샷을 예매 ID로 조회한다.
      */
-    @AuditLog(action = "RESERVATION_DELIVERY_PREPARE", targetType = "RESERVATION_DELIVERY")
-    public ReservationDeliveryResponse prepare(long id) {
-        ReservationDelivery delivery = selectEntityById(id);
-        Object beforeStatus = delivery.getStatus();
-        delivery.prepare();
-        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
-        return delivery.toResponse();
+    @Transactional(readOnly = true)
+    public ReservationDeliveryResponse selectMyByReservationId(String currentUserId, long reservationId) {
+
+        Reservation reservation = reservationRepository.selectById(reservationId);
+        validateOwner(currentUserId, reservation);
+
+        return reservationDeliveryJpaRepository.findByReservation(reservation)
+                .orElseThrow(() -> new IllegalArgumentException("해당 예약의 배송 정보가 존재하지 않습니다."))
+                .toResponse();
     }
 
     /**
@@ -110,6 +118,7 @@ public class ReservationDeliveryService {
      */
     @AuditLog(action = "RESERVATION_DELIVERY_TRACKING_UPDATE", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse updateTracking(long id, UpdateReservationDeliveryTrackingRequest info) {
+
         ReservationDelivery delivery = selectEntityById(id);
         AuditDataMapper.setChangedData(delivery, info, "trackingNumber");
         delivery.updateTracking(info.getCarrier(), info.getTrackingNumber());
@@ -120,7 +129,12 @@ public class ReservationDeliveryService {
      * 로그인 사용자가 배송 준비 전 본인 배송지 정보를 수정한다.
      */
     @AuditLog(action = "RESERVATION_DELIVERY_UPDATE", targetType = "RESERVATION_DELIVERY")
-    public ReservationDeliveryResponse updateMyDelivery(String currentUserId, long id, ReservationDeliveryRequest info) {
+    public ReservationDeliveryResponse updateMyDelivery(
+            String currentUserId,
+            long id,
+            ReservationDeliveryRequest info
+    ) {
+
         ReservationDelivery delivery = selectEntityById(id);
         validateOwner(currentUserId, delivery.getReservation());
         AuditDataMapper.setChangedData(delivery, info, "recipientName", "recipientPhone", "address", "detailAddress");
@@ -129,10 +143,37 @@ public class ReservationDeliveryService {
     }
 
     /**
+     * 배송 상태를 취소로 변경한다.
+     */
+    @AuditLog(action = "RESERVATION_DELIVERY_CANCEL", targetType = "RESERVATION_DELIVERY")
+    public ReservationDeliveryResponse cancel(long id) {
+
+        ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
+        delivery.cancel();
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
+        return delivery.toResponse();
+    }
+
+    /**
+     * 배송 상태를 출고 준비 중으로 변경한다.
+     */
+    @AuditLog(action = "RESERVATION_DELIVERY_PREPARE", targetType = "RESERVATION_DELIVERY")
+    public ReservationDeliveryResponse prepare(long id) {
+
+        ReservationDelivery delivery = selectEntityById(id);
+        Object beforeStatus = delivery.getStatus();
+        delivery.prepare();
+        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
+        return delivery.toResponse();
+    }
+
+    /**
      * 운송장 정보를 반영하고 배송 상태를 발송 완료로 변경한다.
      */
     @AuditLog(action = "RESERVATION_DELIVERY_SHIP", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse ship(long id, UpdateReservationDeliveryTrackingRequest info) {
+
         ReservationDelivery delivery = selectEntityById(id);
         Object beforeStatus = delivery.getStatus();
         delivery.ship(info != null ? info.getCarrier() : null, info != null ? info.getTrackingNumber() : null, LocalDateTime.now());
@@ -145,6 +186,7 @@ public class ReservationDeliveryService {
      */
     @AuditLog(action = "RESERVATION_DELIVERY_DELIVER", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse deliver(long id) {
+
         ReservationDelivery delivery = selectEntityById(id);
         Object beforeStatus = delivery.getStatus();
         delivery.deliver(LocalDateTime.now());
@@ -157,6 +199,7 @@ public class ReservationDeliveryService {
      */
     @AuditLog(action = "RESERVATION_DELIVERY_RETURN", targetType = "RESERVATION_DELIVERY")
     public ReservationDeliveryResponse returnDelivery(long id) {
+
         ReservationDelivery delivery = selectEntityById(id);
         Object beforeStatus = delivery.getStatus();
         delivery.returnDelivery();
@@ -165,34 +208,10 @@ public class ReservationDeliveryService {
     }
 
     /**
-     * 배송 상태를 취소로 변경한다.
-     */
-    @AuditLog(action = "RESERVATION_DELIVERY_CANCEL", targetType = "RESERVATION_DELIVERY")
-    public ReservationDeliveryResponse cancel(long id) {
-        ReservationDelivery delivery = selectEntityById(id);
-        Object beforeStatus = delivery.getStatus();
-        delivery.cancel();
-        AuditDataMapper.setFieldChange("status", beforeStatus, delivery.getStatus());
-        return delivery.toResponse();
-    }
-
-    /**
-     * 로그인 사용자가 본인 예매의 배송 스냅샷을 예매 ID로 조회한다.
-     */
-    @Transactional(readOnly = true)
-    public ReservationDeliveryResponse selectMyByReservationId(String currentUserId, long reservationId) {
-        Reservation reservation = reservationRepository.selectById(reservationId);
-        validateOwner(currentUserId, reservation);
-
-        return reservationDeliveryJpaRepository.findByReservation(reservation)
-                .orElseThrow(() -> new IllegalArgumentException("해당 예약의 배송 정보가 존재하지 않습니다."))
-                .toResponse();
-    }
-
-    /**
      * 배송 ID로 엔티티를 조회하고 없으면 예외를 발생시킨다.
      */
     private ReservationDelivery selectEntityById(long id) {
+
         return reservationDeliveryJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 배송 정보가 존재하지 않습니다."));
     }
@@ -201,6 +220,7 @@ public class ReservationDeliveryService {
      * 요청 사용자가 배송 스냅샷이 속한 예매의 소유자인지 검증한다.
      */
     private void validateOwner(String currentUserId, Reservation reservation) {
+
         if (!StringUtils.hasText(currentUserId) || !currentUserId.equals(reservation.getUserId())) {
             throw new AccessDeniedException("본인 예약의 배송 정보만 처리할 수 있습니다.");
         }
@@ -210,6 +230,7 @@ public class ReservationDeliveryService {
      * 배송 검색 조건을 JPA Specification으로 변환한다.
      */
     private Specification<ReservationDelivery> makeSpec(ReservationDeliveryCondRequest cond) {
+
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
@@ -219,9 +240,11 @@ public class ReservationDeliveryService {
             if (cond.getReservationId() != null && cond.getReservationId() > 0) {
                 predicates.add(cb.equal(root.get("reservation").get("reservationId"), cond.getReservationId()));
             }
+
             if (StringUtils.hasText(cond.getUserId())) {
                 predicates.add(cb.like(root.get("reservation").get("userId"), "%" + cond.getUserId() + "%"));
             }
+
             if (cond.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), cond.getStatus()));
             }
@@ -234,6 +257,7 @@ public class ReservationDeliveryService {
      * 요청 sort 문자열을 Spring Data Sort 객체로 변환하고 기본 정렬을 적용한다.
      */
     private Sort makeSort(List<String> sorts) {
+
         if (sorts == null || sorts.isEmpty()) {
             return Sort.by(Sort.Direction.DESC, "reservationDeliveryId");
         }

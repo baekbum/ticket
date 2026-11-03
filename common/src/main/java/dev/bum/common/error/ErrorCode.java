@@ -72,6 +72,5 @@ public enum ErrorCode {
 
     // 기타
     INTERNAL_SERVER_ERROR("서버 오류가 발생했습니다.");
-
     private final String message;
 }

@@ -10,20 +10,22 @@ public enum BankCompany {
     KAKAO("카카오뱅크", "7777"),
     TOSS("토스뱅크", "8888"),
     BUSAN("부산은행", "9999");
-
     private final String bankName;
     private final String accountPrefix;
 
     BankCompany(String bankName, String accountPrefix) {
+
         this.bankName = bankName;
         this.accountPrefix = accountPrefix;
     }
 
     public String getBankName() {
+
         return bankName;
     }
 
     public String getAccountPrefix() {
+
         return accountPrefix;
     }
 }

@@ -13,6 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DeleteUserAddressBulkRequest {
+
+    // 배송지 식별자 목록.
     @NotEmpty
     private List<Long> addressIds;
 }

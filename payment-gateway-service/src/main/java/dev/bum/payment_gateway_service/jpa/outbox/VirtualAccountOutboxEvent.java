@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class VirtualAccountOutboxEvent {
 
+    // 발행 대기 이벤트 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "outbox_id")
@@ -99,10 +100,12 @@ public class VirtualAccountOutboxEvent {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 가상계좌 만료 결과를 반영한다.
     public static VirtualAccountOutboxEvent virtualAccountExpired(
             DummyVirtualAccount virtualAccount,
             LocalDateTime expiredAt
     ) {
+
         return VirtualAccountOutboxEvent.builder()
                 .eventType(OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED)
                 .status(OutboxEventStatus.PENDING)
@@ -115,7 +118,9 @@ public class VirtualAccountOutboxEvent {
                 .build();
     }
 
+    // 가상계좌 정보를 만료 알림 이벤트로 변환한다.
     public VirtualAccountExpiredEvent toVirtualAccountExpiredEvent() {
+
         return VirtualAccountExpiredEvent.builder()
                 .paymentNo(this.paymentNo)
                 .bankCompany(this.bankCompany)
@@ -126,13 +131,17 @@ public class VirtualAccountOutboxEvent {
                 .build();
     }
 
+    // 가상계좌 처리에서 이벤트를 발행한다.
     public void publish(LocalDateTime publishedAt) {
+
         this.status = OutboxEventStatus.PUBLISHED;
         this.publishedAt = publishedAt != null ? publishedAt : LocalDateTime.now();
         this.lastErrorMessage = null;
     }
 
+    // 이벤트 발행 실패와 재시도 정보를 기록한다.
     public void failPublish(String errorMessage) {
+
         this.retryCount = this.retryCount + 1;
         this.lastErrorMessage = errorMessage;
     }

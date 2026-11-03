@@ -31,11 +31,13 @@ public class AdminDltTestController {
 
     @GetMapping("/topics")
     public ResponseEntity<List<String>> topics() {
+
         return ResponseEntity.ok(kafkaDlqProperties.getMappings().keySet().stream().sorted().toList());
     }
 
     @PostMapping("/publish")
     public ResponseEntity<DltTestPublishResponse> publish(@Valid @RequestBody DltTestPublishRequest request) {
+
         if (!kafkaDlqProperties.getMappings().containsKey(request.dltTopic())) {
             throw new IllegalArgumentException("허용되지 않은 DLT topic입니다.");
         }
@@ -61,6 +63,7 @@ public class AdminDltTestController {
     }
 
     private byte[] textBytes(String value) {
+
         if (value == null || value.isBlank()) {
             return null;
         }

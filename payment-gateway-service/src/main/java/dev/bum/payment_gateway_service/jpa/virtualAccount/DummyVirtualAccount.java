@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class DummyVirtualAccount {
 
+    // 가상계좌 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "virtual_account_id")
@@ -97,6 +98,7 @@ public class DummyVirtualAccount {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 가상계좌를 발급한다.
     public static DummyVirtualAccount issue(
             String paymentNo,
             BankCompany bankCompany,
@@ -104,6 +106,7 @@ public class DummyVirtualAccount {
             BigDecimal amount,
             LocalDateTime expiresAt
     ) {
+
         return DummyVirtualAccount.builder()
                 .paymentNo(paymentNo)
                 .bankCompany(bankCompany)
@@ -115,21 +118,29 @@ public class DummyVirtualAccount {
                 .build();
     }
 
+    // 가상계좌 처리에서 입금 결과를 반영한다.
     public void deposit(String depositorName, LocalDateTime depositedAt) {
+
         this.status = VirtualAccountPaymentStatus.DEPOSITED;
         this.depositorName = depositorName;
         this.depositedAt = depositedAt != null ? depositedAt : LocalDateTime.now();
     }
 
+    // 입금 이력이 존재하는지 확인한다.
     public boolean hasDeposit() {
+
         return status == VirtualAccountPaymentStatus.DEPOSITED;
     }
 
+    // 가상계좌를 만료 상태로 변경한다.
     public void expire() {
+
         this.status = VirtualAccountPaymentStatus.EXPIRED;
     }
 
+    // 가상계좌를 취소 상태로 변경한다.
     public void cancel(String failureReason) {
+
         this.status = VirtualAccountPaymentStatus.CANCELLED;
         this.failureReason = failureReason;
     }

@@ -20,6 +20,7 @@ public class AdminMonitoringController {
     public ResponseEntity<FailureMetricSummaryResponse> failureMetrics(
             @RequestParam(value = "range", required = false) String range
     ) {
+
         return ResponseEntity.ok(failureMetricService.failureMetrics(range));
     }
 }

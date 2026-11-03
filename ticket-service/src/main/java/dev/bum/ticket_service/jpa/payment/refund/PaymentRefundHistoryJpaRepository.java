@@ -9,6 +9,7 @@ import java.util.List;
 
 public interface PaymentRefundHistoryJpaRepository
         extends JpaRepository<PaymentRefundHistory, Long> {
+
     @EntityGraph(attributePaths = {"paymentRefundProcess.refund.snapshot.tickets"})
     @Query(
             "select h from PaymentRefundHistory h where"
@@ -16,7 +17,8 @@ public interface PaymentRefundHistoryJpaRepository
                 + " h.eventType=dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType.LOCAL_APPLIED"
                 + " order by h.paymentRefundHistoryId desc")
     List<PaymentRefundHistory> findByReservationOrderByPaymentRefundHistoryIdDesc(
-            @Param("reservation") Reservation reservation);
+            @Param("reservation") Reservation reservation
+    );
 
     @Query(
             "select count(h)>0 from PaymentRefundHistory h where h.paymentRefundProcess=:process"

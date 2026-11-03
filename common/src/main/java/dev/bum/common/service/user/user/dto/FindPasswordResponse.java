@@ -11,5 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FindPasswordResponse {
 
+    // 비밀번호 재설정 토큰.
     private String resetToken;
 }

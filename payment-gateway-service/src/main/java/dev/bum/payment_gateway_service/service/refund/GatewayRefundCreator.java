@@ -15,15 +15,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class GatewayRefundCreator {
+
+    // 게이트웨이 환불 데이터를 조회하고 저장하는 레포지토리.
     private final GatewayRefundJpaRepository refunds;
 
+    /**
+     * 환불을 생성한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long create(GatewayCardPaymentRefundRequest request) {
+
         return refunds.saveAndFlush(GatewayRefund.requested(request)).getPaymentRefundProcessId();
     }
 
+    /**
+     * 환불을 생성한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long create(GatewayVirtualAccountRefundRequest request) {
+
         return refunds.saveAndFlush(GatewayRefund.requested(request)).getPaymentRefundProcessId();
     }
 }

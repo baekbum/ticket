@@ -17,7 +17,6 @@ import java.util.List;
 public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String SERVICE_TOKEN_HEADER = "X-Service-Token";
-
     private final InternalServiceTokenValidator tokenValidator;
 
     @Override
@@ -26,6 +25,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+
         String serviceToken = request.getHeader(SERVICE_TOKEN_HEADER);
         if (serviceToken != null) {
             try {

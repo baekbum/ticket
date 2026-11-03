@@ -26,12 +26,16 @@ public class GatewayCardPaymentController {
 
     @GetMapping("/{paymentNo}")
     public ResponseEntity<GatewayCardPaymentStatusResponse> status(
-            @AuthenticationPrincipal String currentUserId, @PathVariable String paymentNo) {
+            @AuthenticationPrincipal String currentUserId,
+            @PathVariable String paymentNo
+    ) {
+
         return ResponseEntity.ok(gatewayCardPaymentService.status(currentUserId, paymentNo));
     }
 
     @GetMapping("/internal/{paymentNo}/approval-exists")
     public ResponseEntity<Boolean> approvalExists(@PathVariable String paymentNo) {
+
         return ResponseEntity.ok(gatewayCardPaymentService.hasApprovalHistory(paymentNo));
     }
 
@@ -40,6 +44,7 @@ public class GatewayCardPaymentController {
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody GatewayCardPaymentApproveRequest request
     ) {
+
         return ResponseEntity.ok(gatewayCardPaymentService.approve(currentUserId, request));
     }
 
@@ -47,6 +52,7 @@ public class GatewayCardPaymentController {
     public ResponseEntity<GatewayCardPaymentRefundResponse> refund(
             @Valid @RequestBody GatewayCardPaymentRefundRequest request
     ) {
+
         return ResponseEntity.ok(gatewayCardPaymentService.refund(request));
     }
 }

@@ -16,10 +16,12 @@ public class InternalServiceTokenValidator {
     public InternalServiceTokenValidator(
             @Value("${app.ticket.service-token}") String serviceToken
     ) {
+
         this.serviceToken = serviceToken;
     }
 
     public void validate(String requestedToken) {
+
         if (!StringUtils.hasText(requestedToken)
                 || !MessageDigest.isEqual(
                 serviceToken.getBytes(StandardCharsets.UTF_8),

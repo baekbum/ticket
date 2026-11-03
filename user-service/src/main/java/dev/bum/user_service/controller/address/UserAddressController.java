@@ -30,6 +30,7 @@ public class UserAddressController {
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody InsertUserAddressRequest info
     ) {
+
         return ResponseEntity.ok(userAddressService.insert(currentUserId, info));
     }
 
@@ -38,6 +39,7 @@ public class UserAddressController {
             @AuthenticationPrincipal String currentUserId,
             @RequestBody UserAddressCondRequest cond
     ) {
+
         return ResponseEntity.ok(userAddressService.selectByUserId(currentUserId, cond));
     }
 
@@ -47,6 +49,7 @@ public class UserAddressController {
             @PathVariable("addressId") Long addressId,
             @Valid @RequestBody UpdateUserAddressRequest info
     ) {
+
         return ResponseEntity.ok(userAddressService.updateMyAddress(currentUserId, addressId, info));
     }
 
@@ -55,6 +58,7 @@ public class UserAddressController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable("addressId") Long addressId
     ) {
+
         return ResponseEntity.ok(userAddressService.deleteMyAddress(currentUserId, addressId));
     }
 }

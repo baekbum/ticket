@@ -20,11 +20,11 @@ import java.util.Map;
 public class PrometheusQueryClient {
 
     private final RestClient.Builder restClientBuilder;
-
     @Value("${app.monitoring.prometheus-url:http://localhost:9090}")
     private String prometheusUrl;
 
     public Double querySingleValue(String promql) {
+
         JsonNode response = query(promql);
 
         if (response == null || !"success".equals(response.path("status").asText())) {
@@ -45,6 +45,7 @@ public class PrometheusQueryClient {
     }
 
     public List<FailureMetricDetailResponse> queryDetails(String promql) {
+
         JsonNode response = query(promql);
 
         if (response == null || !"success".equals(response.path("status").asText())) {
@@ -76,6 +77,7 @@ public class PrometheusQueryClient {
     }
 
     private JsonNode query(String promql) {
+
         URI uri = UriComponentsBuilder.fromUriString(prometheusUrl)
                 .path("/api/v1/query")
                 .queryParam("query", promql)
@@ -92,6 +94,7 @@ public class PrometheusQueryClient {
     }
 
     private Double parseDouble(String textValue) {
+
         try {
             return Double.parseDouble(textValue);
         } catch (NumberFormatException e) {
@@ -100,6 +103,7 @@ public class PrometheusQueryClient {
     }
 
     private Map<String, String> labelsOf(JsonNode metric) {
+
         Map<String, String> labels = new LinkedHashMap<>();
         Iterator<Map.Entry<String, JsonNode>> fields = metric.fields();
         while (fields.hasNext()) {
@@ -110,6 +114,7 @@ public class PrometheusQueryClient {
     }
 
     private String serviceNameOf(Map<String, String> labels) {
+
         String application = labels.get("application");
         if (application != null && !application.isBlank()) {
             return application;

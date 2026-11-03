@@ -20,11 +20,18 @@ import java.util.HexFormat;
 @Service
 @RequiredArgsConstructor
 public class UserEventIdempotencyService {
+
+    // 사용자 이벤트 처리 이력 데이터를 조회하고 저장하는 레포지토리.
     private final ProcessedUserEventJpaRepository repository;
+    // 사용자 이벤트 버전 데이터를 조회하고 저장하는 레포지토리.
     private final UserEventVersionJpaRepository versionRepository;
 
+    /**
+     * 이벤트를 등록하고 중복 여부와 버전 순서를 검증한다.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public UserEventRegistrationResult registerAndValidate(UserDtoForEvent event) {
+
         if (event.getId() == null
                 || event.getEventVersion() == null || event.getEventVersion() < 1
                 || (event.getPasswordResetVersion() != null && (event.getPasswordResetVersion() < 0
@@ -72,7 +79,11 @@ public class UserEventIdempotencyService {
         return UserEventRegistrationResult.REGISTERED;
     }
 
+    /**
+     * 중복 여부를 판별할 데이터 지문을 생성한다.
+     */
     private String fingerprint(UserDtoForEvent event) {
+
         String[] values = {
                 event.getEventType().name(), event.getId().toString(), text(event.getEventVersion()),
                 text(event.getPasswordResetVersion()), event.getUserId(), event.getPassword(),
@@ -95,7 +106,11 @@ public class UserEventIdempotencyService {
         }
     }
 
+    /**
+     * 값을 문자열로 정규화한다.
+     */
     private String text(Object value) {
+
         return value == null ? null : value.toString();
     }
 }

@@ -21,6 +21,7 @@ public class AuditLogConsumer {
             containerFactory = "auditLogKafkaListenerContainerFactory"
     )
     public void consume(AuditLogEvent event) {
+
         AuditLogSaveResult result = persistenceService.save(event);
 
         if (result == AuditLogSaveResult.DUPLICATE) {

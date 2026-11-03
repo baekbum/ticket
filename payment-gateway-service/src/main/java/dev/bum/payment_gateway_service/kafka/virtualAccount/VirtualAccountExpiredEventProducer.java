@@ -15,11 +15,11 @@ import java.util.concurrent.CompletableFuture;
 public class VirtualAccountExpiredEventProducer {
 
     private final KafkaTemplate<String, VirtualAccountExpiredEvent> kafkaTemplate;
-
     @Value("${topic.payment.virtual-account.expired.name:virtual-account-expired}")
     private String virtualAccountExpiredTopic;
 
     public CompletableFuture<?> sendExpired(VirtualAccountExpiredEvent event) {
+
         return kafkaTemplate.send(virtualAccountExpiredTopic, event.getPaymentNo(), event)
                 .whenComplete((result, throwable) -> {
                     if (throwable == null) {

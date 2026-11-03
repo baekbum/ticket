@@ -26,16 +26,25 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 @Slf4j
 public class VirtualAccountDepositOutboxPublisher {
-    private static final DateTimeFormatter RESPONSE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private final VirtualAccountDepositOutboxJpaRepository repository;
-    private final TicketPaymentClient ticket;
-    private final VirtualAccountCancellationService cancellationService;
 
+    // 외부 응답에 사용할 날짜와 시각 표시 형식.
+    private static final DateTimeFormatter RESPONSE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    // 가상계좌 입금 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
+    private final VirtualAccountDepositOutboxJpaRepository repository;
+    // 티켓 결제 연동 API를 호출하는 클라이언트.
+    private final TicketPaymentClient ticket;
+    // 가상계좌 취소 업무 처리를 담당하는 서비스.
+    private final VirtualAccountCancellationService cancellationService;
+    // 실패한 이벤트를 다시 처리하기 전 대기 시간(밀리초).
     @Value("${app.virtual-account.deposit-outbox.retry-delay-ms:30000}")
     private long retryDelayMs = 30000;
 
+    /**
+     * 가상계좌 입금 Outbox 이벤트 처리에서 후속 처리 대상으로 전달한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deliver(Long outboxId) {
+
         // 계좌 대신 Outbox 행만 잠가 여러 서버의 동일 알림 전달을 직렬화한다.
         VirtualAccountDepositOutbox outbox = repository.findByIdForUpdate(outboxId).orElse(null);
         if (outbox == null || outbox.getStatus() == VirtualAccountDepositOutboxStatus.DELIVERED
@@ -62,7 +71,11 @@ public class VirtualAccountDepositOutboxPublisher {
         outbox.delivered(LocalDateTime.now());
     }
 
+    /**
+     * 외부 응답이 후속 처리에 유효한지 검증한다.
+     */
     private void validateResponse(VirtualAccountDepositOutbox outbox, VirtualAccountDepositCompleteResponse result) {
+
         PaymentResponse response = result == null ? null : result.payment();
         boolean cancelled = result != null
                 && result.result() == VirtualAccountDepositCompleteResponse.Result.RESERVATION_CANCELLED

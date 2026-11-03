@@ -16,13 +16,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentExpirationScheduler {
 
+    // 유효 기간 만료 처리의 대상 결제 상태 목록.
     private static final List<PaymentStatus> EXPIRE_TARGET_STATUSES = List.of(
             PaymentStatus.READY,
             PaymentStatus.WAITING_DEPOSIT
     );
+    // 한 번에 처리할 최대 항목 수.
     private static final int BATCH_SIZE = 100;
-
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository paymentJpaRepository;
+    // 결제 만료 업무 처리를 담당하는 서비스.
     private final PaymentExpirationService paymentExpirationService;
 
     /**
@@ -30,6 +33,7 @@ public class PaymentExpirationScheduler {
      */
     @Scheduled(fixedDelayString = "${payment.expiration.scheduler.fixed-delay-ms:60000}")
     public void expirePayments() {
+
         LocalDateTime now = LocalDateTime.now();
         List<Long> expiredPaymentIds = paymentJpaRepository.findExpiredPaymentIds(
                 EXPIRE_TARGET_STATUSES,

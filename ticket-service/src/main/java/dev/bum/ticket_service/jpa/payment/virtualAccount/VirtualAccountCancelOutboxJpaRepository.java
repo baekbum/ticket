@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface VirtualAccountCancelOutboxJpaRepository extends JpaRepository<VirtualAccountCancelOutbox, Long> {
+
     Optional<VirtualAccountCancelOutbox> findByPaymentNo(String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -20,6 +21,9 @@ public interface VirtualAccountCancelOutboxJpaRepository extends JpaRepository<V
             where o.status = :status and o.nextAttemptAt <= :now
             order by o.nextAttemptAt, o.outboxId
             """)
-    List<Long> findReadyIds(@Param("status") VirtualAccountCancelOutboxStatus status,
-                           @Param("now") LocalDateTime now, Pageable pageable);
+    List<Long> findReadyIds(
+            @Param("status") VirtualAccountCancelOutboxStatus status,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
 }

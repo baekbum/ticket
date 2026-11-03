@@ -10,6 +10,7 @@ public class PaymentGatewayFeignConfig {
     public RequestInterceptor paymentGatewayServiceTokenRequestInterceptor(
             @Value("${app.internal.service-token}") String serviceToken
     ) {
+
         return requestTemplate -> requestTemplate.header("X-Service-Token", serviceToken);
     }
 }

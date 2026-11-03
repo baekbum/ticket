@@ -9,7 +9,11 @@ import lombok.ToString;
 @AllArgsConstructor
 @NoArgsConstructor
 public class LoginRequest {
+
+    // 사용자 ID.
     private String userId;
+
+    // 비밀번호.
     @ToString.Exclude
     private String password;
 }

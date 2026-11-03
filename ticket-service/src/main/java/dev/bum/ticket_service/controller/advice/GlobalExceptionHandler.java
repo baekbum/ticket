@@ -34,7 +34,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ReservationCancellationInProgressException.class)
     public ResponseEntity<ErrorResponse> handleReservationCancellationInProgress(
-            ReservationCancellationInProgressException ex) {
+            ReservationCancellationInProgressException ex
+    ) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.RESERVATION_CANCELLATION_IN_PROGRESS, ex.getMessage()));
     }
@@ -50,6 +52,7 @@ public class GlobalExceptionHandler {
             TicketNotExistException.class
     })
     public ResponseEntity<ErrorResponse> handleNotFoundException(RuntimeException ex) {
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(resolveNotFoundErrorCode(ex), ex.getMessage()));
     }
@@ -65,18 +68,21 @@ public class GlobalExceptionHandler {
             TicketDuplicateException.class
     })
     public ResponseEntity<ErrorResponse> handleDuplicateException(RuntimeException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(resolveDuplicateErrorCode(ex), ex.getMessage()));
     }
 
     @ExceptionHandler(AreaLayoutAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleAreaLayoutAlreadyExistsException(AreaLayoutAlreadyExistsException ex) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.AREA_LAYOUT_ALREADY_EXISTS, ex.getMessage()));
     }
 
     @ExceptionHandler(SeatLayoutAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleSeatLayoutAlreadyExistsException(SeatLayoutAlreadyExistsException ex) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.SEAT_LAYOUT_ALREADY_EXISTS, ex.getMessage()));
     }
@@ -90,6 +96,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(SeatCacheNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleSeatCacheNotFoundException(SeatCacheNotFoundException ex) {
+
         log.error("[좌석 예열 누락 발생] 상세 정보: {}", ex.getMessage());
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -104,6 +111,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(SeatAlreadyOccupiedException.class)
     public ResponseEntity<ErrorResponse> handleSeatAlreadyOccupiedException(SeatAlreadyOccupiedException ex) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.SEAT_ALREADY_OCCUPIED, ex.getMessage()));
     }
@@ -113,10 +121,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(SeatOccupationFailedException.class)
     public ResponseEntity<ErrorResponse> handleSeatOccupationFailedException(SeatOccupationFailedException ex) {
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(ErrorCode.SEAT_OCCUPATION_FAILED, ex.getMessage()));
     }
-
 
     // ==========================================
     // Ticket 관련 예외 처리
@@ -129,6 +137,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(TicketLimitExceededException.class)
     public ResponseEntity<ErrorResponse> handleTicketLimitExceededException(TicketLimitExceededException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.TICKET_LIMIT_EXCEEDED, ex.getMessage()));
     }
@@ -138,24 +147,28 @@ public class GlobalExceptionHandler {
     // ==========================================
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.FORBIDDEN, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+
         Map<String, String> details = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         fieldError -> fieldError.getField(),
@@ -169,35 +182,43 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(QueueAccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleQueueAccessDeniedException(QueueAccessDeniedException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_ACCESS_DENIED, ex.getMessage()));
     }
 
     @ExceptionHandler(ActiveTokenExpiredException.class)
     public ResponseEntity<ErrorResponse> handleActiveTokenExpired(ActiveTokenExpiredException ex) {
+
         return ResponseEntity.status(HttpStatus.GONE)
                 .body(ErrorResponse.of(ErrorCode.ACTIVE_TOKEN_EXPIRED, ex.getMessage()));
     }
 
     @ExceptionHandler(QueueUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleQueueUnavailable(QueueUnavailableException ex) {
+
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE, ex.getMessage()));
     }
 
     private ErrorCode resolveNotFoundErrorCode(RuntimeException ex) {
+
         if (ex instanceof EventNotExistException) {
             return ErrorCode.EVENT_NOT_FOUND;
         }
+
         if (ex instanceof AreaNotExistException) {
             return ErrorCode.AREA_NOT_FOUND;
         }
+
         if (ex instanceof SeatNotExistException) {
             return ErrorCode.SEAT_NOT_FOUND;
         }
+
         if (ex instanceof ReservationNotExistException) {
             return ErrorCode.RESERVATION_NOT_FOUND;
         }
+
         if (ex instanceof TicketNotExistException) {
             return ErrorCode.TICKET_NOT_FOUND;
         }
@@ -205,18 +226,23 @@ public class GlobalExceptionHandler {
     }
 
     private ErrorCode resolveDuplicateErrorCode(RuntimeException ex) {
+
         if (ex instanceof EventDuplicateException) {
             return ErrorCode.EVENT_DUPLICATE;
         }
+
         if (ex instanceof AreaDuplicateException) {
             return ErrorCode.AREA_DUPLICATE;
         }
+
         if (ex instanceof SeatDuplicateException) {
             return ErrorCode.SEAT_DUPLICATE;
         }
+
         if (ex instanceof ReservationDuplicateException) {
             return ErrorCode.RESERVATION_DUPLICATE;
         }
+
         if (ex instanceof TicketDuplicateException) {
             return ErrorCode.TICKET_DUPLICATE;
         }

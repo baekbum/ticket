@@ -14,12 +14,19 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class VirtualAccountReconciliationCompletionService {
 
+    // 가상계좌 결제 잠금 업무 처리를 담당하는 서비스.
     private final VirtualAccountPaymentLockService paymentLocks;
+    // 가상계좌 정합성 대조 요청과 상태를 검증하는 도구.
     private final VirtualAccountReconciliationValidator validator;
+    // 결제 완료 업무 처리를 담당하는 서비스.
     private final PaymentCompletionService paymentCompletionService;
 
+    /**
+     * 가상계좌 처리에서 완료 상태로 변경하고 결과를 반영한다.
+     */
     @Transactional
     public PaymentResponse complete(String paymentNo, GatewayVirtualAccountStatusResponse status) {
+
         Payment payment = paymentLocks.lock(paymentNo);
         String problem = validator.problem(payment, status);
         if (problem != null) {

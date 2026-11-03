@@ -9,6 +9,7 @@ public final class NoticeMapper {
     }
 
     public static NoticeResponse toResponse(Notice notice) {
+
         return new NoticeResponse(
                 notice.getId(), notice.getTitle(), notice.getContent(), notice.getCategory(), notice.getStatus(),
                 notice.getAuthorId(), notice.isPinned(), notice.getViewCount(), notice.getPublishedAt(),

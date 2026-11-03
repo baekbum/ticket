@@ -17,7 +17,6 @@ import java.sql.SQLException;
 public class LoginLogConsumer {
 
     private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
-
     private final LoginLogPersistenceService persistenceService;
 
     @KafkaListener(
@@ -26,6 +25,7 @@ public class LoginLogConsumer {
             containerFactory = "loginLogKafkaListenerContainerFactory"
     )
     public void consume(LoginLogEvent event) {
+
         try {
             LoginLogEntity savedLoginLog = persistenceService.save(event);
             log.info(
@@ -45,6 +45,7 @@ public class LoginLogConsumer {
     }
 
     private boolean isUniqueConstraintViolation(Throwable throwable) {
+
         Throwable cause = throwable;
         while (cause != null) {
             if (cause instanceof SQLException sqlException

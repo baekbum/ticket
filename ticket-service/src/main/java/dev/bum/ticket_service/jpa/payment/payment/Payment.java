@@ -58,8 +58,11 @@ import java.util.List;
 @Getter
 @NoArgsConstructor
 public class Payment {
+
+    // 날짜와 시각을 표시하는 형식.
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // 결제 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_id")
@@ -130,6 +133,7 @@ public class Payment {
 
     // 실제 결제가 완료된 시각.
     private LocalDateTime paidAt;
+
     // 결제 대기 만료 시각. 무통장 입금 만료나 카드 결제 제한 시간에 사용한다.
     private LocalDateTime expiresAt;
 
@@ -143,18 +147,22 @@ public class Payment {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 처리 시점의 데이터 스냅샷.
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_snapshot_id", nullable = false, unique = true)
     private PaymentSnapshot snapshot;
 
+    // 처리 진행 정보.
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_process_id", nullable = false, unique = true)
     private PaymentProcess process;
 
+    // 처리 이력 목록.
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL)
     @OrderBy("paymentHistoryId ASC")
     private List<PaymentHistory> histories = new ArrayList<>();
 
+    // 전달받은 값으로 결제 객체를 초기화한다.
     @Builder
     public Payment(
             Long paymentId,
@@ -175,7 +183,9 @@ public class Payment {
             LocalDateTime expiresAt,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
-            PaymentSnapshot snapshot) {
+            PaymentSnapshot snapshot
+    ) {
+
         this.paymentId = paymentId;
         this.reservation = reservation;
         this.paymentNo = paymentNo;
@@ -205,7 +215,9 @@ public class Payment {
         record(PaymentHistoryType.CREATED, null, null);
     }
 
+    // 결제 수단에 맞는 초기 처리 단계를 결정한다.
     private static PaymentProcessStage initialStage(PaymentStatus status) {
+
         return switch (status) {
             case PAID, REFUNDED, PARTIALLY_REFUNDED -> PaymentProcessStage.LOCAL_COMPLETED;
             case WAITING_DEPOSIT -> PaymentProcessStage.WAITING_DEPOSIT;
@@ -216,27 +228,39 @@ public class Payment {
         };
     }
 
+    // 금액 값을 반환한다.
     public Integer getAmount() {
+
         return snapshot.getAmount();
     }
 
+    // 예매 수수료 금액 값을 반환한다.
     public Integer getReservationFeeAmount() {
+
         return snapshot.getReservationFeeAmount();
     }
 
+    // 배송비 금액 값을 반환한다.
     public Integer getDeliveryFeeAmount() {
+
         return snapshot.getDeliveryFeeAmount();
     }
 
+    // 처리 이력 목록 값을 반환한다.
     public List<PaymentHistory> getHistories() {
+
         return Collections.unmodifiableList(histories);
     }
 
+    // 결제 처리에서 처리 이력을 기록한다.
     private void record(PaymentHistoryType type, PaymentStatus before, String reason) {
+
         histories.add(new PaymentHistory(this, type, before, reason));
     }
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public PaymentResponse toResponse() {
+
         return PaymentResponse.builder()
                 .paymentId(this.paymentId)
                 .reservationId(
@@ -260,7 +284,9 @@ public class Payment {
                 .build();
     }
 
+    // 결제를 가상계좌 입금 대기 상태로 변경한다.
     public void waitDeposit(String bankName, String accountNumber, LocalDateTime expiresAt) {
+
         PaymentStatus before = this.status;
         this.status = PaymentStatus.WAITING_DEPOSIT;
 
@@ -275,7 +301,9 @@ public class Payment {
         record(PaymentHistoryType.ACCOUNT_ISSUED, before, null);
     }
 
+    // 카드 결제를 계좌이체 방식으로 변경한다.
     public void switchToBankTransfer() {
+
         if (this.method != PaymentMethod.CREDIT_CARD || this.status != PaymentStatus.READY) {
             throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
         }
@@ -283,11 +311,14 @@ public class Payment {
         record(PaymentHistoryType.METHOD_CHANGED, status, null);
     }
 
+    // 결제 처리에서 카드 결제 완료 결과를 반영한다.
     public void completeCard(
             String transactionId,
             CardCompany cardCompany,
             String maskedCardNumber,
-            LocalDateTime paidAt) {
+            LocalDateTime paidAt
+    ) {
+
         this.cardInfo = CardPaymentInfo.builder()
                 .transactionId(transactionId)
                 .cardCompany(cardCompany)
@@ -296,7 +327,9 @@ public class Payment {
         complete(paidAt);
     }
 
+    // 결제 처리에서 완료 상태로 변경하고 결과를 반영한다.
     public void complete(LocalDateTime paidAt) {
+
         PaymentStatus before = status;
         process.move(PaymentProcessStage.GATEWAY_APPROVED, null);
         record(PaymentHistoryType.GATEWAY_APPROVED, before, null);
@@ -306,7 +339,9 @@ public class Payment {
         record(PaymentHistoryType.COMPLETED, before, null);
     }
 
+    // 결제 처리에서 가상계좌 입금 완료 결과를 반영한다.
     public void completeDeposit(String depositorName, LocalDateTime paidAt) {
+
         if (this.virtualAccountInfo == null) {
             this.virtualAccountInfo = new VirtualAccountPaymentInfo();
         }
@@ -314,17 +349,23 @@ public class Payment {
         complete(paidAt);
     }
 
+    // 카드 승인 요청 상태를 반영한다.
     public void approvalRequested() {
+
         if (process.getStage() == PaymentProcessStage.APPROVAL_REQUESTED) return;
         process.move(PaymentProcessStage.APPROVAL_REQUESTED, null);
         record(PaymentHistoryType.APPROVAL_REQUESTED, status, null);
     }
 
+    // 결제 처리에서 실패 상태로 변경한다.
     public void fail() {
+
         fail(null);
     }
 
+    // 결제 처리에서 실패 상태로 변경한다.
     public void fail(String reason) {
+
         if (status == PaymentStatus.FAILED) return;
         PaymentStatus before = status;
         this.status = PaymentStatus.FAILED;
@@ -332,7 +373,9 @@ public class Payment {
         record(PaymentHistoryType.FAILED, before, reason);
     }
 
+    // 결제를 취소 상태로 변경한다.
     public void cancel() {
+
         if (status == PaymentStatus.CANCELLED) return;
         PaymentStatus before = status;
         this.status = PaymentStatus.CANCELLED;
@@ -340,7 +383,9 @@ public class Payment {
         record(PaymentHistoryType.CANCELLED, before, null);
     }
 
+    // 결제를 만료 상태로 변경한다.
     public void expire() {
+
         if (status == PaymentStatus.EXPIRED) return;
         PaymentStatus before = status;
         this.status = PaymentStatus.EXPIRED;
@@ -348,14 +393,18 @@ public class Payment {
         record(PaymentHistoryType.EXPIRED, before, null);
     }
 
+    // 결제 처리에서 환불 요청을 처리하고 결과를 반영한다.
     public void refund() {
+
         PaymentStatus before = status;
         this.refundedAmount = getRefundedAmount() + getRefundableAmount();
         this.status = PaymentStatus.REFUNDED;
         record(PaymentHistoryType.REFUNDED, before, null);
     }
 
+    // 부분 환불 결과와 남은 결제 금액을 반영한다.
     public void partialRefund(Integer refundAmount) {
+
         PaymentStatus before = status;
         validateRefundAmount(refundAmount);
         this.refundedAmount = getRefundedAmount() + refundAmount;
@@ -363,11 +412,14 @@ public class Payment {
         record(PaymentHistoryType.REFUNDED, before, null);
     }
 
+    // 취소 수수료를 결제 정보에 반영한다.
     public void applyCancellationFee(Integer cancellationFeeAmount) {
+
         PaymentStatus before = status;
         if (cancellationFeeAmount == null || cancellationFeeAmount < 0) {
             throw new IllegalArgumentException("취소 수수료는 0 이상이어야 합니다.");
         }
+
         if (cancellationFeeAmount > getRefundableAmount()) {
             throw new IllegalArgumentException("취소 수수료가 남은 결제 금액을 초과했습니다.");
         }
@@ -376,12 +428,15 @@ public class Payment {
         record(PaymentHistoryType.CANCELLATION_FEE_APPLIED, before, null);
     }
 
+    // 취소 금액과 결제 상태를 반영한다.
     public void applyCancellation(Integer refundAmount, Integer cancellationFeeAmount) {
+
         PaymentStatus before = status;
         int fee = cancellationFeeAmount != null ? cancellationFeeAmount : 0;
         if (refundAmount == null || refundAmount < 0 || refundAmount + fee <= 0) {
             throw new IllegalArgumentException("환불 금액과 취소 수수료의 합은 0보다 커야 합니다.");
         }
+
         if (refundAmount + fee > getRefundableAmount()) {
             throw new IllegalArgumentException("환불 금액과 취소 수수료가 남은 결제 금액을 초과했습니다.");
         }
@@ -391,7 +446,9 @@ public class Payment {
         record(PaymentHistoryType.REFUNDED, before, null);
     }
 
+    // 결제 처리에서 처리 준비 상태로 구성한다.
     public void ready() {
+
         PaymentStatus before = status;
         this.status = PaymentStatus.READY;
         this.refundedAmount = 0;
@@ -402,59 +459,84 @@ public class Payment {
         record(PaymentHistoryType.RETRY_REQUESTED, before, null);
     }
 
+    // 날짜와 시각을 응답 표시 형식으로 변환한다.
     private String formatDateTime(LocalDateTime dateTime) {
+
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 
+    // 카드 승인 거래 식별자 값을 반환한다.
     public String getCardTransactionId() {
+
         return cardInfo != null ? cardInfo.getTransactionId() : null;
     }
 
+    // 카드사 값을 반환한다.
     public CardCompany getCardCompany() {
+
         return cardInfo != null ? cardInfo.getCardCompany() : null;
     }
 
+    // 마스킹한 카드 번호 값을 반환한다.
     public String getMaskedCardNumber() {
+
         return cardInfo != null ? cardInfo.getMaskedCardNumber() : null;
     }
 
+    // 은행 이름 값을 반환한다.
     public String getBankName() {
+
         return virtualAccountInfo != null ? virtualAccountInfo.getBankName() : null;
     }
 
+    // 계좌 번호 값을 반환한다.
     public String getAccountNumber() {
+
         return virtualAccountInfo != null ? virtualAccountInfo.getAccountNumber() : null;
     }
 
+    // 입금자 이름 값을 반환한다.
     public String getDepositorName() {
+
         return virtualAccountInfo != null ? virtualAccountInfo.getDepositorName() : null;
     }
 
+    // 누적 환불 금액 값을 반환한다.
     public Integer getRefundedAmount() {
+
         return refundedAmount != null ? refundedAmount : 0;
     }
 
+    // 환불 가능 잔액 값을 반환한다.
     public Integer getRefundableAmount() {
+
         return getAmount()
                 - getRefundedAmount()
                 - getCancellationFeeAmount()
                 - getReservationFeeAmount();
     }
 
+    // 취소 수수료 금액 값을 반환한다.
     public Integer getCancellationFeeAmount() {
+
         return cancellationFeeAmount != null ? cancellationFeeAmount : 0;
     }
 
+    // 누적 환불 금액에 따라 환불 상태를 갱신한다.
     private void updateRefundStatus() {
+
         this.status = getRefundableAmount() == 0
                 ? PaymentStatus.REFUNDED
                 : PaymentStatus.PARTIALLY_REFUNDED;
     }
 
+    // 환불 요청 금액이 환불 가능 범위에 있는지 검증한다.
     private void validateRefundAmount(Integer refundAmount) {
+
         if (refundAmount == null || refundAmount <= 0) {
             throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
         }
+
         if (refundAmount > getRefundableAmount()) {
             throw new IllegalArgumentException("환불 금액이 남은 결제 금액을 초과했습니다.");
         }

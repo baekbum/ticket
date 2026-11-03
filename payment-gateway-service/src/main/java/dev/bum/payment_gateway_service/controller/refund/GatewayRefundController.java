@@ -17,10 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/payments/refunds/internal")
 @RequiredArgsConstructor
 public class GatewayRefundController {
+
     private final GatewayRefundResolutionService service;
 
     @PostMapping("/resolve")
     public GatewayRefundResolutionResponse resolve(@Valid @RequestBody GatewayRefundResolutionRequest request) {
+
         return service.resolve(request);
     }
 }

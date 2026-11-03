@@ -88,7 +88,9 @@ public class Notice {
     @Column(nullable = false)
     private long version;
 
+    // 전달받은 값으로 공지사항 객체를 초기화한다.
     private Notice(String title, String content, NoticeCategory category, String authorId) {
+
         this.title = Objects.requireNonNull(title);
         this.content = Objects.requireNonNull(content);
         this.category = Objects.requireNonNull(category);
@@ -96,36 +98,49 @@ public class Notice {
         this.status = PublicationStatus.DRAFT;
     }
 
+    // 공지사항을 생성한다.
     public static Notice create(String title, String content, NoticeCategory category, String authorId) {
+
         return new Notice(title, content, category, authorId);
     }
 
+    // 공지사항을 수정한다.
     public void update(String title, String content, NoticeCategory category) {
+
         this.title = Objects.requireNonNull(title);
         this.content = Objects.requireNonNull(content);
         this.category = Objects.requireNonNull(category);
     }
 
+    // 공지사항 처리에서 이벤트를 발행한다.
     public void publish() {
+
         this.status = PublicationStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
     }
 
+    // 공지사항 처리에서 초안 상태로 구성한다.
     public void draft() {
+
         this.status = PublicationStatus.DRAFT;
     }
 
+    // 공지사항 처리에서 비공개 상태로 변경한다.
     public void hide() {
+
         this.status = PublicationStatus.HIDDEN;
     }
 
+    // 공지사항 처리에서 보관 상태로 변경한다.
     public void archive() {
+
         this.status = PublicationStatus.ARCHIVED;
         this.pinned = false;
     }
 
+    // 상단 고정 여부를 변경한다.
     public void changePinned(boolean pinned) {
+
         this.pinned = pinned;
     }
-
 }

@@ -13,6 +13,7 @@ public class PrometheusClientConfig {
     public MeterRegistryCustomizer<PrometheusMeterRegistry> prometheusMeterRegistryCustomizer(
             @Value("${spring.application.name:admin-service}") String applicationName
     ) {
+
         return registry -> registry.config().commonTags("application", applicationName);
     }
 }

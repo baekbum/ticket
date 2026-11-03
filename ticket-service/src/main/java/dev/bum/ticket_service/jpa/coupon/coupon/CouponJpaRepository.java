@@ -7,5 +7,4 @@ public interface CouponJpaRepository extends JpaRepository<Coupon, Long> {
     boolean existsByCode(String code);
 
     boolean existsByCodeAndCouponIdNot(String code, Long couponId);
-
 }

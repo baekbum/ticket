@@ -23,6 +23,7 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     @Override
     public boolean insert(UserDtoForEvent event) {
+
         event.setUserId(normalizeUserId(event.getUserId()));
         Auth existing = jpaRepository.findByUserId(event.getUserId()).orElse(null);
         if (existing != null) {
@@ -48,12 +49,14 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     @Override
     public Auth findByUserId(String userId) {
+
         return jpaRepository.findByUserId(normalizeUserId(userId))
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
     }
 
     @Override
     public Auth update(UserDtoForEvent event) {
+
         event.setUserId(normalizeUserId(event.getUserId()));
         Auth auth = jpaRepository.findByUserIdForUpdate(event.getUserId())
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
@@ -74,12 +77,14 @@ public class AuthRepositoryImpl implements AuthRepository {
 
     @Override
     public void delete(String userId) {
+
         Auth foundUser = findByUserId(normalizeUserId(userId));
 
         jpaRepository.delete(foundUser);
     }
 
     private String normalizeUserId(String userId) {
+
         return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 }

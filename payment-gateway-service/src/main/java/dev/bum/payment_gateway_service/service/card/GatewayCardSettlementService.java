@@ -19,12 +19,55 @@ import java.math.BigDecimal;
 @Service
 @RequiredArgsConstructor
 public class GatewayCardSettlementService {
+
+    // 처리 이력 목록.
     private final DummyCardPaymentHistoryJpaRepository histories;
+    // 모의 카드 데이터를 조회하고 저장하는 레포지토리.
     private final DummyCardJpaRepository cards;
+    // 티켓 결제 연동 API를 호출하는 클라이언트.
     private final TicketPaymentClient ticketClient;
 
+    /**
+     * 후속 처리가 필요한 대기 상태를 기록한다.
+     */
+    @Transactional
+    public void recordPending(String paymentNo) {
+
+        DummyCardPaymentHistory history = histories.findByPaymentNoForUpdate(paymentNo).orElseThrow();
+        if (pending(history)) {
+            history.failTicketPayment("결제 완료 결과 확인 대기. 동일 거래번호로 자동 재처리합니다.");
+        }
+    }
+
+    /**
+     * 현재 처리 상태를 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public GatewayCardPaymentStatusResponse status(String userId, String paymentNo) {
+
+        DummyCardPaymentHistory history = histories.findByPaymentNo(paymentNo)
+                .orElseThrow(() -> new IllegalArgumentException("카드 승인 이력을 찾을 수 없습니다."));
+        if (userId == null || !userId.equals(history.getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제입니다.");
+        }
+        return new GatewayCardPaymentStatusResponse(paymentNo, history.getStatus(), history.getTransactionId());
+    }
+
+    /**
+     * 처리 정보 처리에서 카드 승인 이력이 존재하는지 확인한다.
+     */
+    @Transactional(readOnly = true)
+    public boolean hasApprovalHistory(String paymentNo) {
+
+        return histories.existsByPaymentNo(paymentNo);
+    }
+
+    /**
+     * 처리 정보 처리에서 승인 결과를 확인하고 후속 상태에 반영한다.
+     */
     @Transactional
     public CardPaymentHistoryStatus settle(String paymentNo) {
+
         DummyCardPaymentHistory history = histories.findByPaymentNoForUpdate(paymentNo).orElseThrow();
         if (!pending(history)) {
             return history.getStatus();
@@ -73,30 +116,11 @@ public class GatewayCardSettlementService {
         return history.getStatus();
     }
 
-    @Transactional
-    public void recordPending(String paymentNo) {
-        DummyCardPaymentHistory history = histories.findByPaymentNoForUpdate(paymentNo).orElseThrow();
-        if (pending(history)) {
-            history.failTicketPayment("결제 완료 결과 확인 대기. 동일 거래번호로 자동 재처리합니다.");
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public GatewayCardPaymentStatusResponse status(String userId, String paymentNo) {
-        DummyCardPaymentHistory history = histories.findByPaymentNo(paymentNo)
-                .orElseThrow(() -> new IllegalArgumentException("카드 승인 이력을 찾을 수 없습니다."));
-        if (userId == null || !userId.equals(history.getUserId())) {
-            throw new AccessDeniedException("다른 사용자의 결제입니다.");
-        }
-        return new GatewayCardPaymentStatusResponse(paymentNo, history.getStatus(), history.getTransactionId());
-    }
-
-    @Transactional(readOnly = true)
-    public boolean hasApprovalHistory(String paymentNo) {
-        return histories.existsByPaymentNo(paymentNo);
-    }
-
+    /**
+     * 처리 정보 처리에서 처리 대기 상태로 구성한다.
+     */
     private boolean pending(DummyCardPaymentHistory history) {
+
         return history.getStatus() == CardPaymentHistoryStatus.APPROVED
                 || history.getStatus() == CardPaymentHistoryStatus.TICKET_PAYMENT_FAILED;
     }

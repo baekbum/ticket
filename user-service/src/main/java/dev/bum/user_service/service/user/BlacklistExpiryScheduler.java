@@ -17,14 +17,21 @@ import java.time.ZoneId;
 @Component
 @RequiredArgsConstructor
 public class BlacklistExpiryScheduler {
-    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
+    // 블랙리스트 만료일 계산에 사용할 시간대.
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+    // 사용자 데이터를 조회하고 저장하는 레포지토리.
     private final UserJpaRepository userJpaRepository;
+    // 사용자 업무 처리를 담당하는 서비스.
     private final UserService userService;
 
+    /**
+     * 적용 기간이 끝난 사용자 블랙리스트를 해제한다.
+     */
     @EventListener(ApplicationReadyEvent.class)
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
     public void releaseExpiredBlacklists() {
+
         LocalDate today = LocalDate.now(ZONE);
         for (User user : userJpaRepository.findByIsBlacklistedTrueAndBlacklistedUntilLessThan(today)) {
             try {

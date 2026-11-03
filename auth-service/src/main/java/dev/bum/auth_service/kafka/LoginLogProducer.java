@@ -13,11 +13,11 @@ import org.springframework.stereotype.Component;
 public class LoginLogProducer {
 
     private final KafkaTemplate<Object, Object> kafkaTemplate;
-
     @Value("${topic.login.log.name}")
     private String loginLogTopicName;
 
     public void send(LoginLogEvent event) {
+
         kafkaTemplate.send(loginLogTopicName, event.getEventId(), event)
                 .whenComplete((result, throwable) -> {
                     if (throwable == null) {

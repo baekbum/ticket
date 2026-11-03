@@ -20,7 +20,6 @@ public class RequestTracingFilter extends OncePerRequestFilter {
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
     public static final String TRACE_ID_HEADER = "X-B3-TraceId";
     public static final String FORWARDED_FOR_HEADER = "X-Forwarded-For";
-
     public static final String REQUEST_ID_ATTRIBUTE = "requestId";
     public static final String TRACE_ID_ATTRIBUTE = "traceId";
     public static final String FORWARDED_FOR_ATTRIBUTE = "xForwardedFor";
@@ -31,6 +30,7 @@ public class RequestTracingFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+
         String requestId = valueOrNewUuid(request.getHeader(REQUEST_ID_HEADER));
         String traceId = valueOrNewTraceId(request.getHeader(TRACE_ID_HEADER));
         String forwardedFor = forwardedForOf(request);
@@ -46,6 +46,7 @@ public class RequestTracingFilter extends OncePerRequestFilter {
     }
 
     private String valueOrNewUuid(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -54,6 +55,7 @@ public class RequestTracingFilter extends OncePerRequestFilter {
     }
 
     private String valueOrNewTraceId(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -62,6 +64,7 @@ public class RequestTracingFilter extends OncePerRequestFilter {
     }
 
     private String forwardedForOf(HttpServletRequest request) {
+
         String forwardedFor = request.getHeader(FORWARDED_FOR_HEADER);
         String remoteAddr = normalizeIp(request.getRemoteAddr());
 
@@ -77,6 +80,7 @@ public class RequestTracingFilter extends OncePerRequestFilter {
     }
 
     private String normalizeIp(String ipAddress) {
+
         if ("0:0:0:0:0:0:0:1".equals(ipAddress) || "::1".equals(ipAddress)) {
             return "127.0.0.1";
         }

@@ -10,28 +10,34 @@ public class QueueAccessProperties {
     private String baseUrl = "http://localhost:8083";
 
     public boolean isEnabled() {
+
         return enabled;
     }
 
     public void setEnabled(boolean enabled) {
+
         this.enabled = enabled;
     }
 
     public String getBaseUrl() {
+
         return baseUrl;
     }
 
     public void setBaseUrl(String baseUrl) {
+
         if (StringUtils.hasText(baseUrl)) {
             this.baseUrl = baseUrl;
         }
     }
 
     public boolean enabled() {
+
         return enabled;
     }
 
     public String baseUrl() {
+
         return baseUrl;
     }
 }

@@ -12,6 +12,7 @@ public class TicketServiceFeignConfig {
     public RequestInterceptor ticketServiceTokenRequestInterceptor(
             @Value("${app.ticket.service-token}") String serviceToken
     ) {
+
         return requestTemplate -> requestTemplate.header("X-Service-Token", serviceToken);
     }
 }

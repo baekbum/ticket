@@ -28,11 +28,16 @@ import org.springframework.util.StringUtils;
 @Transactional
 public class InquiryManagementService {
 
+    // 페이지당 조회할 수 있는 최대 항목 수.
     private static final int MAX_PAGE_SIZE = 100;
-
+    // 문의 데이터를 조회하고 저장하는 레포지토리.
     private final InquiryJpaRepository inquiryRepository;
+    // 문의 답변 데이터를 조회하고 저장하는 레포지토리.
     private final InquiryAnswerJpaRepository answerRepository;
 
+    /**
+     * 문의 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<InquirySummaryResponse> select(
             InquiryStatus status,
@@ -41,6 +46,7 @@ public class InquiryManagementService {
             int page,
             int size
     ) {
+
         validatePage(page, size);
         Specification<Inquiry> specification = Specification.where(statusEquals(status))
                 .and(categoryEquals(category))
@@ -56,8 +62,12 @@ public class InquiryManagementService {
         );
     }
 
+    /**
+     * 문의 정보를 식별자로 조회한다.
+     */
     @Transactional(readOnly = true)
     public InquiryResponse selectById(Long inquiryId) {
+
         Inquiry inquiry = findById(inquiryId);
         return InquiryMapper.toResponse(
                 inquiry,
@@ -65,7 +75,11 @@ public class InquiryManagementService {
         );
     }
 
+    /**
+     * 문의에 답변을 등록한다.
+     */
     public InquiryResponse answer(Long inquiryId, InquiryAnswerRequest request, String responderId) {
+
         Inquiry inquiry = inquiryRepository.findByIdForUpdate(inquiryId)
                 .orElseThrow(() -> new InquiryNotFoundException("존재하지 않는 문의입니다."));
 
@@ -78,7 +92,11 @@ public class InquiryManagementService {
         return InquiryMapper.toResponse(inquiry, answerRepository.save(answer));
     }
 
+    /**
+     * 등록된 문의 답변을 수정한다.
+     */
     public InquiryResponse updateAnswer(Long inquiryId, InquiryAnswerRequest request) {
+
         Inquiry inquiry = findById(inquiryId);
         InquiryAnswer answer = answerRepository.findByInquiryId(inquiryId)
                 .orElseThrow(() -> new InquiryAnswerNotFoundException("등록된 답변이 없습니다."));
@@ -86,20 +104,36 @@ public class InquiryManagementService {
         return InquiryMapper.toResponse(inquiry, answer);
     }
 
+    /**
+     * 문의 정보를 식별자로 조회한다.
+     */
     private Inquiry findById(Long inquiryId) {
+
         return inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new InquiryNotFoundException("존재하지 않는 문의입니다."));
     }
 
+    /**
+     * 상태 일치 검색 조건을 구성한다.
+     */
     private Specification<Inquiry> statusEquals(InquiryStatus status) {
+
         return status == null ? null : (root, query, builder) -> builder.equal(root.get("status"), status);
     }
 
+    /**
+     * 분류 일치 검색 조건을 구성한다.
+     */
     private Specification<Inquiry> categoryEquals(InquiryCategory category) {
+
         return category == null ? null : (root, query, builder) -> builder.equal(root.get("category"), category);
     }
 
+    /**
+     * 검색어 포함 조건을 구성한다.
+     */
     private Specification<Inquiry> keywordContains(String keyword) {
+
         if (!StringUtils.hasText(keyword)) {
             return null;
         }
@@ -111,14 +145,22 @@ public class InquiryManagementService {
         );
     }
 
+    /**
+     * 사용자 ID의 공백과 대소문자를 정규화한다.
+     */
     private String normalizeUserId(String userId) {
+
         if (!StringUtils.hasText(userId)) {
             throw new IllegalArgumentException("답변자 정보가 필요합니다.");
         }
         return userId.trim();
     }
 
+    /**
+     * 페이지 조회 조건이 유효한지 검증한다.
+     */
     private void validatePage(int page, int size) {
+
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("페이지는 0 이상, 페이지 크기는 1~100이어야 합니다.");
         }

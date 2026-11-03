@@ -10,10 +10,14 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class UpdateSeatRequest {
+
+    // 좌석 수정에 사용할 구역별 설정.
     private List<UpdateSeatAreaConfig> updateSeatAreaConfigs;
 
+    // 객체의 문자열 표현을 반환한다.
     @Override
     public String toString() {
+
         StringBuilder sb = new StringBuilder();
         sb.append("UpdateSeatInfo{");
         if (updateSeatAreaConfigs == null) {

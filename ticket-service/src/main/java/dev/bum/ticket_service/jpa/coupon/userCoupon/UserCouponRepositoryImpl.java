@@ -39,16 +39,13 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
 
     @Override
     public UserCoupon insert(UserCoupon userCoupon) {
+
         return jpaRepository.save(userCoupon);
     }
 
     @Override
-    public UserCoupon update(UserCoupon userCoupon) {
-        return jpaRepository.saveAndFlush(userCoupon);
-    }
-
-    @Override
     public UserCoupon selectById(Long userCouponId) {
+
         return jpaRepository.findById(userCouponId)
                 .orElseThrow(() -> new IllegalArgumentException("User coupon not found."));
     }
@@ -56,6 +53,7 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public UserCoupon selectByIdForUpdate(Long userCouponId) {
+
         UserCoupon userCoupon = jpaRepository.findByIdForUpdate(userCouponId)
                 .orElseThrow(() -> new IllegalArgumentException("사용 가능한 쿠폰이 존재하지 않습니다."));
         // 같은 영속성 컨텍스트에서 미리 읽었더라도, 잠금 획득 후 최신 상태로 검증한다.
@@ -64,19 +62,14 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     }
 
     @Override
-    @Transactional(propagation = Propagation.MANDATORY)
-    public void lockForUpdate(UserCoupon userCoupon) {
-        // 취소·만료 처리에서 연관관계로 읽은 쿠폰도 사용 처리와 같은 행을 잠근다.
-        entityManager.refresh(userCoupon, LockModeType.PESSIMISTIC_WRITE);
-    }
-
-    @Override
     public List<UserCoupon> selectByUserId(String userId) {
+
         return jpaRepository.findByUserId(userId);
     }
 
     @Override
     public List<UserCoupon> selectByUserId(String userId, UserCouponFilter filter, LocalDateTime now) {
+
         QUserCoupon userCoupon = QUserCoupon.userCoupon;
         QCoupon coupon = QCoupon.coupon;
 
@@ -93,6 +86,7 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
 
     @Override
     public Page<UserCoupon> selectByCond(UserCouponCondRequest cond, Pageable pageable) {
+
         QUserCoupon userCoupon = QUserCoupon.userCoupon;
         QCoupon coupon = QCoupon.coupon;
 
@@ -141,7 +135,22 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     }
 
     @Override
+    public UserCoupon update(UserCoupon userCoupon) {
+
+        return jpaRepository.saveAndFlush(userCoupon);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockForUpdate(UserCoupon userCoupon) {
+
+        // 취소·만료 처리에서 연관관계로 읽은 쿠폰도 사용 처리와 같은 행을 잠근다.
+        entityManager.refresh(userCoupon, LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Override
     public long expireExpiredUserCoupons(LocalDateTime now) {
+
         QUserCoupon userCoupon = QUserCoupon.userCoupon;
 
         return queryFactory
@@ -158,6 +167,7 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
 
     @Override
     public void validateNotIssued(String userId, Coupon coupon) {
+
         jpaRepository.findByUserIdAndCoupon(userId, coupon)
                 .ifPresent(userCoupon -> {
                     throw new IllegalArgumentException("Already issued coupon.");
@@ -165,44 +175,53 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     }
 
     private BooleanExpression userIdLike(String userId) {
+
         return StringUtils.hasText(userId) ? QUserCoupon.userCoupon.userId.like("%" + userId + "%") : null;
     }
 
     private BooleanExpression couponNameLike(String couponName) {
+
         return StringUtils.hasText(couponName) ? QCoupon.coupon.name.like("%" + couponName + "%") : null;
     }
 
     private BooleanExpression couponCodeLike(String couponCode) {
+
         return StringUtils.hasText(couponCode) ? QCoupon.coupon.code.like("%" + couponCode + "%") : null;
     }
 
     private BooleanExpression discountTypeEq(CouponDiscountType discountType) {
+
         return discountType != null ? QCoupon.coupon.discountType.eq(discountType) : null;
     }
 
     private BooleanExpression statusEq(UserCouponStatus status) {
+
         return status != null ? QUserCoupon.userCoupon.status.eq(status) : null;
     }
 
     private BooleanExpression issuedAtDateEq(LocalDate issuedAt) {
+
         return issuedAt != null
                 ? QUserCoupon.userCoupon.issuedAt.between(issuedAt.atStartOfDay(), issuedAt.atTime(LocalTime.MAX))
                 : null;
     }
 
     private BooleanExpression expiresAtDateEq(LocalDate expiresAt) {
+
         return expiresAt != null
                 ? QUserCoupon.userCoupon.expiresAt.between(expiresAt.atStartOfDay(), expiresAt.atTime(LocalTime.MAX))
                 : null;
     }
 
     private BooleanExpression usedAtDateEq(LocalDate usedAt) {
+
         return usedAt != null
                 ? QUserCoupon.userCoupon.usedAt.between(usedAt.atStartOfDay(), usedAt.atTime(LocalTime.MAX))
                 : null;
     }
 
     private BooleanExpression myCouponFilter(UserCouponFilter filter, LocalDateTime now) {
+
         QUserCoupon userCoupon = QUserCoupon.userCoupon;
         QCoupon coupon = QCoupon.coupon;
 

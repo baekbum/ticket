@@ -23,13 +23,11 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @PostMapping("/internal/card/validate")
-    public ResponseEntity<PaymentResponse> validateCard(@Valid @RequestBody CardPaymentValidationRequest request) {
-        return ResponseEntity.ok(paymentService.validateCardBeforeApproval(request));
-    }
-
     @PostMapping("/internal/card/settle")
-    public ResponseEntity<CardPaymentSettlementResponse> settleCard(@Valid @RequestBody CardPaymentCompleteRequest request) {
+    public ResponseEntity<CardPaymentSettlementResponse> settleCard(
+            @Valid @RequestBody CardPaymentCompleteRequest request
+    ) {
+
         return ResponseEntity.ok(paymentService.settleCardFromGateway(request));
     }
 
@@ -37,21 +35,30 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> completeCardFromGateway(
             @Valid @RequestBody CardPaymentCompleteRequest request
     ) {
-        return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
-    }
 
-    @PostMapping("/internal/card/fail")
-    public ResponseEntity<PaymentResponse> failCardFromGateway(
-            @Valid @RequestBody CardPaymentFailRequest request
-    ) {
-        return ResponseEntity.ok(paymentService.failCardFromGateway(request));
+        return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
     }
 
     @PostMapping("/internal/virtual-account/deposit/complete")
     public ResponseEntity<VirtualAccountDepositCompleteResponse> completeVirtualAccountDepositFromGateway(
             @Valid @RequestBody VirtualAccountDepositCompleteRequest request
     ) {
+
         return ResponseEntity.ok(VirtualAccountDepositCompleteResponse.of(
                 paymentService.completeVirtualAccountDepositFromGateway(request)));
+    }
+
+    @PostMapping("/internal/card/validate")
+    public ResponseEntity<PaymentResponse> validateCard(@Valid @RequestBody CardPaymentValidationRequest request) {
+
+        return ResponseEntity.ok(paymentService.validateCardBeforeApproval(request));
+    }
+
+    @PostMapping("/internal/card/fail")
+    public ResponseEntity<PaymentResponse> failCardFromGateway(
+            @Valid @RequestBody CardPaymentFailRequest request
+    ) {
+
+        return ResponseEntity.ok(paymentService.failCardFromGateway(request));
     }
 }

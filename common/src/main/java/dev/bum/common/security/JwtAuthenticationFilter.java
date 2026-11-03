@@ -77,6 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String resolveToken(HttpServletRequest request) {
+
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
@@ -88,6 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 🌟 클라이언트(프론트엔드)에 JSON 형태로 에러 응답을 직접 내려주는 헬퍼 메서드
      */
     private void sendErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
+
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
 

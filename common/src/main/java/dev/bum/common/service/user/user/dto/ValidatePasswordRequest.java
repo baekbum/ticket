@@ -7,7 +7,11 @@ import lombok.*;
 @NoArgsConstructor
 @Builder
 public class ValidatePasswordRequest {
+
+    // 사용자 ID.
     String userId;
+
+    // 비밀번호.
     @ToString.Exclude
     String password;
 }

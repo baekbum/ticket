@@ -35,6 +35,7 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain publicUserFilterChain(HttpSecurity http) throws Exception {
+
         http
                 .securityMatcher(
                         "/api/*/signup",
@@ -55,6 +56,7 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable()) // REST API이므로 CSRF 비활성화
                 .cors(this::configureCors)
@@ -91,6 +93,7 @@ public class SecurityConfig {
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+
         localCorsConfig.ifPresent(config ->
                 cors.configurationSource(config.corsConfigurationSource())
         );
@@ -102,11 +105,13 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+
         return new BCryptPasswordEncoder(); // 회원가입 시 비번 암호화 & 로그인 시 대조용
     }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+
         return config.getAuthenticationManager(); // 로그인 로직에서 인증을 시도할 매니저
     }
 }

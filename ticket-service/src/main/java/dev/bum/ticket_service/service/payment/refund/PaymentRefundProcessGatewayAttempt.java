@@ -10,10 +10,13 @@ import lombok.NonNull;
 @Builder
 public class PaymentRefundProcessGatewayAttempt {
 
+    // 결제 환불 처리 식별자.
     @NonNull
     private final Long paymentRefundProcessId;
+    // 수행한 작업.
     @NonNull
     private final RefundAction action;
+    // 환불 금액과 공제 금액의 계산 결과.
     @NonNull
     private final CancellationRefundCalculation calculation;
 }

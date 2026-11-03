@@ -25,8 +25,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AreaService {
 
+    // SVG 배치도에서 허용되지 않은 내용을 제거하는 도구.
     private final SvgLayoutSanitizer svgLayoutSanitizer;
+    // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
     private final AreaRepository repository;
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventLayoutJpaRepository layoutJpaRepository;
 
     /**
@@ -34,6 +37,7 @@ public class AreaService {
      */
     @Transactional(readOnly = true)
     public EventLayoutResponse selectLayout(Long eventId) {
+
         log.info("[EVENT LAYOUT SELECT] eventId : {}", eventId);
         return layoutJpaRepository.findByEvent_EventId(eventId)
                 .map(layout -> {
@@ -49,6 +53,7 @@ public class AreaService {
      */
     @Transactional(readOnly = true)
     public AreaResponse selectById(Long id) {
+
         log.info("[AREA SELECT] areaId : {}", id);
         return repository.selectById(id).toResponse();
     }
@@ -58,6 +63,7 @@ public class AreaService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<AreaResponse> selectByCond(AreaCondRequest cond) {
+
         log.info("[AREA SELECT] cond : {}", cond);
 
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -76,6 +82,7 @@ public class AreaService {
      * 요청 sort 문자열을 Spring Data Sort 객체로 변환한다.
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();

@@ -15,8 +15,15 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class GatewayVirtualAccountIssueRequest {
 
+    // 결제 번호.
     private String paymentNo;
+
+    // 은행 구분.
     private BankCompany bankCompany;
+
+    // 금액.
     private BigDecimal amount;
+
+    // 공연 시작 일시.
     private LocalDateTime eventDateTime;
 }

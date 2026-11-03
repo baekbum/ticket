@@ -80,7 +80,9 @@ public class Faq {
     @Column(nullable = false)
     private long version;
 
+    // 전달받은 값으로 자주 묻는 질문 객체를 초기화한다.
     private Faq(String question, String answer, FaqCategory category, int displayOrder, String authorId) {
+
         this.question = Objects.requireNonNull(question);
         this.answer = Objects.requireNonNull(answer);
         this.category = Objects.requireNonNull(category);
@@ -89,6 +91,7 @@ public class Faq {
         this.status = PublicationStatus.DRAFT;
     }
 
+    // 자주 묻는 질문을 생성한다.
     public static Faq create(
             String question,
             String answer,
@@ -96,29 +99,40 @@ public class Faq {
             int displayOrder,
             String authorId
     ) {
+
         return new Faq(question, answer, category, displayOrder, authorId);
     }
 
+    // 자주 묻는 질문을 수정한다.
     public void update(String question, String answer, FaqCategory category, int displayOrder) {
+
         this.question = Objects.requireNonNull(question);
         this.answer = Objects.requireNonNull(answer);
         this.category = Objects.requireNonNull(category);
         this.displayOrder = displayOrder;
     }
 
+    // 자주 묻는 질문 처리에서 이벤트를 발행한다.
     public void publish() {
+
         this.status = PublicationStatus.PUBLISHED;
     }
 
+    // 자주 묻는 질문 처리에서 초안 상태로 구성한다.
     public void draft() {
+
         this.status = PublicationStatus.DRAFT;
     }
 
+    // 자주 묻는 질문 처리에서 비공개 상태로 변경한다.
     public void hide() {
+
         this.status = PublicationStatus.HIDDEN;
     }
 
+    // 자주 묻는 질문 처리에서 보관 상태로 변경한다.
     public void archive() {
+
         this.status = PublicationStatus.ARCHIVED;
     }
 }

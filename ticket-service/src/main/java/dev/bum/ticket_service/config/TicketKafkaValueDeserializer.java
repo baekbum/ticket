@@ -12,6 +12,7 @@ import java.util.Map;
 public class TicketKafkaValueDeserializer extends JsonDeserializer<Object> {
 
     public TicketKafkaValueDeserializer(Map<String, Class<?>> eventTypes) {
+
         super(Object.class, false);
 
         Map<String, JavaType> types = new HashMap<>();
