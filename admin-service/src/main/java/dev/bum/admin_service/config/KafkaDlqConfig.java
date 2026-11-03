@@ -21,6 +21,7 @@ public class KafkaDlqConfig {
 
     @Bean
     public ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory(KafkaProperties kafkaProperties) {
+
         Map<String, Object> properties = new HashMap<>();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
@@ -38,6 +39,7 @@ public class KafkaDlqConfig {
             ConsumerFactory<byte[], byte[]> kafkaDlqConsumerFactory,
             @Value("${spring.kafka.listener.auto-startup:true}") boolean autoStartup
     ) {
+
         var factory = new ConcurrentKafkaListenerContainerFactory<byte[], byte[]>();
         factory.setConsumerFactory(kafkaDlqConsumerFactory);
         factory.setAutoStartup(autoStartup);

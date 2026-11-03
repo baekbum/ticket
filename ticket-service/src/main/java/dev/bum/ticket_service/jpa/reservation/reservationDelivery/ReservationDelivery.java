@@ -37,8 +37,10 @@ import java.time.format.DateTimeFormatter;
 @AllArgsConstructor
 public class ReservationDelivery {
 
+    // 날짜와 시각을 표시하는 형식.
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // 예매 배송 정보 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "reservation_delivery_id")
@@ -102,7 +104,9 @@ public class ReservationDelivery {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public ReservationDeliveryResponse toResponse() {
+
         return ReservationDeliveryResponse.builder()
                 .reservationDeliveryId(this.reservationDeliveryId)
                 .reservationId(this.reservation != null ? this.reservation.getReservationId() : null)
@@ -120,7 +124,9 @@ public class ReservationDelivery {
                 .build();
     }
 
+    // 예매 배송지와 수령인 정보를 수정한다.
     public void updateDeliveryInfo(ReservationDeliveryRequest info) {
+
         if (this.status != ReservationDeliveryStatus.READY) {
             throw new IllegalStateException("배송 준비 전 상태에서만 배송지를 변경할 수 있습니다.");
         }
@@ -133,36 +139,50 @@ public class ReservationDelivery {
         this.deliveryMessage = info.getDeliveryMessage();
     }
 
+    // 예매 배송 정보 처리에서 처리에 필요한 상태와 데이터를 준비한다.
     public void prepare() {
+
         this.status = ReservationDeliveryStatus.PREPARING;
     }
 
+    // 배송 시작 상태와 운송장 정보를 반영한다.
     public void ship(String carrier, String trackingNumber, LocalDateTime shippedAt) {
+
         this.status = ReservationDeliveryStatus.SHIPPED;
         this.carrier = carrier;
         this.trackingNumber = trackingNumber;
         this.shippedAt = shippedAt != null ? shippedAt : LocalDateTime.now();
     }
 
+    // 택배사와 운송장 번호를 수정한다.
     public void updateTracking(String carrier, String trackingNumber) {
+
         this.carrier = carrier;
         this.trackingNumber = trackingNumber;
     }
 
+    // 예매 배송 정보 처리에서 후속 처리 대상으로 전달한다.
     public void deliver(LocalDateTime deliveredAt) {
+
         this.status = ReservationDeliveryStatus.DELIVERED;
         this.deliveredAt = deliveredAt != null ? deliveredAt : LocalDateTime.now();
     }
 
+    // 배송 정보를 반품 상태로 변경한다.
     public void returnDelivery() {
+
         this.status = ReservationDeliveryStatus.RETURNED;
     }
 
+    // 예매 배송 정보를 취소 상태로 변경한다.
     public void cancel() {
+
         this.status = ReservationDeliveryStatus.CANCELLED;
     }
 
+    // 예매 배송 정보 처리에서 처리 준비 상태로 구성한다.
     public void ready() {
+
         this.status = ReservationDeliveryStatus.READY;
         this.carrier = null;
         this.trackingNumber = null;
@@ -170,7 +190,9 @@ public class ReservationDelivery {
         this.deliveredAt = null;
     }
 
+    // 날짜와 시각을 응답 표시 형식으로 변환한다.
     private String formatDateTime(LocalDateTime dateTime) {
+
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 }

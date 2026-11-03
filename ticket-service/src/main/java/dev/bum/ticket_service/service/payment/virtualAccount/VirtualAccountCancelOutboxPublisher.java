@@ -18,13 +18,21 @@ import java.util.Objects;
 @RequiredArgsConstructor
 @Slf4j
 public class VirtualAccountCancelOutboxPublisher {
+
+    // 가상계좌 취소 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountCancelOutboxJpaRepository repository;
+    // 결제 게이트웨이 처리 결과.
     private final PaymentGatewayVirtualAccountClient gateway;
+    // 실패한 이벤트를 다시 처리하기 전 대기 시간(밀리초).
     @Value("${app.virtual-account.cancel-outbox.retry-delay-ms:30000}")
     private long retryDelayMs = 30000;
 
+    /**
+     * 가상계좌 취소 Outbox 이벤트 처리에서 후속 처리 대상으로 전달한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deliver(Long outboxId) {
+
         // 원래 예매/결제 잠금 없이 Outbox만 잠근다. PG의 입금 통지가 티켓으로 돌아와도 서로 기다리지 않는다.
         VirtualAccountCancelOutbox outbox = repository.findByIdForUpdate(outboxId).orElse(null);
         if (outbox == null || outbox.getStatus() == VirtualAccountCancelOutboxStatus.DELIVERED
@@ -40,7 +48,11 @@ public class VirtualAccountCancelOutboxPublisher {
         outbox.delivered(LocalDateTime.now());
     }
 
+    /**
+     * 외부 응답이 후속 처리에 유효한지 검증한다.
+     */
     private void validateResponse(VirtualAccountCancelOutbox outbox, GatewayVirtualAccountCancelResponse response) {
+
         if (response == null || response.status() != GatewayVirtualAccountStatus.CANCELLED
                 || !Objects.equals(outbox.getPaymentNo(), response.paymentNo())
                 || !Objects.equals(outbox.getBankName(), response.bankName())

@@ -14,6 +14,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic userTopic() {
+
         return TopicBuilder.name(userEventTopicName)
                 .partitions(1)
                 .replicas(1)

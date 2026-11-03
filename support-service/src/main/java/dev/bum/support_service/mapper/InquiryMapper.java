@@ -12,6 +12,7 @@ public final class InquiryMapper {
     }
 
     public static InquiryResponse toResponse(Inquiry inquiry, InquiryAnswer answer) {
+
         return new InquiryResponse(
                 inquiry.getId(),
                 inquiry.getRequesterId(),
@@ -26,6 +27,7 @@ public final class InquiryMapper {
     }
 
     public static InquirySummaryResponse toSummaryResponse(Inquiry inquiry) {
+
         return new InquirySummaryResponse(
                 inquiry.getId(),
                 inquiry.getRequesterId(),
@@ -38,6 +40,7 @@ public final class InquiryMapper {
     }
 
     private static InquiryAnswerResponse toAnswerResponse(InquiryAnswer answer) {
+
         return new InquiryAnswerResponse(
                 answer.getId(),
                 answer.getResponderId(),

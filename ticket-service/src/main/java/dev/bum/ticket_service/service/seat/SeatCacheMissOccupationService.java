@@ -22,11 +22,18 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class SeatCacheMissOccupationService {
+
+    // 좌석 목록.
     private final SeatJpaRepository seats;
+    // 좌석 점유 상태와 잠금을 저장하고 조회하는 Redis 클라이언트.
     private final RedisOperations<String, String> seatRedisTemplate;
 
+    /**
+     * 좌석을 사용자에게 임시 점유시킨다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void occupy(Long eventId, SeatInfo info, String redisKey, String lockValue, Duration ttl) {
+
         Seat seat = seats.findByIdForUpdate(info.getId())
                 .orElseThrow(() -> new SeatCacheNotFoundException("좌석 정보가 존재하지 않습니다."));
 

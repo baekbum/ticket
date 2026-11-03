@@ -17,15 +17,19 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class GatewayVirtualAccountDepositRequest {
 
+    // 계좌 번호.
     @NotBlank
     private String accountNumber;
 
+    // 입금자 이름.
     @NotBlank
     private String depositorName;
 
+    // 금액.
     @NotNull
     @Positive
     private BigDecimal amount;
 
+    // 입금 완료 시각.
     private LocalDateTime depositedAt;
 }

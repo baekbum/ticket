@@ -17,9 +17,14 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class CardPaymentRefundService {
 
+    // 결제 게이트웨이 연동 API를 호출하는 클라이언트.
     private final PaymentGatewayCardClient paymentGatewayCardClient;
 
+    /**
+     * 결제 환불을 전액 환불 결과를 반영한다.
+     */
     public int refundAll(Payment payment, Long paymentRefundProcessId) {
+
         validateRefundableCardPayment(payment);
 
         int refundAmount = payment.getRefundableAmount();
@@ -35,7 +40,11 @@ public class CardPaymentRefundService {
         return refundAmount;
     }
 
+    /**
+     * 결제 환불을 부분 환불 결과를 반영한다.
+     */
     public int refundPartial(Payment payment, int refundAmount, Long paymentRefundProcessId) {
+
         validateRefundableCardPayment(payment);
 
         paymentGatewayCardClient.refund(
@@ -50,19 +59,27 @@ public class CardPaymentRefundService {
         return refundAmount;
     }
 
+    /**
+     * 카드 결제가 환불 가능한 상태인지 검증한다.
+     */
     private void validateRefundableCardPayment(Payment payment) {
+
         if (payment == null) {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
         }
+
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제가 아닙니다.");
         }
+
         if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 결제 상태입니다.");
         }
+
         if (!StringUtils.hasText(payment.getCardTransactionId())) {
             throw new IllegalArgumentException("카드 거래번호가 없습니다.");
         }
+
         if (payment.getRefundableAmount() <= 0) {
             throw new IllegalArgumentException("환불 가능한 금액이 없습니다.");
         }

@@ -35,7 +35,8 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${token.secret}") String secret,
             @Value("${token.accessTokenValidityInMilliseconds:900000}") long accessValidity,
-            @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity) {
+            @Value("${token.refreshTokenValidityInMilliseconds:1209600000}") long refreshValidity
+    ) {
 
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         // 구현체 탐색의 파일 I/O는 앱 시작 시 수행하고 불변 파서를 요청 간 재사용한다.
@@ -46,10 +47,12 @@ public class JwtTokenProvider {
 
     // 1. 토큰 생성
     public TokenResponse createToken(String userId, String role) {
+
         return createToken(userId, role, 1L);
     }
 
     public TokenResponse createToken(String userId, String role, long tokenVersion) {
+
         Claims claims = Jwts.claims().setSubject(userId);
         claims.put("tokenVersion", tokenVersion);
         claims.put("tokenType", "access");
@@ -87,6 +90,7 @@ public class JwtTokenProvider {
 
     // 2. 토큰에서 인증 정보 조회 (SecurityContext에 저장하기 위함)
     public Authentication getAuthentication(String token) {
+
         Claims claims = parser.parseClaimsJws(token)
                 .getBody();
 
@@ -101,6 +105,7 @@ public class JwtTokenProvider {
 
     // 3. 토큰의 유효성 + 만료일자 확인
     public boolean validateToken(String token) {
+
         try {
             parser.parseClaimsJws(token);
             return true;
@@ -121,12 +126,14 @@ public class JwtTokenProvider {
 
     // [추가] 토큰에서 userId(Subject) 추출
     public String getUserId(String token) {
+
         return parser.parseClaimsJws(token)
                 .getBody()
                 .getSubject();
     }
 
     public long getTokenVersion(String token) {
+
         Number version = readClaims(token).get("tokenVersion", Number.class);
         if (version == null || version.longValue() < 1) {
             throw new JwtException("Missing token version");
@@ -135,15 +142,18 @@ public class JwtTokenProvider {
     }
 
     public String getTokenType(String token) {
+
         return readClaims(token).get("tokenType", String.class);
     }
 
     private Claims readClaims(String token) {
+
         return parser.parseClaimsJws(token).getBody();
     }
 
     // [추가] 토큰에서 Role(auth) 추출
     public String getRole(String token) {
+
         Claims claims = parser.parseClaimsJws(token)
                 .getBody();
 

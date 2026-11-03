@@ -22,15 +22,16 @@ import java.util.Map;
 public class AuditLogProducer {
 
     private final KafkaTemplate<String, AuditLogEvent> kafkaTemplate;
-
     @Value("${topic.audit.log.name}")
     private String auditLogTopicName;
 
     public AuditLogProducer(KafkaProperties kafkaProperties) {
+
         this.kafkaTemplate = new KafkaTemplate<>(auditLogProducerFactory(kafkaProperties));
     }
 
     public void send(AuditLogEvent event) {
+
         kafkaTemplate.send(auditLogTopicName, keyOf(event), event)
                 .whenComplete((result, throwable) -> {
                     if (throwable == null) {
@@ -51,6 +52,7 @@ public class AuditLogProducer {
     }
 
     private String keyOf(AuditLogEvent event) {
+
         if (StringUtils.hasText(event.getTraceId())) {
             return event.getTraceId();
         }
@@ -61,6 +63,7 @@ public class AuditLogProducer {
     // ticket-service처럼 기본 Kafka value serializer로 StringSerializer를 쓰는 서비스가 있다.
     // 감사 로그는 항상 JSON으로 전송해야 하므로 감사 전용 ProducerFactory를 별도로 사용한다.
     private ProducerFactory<String, AuditLogEvent> auditLogProducerFactory(KafkaProperties kafkaProperties) {
+
         Map<String, Object> properties = new HashMap<>(kafkaProperties.getProducer().getProperties());
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);

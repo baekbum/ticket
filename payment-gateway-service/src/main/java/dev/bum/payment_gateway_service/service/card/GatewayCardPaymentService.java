@@ -12,10 +12,33 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Slf4j
 public class GatewayCardPaymentService {
+
+    // 게이트웨이 카드 승인 업무 처리를 담당하는 서비스.
     private final GatewayCardApprovalService approvalService;
+    // 게이트웨이 카드 결제 반영 업무 처리를 담당하는 서비스.
     private final GatewayCardSettlementService settlementService;
 
+    /**
+     * 현재 처리 상태를 조회한다.
+     */
+    public GatewayCardPaymentStatusResponse status(String userId, String paymentNo) {
+
+        return settlementService.status(userId, paymentNo);
+    }
+
+    /**
+     * 결제 처리에서 카드 승인 이력이 존재하는지 확인한다.
+     */
+    public boolean hasApprovalHistory(String paymentNo) {
+
+        return settlementService.hasApprovalHistory(paymentNo);
+    }
+
+    /**
+     * 결제 처리에서 승인 결과를 반영한다.
+     */
     public GatewayCardPaymentApproveResponse approve(String userId, GatewayCardPaymentApproveRequest request) {
+
         GatewayCardPaymentApproveResponse approval = approvalService.approve(userId, request); // pg 서비스 내부의 결제 상태를 바꿈
         CardPaymentHistoryStatus status = settle(request.getPaymentNo()); // ticket 서비스 내부의 결제 상태를 바꿈
 
@@ -27,7 +50,11 @@ public class GatewayCardPaymentService {
         return approval;
     }
 
+    /**
+     * 결제 처리에서 승인 결과를 확인하고 후속 상태에 반영한다.
+     */
     public CardPaymentHistoryStatus settle(String paymentNo) {
+
         try {
             return settlementService.settle(paymentNo);
         } catch (RuntimeException failure) {
@@ -40,15 +67,11 @@ public class GatewayCardPaymentService {
         }
     }
 
-    public GatewayCardPaymentStatusResponse status(String userId, String paymentNo) {
-        return settlementService.status(userId, paymentNo);
-    }
-
-    public boolean hasApprovalHistory(String paymentNo) {
-        return settlementService.hasApprovalHistory(paymentNo);
-    }
-
+    /**
+     * 결제 처리에서 환불 요청을 처리하고 결과를 반영한다.
+     */
     public GatewayCardPaymentRefundResponse refund(GatewayCardPaymentRefundRequest request) {
+
         return approvalService.refund(request);
     }
 }

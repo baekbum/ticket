@@ -34,11 +34,13 @@ public class VirtualAccountReconciliationController {
             @RequestParam(required = false) String paymentNo,
             @RequestParam(required = false) PaymentStatus status
     ) {
+
         return ResponseEntity.ok(service.list(page, paymentNo, status));
     }
 
     @GetMapping("/{paymentNo}/reconciliation")
     public ResponseEntity<VirtualAccountReconciliationResponse> inspect(@PathVariable String paymentNo) {
+
         return ResponseEntity.ok(service.inspect(paymentNo));
     }
 
@@ -49,9 +51,13 @@ public class VirtualAccountReconciliationController {
             @PathVariable String paymentNo,
             @Valid @RequestBody CompletionRequest request
     ) {
+
         return ResponseEntity.ok(service.complete(paymentNo, adminId, request.reason()));
     }
 
-    public record CompletionRequest(@NotBlank @Size(max = 500) String reason) {
+    public record CompletionRequest(
+            // 처리 사유.
+            @NotBlank @Size(max = 500) String reason
+    ) {
     }
 }

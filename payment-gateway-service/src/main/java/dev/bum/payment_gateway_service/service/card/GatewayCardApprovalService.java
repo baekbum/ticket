@@ -42,14 +42,23 @@ import java.util.UUID;
 @Slf4j
 public class GatewayCardApprovalService {
 
+    // 모의 카드 데이터를 조회하고 저장하는 레포지토리.
     private final DummyCardJpaRepository dummyCardJpaRepository;
+    // 모의 카드 결제 이력 데이터를 조회하고 저장하는 레포지토리.
     private final DummyCardPaymentHistoryJpaRepository dummyCardPaymentHistoryJpaRepository;
+    // 티켓 결제 연동 API를 호출하는 클라이언트.
     private final TicketPaymentClient ticketPaymentClient;
+    // 비밀번호를 암호화하고 일치 여부를 확인하는 인코더.
     private final PasswordEncoder passwordEncoder;
+    // 게이트웨이 환불 업무 처리를 담당하는 서비스.
     private final GatewayRefundProcessService refundProcesses;
 
+    /**
+     * 처리 정보 처리에서 승인 결과를 반영한다.
+     */
     @Transactional
     public GatewayCardPaymentApproveResponse approve(String currentUserId, GatewayCardPaymentApproveRequest request) {
+
         Optional<DummyCardPaymentHistory> existingHistory = dummyCardPaymentHistoryJpaRepository.findByPaymentNo(request.getPaymentNo());
         if (existingHistory.isPresent()) {
             return handleExistingHistory(currentUserId, existingHistory.get(), request);
@@ -92,20 +101,12 @@ public class GatewayCardApprovalService {
         return toApproveResponse(paymentHistory, "카드 승인이 저장되었습니다.");
     }
 
-    private DummyCard findDummyCard(GatewayCardPaymentApproveRequest request, String cardNumber) {
-        Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
-                        request.getCardCompany(),
-                        sha256(cardNumber)
-                );
-
-        if (dummyCardOptional.isEmpty()) {
-            throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
-        }
-        return dummyCardOptional.get();
-    }
-
+    /**
+     * 처리 정보 처리에서 환불 요청을 처리하고 결과를 반영한다.
+     */
     @Transactional
     public GatewayCardPaymentRefundResponse refund(GatewayCardPaymentRefundRequest request) {
+
         if (request.getPaymentRefundProcessId() == null || request.getPaymentRefundProcessId() <= 0) {
             throw new IllegalArgumentException("환불 프로세스 ID가 필요합니다.");
         }
@@ -142,17 +143,41 @@ public class GatewayCardApprovalService {
         }
     }
 
+    /**
+     * 요청한 카드에 대응하는 모의 카드 정보를 조회한다.
+     */
+    private DummyCard findDummyCard(GatewayCardPaymentApproveRequest request, String cardNumber) {
+
+        Optional<DummyCard> dummyCardOptional = dummyCardJpaRepository.findByCardCompanyAndCardNumberHash(
+                        request.getCardCompany(),
+                        sha256(cardNumber)
+                );
+
+        if (dummyCardOptional.isEmpty()) {
+            throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
+        }
+        return dummyCardOptional.get();
+    }
+
+    /**
+     * 현재 인증 사용자와 요청 사용자가 일치하는지 검증한다.
+     */
     private void validateCurrentUser(String currentUserId) {
+
         if (!StringUtils.hasText(currentUserId)) {
             throw new IllegalArgumentException("사용자 인증 정보가 필요합니다.");
         }
     }
 
+    /**
+     * 기존 결제 이력을 확인하고 중복 요청 결과를 처리한다.
+     */
     private GatewayCardPaymentApproveResponse handleExistingHistory(
             String currentUserId,
             DummyCardPaymentHistory paymentHistory,
             GatewayCardPaymentApproveRequest request
     ) {
+
         validateExistingHistory(currentUserId, paymentHistory, request);
         if (paymentHistory.getStatus() == CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED
                 || paymentHistory.getStatus() == CardPaymentHistoryStatus.APPROVED
@@ -163,19 +188,25 @@ public class GatewayCardApprovalService {
         throw new IllegalArgumentException("이미 카드 결제 시도가 처리된 결제번호입니다. 새 결제번호로 다시 시도해주세요.");
     }
 
+    /**
+     * 기존 결제 이력과 현재 요청이 일치하는지 검증한다.
+     */
     private void validateExistingHistory(
             String currentUserId,
             DummyCardPaymentHistory paymentHistory,
             GatewayCardPaymentApproveRequest request
     ) {
+
         validateCurrentUser(currentUserId);
 
         if (!currentUserId.equals(paymentHistory.getUserId())) {
             throw new IllegalArgumentException("다른 사용자의 카드 승인 이력입니다.");
         }
+
         if (paymentHistory.getAmount().compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("기존 카드 승인 금액과 요청 금액이 일치하지 않습니다.");
         }
+
         if (paymentHistory.getDummyCard() == null
                 || paymentHistory.getCardCompany() != request.getCardCompany()
                 || !paymentHistory.getDummyCard().getCardNumberHash()
@@ -184,26 +215,40 @@ public class GatewayCardApprovalService {
         }
     }
 
+    /**
+     * 결제 이력이 환불 가능한 상태인지 검증한다.
+     */
     private void validateRefundableHistory(
             DummyCardPaymentHistory paymentHistory,
             GatewayCardPaymentRefundRequest request
     ) {
+
         if (paymentHistory.getStatus() == CardPaymentHistoryStatus.REFUNDED) {
             throw new IllegalArgumentException("이미 환불 완료된 카드 결제입니다.");
         }
+
         if (paymentHistory.getStatus() != CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED
                 && paymentHistory.getStatus() != CardPaymentHistoryStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 카드 결제 상태입니다.");
         }
+
         if (paymentHistory.getDummyCard() == null) {
             throw new IllegalArgumentException("환불할 카드 정보를 찾을 수 없습니다.");
         }
+
         if (request.getRefundAmount().compareTo(paymentHistory.getRefundableAmount()) > 0) {
             throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
         }
     }
 
-    private GatewayCardPaymentApproveResponse toApproveResponse(DummyCardPaymentHistory paymentHistory, String message) {
+    /**
+     * 카드 승인 결과를 응답 객체로 변환한다.
+     */
+    private GatewayCardPaymentApproveResponse toApproveResponse(
+            DummyCardPaymentHistory paymentHistory,
+            String message
+    ) {
+
         DummyCard dummyCard = paymentHistory.getDummyCard();
         boolean ownCard = paymentHistory.getUserId().equals(dummyCard.getUserId());
         return GatewayCardPaymentApproveResponse.builder()
@@ -220,43 +265,71 @@ public class GatewayCardApprovalService {
                 .build();
     }
 
+    /**
+     * 카드 인증 정보와 사용 가능 상태를 검증한다.
+     */
     private void validateCard(DummyCard dummyCard, GatewayCardPaymentApproveRequest request, String cardNumber) {
+
         if (!dummyCard.getCardNumberLast4().equals(cardNumber.substring(cardNumber.length() - 4))) {
             throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
         }
+
         if (!passwordEncoder.matches(request.getCvc(), dummyCard.getCvcHash())) {
             throw new IllegalArgumentException("카드 CVC가 일치하지 않습니다.");
         }
+
         if (!passwordEncoder.matches(request.getCardPassword(), dummyCard.getCardPasswordHash())) {
             throw new IllegalArgumentException("카드 비밀번호가 일치하지 않습니다.");
         }
+
         if (dummyCard.isExpired(LocalDate.now())) {
             throw new IllegalArgumentException("만료된 카드입니다.");
         }
+
         if (!dummyCard.canPay(request.getAmount())) {
             throw new IllegalArgumentException("카드 결제 한도를 초과했거나 사용할 수 없는 카드입니다.");
         }
     }
 
+    /**
+     * 카드 번호의 구분 문자를 제거하고 정규화한다.
+     */
     private String normalizeCardNumber(String value) {
+
         return StringUtils.hasText(value) ? value.replaceAll("[^0-9]", "") : "";
     }
 
+    /**
+     * 카드 번호 형식이 유효한지 검증한다.
+     */
     private void validateCardNumber(String cardNumber) {
+
         if (cardNumber.length() != 16) {
             throw new IllegalArgumentException("카드번호 형식이 올바르지 않습니다.");
         }
     }
 
+    /**
+     * 결제 거래를 식별할 번호를 생성한다.
+     */
     private String createTransactionId() {
+
         return "CARD-" + UUID.randomUUID();
     }
 
+    /**
+     * 카드 번호의 민감한 부분을 가린다.
+     */
     private String maskCardNumber(String cardNumber) {
+
         return cardNumber.substring(0, 4) + "-****-****-" + cardNumber.substring(12);
     }
 
+    /**
+     * 값의 SHA-256 해시를 계산한다.
+     */
     private String sha256(String value) {
+
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));

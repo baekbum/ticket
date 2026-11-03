@@ -25,14 +25,25 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class PaymentRefundProcessCreator {
+
+    // 결제 환불 처리 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentRefundProcessJpaRepository processes;
+    // 티켓 목록.
     private final TicketJpaRepository tickets;
+    // 적용한 할인 목록.
     private final ReservationDiscountJpaRepository discounts;
 
+    /**
+     * 새 환불 요청과 처리 정보를 생성한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long createNewRequest(
-            Payment payment, List<Ticket> selectedTickets, boolean full,
-            RefundAccountRequest account, LocalDateTime requestedAt) {
+            Payment payment,
+            List<Ticket> selectedTickets,
+            boolean full,
+            RefundAccountRequest account,
+            LocalDateTime requestedAt
+    ) {
 
         ReservationCancellationPolicy.validateNewRequest(
                 requestedAt, payment.getReservation().getEvent() == null
@@ -51,17 +62,33 @@ public class PaymentRefundProcessCreator {
         return persist(payment, selectedTickets, full, account, calculation, requestedAt);
     }
 
+    /**
+     * 재처리를 위해 원래 환불 요청 값을 복사한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long copyOriginalRequest(
-            Payment payment, List<Ticket> selectedTickets, boolean full, RefundAccountRequest account,
-            CancellationRefundCalculation calculation, LocalDateTime capturedAt) {
+            Payment payment,
+            List<Ticket> selectedTickets,
+            boolean full,
+            RefundAccountRequest account,
+            CancellationRefundCalculation calculation,
+            LocalDateTime capturedAt
+    ) {
 
         return persist(payment, selectedTickets, full, account, calculation, capturedAt);
     }
 
+    /**
+     * 처리 정보를 영속 저장소에 저장한다.
+     */
     private Long persist(
-            Payment payment, List<Ticket> selectedTickets, boolean full, RefundAccountRequest account,
-            CancellationRefundCalculation calculation, LocalDateTime capturedAt) {
+            Payment payment,
+            List<Ticket> selectedTickets,
+            boolean full,
+            RefundAccountRequest account,
+            CancellationRefundCalculation calculation,
+            LocalDateTime capturedAt
+    ) {
 
         PaymentRefundProcess process = PaymentRefundProcess.create(
                 payment, selectedTickets, calculation.refundAmount(), calculation.cancellationFeeAmount(), full,

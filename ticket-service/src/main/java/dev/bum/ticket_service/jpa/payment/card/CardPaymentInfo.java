@@ -17,13 +17,16 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CardPaymentInfo {
 
+    // 결제 거래 식별자.
     @Column(name = "card_transaction_id", length = 80)
     private String transactionId;
 
+    // 카드사.
     @Enumerated(EnumType.STRING)
     @Column(name = "card_company", length = 30)
     private CardCompany cardCompany;
 
+    // 마스킹한 카드 번호.
     @Column(name = "card_number_masked", length = 30)
     private String maskedCardNumber;
 }

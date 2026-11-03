@@ -13,18 +13,35 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EventRepository {
+
     Event insert(InsertEventRequest info);
 
     Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable);
+
     void isExist(EventCondRequest cond);
+
     Event selectById(Long id);
+
     Event selectByIdForUpdate(Long id);
+
     List<Event> selectByEventGroupCode(String eventGroupCode);
+
     List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit);
+
     List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit);
+
     List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit);
+
     List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit);
-    List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort, int page, int size);
+
+    List<EventCardResponse> selectGenreOnSaleCards(
+            EventGenre genre,
+            LocalDateTime now,
+            String sort,
+            int page,
+            int size
+    );
+
     Page<Event> selectByCond(EventCondRequest cond, Pageable pageable);
 
     Event update(Long id, UpdateEventRequest info);

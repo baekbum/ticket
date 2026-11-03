@@ -29,12 +29,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentExpirationService {
 
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository paymentJpaRepository;
+    // 티켓 데이터를 조회하고 저장하는 레포지토리.
     private final TicketRepository ticketRepository;
+    // 예매 배송 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
+    // 예매 할인 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+    // 사용자 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final UserCouponRepository userCouponRepository;
+    // 좌석 캐시 업무 처리를 담당하는 서비스.
     private final SeatCacheService seatCacheService;
+    // 티켓 구매 수량 업무 처리를 담당하는 서비스.
     private final TicketPurchaseCountService ticketPurchaseCountService;
 
     /**
@@ -42,6 +49,7 @@ public class PaymentExpirationService {
      */
     @Transactional
     public void expireIfExpired(Long paymentId) {
+
         Payment payment = paymentJpaRepository.findByIdForUpdate(paymentId)
                 .orElse(null);
         if (payment == null || !isExpiredIncompletePayment(payment, LocalDateTime.now())) {
@@ -51,7 +59,11 @@ public class PaymentExpirationService {
         expire(payment);
     }
 
+    /**
+     * 결제를 만료 상태로 변경한다.
+     */
     public void expire(Payment payment) {
+
         Reservation reservation = payment.getReservation();
         List<Ticket> tickets = ticketRepository.selectByReservation(reservation);
         List<Seat> availableSeats = tickets.stream()
@@ -75,7 +87,11 @@ public class PaymentExpirationService {
                 payment.getPaymentId(), reservation.getReservationId(), availableSeats.size());
     }
 
+    /**
+     * 완료되지 않은 결제가 만료되었는지 확인한다.
+     */
     private boolean isExpiredIncompletePayment(Payment payment, LocalDateTime now) {
+
         // 입금 알림이 지연됐을 수 있으므로 발급된 무통장 계좌의 만료는 PG 이벤트로 확정한다.
         if (payment.getMethod() == PaymentMethod.BANK_TRANSFER
                 && payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) return false;
@@ -84,7 +100,11 @@ public class PaymentExpirationService {
                 && !payment.getExpiresAt().isAfter(now);
     }
 
+    /**
+     * 취소한 예매에 사용된 쿠폰을 복원한다.
+     */
     private void restoreUsedCoupons(Reservation reservation) {
+
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
 
         for (ReservationDiscount discount : discounts) {

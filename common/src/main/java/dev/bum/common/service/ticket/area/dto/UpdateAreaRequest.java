@@ -12,9 +12,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UpdateAreaRequest {
+
+    // 좌석 구역 이름.
     private String areaName;
+
+    // 좌석 배치도 저장 키.
     private String layoutKey;
+
+    // 좌석 등급.
     private SeatGrade grade;
+
+    // 가격.
     private Integer price;
+
+    // 좌석 구역 상태.
     private AreaStatus status;
 }

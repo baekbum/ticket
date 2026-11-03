@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
@@ -63,6 +64,7 @@ public class SecurityConfig {
     }
 
     private void configureAuthenticationFilters(HttpSecurity http) {
+
         JwtAuthenticationFilter clientAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider, tokenStateStore);
 
         // 일반 인증 필터를 기준점으로 등록한 뒤 내부 서비스 필터가 먼저 실행되도록 순서를 고정한다.
@@ -78,6 +80,7 @@ public class SecurityConfig {
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+
         localCorsConfig.ifPresent(config ->
                 cors.configurationSource(config.corsConfigurationSource())
         );

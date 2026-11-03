@@ -15,23 +15,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CardPaymentPendingException.class)
     public ResponseEntity<Map<String, String>> handlePending(CardPaymentPendingException e) {
+
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
                 "paymentNo", e.getPaymentNo(), "status", "PENDING", "message", e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {
+
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleMethodArgumentNotValidException() {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "요청 값이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(TicketPaymentCompleteException.class)
     public ResponseEntity<Map<String, String>> handleTicketPaymentCompleteException(TicketPaymentCompleteException e) {
+
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", e.getMessage()));
     }
-
 }

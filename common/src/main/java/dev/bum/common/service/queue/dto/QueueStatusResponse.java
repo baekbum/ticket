@@ -27,7 +27,10 @@ public record QueueStatusResponse(
         // READY이면 실제 active token 만료 시각, WAITING이면 예상 입장 시 발급될 active token의 예상 만료 시각
         Instant activeTokenExpiresAt
 ) {
+
+    // 현재 대기열 상태를 입장 요청 응답으로 변환한다.
     public QueueEnterResponse toEnterResponse() {
+
         return new QueueEnterResponse(
                 eventId,
                 status,

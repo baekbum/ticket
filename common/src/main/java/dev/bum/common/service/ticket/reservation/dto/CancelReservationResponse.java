@@ -6,17 +6,31 @@ import java.util.List;
 
 @Builder
 public record CancelReservationResponse(
+        // 예매 식별자.
         Long reservationId,
+
+        // 결제 환불 처리 식별자.
         Long paymentRefundProcessId,
+
+        // 이전 요청 복구 여부.
         boolean previousRequestRecovered,
+
+        // 취소한 티켓 식별자 목록.
         List<Long> cancelledTicketIds,
+
+        // 처리 결과 메시지.
         String message
 ) {
+
+    // 전달받은 값으로 예매 객체를 초기화한다.
     public CancelReservationResponse {
+
         cancelledTicketIds = List.copyOf(cancelledTicketIds);
     }
 
+    // 게이트웨이 환불 없이 취소가 완료된 결과를 구성한다.
     public static CancelReservationResponse canceledWithoutGateway(Long reservationId, List<Long> ticketIds) {
+
         return CancelReservationResponse.builder()
                 .reservationId(reservationId)
                 .paymentRefundProcessId(null)
@@ -26,7 +40,9 @@ public record CancelReservationResponse(
                 .build();
     }
 
+    // 취소 완료 결과를 구성한다.
     public static CancelReservationResponse canceled(Long reservationId, Long processId, List<Long> ticketIds) {
+
         return CancelReservationResponse.builder()
                 .reservationId(reservationId)
                 .paymentRefundProcessId(processId)
@@ -36,7 +52,9 @@ public record CancelReservationResponse(
                 .build();
     }
 
+    // 이전 요청을 복구한 결과를 구성한다.
     public static CancelReservationResponse recovered(Long reservationId, Long processId, List<Long> ticketIds) {
+
         return CancelReservationResponse.builder()
                 .reservationId(reservationId)
                 .paymentRefundProcessId(processId)

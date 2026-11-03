@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class DummyVirtualAccountPaymentHistory {
 
+    // 처리 이력 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "history_id")
@@ -64,7 +65,9 @@ public class DummyVirtualAccountPaymentHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 발급 결과를 반영한다.
     public static DummyVirtualAccountPaymentHistory issued(DummyVirtualAccount virtualAccount) {
+
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
                 .paymentNo(virtualAccount.getPaymentNo())
@@ -73,7 +76,9 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    // 입금 완료 상태와 금액을 반영한다.
     public static DummyVirtualAccountPaymentHistory deposited(DummyVirtualAccount virtualAccount) {
+
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
                 .paymentNo(virtualAccount.getPaymentNo())
@@ -82,7 +87,9 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    // 만료 상태를 반영한다.
     public static DummyVirtualAccountPaymentHistory expired(DummyVirtualAccount virtualAccount) {
+
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
                 .paymentNo(virtualAccount.getPaymentNo())
@@ -91,7 +98,9 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    // 취소 상태를 반영한다.
     public static DummyVirtualAccountPaymentHistory cancelled(DummyVirtualAccount virtualAccount) {
+
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
                 .paymentNo(virtualAccount.getPaymentNo())
@@ -100,6 +109,7 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    // 환불 결과와 금액을 반영한다.
     public static DummyVirtualAccountPaymentHistory refunded(
             DummyVirtualAccount virtualAccount,
             BankCompany refundBankCompany,
@@ -107,6 +117,7 @@ public class DummyVirtualAccountPaymentHistory {
             String refundAccountHolder,
             BigDecimal refundAmount
     ) {
+
         return DummyVirtualAccountPaymentHistory.builder()
                 .virtualAccount(virtualAccount)
                 .paymentNo(virtualAccount.getPaymentNo())
@@ -117,5 +128,4 @@ public class DummyVirtualAccountPaymentHistory {
                 ))
                 .build();
     }
-
 }

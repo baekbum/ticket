@@ -16,16 +16,20 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 public class CardPaymentFailRequest {
 
+    // 결제 번호.
     @NotBlank
     private String paymentNo;
 
+    // 사용자 ID.
     @NotBlank
     private String userId;
 
+    // 금액.
     @NotNull
     @Positive
     private BigDecimal amount;
 
+    // 실패 사유.
     @NotBlank
     private String failureReason;
 }

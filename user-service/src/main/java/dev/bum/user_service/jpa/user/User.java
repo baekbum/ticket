@@ -25,66 +25,81 @@ import java.time.LocalDateTime;
 @Builder
 public class User {
 
+    // 고유 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 사용자 ID.
     @Column(name = "user_id", nullable = false, unique = true, length = 50)
     private String userId;
 
+    // 비밀번호.
     @Column(nullable = false, length = 255)
     private String password;
 
+    // 사용자 권한.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserRole role; // 기본값 처리는 비즈니스 로직이나 @Builder.Default 활용
 
+    // 회원 등급.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private UserGrade grade = UserGrade.GENERAL;
 
+    // 이름.
     @Column(nullable = false, length = 20)
     private String name;
 
+    // 휴대전화 번호.
     @Column(name = "phone_number", nullable = false, unique = true, length = 15)
     private String phoneNumber;
 
+    // 이메일 주소.
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    // 생년월일.
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    // 주소.
     @Column(columnDefinition = "TEXT")
     private String address;
 
+    // 블랙리스트 등록 여부.
     @Column(name = "is_blacklisted")
     private Boolean isBlacklisted;
 
+    // 블랙리스트 적용 종료일.
     @Column(name = "blacklisted_until")
     private LocalDate blacklistedUntil;
 
+    // 사용자 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
 
+    // 회원 탈퇴 시각.
     @Column(name = "withdraw_at")
     private LocalDateTime withdrawAt;
 
+    // 생성 시각.
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    // 마지막 수정 시각.
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * 사용자 정보 수정
-     */
+    // 사용자 정보 수정
     public void updateInfo(UpdateUserRequest info) {
+
         if (StringUtils.hasText(info.getPassword())) {
             this.password = info.getPassword();
         }
@@ -133,12 +148,16 @@ public class User {
         }
     }
 
+    // 사용자 처리에서 회원을 탈퇴 상태로 변경한다.
     public void withdraw(LocalDateTime now) {
+
         this.status = UserStatus.WITHDRAWN;
         this.withdrawAt = now;
     }
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public UserResponse toResponse() {
+
         return UserResponse.builder()
                 .id(this.id)
                 .userId(this.userId)

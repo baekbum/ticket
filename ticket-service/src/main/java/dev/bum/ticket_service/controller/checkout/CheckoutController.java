@@ -24,28 +24,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class CheckoutController {
 
     private final CheckoutService checkoutService;
-
     @Value("${app.checkout.reservation-fee-per-ticket:4000}")
     private Integer reservationFeePerTicket;
-
     @Value("${app.checkout.delivery-fee:3200}")
     private Integer deliveryFee;
 
     @GetMapping("/fees")
     public ResponseEntity<CheckoutFeeResponse> fees() {
+
         return ResponseEntity.ok(CheckoutFeeResponse.builder()
                 .reservationFeePerTicket(reservationFeePerTicket)
                 .deliveryFee(deliveryFee)
                 .build());
-    }
-
-    @PostMapping("/prepare")
-    public ResponseEntity<CheckoutPrepareResponse> prepare(
-            @AuthenticationPrincipal String currentUserId,
-            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
-            @Valid @RequestBody CheckoutPrepareRequest request
-    ) {
-        return ResponseEntity.ok(checkoutService.prepare(currentUserId, activeToken, request));
     }
 
     @PostMapping("/confirm")
@@ -54,6 +44,17 @@ public class CheckoutController {
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @Valid @RequestBody CheckoutConfirmRequest request
     ) {
+
         return ResponseEntity.ok(checkoutService.confirm(currentUserId, activeToken, request));
+    }
+
+    @PostMapping("/prepare")
+    public ResponseEntity<CheckoutPrepareResponse> prepare(
+            @AuthenticationPrincipal String currentUserId,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
+            @Valid @RequestBody CheckoutPrepareRequest request
+    ) {
+
+        return ResponseEntity.ok(checkoutService.prepare(currentUserId, activeToken, request));
     }
 }

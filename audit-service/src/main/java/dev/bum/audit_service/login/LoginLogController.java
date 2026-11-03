@@ -24,6 +24,7 @@ public class LoginLogController {
 
     @GetMapping("/select/id/{id}")
     public ResponseEntity<LoginLogResponse> selectById(@PathVariable Long id) {
+
         return ResponseEntity.ok(loginLogPersistenceService.selectById(id));
     }
 
@@ -31,6 +32,7 @@ public class LoginLogController {
     public ResponseEntity<CustomPageResponse<LoginLogResponse>> selectByCond(
             @RequestBody(required = false) LoginLogCondRequest cond
     ) {
+
         return ResponseEntity.ok(loginLogPersistenceService.selectByCond(cond));
     }
 
@@ -41,6 +43,7 @@ public class LoginLogController {
             @RequestParam(defaultValue = "5") Integer size,
             @RequestParam(defaultValue = "30") Integer periodDays
     ) {
+
         return ResponseEntity.ok(loginLogPersistenceService.selectMine(currentUserId, page, size, periodDays));
     }
 }

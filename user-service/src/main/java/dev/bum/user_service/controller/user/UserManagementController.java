@@ -19,25 +19,27 @@ public class UserManagementController {
     private final UserService userService;
 
     /**
-     * ID 중복 체크 기능
-     * @param userId
-     * @return
-     */
-    @GetMapping("/check/duplication/{userId}")
-    public ResponseEntity<Void> isDuplicated(@PathVariable("userId") String userId) {
-        userService.validateIsUserIdDuplicated(userId);
-        log.info("[ID 중복 체크 완료 userId: {}]", userId);
-        return ResponseEntity.ok().build();
-    }
-
-    /**
      * 유저 등록 기능
      * @param info
      * @return
      */
     @PostMapping("/insert")
     public ResponseEntity<UserResponse> insert(@Valid @RequestBody InsertUserRequest info) {
+
         return ResponseEntity.ok(userService.insert(info));
+    }
+
+    /**
+     * ID 중복 체크 기능
+     * @param userId
+     * @return
+     */
+    @GetMapping("/check/duplication/{userId}")
+    public ResponseEntity<Void> isDuplicated(@PathVariable("userId") String userId) {
+
+        userService.validateIsUserIdDuplicated(userId);
+        log.info("[ID 중복 체크 완료 userId: {}]", userId);
+        return ResponseEntity.ok().build();
     }
 
     /**
@@ -47,6 +49,7 @@ public class UserManagementController {
      */
     @GetMapping("/select/id/{userId}")
     public ResponseEntity<UserResponse> selectById(@PathVariable("userId") String userId) {
+
         return ResponseEntity.ok(userService.selectById(userId));
     }
 
@@ -57,6 +60,7 @@ public class UserManagementController {
      */
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<UserResponse>> selectByCond(@RequestBody UserCondRequest cond) {
+
         return ResponseEntity.ok(userService.selectByCond(cond));
     }
 
@@ -67,6 +71,7 @@ public class UserManagementController {
      */
     @GetMapping("/select/me")
     public ResponseEntity<UserResponse> selectMyInfo(@AuthenticationPrincipal String currentUserId) {
+
         // Principal에 저장된 '현재 로그인한 유저의 ID'로만 조회하므로 남의 정보를 볼 방법이 없음!
         return ResponseEntity.ok(userService.selectById(currentUserId));
     }
@@ -80,23 +85,14 @@ public class UserManagementController {
     @PutMapping("/update/me")
     public ResponseEntity<UserResponse> updateMyInfo(
             @AuthenticationPrincipal String currentUserId,
-            @Valid @RequestBody UpdateUserRequest info) {
+            @Valid @RequestBody UpdateUserRequest info
+    ) {
+
         if (info.getStatus() != null || info.getWithdrawAt() != null) {
             throw new IllegalArgumentException("계정 상태는 관리자만 변경할 수 있습니다.");
         }
         // 내 아이디로만 업데이트를 수행
         return ResponseEntity.ok(userService.update(currentUserId, info));
-    }
-
-    /**
-     * 비밀번호가 일치하는지 확인
-     * @param info
-     * @return
-     */
-    @PostMapping("/validate/info")
-    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
-        userService.validateInfo(info);
-        return ResponseEntity.ok().build();
     }
 
     /**
@@ -106,7 +102,11 @@ public class UserManagementController {
      * @return
      */
     @PutMapping("/update/id/{userId}")
-    public ResponseEntity<UserResponse> update(@PathVariable("userId") String userId, @Valid @RequestBody UpdateUserRequest info) {
+    public ResponseEntity<UserResponse> update(
+            @PathVariable("userId") String userId,
+            @Valid @RequestBody UpdateUserRequest info
+    ) {
+
         return ResponseEntity.ok(userService.update(userId, info));
     }
 
@@ -117,6 +117,7 @@ public class UserManagementController {
      */
     @PutMapping("/init/password/{userId}")
     public ResponseEntity<Void> initPassword(@PathVariable("userId") String userId) {
+
         userService.initPassword(userId);
         return ResponseEntity.ok().build();
     }
@@ -128,12 +129,26 @@ public class UserManagementController {
      */
     @DeleteMapping("/delete/id/{userId}")
     public ResponseEntity<UserResponse> delete(@PathVariable("userId") String userId) {
+
         return ResponseEntity.ok(userService.delete(userId));
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteUserBulkRequest info) {
+
         userService.deleteBulk(info);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 비밀번호가 일치하는지 확인
+     * @param info
+     * @return
+     */
+    @PostMapping("/validate/info")
+    public ResponseEntity<Void> validateInfo(@Valid @RequestBody ValidatePasswordRequest info) {
+
+        userService.validateInfo(info);
         return ResponseEntity.ok().build();
     }
 }

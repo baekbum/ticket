@@ -13,12 +13,20 @@ import org.springframework.transaction.annotation.*;
 @Service
 @RequiredArgsConstructor
 public class VirtualAccountPaymentLockService {
+
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository payments;
+    // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationJpaRepository reservations;
+    // 엔티티의 영속 상태와 데이터베이스 잠금을 관리하는 도구.
     private final EntityManager entityManager;
 
+    /**
+     * 가상계좌 처리에서 동시 변경을 막기 위한 잠금을 획득한다.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public Payment lock(String paymentNo) {
+
         // 엔티티를 미리 읽지 않아 잠금 대기 전의 상태가 영속성 컨텍스트에 남지 않게 한다.
         Long reservationId = payments.findReservationIdByPaymentNo(paymentNo)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));

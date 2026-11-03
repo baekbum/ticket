@@ -33,12 +33,14 @@ public class FaqManagementController {
             @Valid @RequestBody CreateFaqRequest request,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(faqManagementService.insert(request, currentUserId));
     }
 
     @GetMapping("/select/id/{faqId}")
     public ResponseEntity<FaqResponse> selectById(@PathVariable Long faqId) {
+
         return ResponseEntity.ok(faqManagementService.selectById(faqId));
     }
 
@@ -46,6 +48,7 @@ public class FaqManagementController {
     public ResponseEntity<CustomPageResponse<FaqResponse>> select(
             @Valid @ModelAttribute FaqSearchRequest request
     ) {
+
         return ResponseEntity.ok(faqManagementService.select(request));
     }
 
@@ -54,11 +57,13 @@ public class FaqManagementController {
             @PathVariable Long faqId,
             @Valid @RequestBody UpdateFaqRequest request
     ) {
+
         return ResponseEntity.ok(faqManagementService.update(faqId, request));
     }
 
     @DeleteMapping("/delete/id/{faqId}")
     public ResponseEntity<Void> delete(@PathVariable Long faqId) {
+
         faqManagementService.delete(faqId);
         return ResponseEntity.noContent().build();
     }

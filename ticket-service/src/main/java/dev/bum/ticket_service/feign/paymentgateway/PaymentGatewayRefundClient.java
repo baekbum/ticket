@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "payment-gateway-refund-client", url = "${app.payment-gateway.base-url}",
         configuration = PaymentGatewayFeignConfig.class)
 public interface PaymentGatewayRefundClient {
+
     @PostMapping("/api/v1/payments/refunds/internal/resolve")
     GatewayRefundResolutionResponse resolve(@RequestBody GatewayRefundResolutionRequest request);
 }

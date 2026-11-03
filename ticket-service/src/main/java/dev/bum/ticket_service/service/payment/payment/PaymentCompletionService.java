@@ -23,21 +23,30 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PaymentCompletionService {
 
+    // 티켓 데이터를 조회하고 저장하는 레포지토리.
     private final TicketRepository ticketRepository;
+    // 좌석 캐시 업무 처리를 담당하는 서비스.
     private final SeatCacheService seatCacheService;
 
+    /**
+     * 결제 처리에서 완료 상태로 변경하고 결과를 반영한다.
+     */
     public PaymentResponse complete(Payment payment, LocalDateTime paidAt) {
+
         return complete(payment, paidAt, null);
     }
 
+    /**
+     * 결제 처리에서 가상계좌 입금 완료 결과를 반영한다.
+     */
     public PaymentResponse completeDeposit(Payment payment, LocalDateTime paidAt, String depositorName) {
+
         return complete(payment, paidAt, depositorName);
     }
 
-    private PaymentResponse complete(Payment payment, LocalDateTime paidAt, String depositorName) {
-        return complete(payment, paidAt, depositorName, null);
-    }
-
+    /**
+     * 결제 처리에서 카드 결제 완료 결과를 반영한다.
+     */
     public PaymentResponse completeCard(
             Payment payment,
             String transactionId,
@@ -45,6 +54,7 @@ public class PaymentCompletionService {
             String maskedCardNumber,
             LocalDateTime paidAt
     ) {
+
         return complete(payment, paidAt, null, CardPaymentInfo.builder()
                 .transactionId(transactionId)
                 .cardCompany(cardCompany)
@@ -52,12 +62,24 @@ public class PaymentCompletionService {
                 .build());
     }
 
+    /**
+     * 결제 처리에서 완료 상태로 변경하고 결과를 반영한다.
+     */
+    private PaymentResponse complete(Payment payment, LocalDateTime paidAt, String depositorName) {
+
+        return complete(payment, paidAt, depositorName, null);
+    }
+
+    /**
+     * 결제 처리에서 완료 상태로 변경하고 결과를 반영한다.
+     */
     private PaymentResponse complete(
             Payment payment,
             LocalDateTime paidAt,
             String depositorName,
             CardPaymentInfo cardPaymentInfo
     ) {
+
         if (payment.getStatus() == PaymentStatus.PAID) {
             return payment.toResponse();
         }

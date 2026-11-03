@@ -13,6 +13,7 @@ public class LocalCorsConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
 
         // 1. 허용할 Origin (출처) 설정

@@ -31,22 +31,14 @@ public class AuthController {
     private final JwtTokenProvider tokenProvider;
     private final TokenStateStore tokenStateStore;
 
-    @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest info) {
-        return ResponseEntity.ok(authService.LoginAndCreateToken(info));
-    }
-
-    @PostMapping("/admin/login")
-    public ResponseEntity<TokenResponse> adminLogin(@Valid @RequestBody LoginRequest info) {
-        return ResponseEntity.ok(authService.adminLoginAndCreateToken(info));
-    }
-
     /**
      * Nginx auth_request 전용 검증 엔드포인트
      * (SecurityConfig에서 permitAll로 열려있고, Nginx internal;로 보호되는 경로)
      */
     @GetMapping("/validate")
-    public ResponseEntity<?> validateToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<?> validateToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
 
         // 1. 헤더 자체가 없거나 Bearer 형식이 아니면 즉시 인증 실패 처리
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -108,11 +100,24 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest info) {
+
+        return ResponseEntity.ok(authService.LoginAndCreateToken(info));
+    }
+
+    @PostMapping("/admin/login")
+    public ResponseEntity<TokenResponse> adminLogin(@Valid @RequestBody LoginRequest info) {
+
+        return ResponseEntity.ok(authService.adminLoginAndCreateToken(info));
+    }
+
     /**
      * 클라이언트가 직접 호출하는 토큰 재발급(갱신) 엔드포인트
      */
     @PostMapping("/reissue")
     public ResponseEntity<?> reissue(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+
         if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ErrorResponse.of(ErrorCode.REFRESH_TOKEN_REQUIRED, "Authorization-Refresh 헤더가 없거나 Bearer 형식이 아닙니다."));
@@ -126,6 +131,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestHeader("Authorization-Refresh") String refreshHeader) {
+
         if (refreshHeader == null || !refreshHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ErrorResponse.of(ErrorCode.REFRESH_TOKEN_REQUIRED, "Authorization-Refresh 헤더가 없거나 Bearer 형식이 아닙니다."));

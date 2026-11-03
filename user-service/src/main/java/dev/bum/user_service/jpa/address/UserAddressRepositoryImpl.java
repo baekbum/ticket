@@ -36,6 +36,7 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
 
     @Override
     public UserAddress insert(String userId, InsertUserAddressRequest info) {
+
         User user = userRepository.selectById(userId);
         boolean hasActiveAddress = jpaRepository.existsByUserUserIdAndStatus(userId, AddressStatus.ACTIVE);
         boolean defaultAddress = Boolean.TRUE.equals(info.getDefaultAddress()) || !hasActiveAddress;
@@ -60,12 +61,14 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
 
     @Override
     public UserAddress selectById(Long addressId) {
+
         return jpaRepository.findById(addressId)
                 .orElseThrow(() -> new UserAddressNotExistException("해당 배송지를 찾을 수 없습니다."));
     }
 
     @Override
     public Page<UserAddress> selectByCond(UserAddressCondRequest cond, Pageable pageable) {
+
         userAddress = QUserAddress.userAddress;
 
         List<OrderSpecifier> orderSpecifiers = new ArrayList<>();
@@ -116,6 +119,7 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
 
     @Override
     public UserAddress update(Long addressId, UpdateUserAddressRequest info) {
+
         UserAddress address = selectById(addressId);
 
         if (Boolean.TRUE.equals(info.getDefaultAddress())) {
@@ -128,50 +132,61 @@ public class UserAddressRepositoryImpl implements UserAddressRepository {
 
     @Override
     public UserAddress delete(Long addressId) {
+
         UserAddress address = selectById(addressId);
         address.delete();
         return address;
     }
 
     private void unsetDefaultAddresses(String userId) {
+
         jpaRepository.findByUserUserIdAndDefaultAddressTrueAndStatus(userId, AddressStatus.ACTIVE)
                 .forEach(address -> address.markDefault(false));
         jpaRepository.flush();
     }
 
     private BooleanExpression addressIdEq(Long addressId) {
+
         return addressId != null ? userAddress.addressId.eq(addressId) : null;
     }
 
     private BooleanExpression userIdContains(String userId) {
+
         return StringUtils.hasText(userId) ? userAddress.user.userId.containsIgnoreCase(userId) : null;
     }
 
     private BooleanExpression aliasContains(String alias) {
+
         return StringUtils.hasText(alias) ? userAddress.alias.containsIgnoreCase(alias) : null;
     }
 
     private BooleanExpression recipientNameContains(String recipientName) {
+
         return StringUtils.hasText(recipientName) ? userAddress.recipientName.contains(recipientName) : null;
     }
 
     private BooleanExpression recipientPhoneContains(String recipientPhone) {
+
         return StringUtils.hasText(recipientPhone) ? userAddress.recipientPhone.contains(recipientPhone) : null;
     }
 
     private BooleanExpression zipCodeEq(String zipCode) {
+
         return StringUtils.hasText(zipCode) ? userAddress.zipCode.eq(zipCode) : null;
     }
 
     private BooleanExpression addressContains(String address) {
+
         return StringUtils.hasText(address) ? userAddress.address.contains(address) : null;
     }
 
     private BooleanExpression defaultAddressEq(Boolean defaultAddress) {
+
         return defaultAddress != null ? userAddress.defaultAddress.eq(defaultAddress) : null;
     }
 
     private BooleanExpression statusEq(AddressStatus status) {
+
         return status != null ? userAddress.status.eq(status) : null;
     }
 }

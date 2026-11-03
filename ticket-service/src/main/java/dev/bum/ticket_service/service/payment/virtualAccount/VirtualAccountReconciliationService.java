@@ -25,15 +25,23 @@ import java.util.Map;
 @Slf4j
 public class VirtualAccountReconciliationService {
 
+    // 묶음 조회에 사용할 페이지 크기.
     private static final int PAGE_SIZE = 20;
-
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository payments;
+    // 결제 게이트웨이 처리 결과.
     private final PaymentGatewayVirtualAccountClient gateway;
+    // 가상계좌 정합성 대조 업무 처리를 담당하는 서비스.
     private final VirtualAccountReconciliationCompletionService completion;
+    // 가상계좌 정합성 대조 요청과 상태를 검증하는 도구.
     private final VirtualAccountReconciliationValidator validator;
 
+    /**
+     * 조건에 맞는 항목 목록을 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<PaymentResponse> list(int pageNumber, String paymentNo, PaymentStatus status) {
+
         String search = paymentNo == null ? "" : paymentNo.trim();
         var pageable = PageRequest.of(pageNumber, PAGE_SIZE,
                 Sort.by(Sort.Order.desc("requestedAt"), Sort.Order.desc("paymentId")));
@@ -52,8 +60,12 @@ public class VirtualAccountReconciliationService {
                 page.getSize(), page.getNumber(), page.getTotalElements(), page.getTotalPages());
     }
 
+    /**
+     * 현재 저장 상태와 처리 가능 여부를 점검한다.
+     */
     @Transactional(readOnly = true)
     public VirtualAccountReconciliationResponse inspect(String paymentNo) {
+
         Payment payment = payments.findByPaymentNo(paymentNo)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
@@ -67,7 +79,11 @@ public class VirtualAccountReconciliationService {
         );
     }
 
+    /**
+     * 가상계좌 처리에서 완료 상태로 변경하고 결과를 반영한다.
+     */
     public PaymentResponse complete(String paymentNo, String adminId, String reason) {
+
         if (!StringUtils.hasText(reason)) {
             throw new IllegalArgumentException("처리 사유를 입력해주세요.");
         }
@@ -83,5 +99,4 @@ public class VirtualAccountReconciliationService {
                 paymentNo, adminId, result.getStatus());
         return result;
     }
-
 }

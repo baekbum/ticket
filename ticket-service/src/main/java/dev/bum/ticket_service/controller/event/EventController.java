@@ -31,16 +31,21 @@ public class EventController {
 
     @GetMapping("/select/id/{eventId}")
     public ResponseEntity<EventResponse> selectById(@PathVariable("eventId") Long eventId) {
+
         return ResponseEntity.ok(eventService.selectVisibleById(eventId));
     }
 
     @GetMapping("/select/group/{eventGroupCode}")
-    public ResponseEntity<EventBookingDetailResponse> selectByEventGroupCode(@PathVariable("eventGroupCode") String eventGroupCode) {
+    public ResponseEntity<EventBookingDetailResponse> selectByEventGroupCode(
+            @PathVariable("eventGroupCode") String eventGroupCode
+    ) {
+
         return ResponseEntity.ok(eventService.selectBookingDetailByEventGroupCode(eventGroupCode));
     }
 
     @GetMapping("/select")
     public ResponseEntity<CustomPageResponse<EventResponse>> selectByCond(@ModelAttribute EventCondRequest cond) {
+
         return ResponseEntity.ok(eventService.selectVisibleByCond(cond));
     }
 
@@ -51,26 +56,31 @@ public class EventController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size
     ) {
+
         return ResponseEntity.ok(eventService.search(keyword, field, page, size));
     }
 
     @GetMapping("/on-sale/soonest")
     public ResponseEntity<List<EventCardResponse>> selectSoonestOnSaleCards() {
+
         return ResponseEntity.ok(eventService.selectSoonestOnSaleCards());
     }
 
     @GetMapping("/cards/festival")
     public ResponseEntity<List<EventCardResponse>> selectFestivalCards() {
+
         return ResponseEntity.ok(eventService.selectFestivalCards());
     }
 
     @GetMapping("/cards/open-soon")
     public ResponseEntity<List<EventCardResponse>> selectOpenSoonCards() {
+
         return ResponseEntity.ok(eventService.selectOpenSoonCards());
     }
 
     @GetMapping("/cards/weekly")
     public ResponseEntity<List<EventCardResponse>> selectWeeklyRecommendedCards() {
+
         return ResponseEntity.ok(eventService.selectWeeklyRecommendedCards());
     }
 
@@ -80,6 +90,7 @@ public class EventController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "5") int size
     ) {
+
         return ResponseEntity.ok(eventService.selectConcertCards(sort, page, size));
     }
 
@@ -90,6 +101,7 @@ public class EventController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "5") int size
     ) {
+
         return ResponseEntity.ok(eventService.selectGenreCards(genre, sort, page, size));
     }
 }

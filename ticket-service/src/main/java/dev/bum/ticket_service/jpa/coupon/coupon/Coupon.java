@@ -38,8 +38,10 @@ import java.time.format.DateTimeFormatter;
 @AllArgsConstructor
 public class Coupon {
 
+    // 날짜와 시각을 표시하는 형식.
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // 쿠폰 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "coupon_id")
@@ -97,23 +99,36 @@ public class Coupon {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 쿠폰을 수정한다.
     public void update(UpdateCouponRequest info) {
+
         if (StringUtils.hasText(info.getName())) this.name = info.getName();
+
         if (StringUtils.hasText(info.getCode())) this.code = info.getCode();
+
         if (info.getDiscountType() != null) this.discountType = info.getDiscountType();
+
         if (info.getDiscountValue() != null) this.discountValue = info.getDiscountValue();
+
         if (info.getMaxDiscountAmount() != null) this.maxDiscountAmount = info.getMaxDiscountAmount();
+
         if (info.getMinOrderAmount() != null) this.minOrderAmount = info.getMinOrderAmount();
+
         if (info.getValidFrom() != null) this.validFrom = info.getValidFrom();
+
         if (info.getValidUntil() != null) this.validUntil = info.getValidUntil();
+
         if (info.getValidDaysAfterIssue() != null) {
             this.validDaysAfterIssue = normalizeValidDaysAfterIssue(info.getValidDaysAfterIssue());
             if (this.validDaysAfterIssue != null) this.validUntil = null;
         }
+
         if (info.getStatus() != null) this.status = info.getStatus();
     }
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public CouponResponse toResponse() {
+
         return CouponResponse.builder()
                 .couponId(this.couponId)
                 .name(this.name)
@@ -129,11 +144,15 @@ public class Coupon {
                 .build();
     }
 
+    // 발급 후 쿠폰 사용 가능 일수를 정규화한다.
     private Integer normalizeValidDaysAfterIssue(Integer validDaysAfterIssue) {
+
         return validDaysAfterIssue != null && validDaysAfterIssue > 0 ? validDaysAfterIssue : null;
     }
 
+    // 날짜와 시각을 응답 표시 형식으로 변환한다.
     private String formatDateTime(LocalDateTime dateTime) {
+
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 }

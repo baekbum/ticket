@@ -33,6 +33,7 @@ public class InquiryController {
             @Valid @RequestBody CreateInquiryRequest request,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(inquiryService.insert(request, currentUserId));
     }
@@ -43,6 +44,7 @@ public class InquiryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
+
         return ResponseEntity.ok(inquiryService.selectMine(currentUserId, page, size));
     }
 
@@ -51,6 +53,7 @@ public class InquiryController {
             @PathVariable Long inquiryId,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         return ResponseEntity.ok(inquiryService.selectById(inquiryId, currentUserId));
     }
 
@@ -60,6 +63,7 @@ public class InquiryController {
             @Valid @RequestBody UpdateInquiryRequest request,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         return ResponseEntity.ok(inquiryService.update(inquiryId, request, currentUserId));
     }
 
@@ -68,6 +72,7 @@ public class InquiryController {
             @PathVariable Long inquiryId,
             @AuthenticationPrincipal String currentUserId
     ) {
+
         inquiryService.delete(inquiryId, currentUserId);
         return ResponseEntity.noContent().build();
     }

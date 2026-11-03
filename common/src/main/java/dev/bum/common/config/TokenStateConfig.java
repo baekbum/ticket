@@ -15,6 +15,7 @@ import java.time.Duration;
 
 @Configuration(proxyBeanMethods = false)
 public class TokenStateConfig {
+
     // RedisConnectionFactory 빈을 추가하면 각 서비스의 기존 좌석/대기열 Redis 설정을
     // 대체하므로 인증 저장소의 연결은 이 빈에서만 관리한다.
     @Bean(destroyMethod = "close")
@@ -23,7 +24,8 @@ public class TokenStateConfig {
             @Value("${token-state.redis.host:${TOKEN_STATE_REDIS_HOST:localhost}}") String host,
             @Value("${token-state.redis.port:${TOKEN_STATE_REDIS_PORT:6390}}") int port,
             @Value("${token-state.redis.database:${TOKEN_STATE_REDIS_DATABASE:0}}") int database,
-            @Value("${token-state.redis.password:${TOKEN_STATE_REDIS_PASSWORD:}}") String password) {
+            @Value("${token-state.redis.password:${TOKEN_STATE_REDIS_PASSWORD:}}") String password
+    ) {
 
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration(host, port);
         configuration.setDatabase(database);
@@ -40,15 +42,18 @@ public class TokenStateConfig {
     }
 
     public static final class ManagedTokenStateStore extends RedisTokenStateStore implements AutoCloseable {
+
         private final LettuceConnectionFactory factory;
 
         ManagedTokenStateStore(LettuceConnectionFactory factory) {
+
             super(new StringRedisTemplate(factory));
             this.factory = factory;
         }
 
         @Override
         public void close() {
+
             factory.destroy();
         }
     }

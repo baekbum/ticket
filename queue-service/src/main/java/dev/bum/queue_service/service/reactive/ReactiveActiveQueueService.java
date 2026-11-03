@@ -21,13 +21,64 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class ReactiveActiveQueueService {
+
+    // 입장 가능한 대기열 상태 값.
     public static final String STATUS_READY = "READY";
+    // 대기열 상태와 토큰을 저장하고 조회하는 Redis 클라이언트.
     private final ReactiveStringRedisTemplate redis;
+    // 처리에 사용할 설정.
     private final QueueProperties properties;
+    // 대기열 작업에 사용할 Redis 키 생성 도구.
     private final QueueRedisKeys keys;
+    // 사용자 업무 처리를 담당하는 서비스.
     private final ReactiveUserQueueSessionService sessions;
 
+    /**
+     * 입장 토큰의 소유자와 유효 기간을 확인한다.
+     */
+    public Mono<Boolean> isActiveTokenValid(Long eventId, String userId, String token) {
+
+        return Mono.defer(() -> {
+            if (!StringUtils.hasText(token)) return Mono.just(false);
+            return redis.opsForValue().get(keys.activeTokenKey(token))
+                    .filter(value -> tokenValue(eventId, userId).equals(value))
+                    .flatMap(value -> redis.opsForZSet().score(keys.activeKey(eventId), token)
+                            .hasElement())
+                    .defaultIfEmpty(false);
+        });
+    }
+
+    /**
+     * 입장 토큰과 관련 세션 정보를 제거한다.
+     */
+    public Mono<Boolean> removeActiveToken(Long eventId, String userId, String token) {
+
+        return removeActive(eventId, userId, token, -1L);
+    }
+
+    /**
+     * 만료된 입장 토큰과 연결 정보를 정리한다.
+     */
+    public Mono<Void> pruneExpiredActiveTokens(Long eventId) {
+
+        return Mono.defer(() -> {
+            long cutoff = nowMillis();
+            return redis.opsForZSet().rangeByScore(keys.activeKey(eventId), Range.closed(0.0, (double) cutoff))
+                    .concatMap(token -> redis.opsForValue().get(keys.activeTokenKey(token))
+                            .map(value -> value.split(":", 2))
+                            .filter(parts -> parts.length == 2)
+                            .map(parts -> Optional.of(parts[1]))
+                            .defaultIfEmpty(Optional.empty())
+                            .flatMap(owner -> removeActive(eventId, owner.orElse(null), token, cutoff)))
+                    .then();
+        });
+    }
+
+    /**
+     * 입장 가능한 상태와 토큰 정보를 응답으로 구성한다.
+     */
     public Mono<QueueStatusResponse> readyStatusResponse(Long eventId, String activeToken) {
+
         return redis.opsForZSet().score(keys.activeKey(eventId), activeToken)
                 .switchIfEmpty(Mono.error(invalidToken()))
                 .flatMap(score -> redis.opsForZSet().size(keys.waitingKey(eventId))
@@ -42,10 +93,15 @@ public class ReactiveActiveQueueService {
 
     /** 승인 또는 재요청이면 같은 active 토큰을 반환하고, 대기 상태면 빈 Mono로 완료한다. */
     public Mono<String> admit(Long eventId, String userId, String waitingToken) {
+
         return admit(eventId, userId, waitingToken, 0);
     }
 
+    /**
+     * 대기 사용자를 입장 가능한 상태로 승격한다.
+     */
     private Mono<String> admit(Long eventId, String userId, String waitingToken, int attempt) {
+
         return Mono.defer(() -> {
             if (!StringUtils.hasText(waitingToken)) return Mono.error(invalidToken());
 
@@ -70,11 +126,15 @@ public class ReactiveActiveQueueService {
                         if (result.startsWith("READY:") && StringUtils.hasText(result.substring(6))) {
                             return Mono.just(result.substring(6));
                         }
+
                         if ("WAITING".equals(result)) return Mono.empty();
+
                         if ("INVALID".equals(result)) return Mono.error(invalidToken());
+
                         if (List.of("POLICY_UNAVAILABLE", "SALE_NOT_STARTED", "SALE_ENDED", "EVENT_NOT_BOOKABLE").contains(result)) {
                             return Mono.error(new EventPolicyException(result));
                         }
+
                         // 첫 조회와 Lua 실행 사이에 승격한 요청이 있으면 정확한 키로 다시 검증한다.
                         if ("RETRY".equals(result) && attempt < 2) {
                             return admit(eventId, userId, waitingToken, attempt + 1);
@@ -84,22 +144,19 @@ public class ReactiveActiveQueueService {
         });
     }
 
+    /**
+     * 유효하지 않은 토큰에 대한 처리 결과를 구성한다.
+     */
     private QueueTokenInvalidException invalidToken() {
+
         return new QueueTokenInvalidException("대기 토큰이 만료되었거나 이미 종료된 세션입니다.");
     }
 
-    public Mono<Boolean> isActiveTokenValid(Long eventId, String userId, String token) {
-        return Mono.defer(() -> {
-            if (!StringUtils.hasText(token)) return Mono.just(false);
-            return redis.opsForValue().get(keys.activeTokenKey(token))
-                    .filter(value -> tokenValue(eventId, userId).equals(value))
-                    .flatMap(value -> redis.opsForZSet().score(keys.activeKey(eventId), token)
-                            .hasElement())
-                    .defaultIfEmpty(false);
-        });
-    }
-
+    /**
+     * 사용자의 입장 토큰을 조회한다.
+     */
     public Mono<Map<String, String>> activeTokenByUserId(Long eventId, List<String> userIds) {
+
         return Flux.fromIterable(userIds)
                 .concatMap(userId -> sessions.activeSession(userId)
                         .flatMap(session -> isActiveTokenValid(eventId, userId, session.token())
@@ -108,11 +165,11 @@ public class ReactiveActiveQueueService {
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
-    public Mono<Boolean> removeActiveToken(Long eventId, String userId, String token) {
-        return removeActive(eventId, userId, token, -1L);
-    }
-
+    /**
+     * 대기열 처리에서 입장 상태와 연결 정보를 제거한다.
+     */
     private Mono<Boolean> removeActive(Long eventId, String userId, String token, long cutoff) {
+
         return redis.opsForValue().get(keys.activeWaitingMappingKey(token))
                 .defaultIfEmpty("")
                 .flatMap(waitingToken -> redis.execute(QueueRedisScripts.REMOVE_TOKEN,
@@ -126,27 +183,21 @@ public class ReactiveActiveQueueService {
                 .defaultIfEmpty(false);
     }
 
+    /**
+     * 입장 토큰에 연결된 매핑 키를 구성한다.
+     */
     Flux<String> mappingKeysForActive(String token) {
+
         return Flux.concat(Flux.just(keys.activeWaitingMappingKey(token)),
                 redis.opsForValue().get(keys.activeWaitingMappingKey(token))
                         .map(keys::waitingActiveMappingKey));
     }
 
-    public Mono<Void> pruneExpiredActiveTokens(Long eventId) {
-        return Mono.defer(() -> {
-            long cutoff = nowMillis();
-            return redis.opsForZSet().rangeByScore(keys.activeKey(eventId), Range.closed(0.0, (double) cutoff))
-                    .concatMap(token -> redis.opsForValue().get(keys.activeTokenKey(token))
-                            .map(value -> value.split(":", 2))
-                            .filter(parts -> parts.length == 2)
-                            .map(parts -> Optional.of(parts[1]))
-                            .defaultIfEmpty(Optional.empty())
-                            .flatMap(owner -> removeActive(eventId, owner.orElse(null), token, cutoff)))
-                    .then();
-        });
-    }
-
+    /**
+     * 입장 자리가 비게 되는 예상 시각을 조회한다.
+     */
     public Mono<PriorityQueue<Long>> activeSlotAvailableTimes(Long eventId, long now) {
+
         return redis.opsForZSet().rangeWithScores(keys.activeKey(eventId), Range.closed(0L, -1L))
                 .filter(tuple -> tuple.getScore() != null)
                 .map(tuple -> Math.max(now, tuple.getScore().longValue()))
@@ -165,11 +216,19 @@ public class ReactiveActiveQueueService {
                 });
     }
 
+    /**
+     * 스크립트 결과에서 대기열 토큰 값을 추출한다.
+     */
     private String tokenValue(Long eventId, String userId) {
+
         return eventId + ":" + userId;
     }
 
+    /**
+     * 대기열 처리에서 현재 시각을 밀리초 단위로 반환한다.
+     */
     private long nowMillis() {
+
         return Instant.now().toEpochMilli();
     }
 }

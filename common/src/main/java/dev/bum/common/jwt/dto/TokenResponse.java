@@ -8,6 +8,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TokenResponse {
+
+    // 접근 인증 토큰.
     private String accessToken;
+
+    // 접근 토큰 재발급용 토큰.
     private String refreshToken;
 }

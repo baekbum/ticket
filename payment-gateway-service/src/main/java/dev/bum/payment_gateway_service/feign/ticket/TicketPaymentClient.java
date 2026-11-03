@@ -27,5 +27,7 @@ public interface TicketPaymentClient {
     PaymentResponse failCardPayment(@RequestBody CardPaymentFailRequest request);
 
     @PostMapping("/api/v1/payments/internal/virtual-account/deposit/complete")
-    VirtualAccountDepositCompleteResponse completeVirtualAccountDeposit(@RequestBody VirtualAccountDepositCompleteRequest request);
+    VirtualAccountDepositCompleteResponse completeVirtualAccountDeposit(
+            @RequestBody VirtualAccountDepositCompleteRequest request
+    );
 }

@@ -27,5 +27,8 @@ public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<Dumm
     Optional<DummyCardPaymentHistory> findByPaymentNoForUpdate(@Param("paymentNo") String paymentNo);
 
     @Query("select h.paymentNo from DummyCardPaymentHistory h where h.status in :statuses order by h.updatedAt, h.historyId")
-    List<String> findPendingPaymentNos(@Param("statuses") Collection<CardPaymentHistoryStatus> statuses, Pageable pageable);
+    List<String> findPendingPaymentNos(
+            @Param("statuses") Collection<CardPaymentHistoryStatus> statuses,
+            Pageable pageable
+    );
 }

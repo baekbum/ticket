@@ -24,24 +24,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserLoginLockedException.class)
     public ResponseEntity<ErrorResponse> userLoginLocked(UserLoginLockedException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.USER_LOGIN_LOCKED, ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordIncorrectException.class)
     public ResponseEntity<ErrorResponse> PasswordIncorrectException(PasswordIncorrectException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.LOGIN_FAILED, ex.getMessage()));
     }
 
     @ExceptionHandler(WithdrawnUserException.class)
     public ResponseEntity<ErrorResponse> withdrawnUser(WithdrawnUserException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.USER_WITHDRAWN, ex.getMessage()));
     }
 
     @ExceptionHandler(BlacklistedUserException.class)
     public ResponseEntity<ErrorResponse> blacklistedUser(BlacklistedUserException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.USER_BLACKLISTED, ex.getMessage(),
                         Collections.singletonMap("blacklistedUntil", ex.getBlacklistedUntil())));
@@ -49,12 +53,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserNotExistException.class)
     public ResponseEntity<ErrorResponse> UserNotExistException(UserNotExistException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.USER_NOT_FOUND, ex.getMessage()));
     }
 
     @ExceptionHandler(RedisException.class)
     public ResponseEntity<ErrorResponse> RedisException(RedisException ex) {
+
         HttpStatus status = ex.getErrorCode() == ErrorCode.REDIS_ERROR
                 ? HttpStatus.INTERNAL_SERVER_ERROR
                 : HttpStatus.UNAUTHORIZED;
@@ -65,6 +71,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> MethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+
         Map<String, String> details = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         fieldError -> fieldError.getField(),
@@ -78,6 +85,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> MissingRequestHeaderException(MissingRequestHeaderException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(
                         ErrorCode.REQUIRED_HEADER_MISSING,

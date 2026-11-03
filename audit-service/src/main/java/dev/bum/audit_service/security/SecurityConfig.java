@@ -29,6 +29,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
@@ -45,6 +46,7 @@ public class SecurityConfig {
     }
 
     private void configureCors(CorsConfigurer<HttpSecurity> cors) {
+
         localCorsConfig.ifPresent(config ->
                 cors.configurationSource(config.corsConfigurationSource())
         );

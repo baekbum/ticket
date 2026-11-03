@@ -40,37 +40,47 @@ public class AreaManagementController {
             @RequestPart("svgFile") MultipartFile svgFile,
             @RequestParam(value = "force", defaultValue = "false") boolean force
     ) {
+
         return ResponseEntity.ok(areaManagementService.insertSvgByEventGroupCode(eventGroupCode, svgFile, force));
     }
 
     @GetMapping("/layout/event/{eventId}")
     public ResponseEntity<EventLayoutResponse> selectLayout(@PathVariable("eventId") Long eventId) {
+
         EventLayoutResponse response = areaManagementService.selectLayout(eventId);
         return response != null ? ResponseEntity.ok(response) : ResponseEntity.noContent().build();
     }
 
     @GetMapping("/select/id/{areaId}")
     public ResponseEntity<AreaResponse> selectById(@PathVariable("areaId") Long areaId) {
+
         return ResponseEntity.ok(areaManagementService.selectById(areaId));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<AreaResponse>> selectByCond(@RequestBody AreaCondRequest cond) {
+
         return ResponseEntity.ok(areaManagementService.selectByCond(cond));
     }
 
     @PutMapping("/update/id/{areaId}")
-    public ResponseEntity<AreaResponse> update(@PathVariable("areaId") Long areaId, @Valid @RequestBody UpdateAreaRequest info) {
+    public ResponseEntity<AreaResponse> update(
+            @PathVariable("areaId") Long areaId,
+            @Valid @RequestBody UpdateAreaRequest info
+    ) {
+
         return ResponseEntity.ok(areaManagementService.update(areaId, info));
     }
 
     @DeleteMapping("/delete/id/{areaId}")
     public ResponseEntity<AreaResponse> delete(@PathVariable("areaId") Long areaId) {
+
         return ResponseEntity.ok(areaManagementService.delete(areaId));
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteAreaBulkRequest info) {
+
         areaManagementService.deleteBulk(info);
         return ResponseEntity.ok().build();
     }

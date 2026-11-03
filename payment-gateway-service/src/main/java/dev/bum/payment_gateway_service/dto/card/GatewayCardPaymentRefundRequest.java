@@ -16,16 +16,20 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class GatewayCardPaymentRefundRequest {
 
+    // 결제 환불 처리 식별자.
     @NotNull
     @Positive
     private Long paymentRefundProcessId;
 
+    // 결제 번호.
     @NotBlank
     private String paymentNo;
 
+    // 결제 거래 식별자.
     @NotBlank
     private String transactionId;
 
+    // 환불 금액.
     @NotNull
     @Positive
     private BigDecimal refundAmount;

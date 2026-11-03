@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EventPolicyOutboxJpaRepository extends JpaRepository<EventPolicyOutbox, Long> {
+
     boolean existsByEventId(Long eventId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

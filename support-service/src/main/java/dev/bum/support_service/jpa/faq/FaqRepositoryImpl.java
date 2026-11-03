@@ -24,17 +24,20 @@ public class FaqRepositoryImpl implements FaqRepository {
 
     @Override
     public Faq save(Faq faq) {
+
         return faqJpaRepository.save(faq);
     }
 
     @Override
     public Faq findById(Long faqId) {
+
         return faqJpaRepository.findById(faqId)
                 .orElseThrow(() -> new FaqNotFoundException("존재하지 않는 FAQ입니다."));
     }
 
     @Override
     public Page<Faq> findPublished(FaqCategory category, String keyword, Pageable pageable) {
+
         QFaq faq = QFaq.faq;
         BooleanExpression[] conditions = {
                 faq.status.eq(PublicationStatus.PUBLISHED),
@@ -55,6 +58,7 @@ public class FaqRepositoryImpl implements FaqRepository {
 
     @Override
     public Page<Faq> findForManagement(FaqSearchRequest request, Pageable pageable) {
+
         QFaq faq = QFaq.faq;
         BooleanExpression[] conditions = {
                 statusEquals(faq, request.getStatus()),
@@ -74,6 +78,7 @@ public class FaqRepositoryImpl implements FaqRepository {
     }
 
     private long count(BooleanExpression... conditions) {
+
         QFaq faq = QFaq.faq;
         Long count = queryFactory
                 .select(faq.count())
@@ -84,14 +89,17 @@ public class FaqRepositoryImpl implements FaqRepository {
     }
 
     private BooleanExpression statusEquals(QFaq faq, PublicationStatus status) {
+
         return status == null ? null : faq.status.eq(status);
     }
 
     private BooleanExpression categoryEquals(QFaq faq, FaqCategory category) {
+
         return category == null ? null : faq.category.eq(category);
     }
 
     private BooleanExpression keywordContains(QFaq faq, String keyword) {
+
         if (!StringUtils.hasText(keyword)) {
             return null;
         }

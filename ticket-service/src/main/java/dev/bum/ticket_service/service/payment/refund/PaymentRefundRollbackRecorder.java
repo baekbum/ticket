@@ -17,11 +17,18 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class PaymentRefundRollbackRecorder {
+
+    // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationJpaRepository reservations;
+    // 결제 환불 처리 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentRefundProcessJpaRepository processes;
 
+    /**
+     * 결제 환불 처리에서 처리 이력을 기록한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(PaymentRefundRollbackRecord record) {
+
         // 다음 취소 요청과도 동일한 잠금 순서를 지켜, 더 최근 작업의 결과를 덮어쓰지 않는다.
         if (reservations.findByIdForUpdate(record.reservationId()).isEmpty()) return;
         PaymentRefundProcess process = processes.findById(record.processId()).orElse(null);

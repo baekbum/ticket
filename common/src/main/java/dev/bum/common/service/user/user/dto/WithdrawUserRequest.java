@@ -6,6 +6,8 @@ import lombok.ToString;
 
 @Data
 public class WithdrawUserRequest {
+
+    // 비밀번호.
     @NotBlank
     @ToString.Exclude
     private String password;

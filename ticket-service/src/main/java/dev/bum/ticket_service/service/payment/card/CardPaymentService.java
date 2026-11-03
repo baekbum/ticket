@@ -28,32 +28,18 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CardPaymentService {
 
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository paymentJpaRepository;
+    // 결제 완료 업무 처리를 담당하는 서비스.
     private final PaymentCompletionService paymentCompletionService;
+    // 결제 만료 업무 처리를 담당하는 서비스.
     private final PaymentExpirationService paymentExpirationService;
 
     /**
-     * payment가 결제 가능한 상태인지 체크하는 로직
-     * @param request
-     * @return
+     * 게이트웨이 카드 승인 결과를 로컬 결제에 반영한다.
      */
-    public PaymentResponse validateBeforeApproval(CardPaymentValidationRequest request) {
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.paymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        validateOwnerAndMethod(payment, request.userId());
-
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("승인 가능한 결제 상태가 아닙니다.");
-        }
-        if (isExpired(payment)) {
-            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
-        }
-        payment.approvalRequested();
-        return payment.toResponse();
-    }
-
     public CardPaymentSettlementResponse settleFromGateway(CardPaymentCompleteRequest request) {
+
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
@@ -103,31 +89,11 @@ public class CardPaymentService {
         return new CardPaymentSettlementResponse(CardPaymentSettlementResponse.Outcome.COMPLETED, completed);
     }
 
-    private void validateOwnerAndMethod(Payment payment, String userId) {
-        validateOwner(payment, userId);
-        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
-        }
-    }
-
-    private void validateOwner(Payment payment, String userId) {
-        if (payment.getReservation() == null || !Objects.equals(userId, payment.getReservation().getUserId())) {
-            throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
-        }
-    }
-
-    private boolean isExpired(Payment payment) {
-        return payment.getExpiresAt() != null && !payment.getExpiresAt().isAfter(LocalDateTime.now());
-    }
-
-    private void validateTransaction(Payment payment, CardPaymentCompleteRequest request) {
-        if (payment.getCardInfo() == null
-                || !request.getTransactionId().equals(payment.getCardInfo().getTransactionId())) {
-            throw new IllegalArgumentException("기존 카드 승인 거래번호와 일치하지 않습니다.");
-        }
-    }
-
+    /**
+     * 게이트웨이 결제 완료 결과를 로컬에 반영한다.
+     */
     public PaymentResponse completeFromGateway(CardPaymentCompleteRequest request) {
+
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
@@ -146,7 +112,74 @@ public class CardPaymentService {
         );
     }
 
+    /**
+     * payment가 결제 가능한 상태인지 체크하는 로직
+     * @param request
+     * @return
+     */
+    public PaymentResponse validateBeforeApproval(CardPaymentValidationRequest request) {
+
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.paymentNo())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+
+        validateOwnerAndMethod(payment, request.userId());
+
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalArgumentException("승인 가능한 결제 상태가 아닙니다.");
+        }
+
+        if (isExpired(payment)) {
+            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
+        }
+        payment.approvalRequested();
+        return payment.toResponse();
+    }
+
+    /**
+     * 결제 소유자와 결제 수단이 요청과 일치하는지 검증한다.
+     */
+    private void validateOwnerAndMethod(Payment payment, String userId) {
+
+        validateOwner(payment, userId);
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
+            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
+        }
+    }
+
+    /**
+     * 요청자가 처리 대상의 소유자인지 검증한다.
+     */
+    private void validateOwner(Payment payment, String userId) {
+
+        if (payment.getReservation() == null || !Objects.equals(userId, payment.getReservation().getUserId())) {
+            throw new AccessDeniedException("다른 사용자의 결제 요청입니다.");
+        }
+    }
+
+    /**
+     * 유효 기간이 만료되었는지 확인한다.
+     */
+    private boolean isExpired(Payment payment) {
+
+        return payment.getExpiresAt() != null && !payment.getExpiresAt().isAfter(LocalDateTime.now());
+    }
+
+    /**
+     * 결제 거래 식별자와 거래 상태를 검증한다.
+     */
+    private void validateTransaction(Payment payment, CardPaymentCompleteRequest request) {
+
+        if (payment.getCardInfo() == null
+                || !request.getTransactionId().equals(payment.getCardInfo().getTransactionId())) {
+            throw new IllegalArgumentException("기존 카드 승인 거래번호와 일치하지 않습니다.");
+        }
+    }
+
+    /**
+     * 게이트웨이 결제 실패 결과를 로컬에 반영한다.
+     */
     public PaymentResponse failFromGateway(CardPaymentFailRequest request) {
+
         Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
         Reservation reservation = payment.getReservation();
@@ -160,24 +193,32 @@ public class CardPaymentService {
         return payment.toResponse();
     }
 
+    /**
+     * 게이트웨이의 카드 결제 완료 통지를 검증한다.
+     */
     private void validateGatewayCardCompletion(
             Payment payment,
             Reservation reservation,
             CardPaymentCompleteRequest request
     ) {
+
         if (reservation == null || !request.getUserId().equals(reservation.getUserId())) {
             throw new AccessDeniedException("다른 사용자의 결제 완료 요청입니다.");
         }
+
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
         }
+
         if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
         }
+
         if (payment.getStatus() == PaymentStatus.PAID) {
             validateTransaction(payment, request);
             return;
         }
+
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("카드 결제 완료 처리할 수 없는 상태입니다.");
         }
@@ -185,29 +226,41 @@ public class CardPaymentService {
         validatePaymentNotExpired(payment);
     }
 
+    /**
+     * 게이트웨이의 카드 결제 실패 통지를 검증한다.
+     */
     private void validateGatewayCardFailure(
             Payment payment,
             Reservation reservation,
             CardPaymentFailRequest request
     ) {
+
         if (reservation == null || !request.getUserId().equals(reservation.getUserId())) {
             throw new AccessDeniedException("다른 사용자의 결제 실패 요청입니다.");
         }
+
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
         }
+
         if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
         }
+
         if (payment.getStatus() == PaymentStatus.FAILED) {
             return;
         }
+
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("카드 결제 실패 처리할 수 없는 상태입니다.");
         }
     }
 
+    /**
+     * 결제 요청의 유효 기간이 지나지 않았는지 검증한다.
+     */
     private void validatePaymentNotExpired(Payment payment) {
+
         if (payment.getExpiresAt() != null && LocalDateTime.now().isAfter(payment.getExpiresAt())) {
             paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("결제 기한이 만료되었습니다.");

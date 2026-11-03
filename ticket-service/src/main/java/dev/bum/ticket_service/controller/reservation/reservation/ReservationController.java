@@ -32,6 +32,7 @@ public class ReservationController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable("reservationId") long id
     ) {
+
         return ResponseEntity.ok(reservationService.selectMyReservationDetail(currentUserId, id));
     }
 
@@ -40,6 +41,7 @@ public class ReservationController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable("reservationId") long id
     ) {
+
         return ResponseEntity.ok(reservationService.selectMyReservation(currentUserId, id));
     }
 
@@ -48,6 +50,7 @@ public class ReservationController {
             @AuthenticationPrincipal String currentUserId,
             @ModelAttribute ReservationCondRequest cond
     ) {
+
         return ResponseEntity.ok(reservationService.selectMyReservations(currentUserId, cond));
     }
 
@@ -57,6 +60,7 @@ public class ReservationController {
             @PathVariable("id") long id,
             @RequestBody CancelReservationRequest info
     ) {
+
         return ResponseEntity.ok(reservationService.cancelMyReservation(currentUserId, id, info));
     }
 }

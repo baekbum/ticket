@@ -28,6 +28,7 @@ public class UserAddressManagementController {
 
     @PostMapping("/insert")
     public ResponseEntity<UserAddressResponse> insert(@Valid @RequestBody InsertUserAddressRequest info) {
+
         return ResponseEntity.ok(userAddressService.insert(null, info));
     }
 
@@ -36,16 +37,21 @@ public class UserAddressManagementController {
             @PathVariable("userId") String userId,
             @Valid @RequestBody InsertUserAddressRequest info
     ) {
+
         return ResponseEntity.ok(userAddressService.insert(userId, info));
     }
 
     @GetMapping("/select/id/{addressId}")
     public ResponseEntity<UserAddressResponse> selectById(@PathVariable("addressId") Long addressId) {
+
         return ResponseEntity.ok(userAddressService.selectById(addressId));
     }
 
     @PostMapping("/select")
-    public ResponseEntity<CustomPageResponse<UserAddressResponse>> selectByCond(@RequestBody UserAddressCondRequest cond) {
+    public ResponseEntity<CustomPageResponse<UserAddressResponse>> selectByCond(
+            @RequestBody UserAddressCondRequest cond
+    ) {
+
         return ResponseEntity.ok(userAddressService.selectByCond(cond));
     }
 
@@ -54,6 +60,7 @@ public class UserAddressManagementController {
             @PathVariable("userId") String userId,
             @RequestBody UserAddressCondRequest cond
     ) {
+
         return ResponseEntity.ok(userAddressService.selectByUserId(userId, cond));
     }
 
@@ -62,16 +69,19 @@ public class UserAddressManagementController {
             @PathVariable("addressId") Long addressId,
             @Valid @RequestBody UpdateUserAddressRequest info
     ) {
+
         return ResponseEntity.ok(userAddressService.update(addressId, info));
     }
 
     @DeleteMapping("/delete/id/{addressId}")
     public ResponseEntity<UserAddressResponse> delete(@PathVariable("addressId") Long addressId) {
+
         return ResponseEntity.ok(userAddressService.delete(addressId));
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteUserAddressBulkRequest info) {
+
         userAddressService.deleteBulk(info);
         return ResponseEntity.ok().build();
     }

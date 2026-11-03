@@ -22,15 +22,23 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class SeatCacheSyncOutboxPublisher {
-    private final SeatCacheSyncOutboxJpaRepository repository;
-    private final SeatJpaRepository seats;
-    private final StringRedisTemplate seatRedisTemplate;
 
+    // 좌석 캐시 동기화 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
+    private final SeatCacheSyncOutboxJpaRepository repository;
+    // 좌석 목록.
+    private final SeatJpaRepository seats;
+    // 문자열 키와 값을 저장하고 조회하는 Redis 클라이언트.
+    private final StringRedisTemplate seatRedisTemplate;
+    // 실패한 이벤트를 다시 처리하기 전 대기 시간(밀리초).
     @Value("${app.seat-cache.sync-outbox.retry-delay-ms:30000}")
     private long retryDelayMs = 30000;
 
+    /**
+     * 좌석 캐시 동기화 Outbox 이벤트 처리에서 이벤트를 발행한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publish(Long outboxId) {
+
         SeatCacheSyncOutbox outbox = repository.findByIdForUpdate(outboxId).orElse(null);
 
         if (outbox == null || outbox.getStatus() == SeatCacheSyncOutboxStatus.APPLIED
@@ -50,6 +58,7 @@ public class SeatCacheSyncOutboxPublisher {
                 outbox.failed("OCCUPIED_BY_ANOTHER_RESERVATION", nextAttemptAt());
                 return;
             }
+
             if (!Long.valueOf(1L).equals(result)) {
                 throw new DataRetrievalFailureException("좌석 Redis 동기화 결과를 확인할 수 없습니다.");
             }
@@ -62,11 +71,19 @@ public class SeatCacheSyncOutboxPublisher {
         }
     }
 
+    /**
+     * 재시도 횟수에 맞는 다음 실행 시각을 계산한다.
+     */
     private LocalDateTime nextAttemptAt() {
+
         return LocalDateTime.now().plus(Duration.ofMillis(retryDelayMs));
     }
 
+    /**
+     * 좌석 캐시 동기화 Outbox 이벤트 처리에서 남은 유효 시간을 반환한다.
+     */
     private Duration ttl(Seat seat) {
+
         if (seat.getEvent().getEventDateTime() == null) return Duration.ofDays(7);
         int runningMinutes = seat.getEvent().getRunningMinutes() == null ? 0 : seat.getEvent().getRunningMinutes();
         Duration ttl = Duration.between(LocalDateTime.now(), seat.getEvent().getEventDateTime().plusMinutes(runningMinutes));

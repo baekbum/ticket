@@ -29,24 +29,27 @@ public class SeatController {
     private final SeatService seatService;
     private final QueueAccessService queueAccessService;
 
-    @GetMapping("/select/id/{seatId}")
-    public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
-        return ResponseEntity.ok(seatService.selectById(id));
-    }
-
-    @GetMapping("/select")
-    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(@ModelAttribute SeatCondRequest cond) {
-        return ResponseEntity.ok(seatService.selectByCond(cond));
-    }
-
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(
             @AuthenticationPrincipal String currentUserId,
             @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
             @RequestBody SeatOccupyRequest request
     ) {
+
         queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         request.setUserId(currentUserId);
         return ResponseEntity.ok(seatService.occupySeat(request));
+    }
+
+    @GetMapping("/select/id/{seatId}")
+    public ResponseEntity<SeatResponse> selectById(@PathVariable("seatId") Long id) {
+
+        return ResponseEntity.ok(seatService.selectById(id));
+    }
+
+    @GetMapping("/select")
+    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(@ModelAttribute SeatCondRequest cond) {
+
+        return ResponseEntity.ok(seatService.selectByCond(cond));
     }
 }

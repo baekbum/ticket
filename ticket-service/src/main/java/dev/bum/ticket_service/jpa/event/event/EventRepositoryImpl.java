@@ -52,6 +52,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Event insert(InsertEventRequest info) {
+
         if (info.getQueueAdmissionSize() != null && info.getQueueAdmissionSize() <= 0) {
             throw new IllegalArgumentException("활성 인원 상한은 양수여야 합니다.");
         }
@@ -96,6 +97,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Page<EventCardResponse> search(String keyword, EventSearchField field, Pageable pageable) {
+
         event = QEvent.event;
         BooleanExpression title = event.title.containsIgnoreCase(keyword);
         BooleanExpression artist = event.artistName.containsIgnoreCase(keyword);
@@ -119,6 +121,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public void isExist(EventCondRequest cond) {
+
         event = QEvent.event;
 
         List<Event> content = queryFactory
@@ -140,12 +143,14 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Event selectById(Long id) {
+
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
     }
 
     @Override
     public Event selectByIdForUpdate(Long id) {
+
         Event event = jpaRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EventNotExistException("해당 이벤트 정보는 존재하지 않습니다."));
         entityManager.refresh(event, LockModeType.PESSIMISTIC_WRITE);
@@ -154,6 +159,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public List<Event> selectByEventGroupCode(String eventGroupCode) {
+
         if (!StringUtils.hasText(eventGroupCode)) {
             throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
         }
@@ -168,6 +174,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public List<EventCardResponse> selectSoonestOnSaleCards(LocalDateTime now, int limit) {
+
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
@@ -233,6 +240,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public List<EventCardResponse> selectFestivalCards(LocalDateTime now, int limit) {
+
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
@@ -255,6 +263,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public List<EventCardResponse> selectOpenSoonCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
@@ -278,6 +287,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public List<EventCardResponse> selectWeeklyRecommendedCards(LocalDateTime now, LocalDateTime deadline, int limit) {
+
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
@@ -304,7 +314,14 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     @Override
-    public List<EventCardResponse> selectGenreOnSaleCards(EventGenre genre, LocalDateTime now, String sort, int page, int size) {
+    public List<EventCardResponse> selectGenreOnSaleCards(
+            EventGenre genre,
+            LocalDateTime now,
+            String sort,
+            int page,
+            int size
+    ) {
+
         event = QEvent.event;
         DateTimeExpression<LocalDateTime> startDateTime = event.eventDateTime.min();
         DateTimeExpression<LocalDateTime> endDateTime = event.eventDateTime.max();
@@ -348,6 +365,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Page<Event> selectByCond(EventCondRequest cond, Pageable pageable) {
+
         event = QEvent.event;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -386,6 +404,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Event update(Long id, UpdateEventRequest info) {
+
         Event event = selectByIdForUpdate(id);
         event.update(info);
 
@@ -394,6 +413,7 @@ public class EventRepositoryImpl implements EventRepository {
 
     @Override
     public Event delete(Long id) {
+
         Event event = selectByIdForUpdate(id);
         jpaRepository.delete(event);
 
@@ -406,6 +426,7 @@ public class EventRepositoryImpl implements EventRepository {
             DateTimeExpression<LocalDateTime> endDateTime,
             BooleanExpression eventDateTimeCondition
     ) {
+
         List<String> eventGroupCodes = groups.stream()
                 .map(group -> group.get(event.eventGroupCode))
                 .filter(Objects::nonNull)
@@ -454,82 +475,102 @@ public class EventRepositoryImpl implements EventRepository {
 
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression eventIdEq(Long eventId) {
+
         return eventId != null ? event.eventId.eq(eventId) : null;
     }
 
     private BooleanExpression artistNameLike(String artistName) {
+
         return StringUtils.hasText(artistName) ? event.artistName.like("%" + artistName + "%") : null;
     }
 
     private BooleanExpression titleLike(String title) {
+
         return StringUtils.hasText(title) ? event.title.like("%" + title + "%") : null;
     }
 
     private BooleanExpression eventGroupCodeEq(String eventGroupCode) {
+
         return StringUtils.hasText(eventGroupCode) ? event.eventGroupCode.eq(eventGroupCode) : null;
     }
 
     private BooleanExpression venueLike(String venue) {
+
         return StringUtils.hasText(venue) ? event.venue.like("%" + venue + "%") : null;
     }
 
     private BooleanExpression venueAddressLike(String venueAddress) {
+
         return StringUtils.hasText(venueAddress) ? event.venueAddress.like("%" + venueAddress + "%") : null;
     }
 
     private BooleanExpression posterUrlLike(String posterUrl) {
+
         return StringUtils.hasText(posterUrl) ? event.posterUrl.like("%" + posterUrl + "%") : null;
     }
 
     private BooleanExpression eventDateLike(LocalDate eventDate) {
+
         return dateLike(eventDate, event.eventDateTime);
     }
 
     private BooleanExpression eventDateBetween(LocalDate from, LocalDate to) {
+
         return dateBetween(from, to, event.eventDateTime);
     }
 
     private BooleanExpression saleStartDateLike(LocalDate saleStartDate) {
+
         return dateLike(saleStartDate, event.saleStartAt);
     }
 
     private BooleanExpression saleStartDateBetween(LocalDate from, LocalDate to) {
+
         return dateBetween(from, to, event.saleStartAt);
     }
 
     private BooleanExpression saleEndDateLike(LocalDate saleEndDate) {
+
         return dateLike(saleEndDate, event.saleEndAt);
     }
 
     private BooleanExpression saleEndDateBetween(LocalDate from, LocalDate to) {
+
         return dateBetween(from, to, event.saleEndAt);
     }
 
     private BooleanExpression cancelDeadlineDateLike(LocalDate cancelDeadlineDate) {
+
         return dateLike(cancelDeadlineDate, event.cancelDeadlineAt);
     }
 
     private BooleanExpression cancelDeadlineDateBetween(LocalDate from, LocalDate to) {
+
         return dateBetween(from, to, event.cancelDeadlineAt);
     }
 
     private BooleanExpression runningMinutesEq(Integer runningMinutes) {
+
         return runningMinutes != null ? event.runningMinutes.eq(runningMinutes) : null;
     }
 
     private BooleanExpression ageLimitEq(Integer ageLimit) {
+
         return ageLimit != null ? event.ageLimit.eq(ageLimit) : null;
     }
 
     private BooleanExpression totalSeatsEq(Integer totalSeats) {
+
         return totalSeats != null ? event.totalSeats.eq(totalSeats) : null;
     }
 
     private BooleanExpression availableSeatsEq(Integer availableSeats) {
+
         return availableSeats != null ? event.availableSeats.eq(availableSeats) : null;
     }
 
     private BooleanExpression dateLike(LocalDate eventDate, DateTimePath<LocalDateTime> target) {
+
         if (eventDate == null) {
             return null;
         }
@@ -545,6 +586,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     private BooleanExpression dateBetween(LocalDate from, LocalDate to, DateTimePath<LocalDateTime> target) {
+
         if (from == null && to == null) {
             return null;
         }
@@ -561,26 +603,32 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     private BooleanExpression statusEq(EventStatus status) {
+
         return status != null ? event.status.eq(status) : null;
     }
 
     private BooleanExpression ticketLimitScopeEq(TicketLimitScope ticketLimitScope) {
+
         return ticketLimitScope != null ? event.ticketLimitScope.eq(ticketLimitScope) : null;
     }
 
     private BooleanExpression genreEq(EventGenre genre) {
+
         return genre != null ? event.genre.eq(genre) : null;
     }
 
     private BooleanExpression regionEq(EventRegion region) {
+
         return region != null ? event.region.eq(region) : null;
     }
 
     private BooleanExpression themeEq(EventTheme theme) {
+
         return theme != null ? event.theme.eq(theme) : null;
     }
 
     private BooleanExpression[] searchConditions(EventCondRequest cond) {
+
         return new BooleanExpression[]{
                 eventIdEq(cond.getEventId()),
                 artistNameLike(cond.getArtistName()),
@@ -610,6 +658,7 @@ public class EventRepositoryImpl implements EventRepository {
     }
 
     private String createDefaultEventGroupCode(InsertEventRequest info) {
+
         String source = String.join("|", info.getArtistName(), info.getTitle(), info.getVenue());
         return "EVENT-" + Integer.toHexString(source.hashCode()).toUpperCase();
     }

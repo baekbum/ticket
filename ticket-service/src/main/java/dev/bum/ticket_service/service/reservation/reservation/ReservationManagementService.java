@@ -50,21 +50,32 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ReservationManagementService {
 
+    // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationRepository repository;
+    // 예매 취소 업무 처리를 담당하는 서비스.
     private final ReservationCancellationService reservationCancellationService;
+    // 좌석 캐시 업무 처리를 담당하는 서비스.
     private final SeatCacheService seatCacheService;
+    // 티켓 구매 수량 업무 처리를 담당하는 서비스.
     private final TicketPurchaseCountService ticketPurchaseCountService;
+    // 티켓 데이터를 조회하고 저장하는 레포지토리.
     private final TicketJpaRepository ticketJpaRepository;
+    // 예매 할인 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationDiscountJpaRepository reservationDiscountJpaRepository;
+    // 사용자 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final UserCouponRepository userCouponRepository;
+    // 예매 배송 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationDeliveryJpaRepository reservationDeliveryJpaRepository;
+    // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository paymentJpaRepository;
+    // 결제 환불 이력 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentRefundHistoryJpaRepository paymentRefundHistoryJpaRepository;
 
     /**
      * 예매 ID로 예매 기본 정보를 조회한다.
      */
     public ReservationResponse selectById(long id) {
+
         return repository.selectById(id).toResponse();
     }
 
@@ -72,6 +83,7 @@ public class ReservationManagementService {
      * 예매 기본 정보와 티켓, 할인, 배송, 결제 요약을 함께 조회한다.
      */
     public ReservationDetailResponse selectDetailById(long id) {
+
         Reservation reservation = repository.selectById(id);
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
@@ -106,6 +118,7 @@ public class ReservationManagementService {
      * 관리자 검색 조건과 페이징 조건으로 예매 목록을 조회한다.
      */
     public CustomPageResponse<ReservationResponse> selectByCond(ReservationCondRequest cond) {
+
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
         Page<ReservationResponse> reservationPage = repository.selectByCond(cond, pageable).map(Reservation::toResponse);
@@ -120,22 +133,11 @@ public class ReservationManagementService {
     }
 
     /**
-     * 관리자 기준으로 예매 티켓을 취소하고 좌석 캐시와 사용자 구매 수량을 보정한다.
-     */
-    @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
-    public CancelReservationResponse cancel(long id, CancelReservationRequest info) {
-        Reservation reservation = repository.selectByIdForUpdate(id);
-        ReservationStatus beforeStatus = reservation.getStatus();
-        CancelReservationResponse response = reservationCancellationService.cancel(reservation, info);
-        AuditDataMapper.setFieldChange("status", beforeStatus, reservation.getStatus());
-        return response;
-    }
-
-    /**
      * 관리자 상태 보정 요청에 따라 예매, 티켓, 좌석, 결제, 배송, 쿠폰 상태를 함께 정정한다.
      */
     @AuditLog(action = "RESERVATION_STATUS_ADJUST", targetType = "RESERVATION")
     public ReservationDetailResponse updateStatus(long id, UpdateReservationStatusRequest request) {
+
         Reservation reservation = repository.selectById(id);
         ReservationStatus beforeStatus = reservation.getStatus();
         List<Ticket> tickets = ticketJpaRepository.findByReservation(reservation);
@@ -235,9 +237,23 @@ public class ReservationManagementService {
     }
 
     /**
+     * 관리자 기준으로 예매 티켓을 취소하고 좌석 캐시와 사용자 구매 수량을 보정한다.
+     */
+    @AuditLog(action = "RESERVATION_CANCEL", targetType = "RESERVATION")
+    public CancelReservationResponse cancel(long id, CancelReservationRequest info) {
+
+        Reservation reservation = repository.selectByIdForUpdate(id);
+        ReservationStatus beforeStatus = reservation.getStatus();
+        CancelReservationResponse response = reservationCancellationService.cancel(reservation, info);
+        AuditDataMapper.setFieldChange("status", beforeStatus, reservation.getStatus());
+        return response;
+    }
+
+    /**
      * 부분 취소 대상으로 선택된 티켓이 현재 예매에 속하는지 검증하고 반환한다.
      */
     private List<Ticket> selectTicketsForPartialCancel(List<Ticket> tickets, List<Long> selectedTicketIdList) {
+
         if (selectedTicketIdList == null || selectedTicketIdList.isEmpty()) {
             throw new IllegalArgumentException("부분 취소는 취소할 티켓을 선택해야 합니다.");
         }
@@ -256,13 +272,21 @@ public class ReservationManagementService {
     /**
      * 상태 보정으로 변경된 좌석 목록을 Redis 캐시에 반영한다.
      */
-    private void syncAdjustedSeatCache(Reservation reservation, List<Seat> lockedSeats, List<Seat> reservedSeats, List<Seat> availableSeats) {
+    private void syncAdjustedSeatCache(
+            Reservation reservation,
+            List<Seat> lockedSeats,
+            List<Seat> reservedSeats,
+            List<Seat> availableSeats
+    ) {
+
         if (!lockedSeats.isEmpty()) {
             seatCacheService.syncLockedSeatsAfterCommit(lockedSeats, reservation.getUserId(), reservation.getOrderId());
         }
+
         if (!reservedSeats.isEmpty()) {
             seatCacheService.syncReservedSeatsAfterCommit(reservedSeats, reservation.getUserId(), reservation.getOrderId());
         }
+
         if (!availableSeats.isEmpty()) {
             seatCacheService.syncAvailableSeatsAfterCommit(availableSeats, reservation.getUserId(), reservation.getOrderId());
         }
@@ -272,6 +296,7 @@ public class ReservationManagementService {
      * 전체 취소 또는 만료 처리 시 예매 할인 스냅샷에 연결된 사용 쿠폰을 복구한다.
      */
     private void restoreUsedCoupons(Reservation reservation) {
+
         List<ReservationDiscount> discounts = reservationDiscountJpaRepository.findByReservation(reservation);
 
         for (ReservationDiscount discount : discounts) {
@@ -288,6 +313,7 @@ public class ReservationManagementService {
      * 요청 sort 문자열을 Spring Data Sort 객체로 변환한다.
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -306,5 +332,4 @@ public class ReservationManagementService {
 
         return sort;
     }
-
 }

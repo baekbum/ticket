@@ -18,13 +18,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TicketManagementService {
 
+    // 티켓 데이터를 조회하고 저장하는 레포지토리.
     private final TicketRepository ticketRepository;
+    // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationRepository reservationRepository;
 
     /**
      * 관리자 기준으로 예매 ID에 연결된 모든 티켓 목록을 조회한다.
      */
     public List<TicketResponse> selectByReservationId(long reservationId) {
+
         Reservation reservation = reservationRepository.selectById(reservationId);
 
         return ticketRepository.selectByReservation(reservation).stream()

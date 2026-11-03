@@ -11,11 +11,13 @@ public class QuerydslConfig {
     private final EntityManager em;
 
     public QuerydslConfig(EntityManager em) {
+
         this.em = em;
     }
 
     @Bean
     public JPAQueryFactory jpaQueryFactory() {
+
         return new JPAQueryFactory(em);
     }
 }

@@ -38,6 +38,7 @@ public class AreaRepositoryImpl implements AreaRepository {
 
     @Override
     public Area insert(InsertAreaRequest info) {
+
         Event event = eventRepository.selectById(info.getEventId());
 
         AreaCondRequest cond = AreaCondRequest.builder()
@@ -60,6 +61,7 @@ public class AreaRepositoryImpl implements AreaRepository {
 
     @Override
     public void isExist(AreaCondRequest cond) {
+
         area = QArea.area;
 
         List<Area> found = queryFactory
@@ -78,12 +80,14 @@ public class AreaRepositoryImpl implements AreaRepository {
 
     @Override
     public Area selectById(Long id) {
+
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new AreaNotExistException("해당 구역 정보가 존재하지 않습니다."));
     }
 
     @Override
     public Page<Area> selectByCond(AreaCondRequest cond, Pageable pageable) {
+
         area = QArea.area;
         QEvent event = QEvent.event;
 
@@ -117,6 +121,7 @@ public class AreaRepositoryImpl implements AreaRepository {
 
     @Override
     public Area update(Long id, UpdateAreaRequest info) {
+
         Area area = selectById(id);
         area.update(info);
         return area;
@@ -124,12 +129,14 @@ public class AreaRepositoryImpl implements AreaRepository {
 
     @Override
     public Area delete(Long id) {
+
         Area area = selectById(id);
         jpaRepository.delete(area);
         return area;
     }
 
     private BooleanExpression[] searchConditions(AreaCondRequest cond) {
+
         return new BooleanExpression[]{
                 areaIdEq(cond.getAreaId()),
                 eventIdEq(cond.getEventId()),
@@ -141,24 +148,29 @@ public class AreaRepositoryImpl implements AreaRepository {
     }
 
     private BooleanExpression areaIdEq(Long areaId) {
+
         return areaId != null ? area.areaId.eq(areaId) : null;
     }
 
     private BooleanExpression eventIdEq(Long eventId) {
+
         if (eventId == null) return null;
         Event event = eventRepository.selectById(eventId);
         return area.event.eq(event);
     }
 
     private BooleanExpression areaNameEq(String areaName) {
+
         return StringUtils.hasText(areaName) ? area.areaName.eq(areaName) : null;
     }
 
     private BooleanExpression duplicateIdentityEq(String areaName, String layoutKey) {
+
         BooleanExpression expression = null;
         if (StringUtils.hasText(areaName)) {
             expression = area.areaName.eq(areaName);
         }
+
         if (StringUtils.hasText(layoutKey)) {
             BooleanExpression layoutKeyExpression = area.layoutKey.eq(layoutKey.trim());
             expression = expression == null ? layoutKeyExpression : expression.or(layoutKeyExpression);
@@ -167,18 +179,22 @@ public class AreaRepositoryImpl implements AreaRepository {
     }
 
     private BooleanExpression areaNameLike(String areaName) {
+
         return StringUtils.hasText(areaName) ? area.areaName.like("%" + areaName + "%") : null;
     }
 
     private BooleanExpression layoutKeyEq(String layoutKey) {
+
         return StringUtils.hasText(layoutKey) ? area.layoutKey.eq(layoutKey.trim()) : null;
     }
 
     private BooleanExpression gradeEq(SeatGrade grade) {
+
         return grade != null ? area.grade.eq(grade) : null;
     }
 
     private BooleanExpression statusEq(AreaStatus status) {
+
         return status != null ? area.status.eq(status) : null;
     }
 }

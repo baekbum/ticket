@@ -27,13 +27,20 @@ import java.util.List;
 )
 public class VirtualAccountExpirationScheduler {
 
+    // 모의 가상계좌 데이터를 조회하고 저장하는 레포지토리.
     private final DummyVirtualAccountJpaRepository dummyVirtualAccountJpaRepository;
+    // 모의 가상계좌 결제 이력 데이터를 조회하고 저장하는 레포지토리.
     private final DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
+    // 가상계좌 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
 
+    /**
+     * 입금 대기 중 만료된 가상계좌를 처리한다.
+     */
     @Scheduled(cron = "${app.virtual-account.expiration.cron:0 0 0 * * *}")
     @Transactional
     public void expireWaitingAccounts() {
+
         LocalDateTime now = LocalDateTime.now();
 
         while (true) {
@@ -51,7 +58,11 @@ public class VirtualAccountExpirationScheduler {
         }
     }
 
+    /**
+     * 만료 대상 가상계좌를 묶음 단위로 처리한다.
+     */
     private void expireWaitingAccountBatch(List<DummyVirtualAccount> expiredAccounts, LocalDateTime expiredAt) {
+
         for (DummyVirtualAccount virtualAccount : expiredAccounts) {
             // 잠금을 획득한 계좌 중 입금 대기 상태이고 기한이 지난 경우에만 만료한다.
             if (virtualAccount.getStatus() != VirtualAccountPaymentStatus.WAITING_DEPOSIT

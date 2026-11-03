@@ -12,11 +12,11 @@ import org.springframework.stereotype.Component;
 public class PaymentEventProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-
     @Value("${topic.payment.completed.name:payment-completed}")
     private String paymentCompletedTopic;
 
     public void sendPaymentCompleted(String paymentNo, Long reservationId, String orderId, Integer amount) {
+
         String payload = String.format(
                 "{\"paymentNo\":\"%s\",\"reservationId\":%d,\"orderId\":\"%s\",\"amount\":%d}",
                 paymentNo,

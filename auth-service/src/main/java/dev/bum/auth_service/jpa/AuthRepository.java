@@ -3,8 +3,12 @@ package dev.bum.auth_service.jpa;
 import dev.bum.common.kafka.user.UserDtoForEvent;
 
 public interface AuthRepository {
+
     boolean insert(UserDtoForEvent event);
+
     Auth findByUserId(String userId);
+
     Auth update(UserDtoForEvent event);
+
     void delete(String userId);
 }

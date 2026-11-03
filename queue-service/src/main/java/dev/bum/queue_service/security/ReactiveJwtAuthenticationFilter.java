@@ -21,11 +21,13 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 @RequiredArgsConstructor
 public class ReactiveJwtAuthenticationFilter implements WebFilter {
+
     private final JwtTokenProvider jwtTokenProvider;
     private final ReactiveTokenStateStore tokenStateStore;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+
         return Mono.defer(() -> {
             String bearer = exchange.getRequest().getHeaders().getFirst("Authorization");
 
@@ -47,6 +49,7 @@ public class ReactiveJwtAuthenticationFilter implements WebFilter {
     }
 
     private Mono<AuthResult> authenticate(String token) {
+
         try {
             jwtTokenProvider.validateToken(token);
 
@@ -74,6 +77,7 @@ public class ReactiveJwtAuthenticationFilter implements WebFilter {
     }
 
     private AuthResult rejected(HttpStatus status, String message) {
+
         return AuthResult.builder()
                 .status(status)
                 .message(message)
@@ -81,6 +85,7 @@ public class ReactiveJwtAuthenticationFilter implements WebFilter {
     }
 
     private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus status, String message) {
+
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(
                 new MediaType("application", "json", StandardCharsets.UTF_8));
@@ -90,5 +95,14 @@ public class ReactiveJwtAuthenticationFilter implements WebFilter {
     }
 
     @Builder
-    private record AuthResult(Authentication authentication, HttpStatus status, String message) { }
+    private record AuthResult(
+            // 인증 정보.
+            Authentication authentication,
+
+            // 인증 정보 상태.
+            HttpStatus status,
+
+            // 처리 결과 메시지.
+            String message
+    ) { }
 }

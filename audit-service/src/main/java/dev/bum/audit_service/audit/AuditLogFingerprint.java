@@ -18,9 +18,11 @@ import java.util.TreeMap;
 @Component
 @RequiredArgsConstructor
 public class AuditLogFingerprint {
+
     private final ObjectMapper objectMapper;
 
     public String calculate(AuditLogEvent event) {
+
         try {
             JsonNode payload = canonical(objectMapper.valueToTree(event));
             byte[] bytes = objectMapper.writeValueAsBytes(payload);
@@ -32,6 +34,7 @@ public class AuditLogFingerprint {
     }
 
     private JsonNode canonical(JsonNode value) {
+
         if (value.isObject()) {
             // 중첩 객체도 키 순서를 맞춰 DLT 재발행 시 JSON 필드 순서에 영향을 받지 않는다.
             TreeMap<String, JsonNode> fields = new TreeMap<>();

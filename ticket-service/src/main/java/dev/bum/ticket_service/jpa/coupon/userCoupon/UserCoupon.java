@@ -40,8 +40,10 @@ import java.time.format.DateTimeFormatter;
 @AllArgsConstructor
 public class UserCoupon {
 
+    // 날짜와 시각을 표시하는 형식.
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // 사용자에게 발급된 쿠폰 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_coupon_id")
@@ -83,7 +85,9 @@ public class UserCoupon {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public UserCouponResponse toResponse() {
+
         return UserCouponResponse.builder()
                 .userCouponId(this.userCouponId)
                 .userId(this.userId)
@@ -95,12 +99,16 @@ public class UserCoupon {
                 .build();
     }
 
+    // 쿠폰을 사용 상태로 변경한다.
     public void use(LocalDateTime usedAt) {
+
         this.status = UserCouponStatus.USED;
         this.usedAt = usedAt != null ? usedAt : LocalDateTime.now();
     }
 
+    // 사용한 쿠폰을 다시 사용 가능한 상태로 복원한다.
     public void restore(LocalDateTime now) {
+
         LocalDateTime currentTime = now != null ? now : LocalDateTime.now();
 
         if (this.expiresAt != null && this.expiresAt.isBefore(currentTime)) {
@@ -112,7 +120,9 @@ public class UserCoupon {
         this.usedAt = null;
     }
 
+    // 사용자 쿠폰을 수정한다.
     public void update(UpdateUserCouponRequest request) {
+
         if (request.getStatus() != null) {
             this.status = request.getStatus();
         }
@@ -120,7 +130,9 @@ public class UserCoupon {
         this.expiresAt = request.getExpiresAt();
     }
 
+    // 날짜와 시각을 응답 표시 형식으로 변환한다.
     private String formatDateTime(LocalDateTime dateTime) {
+
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : null;
     }
 }

@@ -27,12 +27,18 @@ import java.util.concurrent.CompletionException;
 )
 public class VirtualAccountExpiredOutboxPublisher {
 
+    // 가상계좌 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
+    // 가상계좌 만료 이벤트 이벤트 발행을 담당하는 도구.
     private final VirtualAccountExpiredEventProducer virtualAccountExpiredEventProducer;
 
+    /**
+     * 발행 대기 중인 이벤트를 발행한다.
+     */
     @Scheduled(fixedDelayString = "${app.virtual-account.expired-outbox-publisher.fixed-delay-ms:30000}")
     @Transactional
     public void publishPendingEvents() {
+
         List<VirtualAccountOutboxEvent> pendingEvents =
                 virtualAccountOutboxEventJpaRepository.findTop100ByEventTypeAndStatusOrderByOutboxIdAsc(
                         OutboxEventType.VIRTUAL_ACCOUNT_EXPIRED,
@@ -53,13 +59,21 @@ public class VirtualAccountExpiredOutboxPublisher {
                 .forEach(this::applyPublishResult);
     }
 
+    /**
+     * 가상계좌 만료 Outbox 이벤트 처리에서 이벤트를 발행한다.
+     */
     private CompletableFuture<PublishResult> publish(VirtualAccountOutboxEvent outboxEvent) {
+
         return virtualAccountExpiredEventProducer.sendExpired(outboxEvent.toVirtualAccountExpiredEvent())
                 .thenApply(result -> PublishResult.success(outboxEvent))
                 .exceptionally(throwable -> PublishResult.failure(outboxEvent, throwable));
     }
 
+    /**
+     * 이벤트 발행 성공 또는 실패 결과를 저장한다.
+     */
     private void applyPublishResult(PublishResult result) {
+
         if (result.success()) {
             result.outboxEvent().publish(LocalDateTime.now());
             return;
@@ -72,7 +86,11 @@ public class VirtualAccountExpiredOutboxPublisher {
                 result.throwable());
     }
 
+    /**
+     * 실패 원인에서 기록할 오류 메시지를 추출한다.
+     */
     private String resolveErrorMessage(Throwable throwable) {
+
         Throwable resolvedThrowable = throwable instanceof CompletionException && throwable.getCause() != null
                 ? throwable.getCause()
                 : throwable;
@@ -83,16 +101,25 @@ public class VirtualAccountExpiredOutboxPublisher {
     }
 
     private record PublishResult(
+            // 발행 대기 이벤트.
             VirtualAccountOutboxEvent outboxEvent,
+
+            // 처리 성공 여부.
             boolean success,
+
+            // 처리 중 발생한 예외.
             Throwable throwable
     ) {
 
+        // 성공한 처리 결과를 구성한다.
         private static PublishResult success(VirtualAccountOutboxEvent outboxEvent) {
+
             return new PublishResult(outboxEvent, true, null);
         }
 
+        // 실패한 처리 결과를 구성한다.
         private static PublishResult failure(VirtualAccountOutboxEvent outboxEvent, Throwable throwable) {
+
             return new PublishResult(outboxEvent, false, throwable);
         }
     }

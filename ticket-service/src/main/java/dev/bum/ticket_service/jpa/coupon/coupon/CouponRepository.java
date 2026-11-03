@@ -11,17 +11,17 @@ public interface CouponRepository {
 
     Coupon insert(Coupon coupon);
 
-    Coupon update(Coupon coupon);
-
     Coupon selectById(Long couponId);
 
     Page<Coupon> selectByCond(CouponCondRequest cond, Pageable pageable);
 
     List<Coupon> selectDownloadableCoupons(LocalDateTime now);
 
-    long expireExpiredCoupons(LocalDateTime now);
-
     boolean existsByCode(String code);
 
     boolean existsByCodeExceptId(String code, Long couponId);
+
+    Coupon update(Coupon coupon);
+
+    long expireExpiredCoupons(LocalDateTime now);
 }

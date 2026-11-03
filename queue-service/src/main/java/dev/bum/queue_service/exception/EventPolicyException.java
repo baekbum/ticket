@@ -1,8 +1,11 @@
 package dev.bum.queue_service.exception;
 
 public class EventPolicyException extends IllegalArgumentException {
+
     private final boolean unavailable;
+
     public EventPolicyException(String reason) {
+
         super(switch (reason) {
             case "SALE_NOT_STARTED" -> "아직 판매가 시작되지 않은 공연입니다.";
             case "SALE_ENDED" -> "판매가 종료된 공연입니다.";
@@ -11,5 +14,8 @@ public class EventPolicyException extends IllegalArgumentException {
         });
         unavailable = "POLICY_UNAVAILABLE".equals(reason);
     }
-    public boolean isUnavailable() { return unavailable; }
+
+    public boolean isUnavailable() {
+
+        return unavailable; }
 }

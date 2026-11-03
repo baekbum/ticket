@@ -42,6 +42,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class DummyCardPaymentHistory {
 
+    // 처리 이력 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "history_id")
@@ -109,6 +110,7 @@ public class DummyCardPaymentHistory {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 카드 승인 결과를 반영한다.
     public static DummyCardPaymentHistory approved(
             DummyCard dummyCard,
             String requestingUserId,
@@ -117,6 +119,7 @@ public class DummyCardPaymentHistory {
             String maskedCardNumber,
             BigDecimal amount
     ) {
+
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
                 .userId(requestingUserId)
@@ -130,6 +133,7 @@ public class DummyCardPaymentHistory {
                 .build();
     }
 
+    // 카드 승인 실패 사유를 반영한다.
     public static DummyCardPaymentHistory approvalFailed(
             DummyCard dummyCard,
             String userId,
@@ -139,6 +143,7 @@ public class DummyCardPaymentHistory {
             BigDecimal amount,
             String failureReason
     ) {
+
         return DummyCardPaymentHistory.builder()
                 .dummyCard(dummyCard)
                 .userId(userId)
@@ -152,31 +157,41 @@ public class DummyCardPaymentHistory {
                 .build();
     }
 
+    // 티켓 서비스에 결제 완료 결과를 반영한다.
     public void completeTicketPayment(LocalDateTime ticketCompletedAt) {
+
         this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED;
         this.ticketCompletedAt = ticketCompletedAt != null ? ticketCompletedAt : LocalDateTime.now();
         this.failureReason = null;
     }
 
+    // 티켓 서비스에 결제 실패 결과를 반영한다.
     public void failTicketPayment(String failureReason) {
+
         this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_FAILED;
         this.failureReason = failureReason;
         // 반복해서 실패하는 건은 재처리 순서를 뒤로 옮겨 다른 승인 대기 건이 먼저 처리되도록 한다.
         this.updatedAt = LocalDateTime.now();
     }
 
+    // 모의 카드를 취소 상태로 변경한다.
     public void cancel(String failureReason) {
+
         this.status = CardPaymentHistoryStatus.CANCELLED;
         this.failureReason = failureReason;
     }
 
+    // 모의 카드 처리에서 환불 요청을 처리하고 결과를 반영한다.
     public void refund() {
+
         this.refundedAmount = this.amount;
         this.status = CardPaymentHistoryStatus.REFUNDED;
         this.failureReason = null;
     }
 
+    // 모의 카드 처리에서 환불 요청을 처리하고 결과를 반영한다.
     public void refund(BigDecimal refundAmount) {
+
         validateRefundAmount(refundAmount);
         this.refundedAmount = getRefundedAmount().add(refundAmount);
         this.status = getRefundableAmount().compareTo(BigDecimal.ZERO) == 0
@@ -185,18 +200,25 @@ public class DummyCardPaymentHistory {
         this.failureReason = null;
     }
 
+    // 누적 환불 금액 값을 반환한다.
     public BigDecimal getRefundedAmount() {
+
         return refundedAmount != null ? refundedAmount : BigDecimal.ZERO;
     }
 
+    // 환불 가능 잔액 값을 반환한다.
     public BigDecimal getRefundableAmount() {
+
         return amount.subtract(getRefundedAmount());
     }
 
+    // 환불 요청 금액이 환불 가능 범위에 있는지 검증한다.
     private void validateRefundAmount(BigDecimal refundAmount) {
+
         if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("환불 금액은 0보다 커야 합니다.");
         }
+
         if (refundAmount.compareTo(getRefundableAmount()) > 0) {
             throw new IllegalArgumentException("환불 금액이 남은 카드 승인 금액을 초과했습니다.");
         }

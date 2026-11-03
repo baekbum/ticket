@@ -20,6 +20,7 @@ public class VirtualAccountExpiredConsumer {
             containerFactory = "eventKafkaListenerContainerFactory"
     )
     public void consume(VirtualAccountExpiredEvent event) {
+
         log.info("가상계좌 만료 이벤트 수신: paymentNo={}", event.getPaymentNo());
         paymentService.expireVirtualAccountFromGateway(event);
     }

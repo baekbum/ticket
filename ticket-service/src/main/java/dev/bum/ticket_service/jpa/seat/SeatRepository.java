@@ -10,17 +10,30 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface SeatRepository {
+
     void insert(InsertSeatRequest info);
+
     void insertAppend(InsertSeatRequest info);
+
     void isExist(SeatCondRequest cond);
+
     Seat selectById(Long id);
+
     List<Seat> selectByEventId(Long eventId);
+
     List<Seat> selectByAreaId(Long areaId);
+
     long countByAreaId(Long areaId);
+
     List<Seat> selectBySeatList(Long eventId, List<SeatInfo> seatInfos);
+
     Page<Seat> selectByCond(SeatCondRequest cond, Pageable pageable);
+
     void update(UpdateSeatRequest info);
+
     void delete(Long id);
+
     void deleteByIdList(List<Long> seatIdList);
+
     void deleteByAreaId(Long areaId);
 }

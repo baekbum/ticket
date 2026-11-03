@@ -13,25 +13,45 @@ import java.util.StringJoiner;
 @NoArgsConstructor
 public class SeatCondRequest {
 
+    // 좌석 식별자.
     private Long seatId;
+
+    // 공연 식별자.
     private Long eventId;
+
+    // 좌석 구역 식별자.
     private Long areaId;
+
+    // 좌석 구역.
     private String zone;
+
+    // 좌석 행 번호.
     private Integer seatRow;
+
+    // 좌석 열 번호.
     private Integer seatCol;
+
+    // 좌석 등급.
     private SeatGrade grade;
+
+    // 좌석 상태.
     private SeatStatus status;
 
+    // 조회할 페이지.
     @Builder.Default // 빌더 패턴을 사용해서 만들 때도 기본값을 유지
     private Integer page = 0; // page 필드에 기본값 0 할당
 
+    // 페이지당 조회 건수.
     @Builder.Default
     private Integer size = 10; // size 필드에 기본값 10 할당
 
+    // 조회 결과 정렬 조건.
     List<String> sort; // "sort": ["teamName-asc","createdAt-desc"] 예시
 
+    // 객체의 문자열 표현을 반환한다.
     @Override
     public String toString() {
+
         // 🌟 콤마(,) 조립을 편하게 하기 위해 StringJoiner 활용 (EventCond 형태로 시작)
         StringJoiner sj = new StringJoiner(", ", "SeatCond{", "}");
 
@@ -41,12 +61,19 @@ public class SeatCondRequest {
 
         // 검색 조건 필드 검증 (타입에 맞춰 문자열은 작은따옴표 처리)
         if (seatId != null) sj.add("seatId=" + seatId);
+
         if (eventId != null) sj.add("eventId='" + eventId + "'");
+
         if (areaId != null) sj.add("areaId='" + areaId + "'");
+
         if (zone != null) sj.add("zone='" + zone + "'");
+
         if (seatRow != null) sj.add("seatRow='" + seatRow + "'");
+
         if (seatCol != null) sj.add("seatCol='" + seatCol + "'");
+
         if (grade != null) sj.add("grade=" + grade);
+
         if (status != null) sj.add("status=" + status);
 
         // 정렬 조건 필드 검증 (List 포맷팅 적용)

@@ -18,13 +18,18 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class VirtualAccountPaymentRefundService {
 
+    // 게이트웨이 가상계좌 API를 호출하는 클라이언트.
     private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
 
+    /**
+     * 결제 환불을 전액 환불 결과를 반영한다.
+     */
     public int refundAll(
             Payment payment,
             RefundAccountRequest refundAccount,
             Long paymentRefundProcessId
     ) {
+
         validateRefundableVirtualAccountPayment(payment, refundAccount);
         int refundAmount = payment.getRefundableAmount();
         paymentGatewayVirtualAccountClient.refund(
@@ -41,12 +46,16 @@ public class VirtualAccountPaymentRefundService {
         return refundAmount;
     }
 
+    /**
+     * 결제 환불을 부분 환불 결과를 반영한다.
+     */
     public int refundPartial(
             Payment payment,
             int refundAmount,
             RefundAccountRequest refundAccount,
             Long paymentRefundProcessId
     ) {
+
         validateRefundableVirtualAccountPayment(payment, refundAccount);
         paymentGatewayVirtualAccountClient.refund(
                 GatewayVirtualAccountRefundRequest.builder()
@@ -62,31 +71,42 @@ public class VirtualAccountPaymentRefundService {
         return refundAmount;
     }
 
+    /**
+     * 가상계좌 결제가 환불 가능한 상태인지 검증한다.
+     */
     private void validateRefundableVirtualAccountPayment(
             Payment payment,
             RefundAccountRequest refundAccount
     ) {
+
         if (payment == null) {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
         }
+
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
             throw new IllegalArgumentException("무통장 결제가 아닙니다.");
         }
+
         if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new IllegalArgumentException("환불할 수 없는 결제 상태입니다.");
         }
+
         if (refundAccount == null) {
             throw new IllegalArgumentException("환불 계좌 정보를 입력해야 합니다.");
         }
+
         if (refundAccount.getBankCompany() == null) {
             throw new IllegalArgumentException("환불 은행을 입력해야 합니다.");
         }
+
         if (!StringUtils.hasText(refundAccount.getAccountNumber())) {
             throw new IllegalArgumentException("환불 계좌번호를 입력해야 합니다.");
         }
+
         if (!StringUtils.hasText(refundAccount.getAccountHolder())) {
             throw new IllegalArgumentException("환불 계좌 예금주명을 입력해야 합니다.");
         }
+
         if (payment.getRefundableAmount() <= 0) {
             throw new IllegalArgumentException("환불 가능한 금액이 없습니다.");
         }

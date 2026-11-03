@@ -13,19 +13,19 @@ public interface UserCouponRepository {
 
     UserCoupon insert(UserCoupon userCoupon);
 
-    UserCoupon update(UserCoupon userCoupon);
-
     UserCoupon selectById(Long userCouponId);
 
     UserCoupon selectByIdForUpdate(Long userCouponId);
-
-    void lockForUpdate(UserCoupon userCoupon);
 
     List<UserCoupon> selectByUserId(String userId);
 
     List<UserCoupon> selectByUserId(String userId, UserCouponFilter filter, LocalDateTime now);
 
     Page<UserCoupon> selectByCond(UserCouponCondRequest cond, Pageable pageable);
+
+    UserCoupon update(UserCoupon userCoupon);
+
+    void lockForUpdate(UserCoupon userCoupon);
 
     long expireExpiredUserCoupons(LocalDateTime now);
 

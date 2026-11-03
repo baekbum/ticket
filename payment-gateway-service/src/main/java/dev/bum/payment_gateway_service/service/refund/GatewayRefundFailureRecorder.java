@@ -18,12 +18,20 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class GatewayRefundFailureRecorder {
+
+    // 게이트웨이 환불 데이터를 조회하고 저장하는 레포지토리.
     private final GatewayRefundJpaRepository refunds;
+    // 모의 카드 결제 이력 데이터를 조회하고 저장하는 레포지토리.
     private final DummyCardPaymentHistoryJpaRepository cardPayments;
+    // 모의 가상계좌 데이터를 조회하고 저장하는 레포지토리.
     private final DummyVirtualAccountJpaRepository virtualAccounts;
 
+    /**
+     * 환불 처리에서 처리 이력을 기록한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(Long processId, String paymentNo, PaymentMethod method, Long expectedVersion, String reason) {
+
         // 환불·종료와 동일한 원래 결제 행을 잠그고 최신 상태를 확인한다.
         boolean paymentExists = switch (method) {
             case CREDIT_CARD -> cardPayments.findByPaymentNoForUpdate(paymentNo).isPresent();

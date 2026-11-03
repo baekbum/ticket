@@ -28,22 +28,36 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class KafkaDlqReplayService {
-    private final KafkaDlqProperties properties;
-    private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
-    private final DlqReplayTransactionService transactions;
-    private final DlqRecordCodec codec;
-    private final ObjectMapper objectMapper;
 
+    // 처리에 사용할 설정.
+    private final KafkaDlqProperties properties;
+    // 이벤트를 Kafka 토픽으로 발행하는 클라이언트.
+    private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
+    // 실패 메시지 업무 처리를 담당하는 서비스.
+    private final DlqReplayTransactionService transactions;
+    // 실패 메시지 본문과 헤더를 직렬화하고 복원하는 도구.
+    private final DlqRecordCodec codec;
+    // 요청과 이벤트를 JSON으로 변환하는 직렬화 도구.
+    private final ObjectMapper objectMapper;
+    // 이벤트 전송 결과를 기다리는 최대 시간(밀리초).
     @Value("${app.kafka-dlq.send-timeout-ms:10000}")
     private long sendTimeoutMs = 10000;
 
+    /**
+     * 실패 메시지를 재발행한다.
+     */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DlqMessageHandleResponse replay(DlqMessageHandleRequest request) {
+
         return publish(request, DlqMessageHandleAction.REPLAY, null);
     }
 
+    /**
+     * 수정한 실패 메시지를 재발행한다.
+     */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DlqMessageHandleResponse replayModified(DlqMessageModifiedReplayRequest request) {
+
         try {
             if (!StringUtils.hasText(request.getModifiedPayload()) || objectMapper.readTree(request.getModifiedPayload()) == null) {
                 throw new IllegalArgumentException("수정 payload는 유효한 JSON 형식이어야 합니다.");
@@ -55,18 +69,34 @@ public class KafkaDlqReplayService {
                 request.getOperator(), request.getReason()), DlqMessageHandleAction.MODIFIED_REPLAY, request.getModifiedPayload());
     }
 
+    /**
+     * 중단된 처리 항목을 재시도할 수 있도록 해제한다.
+     */
+    public void releaseStalled(DlqMessageHandleRequest request) {
+
+        resolveTargetTopic(request.getDltTopic());
+        transactions.releaseStalled(request);
+    }
+
+    /**
+     * 실패 메시지를 폐기 상태로 변경한다.
+     */
     public DlqMessageHandleResponse discard(DlqMessageHandleRequest request) {
+
         resolveTargetTopic(request.getDltTopic());
         DlqReplayAttempt attempt = transactions.begin(request, null, DlqMessageHandleAction.DISCARD, null);
         return response("DISCARDED", request, attempt);
     }
 
-    public void releaseStalled(DlqMessageHandleRequest request) {
-        resolveTargetTopic(request.getDltTopic());
-        transactions.releaseStalled(request);
-    }
+    /**
+     * 실패 메시지 재처리 처리에서 이벤트를 발행한다.
+     */
+    private DlqMessageHandleResponse publish(
+            DlqMessageHandleRequest request,
+            DlqMessageHandleAction action,
+            String modifiedPayload
+    ) {
 
-    private DlqMessageHandleResponse publish(DlqMessageHandleRequest request, DlqMessageHandleAction action, String modifiedPayload) {
         String target = resolveTargetTopic(request.getDltTopic());
         // A: 발행 전에 처리권과 시도 이력을 먼저 커밋한다.
         DlqReplayAttempt attempt = transactions.begin(request, target, action, modifiedPayload);
@@ -96,13 +126,25 @@ public class KafkaDlqReplayService {
         return response(action == DlqMessageHandleAction.REPLAY ? "REPLAYED" : "MODIFIED_REPLAYED", request, attempt);
     }
 
+    /**
+     * 재처리 메시지를 발행할 대상 토픽을 결정한다.
+     */
     private String resolveTargetTopic(String topic) {
+
         String target = properties.targetTopicOf(topic);
         if (!StringUtils.hasText(target)) throw new IllegalArgumentException("허용되지 않은 DLT topic입니다: " + topic);
         return target;
     }
 
-    private DlqMessageHandleResponse response(String result, DlqMessageHandleRequest request, DlqReplayAttempt attempt) {
+    /**
+     * 처리 결과를 응답 객체로 구성한다.
+     */
+    private DlqMessageHandleResponse response(
+            String result,
+            DlqMessageHandleRequest request,
+            DlqReplayAttempt attempt
+    ) {
+
         return new DlqMessageHandleResponse(result, request.getDltTopic(), request.getPartition(), request.getOffset(),
                 attempt.targetTopic(), DlqRecordCodec.decode(attempt.key()), request.getOperator(), request.getReason());
     }

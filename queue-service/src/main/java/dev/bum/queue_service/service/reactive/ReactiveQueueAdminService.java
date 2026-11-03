@@ -19,12 +19,21 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ReactiveQueueAdminService {
+
+    // 서비스 작업의 관측 정보를 기록하는 레지스트리.
     private final ObservationRegistry observationRegistry;
+    // 대기열 대기 업무 처리를 담당하는 서비스.
     private final ReactiveWaitingQueueService waiting;
+    // 활성화 여부.
     private final ReactiveActiveQueueService active;
+    // 사용자 업무 처리를 담당하는 서비스.
     private final ReactiveUserQueueSessionService sessions;
 
+    /**
+     * 여러 공연의 대기열 상태를 조회한다.
+     */
     public Mono<List<QueueStatusResponse>> statuses(Long eventId, List<String> userIds, Map<String, String> tokens) {
+
         return Mono.defer(() -> {
             userIds.forEach(userId -> {
                 if (!StringUtils.hasText(userId)) throw new IllegalArgumentException("인증 정보가 올바르지 않습니다.");
@@ -46,7 +55,11 @@ public class ReactiveQueueAdminService {
                 .tap(Micrometer.observation(observationRegistry));
     }
 
+    /**
+     * 대기 토큰의 현재 대기열 상태를 조회한다.
+     */
     private Mono<QueueStatusResponse> waitingStatus(Long eventId, String userId, String token) {
+
         return active.admit(eventId, userId, token)
                 .flatMap(activeToken -> active.readyStatusResponse(eventId, activeToken))
                 .switchIfEmpty(Mono.defer(() -> waiting.waitingStatusResponse(eventId, token)));

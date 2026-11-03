@@ -27,73 +27,95 @@ import java.util.Map;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AuditLogEntity {
 
+    // 고유 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 중복 처리를 방지하는 멱등성 키.
     @Column(name = "idempotency_key", nullable = false, length = 100)
     private String idempotencyKey;
 
+    // 요청 내용의 일치 여부를 확인하는 해시.
     @Column(name = "request_hash", nullable = false, length = 64)
     private String requestHash;
 
+    // 이벤트 발생 시각.
     @Column(nullable = false)
     private LocalDateTime occurredAt;
 
+    // 이벤트가 발생한 서비스 이름.
     @Column(nullable = false, length = 50)
     private String serviceName;
 
+    // 작업 수행자 유형.
     @Column(nullable = false, length = 30)
     private String actorType;
 
+    // 작업 수행자 식별자.
     @Column(length = 50)
     private String actorId;
 
+    // 작업 수행자 이름.
     @Column(length = 100)
     private String actorName;
 
+    // 수행한 작업.
     @Column(nullable = false, length = 100)
     private String action;
 
+    // 작업 대상 유형.
     @Column(length = 50)
     private String targetType;
 
+    // 작업 대상 식별자.
     @Column(length = 100)
     private String targetId;
 
+    // 처리 결과.
     @Column(nullable = false, length = 20)
     private String result;
 
+    // 처리 사유.
     @Column(length = 500)
     private String reason;
 
+    // 요청자의 IP 주소.
     @Column(length = 45)
     private String ipAddress;
 
+    // 요청 클라이언트 정보.
     @Column(length = 500)
     private String userAgent;
 
+    // 요청 추적 식별자.
     @Column(length = 100)
     private String requestId;
 
+    // 분산 추적 식별자.
     @Column(length = 100)
     private String traceId;
 
+    // 변경 전 데이터.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> beforeData;
 
+    // 변경 후 데이터.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> afterData;
 
+    // 부가 정보.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
+    // 생성 시각.
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    // 전달받은 값으로 감사 로그 객체를 초기화한다.
     @Builder
     public AuditLogEntity(
             String idempotencyKey,
@@ -116,6 +138,7 @@ public class AuditLogEntity {
             Map<String, Object> afterData,
             Map<String, Object> metadata
     ) {
+
         LocalDateTime now = LocalDateTime.now();
         this.idempotencyKey = idempotencyKey;
         this.requestHash = requestHash;
@@ -139,7 +162,9 @@ public class AuditLogEntity {
         this.createdAt = now;
     }
 
+    // 원본 데이터를 감사 로그 객체로 변환한다.
     public static AuditLogEntity from(AuditLogEvent event, String requestHash) {
+
         return AuditLogEntity.builder()
                 .idempotencyKey(event.getIdempotencyKey())
                 .requestHash(requestHash)
@@ -163,7 +188,9 @@ public class AuditLogEntity {
                 .build();
     }
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public AuditLogResponse toResponse() {
+
         return AuditLogResponse.builder()
                 .id(id)
                 .occurredAt(occurredAt)

@@ -12,9 +12,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpdateReservationDeliveryTrackingRequest {
 
+    // 택배사.
     @NotBlank
     private String carrier;
 
+    // 운송장 번호.
     @NotBlank
     private String trackingNumber;
 }
