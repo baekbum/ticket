@@ -26,9 +26,10 @@ public class InsertEventScheduleRequest {
     @NotNull
     private LocalDateTime saleEndAt;
 
-    // 대기열에서 한 번에 입장시킬 인원 수.
+    // 대기열을 통과해 동시에 예매할 수 있는 최대 인원 수. 기본값은 1000명.
     @jakarta.validation.constraints.Positive
-    private Integer queueAdmissionSize;
+    @Builder.Default
+    private Integer queueAdmissionSize = 1000;
 
     // 예매 취소 가능 기한.
     @NotNull

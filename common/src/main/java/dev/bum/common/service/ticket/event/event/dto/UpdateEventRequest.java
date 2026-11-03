@@ -45,7 +45,8 @@ public class UpdateEventRequest {
     // 예매 판매 종료 시각.
     private LocalDateTime saleEndAt;
 
-    // 대기열에서 한 번에 입장시킬 인원 수.
+    // 동시 예매 허용 인원. 생략하면 기존 값을 유지한다.
+    @jakarta.validation.constraints.Positive
     private Integer queueAdmissionSize;
 
     // 예매 취소 가능 기한.

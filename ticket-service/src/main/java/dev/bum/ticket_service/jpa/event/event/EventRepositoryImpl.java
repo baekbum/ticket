@@ -79,7 +79,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .eventDateTime(info.getEventDateTime())
                 .saleStartAt(info.getSaleStartAt())
                 .saleEndAt(info.getSaleEndAt())
-                .queueAdmissionSize(info.getQueueAdmissionSize() == null ? 100 : info.getQueueAdmissionSize())
+                .queueAdmissionSize(info.getQueueAdmissionSize() == null ? 1000 : info.getQueueAdmissionSize())
                 .cancelDeadlineAt(info.getCancelDeadlineAt())
                 .runningMinutes(info.getRunningMinutes())
                 .ageLimit(info.getAgeLimit())

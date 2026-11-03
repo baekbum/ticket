@@ -69,6 +69,34 @@ class EventRepositoryImplTest {
         assertThat(response.getAvailableSeats()).isEqualTo(30000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.ON_SALE);
         assertThat(response.getTicketLimitScope()).isEqualTo(TicketLimitScope.PER_GROUP);
+        assertThat(response.getQueueAdmissionSize()).isEqualTo(1000);
+        assertThat(response.toResponse().getQueueAdmissionSize()).isEqualTo(1000);
+    }
+
+    @Test
+    void explicit_null_admission_size_uses_default_and_partial_update_keeps_existing_size() {
+        InsertEventRequest info = insertRequest("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2027, 1, 1, 19, 0));
+        info.setQueueAdmissionSize(null);
+        Event event = eventRepository.insert(info);
+        assertThat(event.getQueueAdmissionSize()).isEqualTo(1000);
+
+        eventRepository.update(event.getEventId(), UpdateEventRequest.builder().queueAdmissionSize(250).build());
+        eventRepository.update(event.getEventId(), UpdateEventRequest.builder().title("Updated Concert").build());
+        jpaRepository.flush();
+
+        assertThat(eventRepository.selectById(event.getEventId()).toResponse().getQueueAdmissionSize()).isEqualTo(250);
+    }
+
+    @Test
+    void non_positive_admission_size_is_rejected_on_insert_and_update() {
+        InsertEventRequest info = insertRequest("BTS", "BTS Concert", "Main Stadium", LocalDateTime.of(2027, 1, 1, 19, 0));
+        info.setQueueAdmissionSize(0);
+        assertThatThrownBy(() -> eventRepository.insert(info)).isInstanceOf(IllegalArgumentException.class);
+
+        Event existing = jpaRepository.findAll().getFirst();
+        assertThatThrownBy(() -> eventRepository.update(existing.getEventId(),
+                UpdateEventRequest.builder().queueAdmissionSize(-1).build()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -273,6 +301,8 @@ class EventRepositoryImplTest {
         assertThat(response.getAvailableSeats()).isEqualTo(34000);
         assertThat(response.getStatus()).isEqualTo(EventStatus.SOLD_OUT);
         assertThat(response.getTicketLimitScope()).isEqualTo(TicketLimitScope.PER_GROUP);
+        assertThat(response.getQueueAdmissionSize()).isEqualTo(1000);
+        assertThat(response.toResponse().getQueueAdmissionSize()).isEqualTo(1000);
     }
 
     @Test

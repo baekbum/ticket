@@ -13,7 +13,7 @@ CREATE TABLE events (
     event_date_time TIMESTAMP NOT NULL,
     sale_start_at TIMESTAMP,
     sale_end_at TIMESTAMP,
-    queue_admission_size INTEGER NOT NULL DEFAULT 100 CHECK (queue_admission_size > 0),
+    queue_admission_size INTEGER NOT NULL DEFAULT 1000 CHECK (queue_admission_size > 0),
     cancel_deadline_at TIMESTAMP,
     running_minutes INTEGER,
     age_limit INTEGER,

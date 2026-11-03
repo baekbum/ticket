@@ -49,7 +49,7 @@ public class EventResponse {
     // 예매 판매 종료 시각.
     private String saleEndAt;
 
-    // 대기열에서 한 번에 입장시킬 인원 수.
+    // 대기열을 통과해 동시에 예매할 수 있는 최대 인원 수.
     private Integer queueAdmissionSize;
 
     // 예매 취소 가능 기한.

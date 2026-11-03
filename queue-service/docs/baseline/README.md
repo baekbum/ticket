@@ -46,7 +46,7 @@ READY의 rank는 0, WAITING 순번은 1부터 시작한다. 날짜와 UUID의 �
 - 인증: `AUTH:STATE:{userId}`, 값 `version:activeFlag:role`.
 - Lua가 입장 가능 수와 순번을 확인하고 active 생성 + waiting 제거를 원자적으로 수행.
 - 스케줄러는 만료 정리용이다. 승격은 status 요청 및 관리자 bulk status에서 수행한다.
-- 설정 기본(local): admission-size=5, max-sessions-per-user=4, active TTL=20m, waiting TTL=1m, cleanup=20s.
+- 설정 기본(local): admission-size=1000, max-sessions-per-user=4, active TTL=20m, waiting TTL=1m, cleanup=20s.
 - 통합 테스트는 admission-size=2, max-sessions-per-user=2로 제한 경계를 재현한다.
 
 ## 현재 동작 중 주의할 사항

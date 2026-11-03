@@ -7,7 +7,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "app.queue")
 public class QueueProperties {
 
-    private int admissionSize = 100;
+    private int admissionSize = 1000;
     private int maxSessionsPerUser = 4;
     private Duration activeTokenTtl = Duration.ofMinutes(20);
     private Duration waitingTokenTtl = Duration.ofMinutes(1);
