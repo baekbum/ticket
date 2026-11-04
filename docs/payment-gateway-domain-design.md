@@ -1,0 +1,322 @@
+# PG 가맹점·거래·식별자 설계
+
+작성일: 2026-11-04. 현재 구현 분석은 [사전 분석](payment-gateway-refactoring-analysis.md)을 따른다.
+
+이 문서는 다음 구현의 기준 설계다. 아직 적용된 API나 운영 스키마를 설명하는 문서는 아니다. 이번 단계에서는 문서와 [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)을 작성한다. 실제 `schema.sql`, 애플리케이션 코드와 기존 DB용 마이그레이션은 후속 구현에서 함께 반영한다.
+
+## 1. 결정한 구조
+
+프런트엔드와 Ticksy 모두 PG의 외부 진입점을 사용할 수 있다. 컨트롤러는 인증된 요청을 PG 서비스에 전달하고, PG 서비스가 금융사별 서비스를 선택한다. 은행·카드는 같은 PG 애플리케이션, DB, 트랜잭션 관리자를 사용한다.
+
+```mermaid
+flowchart TD
+    T[Ticksy 서버] -->|가맹점 자격증명| C[PG Controller]
+    F[프런트엔드] -->|사용자 JWT + PG 결제 세션| C
+    C --> G[GatewayPaymentService]
+    G --> M[가맹점·거래·금액·소유 범위 검증]
+    G --> CR[CardPaymentRouter]
+    CR --> CP[카드사별 CardPaymentProcessor]
+    CP --> CC[CommonCardPaymentService]
+    G --> BR[BankPaymentRouter]
+    BR --> BP[은행별 BankPaymentProcessor]
+    BP --> BC[CommonBankPaymentService]
+    G --> P[PG 거래·처리 이력·통보 Outbox]
+    P --> N[MerchantNotificationService]
+    N --> A[등록된 가맹점 어댑터]
+    A --> T
+```
+
+- 가맹점 코드(`merchantId`): PG를 이용하는 업체의 숫자 키. 최초 가맹점은 Ticksy다.
+- `cardCompany`, `bankCompany`: 금융 서비스 구현체를 선택하는 코드다. 가맹점 코드와 독립적이다.
+- 금융사별 서비스는 정책과 금융사 선택을 담당하고 공통 금융 서비스를 DI로 주입받는다. 예: `ShinhanCardPaymentService → CommonCardPaymentService`.
+- 금융사별 외부 API 계약이 같은 현재 단계에서는 회사마다 컨트롤러를 만들지 않는다. 입금 제공자용 진입점은 별도 컨트롤러로 유지한다.
+- 공통 금융 서비스는 PG 요청 DTO, 사용자 인증 principal, Ticksy Feign Client, 가맹점 통보 Outbox를 참조하지 않는다. 금융 입력·결과 객체와 원장·금융 거래·이력만 다룬다.
+- 은행/카드 처리 후 PG 상태와 Outbox를 갱신하는 책임은 PG 서비스에 둔다. 은행↔PG·카드↔PG 내부 Outbox는 추가하지 않는다.
+
+### 패키지와 클래스
+
+기존 `controller`, `service`, `jpa`, `dto` 규칙을 유지한다. 아래는 도입할 클래스의 위치이며 현재 존재하는 클래스 목록이 아니다.
+
+```text
+controller/
+  gateway/GatewayPaymentController
+  card/GatewayCardPaymentController             # 기존 경로 호환 진입점
+  virtualAccount/GatewayVirtualAccountController
+  bank/BankDepositController                   # 기존 deposit 경로를 인계
+service/
+  merchant/MerchantAuthenticationService
+  gateway/GatewayPaymentService                # HTTP 검증·통보를 조정, 전체 TX 없음
+  gateway/GatewayPaymentCommandService         # 금융 변경·PG 상태·Outbox 로컬 TX
+  gateway/GatewayRefundRegistrationService     # 원거래 잠금 전 최초 환불 요청 보존
+  gateway/GatewayPaymentSessionService
+  gateway/notification/MerchantNotificationService
+  gateway/notification/ticksy/TicksyMerchantAdapter
+  card/CardPaymentProcessor
+  card/CardPaymentRouter
+  card/CommonCardPaymentService
+  card/provider/ShinhanCardPaymentService       # 지원 카드사별 구현체
+  bank/BankPaymentProcessor
+  bank/BankPaymentRouter
+  bank/CommonBankPaymentService
+  bank/provider/KbBankPaymentService            # 지원 은행별 구현체
+jpa/
+  merchant/Merchant
+  gateway/GatewayPayment
+  gateway/GatewayPaymentHistory
+  card/                                        # 기존 원장·원승인 연결 유지
+  virtualAccount/                              # 기존 계좌·이력 연결 유지
+  refund/                                      # 가맹점 범위의 환불 요청
+  outbox/                                      # PG가 소유하는 서비스 간 전달 기록
+```
+
+라우터는 Spring이 주입한 구현체 목록으로 코드별 Map을 구성한다. 지원 코드 중복은 시작 시 실패시키고, 지원하지 않는 코드는 금융 변경 전에 거절한다. 공통 enum에 있는 간편결제 수단은 이번 구현에서 지원하지 않는다. 카드/은행 인터페이스에 불필요한 공통 상속은 도입하지 않는다.
+
+개념적인 메서드 계약은 다음과 같다. 금융 엔티티·잠금 획득과 이력 저장은 공통 금융 서비스가 수행한다.
+
+```java
+// PG가 요청 시점의 선택과 저장된 거래 정보를 검증한 뒤 호출한다.
+CardApprovalResult approve(CardApprovalCommand command);
+CardCancellationResult cancelApproval(CardCancellationCommand command);
+CardRefundResult refund(CardRefundCommand command);
+
+BankAccountIssueResult issue(BankAccountIssueCommand command);
+BankDepositResult deposit(BankDepositCommand command);
+BankCancellationResult cancel(BankCancellationCommand command);
+BankExpirationResult expire(BankExpirationCommand command);
+BankRefundResult refund(BankRefundCommand command);
+```
+
+각 command에는 PG 거래 ID와 금융 처리에 필요한 값만 넣는다. 은행 발급 command에는 `depositDeadline`을 넣고 공연일은 전달하지 않는다. 금융 결과에 merchant 통보 완료 여부를 넣지 않는다.
+
+## 2. 식별자
+
+| 식별자 | 형식·발급 주체 | 의미와 범위 |
+| --- | --- | --- |
+| `merchant_id` | BIGINT / PG DB | 가맹점 PK이자 공개 숫자 가맹점 코드. 인증 결과의 소유 범위이며 비밀값이 아님 |
+| `pg_payment_id` | UUID / PG | 공통 PG 거래 PK. 애플리케이션에서 한 번 발급하고 DB에는 UUID로 저장 |
+| `merchant_payment_no` | VARCHAR(60) / 가맹점 | Ticksy의 기존 `paymentNo`. merchant 안에서만 유니크 |
+| 카드 `transaction_id` | 기존 CARD-UUID / 카드 도메인 | 원승인 거래번호. PG 거래 ID와 구분 |
+| `gateway_refund_id` | UUID / PG | PG 환불 기록 PK |
+| `merchant_refund_request_id` | VARCHAR(64) / 가맹점 | Ticksy의 기존 `paymentRefundProcessId`를 문자열로 정규화한 값 |
+| `event_id` | UUID / PG | 커밋된 통보 이벤트의 ID. 재전달에도 유지 |
+
+필수 유니크는 `(merchant_id, merchant_payment_no)`와 `(merchant_id, merchant_refund_request_id)`다. 같은 가맹점의 환불 ID를 다른 결제에 재사용해도 거절한다. 다른 가맹점은 같은 paymentNo와 환불 ID를 사용할 수 있다. PG ID를 안다는 사실은 접근 권한을 부여하지 않는다.
+
+JSON의 기존 `paymentNo`, `transactionId`, `paymentRefundProcessId` 이름은 초기 호환 DTO에서 유지한다. `paymentNo`를 PG ID로 바꾸지 않고 `pgPaymentId`를 별도로 추가한다. 신규 공통 환불 API의 요청 ID는 문자열이며 Ticksy 호환 API는 기존 Long 값을 변환한다. 두 필드를 함께 받는 경우 서로 다른 값을 허용하지 않는다.
+
+## 3. 핵심 테이블
+
+### merchants / Merchant
+
+| 컬럼 | 형식·조건 | 책임 |
+| --- | --- | --- |
+| `merchant_id` | BIGSERIAL PK, 양수 | 숫자 가맹점 코드. 등록 후 변경·재사용하지 않음 |
+| `merchant_name` | VARCHAR(100), NOT NULL, 중복 허용 | 가맹점 표시 이름. 식별·인증 기준으로 사용하지 않음 |
+| `status` | ACTIVE / SUSPENDED | 신규 처리 허용 정책 |
+| `credential_key` | VARCHAR(64), NOT NULL, UNIQUE | 서버 설정의 인증 자격증명 그룹 참조 |
+| `notification_adapter` | VARCHAR(40), NOT NULL | 허용된 가맹점 어댑터 코드 |
+| `notification_target_key` | VARCHAR(100), NOT NULL | 등록된 HTTP/Kafka 통보 대상 설정 참조 |
+| `created_at`, `updated_at` | TIMESTAMP(6) | 생성·수정 시각 |
+
+`merchants` 자체가 숫자 코드와 가맹점명을 매핑한다. 별도의 가맹점 코드 매핑 테이블이나 문자열 `merchant_code` 컬럼은 추가하지 않는다. 예시는 다음과 같다.
+
+| merchant_id (가맹점 코드) | merchant_name |
+| --- | --- |
+| 1 | Ticksy |
+| 2 | Melon |
+| 3 | Ticksy |
+
+1번과 3번은 이름이 같아도 서로 다른 가맹점이다. 이름을 변경해도 코드는 유지한다. JSON과 인증 컨텍스트는 `merchantId` 하나로 이 숫자를 표현한다. 예시 번호를 서비스 분기 조건으로 하드코딩하지 않고, 실제 등록된 행과 자격증명·통보 설정으로 연결한다. 기존 초안의 merchant_name에도 유니크 제약은 없었으며, 이번 변경은 숫자 PK를 가맹점 코드로 통일하는 결정이다.
+
+비밀 토큰·사용자 JWT·카드 원문은 저장하지 않는다. 등록 SQL에도 비밀값을 넣지 않는다. `credential_key`는 환경변수/보안 설정으로 주입한 토큰 그룹에 연결한다. 현재 `APP_INTERNAL_SERVICE_TOKEN`은 최초 Ticksy credential 그룹의 토큰으로 재사용한다. 가맹점 추가 시 토큰 그룹도 분리한다. 동일 그룹에서 현재/이전 토큰을 허용해 회전할 수 있다.
+
+SUSPENDED는 준비·승인·발급·수단 전환을 차단한다. 기존 거래 조회·취소·환불은 같은 가맹점 인증과 소유 검증 후 허용한다. 이미 발급된 계좌의 입금 사실 수신, 기한 만료, 통보 재시도도 계속 처리한다. 가맹점을 일시 중단했다고 기존 금융 사실을 누락시키지 않는다. 가맹점과 거래는 물리 삭제하지 않는다.
+
+### gateway_payments / GatewayPayment
+
+| 컬럼 | 형식·조건 | 책임 |
+| --- | --- | --- |
+| `pg_payment_id` | UUID PK | 내부 거래 연결·API 결과 식별 |
+| `merchant_id` | BIGINT NOT NULL FK | 소유 가맹점 |
+| `merchant_payment_no` | VARCHAR(60) NOT NULL | 가맹점 결제번호 |
+| `buyer_reference` | VARCHAR(50) NOT NULL | 가맹점이 인증해 전달한 예매자 ID |
+| `payment_method` | CREDIT_CARD / BANK_TRANSFER | 현재 저장된 결제수단 |
+| `card_company`, `bank_company` | VARCHAR(30), 조건부 NULL | 최초 승인/발급 시 확정한 금융사 |
+| `amount` | NUMERIC(15,2), 양수 | 최초 확정 금액, 변경 불가 |
+| `refunded_amount` | NUMERIC(15,2), 기본 0 | 실제 성공 환불 누적액 |
+| `status` | PG 상태 enum | 금융 처리와 취소·만료의 결과 |
+| `creation_request_hash` | CHAR(64) NOT NULL | 최초 준비 요청의 정규화된 불변 내용 해시 |
+| `method_revision` | INTEGER, 기본 0 | 명시적 수단 전환 때만 증가 |
+| `expires_at` | TIMESTAMP(6) NOT NULL | 현재 수단의 승인/입금 기한 |
+| `paid_at`, `cancelled_at` | TIMESTAMP(6), NULL 가능 | 최초 금융 완료·취소 시각 |
+| `version` | BIGINT, 기본 0 | JPA @Version, 지연된 결과 덮어쓰기 방지 |
+| `created_at`, `updated_at` | TIMESTAMP(6) | 생성·수정 시각 |
+
+`UNIQUE(merchant_id, merchant_payment_no)`가 번호 매핑 자체다. 매핑 전용 테이블은 만들지 않는다. Outbox·환불의 가맹점 스냅샷 FK를 검증하기 위해 `(pg_payment_id, merchant_id)`에도 유니크를 둔다.
+
+현재 지원 통화는 KRW다. 금액은 기존 금융 도메인의 BigDecimal/NUMERIC(15,2)를 유지하고, Ticksy 어댑터는 기존 정수 금액과 정확하게 대조한다. scale 2를 초과한 실질 소수는 저장 전 거절한다. 입력의 금액 표현 차이는 해시에 영향을 주지 않도록 2자리로 정규화한다.
+
+최초 해시는 가맹점 결제번호·예매자·최초 수단·금액·기한·발급 시 은행의 고정 필드로 만든다. 카드번호·CVC·비밀번호·세션 토큰·통보 URL을 포함하거나 보존하지 않는다. 같은 키의 준비 재요청은 최초 해시를 비교하고 현재 거래 결과를 반환한다. 현재 수단은 변경될 수 있으므로 최초 수단을 현재 수단으로 대체해 해시를 다시 계산하지 않는다.
+
+### gateway_payment_histories / GatewayPaymentHistory
+
+PG의 성공한 업무 처리와 상태 전이를 append-only로 저장한다. 핵심 필드는 `history_id`, `pg_payment_id`, `operation_type`, `operation_key`, `before_status`, `after_status`, `amount`, `request_hash`, `details`, `occurred_at`이다. `UNIQUE(pg_payment_id, operation_type, operation_key)`를 둔다.
+
+`details`는 명시한 필드만 저장하는 JSONB다. 예: 계좌 발급 결과, 수단 전환의 은행·고정 기한, 보상 취소 사유, 환불 ID. 카드 원문·인증 토큰은 기록하지 않는다. 실패 시도·전달 재시도는 성공 이력을 중복 생성하지 않고 기존 실패 기록/Outbox 시도 정보에서 관리한다. 이력 테이블은 번호 매핑이나 미완료 환불 등록을 대신하지 않는다.
+
+## 4. 금융 모델 연결
+
+```mermaid
+erDiagram
+    merchants ||--o{ gateway_payments : owns
+    gateway_payments ||--o{ gateway_payment_histories : records
+    gateway_payments ||--o| dummy_card_payment_histories : card_approval
+    dummy_cards ||--o{ dummy_card_payment_histories : used_by
+    gateway_payments ||--o| dummy_virtual_accounts : bank_account
+    dummy_virtual_accounts ||--o{ dummy_virtual_account_payment_histories : records
+    gateway_payments ||--o{ gateway_refunds : refunds
+```
+
+- 기존 `dummy_cards`는 카드 원장으로 유지한다. 여기에 특정 PG 거래 FK를 두지 않는다.
+- 기존 `DummyCardPaymentHistory`는 실질적으로 원승인 거래 행이다. 초기 구현에서는 테이블/클래스 이름을 유지하고 `pg_payment_id UNIQUE NOT NULL FK`를 추가한다. 금융 상태에서 TICKET_PAYMENT_*를 분리한다. 카드 승인·취소·환불의 상세 이력은 append-only 금융 이력으로 남긴다.
+- 기존 `dummy_virtual_accounts`에도 `pg_payment_id UNIQUE NOT NULL FK`를 추가한다. 계좌번호의 전역 유니크는 유지한다. 은행 이력은 원계좌 FK를 통해 PG 거래에 연결된다.
+- 두 금융 테이블의 `payment_no`는 이행 중 원번호 스냅샷으로 보존할 수 있지만, 단독 유니크·운영 조회 기준에서 제외한다. 금융 처리 조회는 PG 거래 ID를 사용한다.
+- 한 PG 거래의 금융수단은 PG 상태/잠금 아래에서 하나만 확정한다. 승인 거래가 생긴 뒤 다른 수단의 계좌를 만들 수 없다. 서로 다른 금융 테이블에 대한 이 규칙은 서비스 트랜잭션과 회귀 테스트로 검증한다.
+- 은행의 입금 사실은 `deposited_at`, 최초 입금자, 금액·입금 이력으로 보존한다. `hasDeposit()`은 현재 상태가 아니라 최초 입금 사실을 기준으로 바꾼다. CANCELLED는 실제 반환을 의미하지 않는다.
+
+## 5. 상태와 멱등성
+
+### PG 상태
+
+| 전이 | 조건 |
+| --- | --- |
+| 생성 → READY | 인증된 merchant 요청의 번호·금액·예매자·기한 고정 |
+| READY → WAITING_DEPOSIT | 은행 계좌 발급 성공 |
+| READY → PAID | 카드 승인·사용액 반영 성공 |
+| WAITING_DEPOSIT → PAID | 최초 유효 입금 반영 |
+| PAID → PARTIALLY_REFUNDED → REFUNDED | 성공한 환불 누적액 반영. 전액 환불은 PAID → REFUNDED도 허용 |
+| READY / WAITING_DEPOSIT / EXPIRED → CANCELLED | 원거래/계좌를 검증한 취소. EXPIRED 취소는 기존 계좌 취소 계약 보존 |
+| PAID → CANCELLED | 확정적인 카드 보상 취소 또는 Ticksy 예매 취소 수렴 |
+| READY / WAITING_DEPOSIT → EXPIRED | 해당 수단의 기한 만료 확정 |
+| READY → FAILED | 금융 효과가 없는 재사용 불가 업무 실패. 기존 terminal 실패도 이관 가능. 입력 오류·HTTP 통보 실패에는 사용하지 않음 |
+
+금융 상태, PG 상태, 통보 상태를 별도 의미로 둔다. PG PAID는 금융 반영 완료이며 Ticksy 예매 완료까지 보장하지 않는다. Ticksy 통보 실패는 Outbox PENDING으로 표현한다. 사용자의 결제 완료 화면은 초기에는 기존처럼 Ticksy 반영 확인까지 기다린다.
+
+입금 후 CANCELLED라도 `paid_at`과 은행 입금 기록을 유지한다. 실제 환불이 없으면 `refunded_amount`는 0이다. 카드 승인 보상 취소도 환불 요청과 구분한 작업 이력을 사용한다. 만료 계좌의 신규 입금 수락이나 늦은 입금의 실제 반환 기능은 추가하지 않는다.
+
+### 작업별 키와 비교 내용
+
+| 작업 | 멱등 범위 | 같은 키에서 검증할 내용 |
+| --- | --- | --- |
+| 거래 준비 | merchant + merchant paymentNo | 최초 준비 해시 |
+| 승인 | PG 거래 + APPROVE | 금액·예매자·원승인 금융사/카드 식별. 카드 해시는 금융 거래에서 비교 |
+| 계좌 발급 | PG 거래 + ISSUE_ACCOUNT | 금액·은행·고정 입금기한 |
+| 입금 | PG 거래 + DEPOSIT | 계좌·금액·입금자·최초 확정 시각. 시각 생략 재요청은 기존 시각 재사용 |
+| 전체 취소 | PG 거래 + CANCEL + FULL | 원번호·계좌/원승인·금액. 이미 취소되어도 내용부터 검증 |
+| 승인 보상 취소 | PG 거래 + CANCEL_APPROVAL | 원승인 거래번호·승인액 |
+| 만료 | PG 거래 + EXPIRE | 계좌/수단·고정 기한 |
+| 부분/전체 환불 | merchant + merchant refund request ID | 대상 PG 거래·저장된 수단·금액·원승인/환불 계좌 |
+| 카드 → 계좌 전환 | PG 거래 + CHANGE_METHOD + BANK_TRANSFER | 원수단·금액·은행·최초 전환 요청의 고정 기한 |
+| 통보 | 저장된 event_id | 같은 PG 거래·merchant·payload·발생시각 |
+
+동시 최초 준비는 DB 유니크로 승자를 결정한다. 유니크 충돌로 rollback-only가 된 트랜잭션 안에서 재조회하지 않는다. 별도 트랜잭션에서 승자의 거래를 읽어 요청을 비교한 뒤 결과를 반환한다. 새로운 PG ID를 생성해 같은 merchant 번호의 두 번째 금융 처리를 시작하지 않는다.
+
+수단 전환은 별도 명시적 명령으로 한다. PG 행을 잠그고 READY·원승인 없음·유효 기한을 확인한 뒤 은행 발급, 수단 변경, `method_revision` 증가, 이력을 함께 커밋한다. 준비 API의 요청 수단이 다르다는 이유로 자동 전환하지 않는다. 전환과 승인은 같은 PG 행을 잠가 직렬화하고, 전환 이전 카드 세션은 revision 검증으로 승인을 차단한다.
+
+## 6. 인증과 실제 카드 진입점
+
+### 서버 요청
+
+`X-Service-Token` 검증 결과를 `AuthenticatedMerchant(merchantId, credentialKey)`에 연결한다. 등록/상태 검사 후 서비스로 전달한다. 요청의 `merchantId`(숫자 가맹점 코드)가 있다면 인증 결과와 일치하는지만 검사한다. 가맹점명으로 조회·인증하거나 요청 코드만으로 권한을 부여하지 않는다.
+
+모든 조회·취소·환불은 `pgPaymentId + authenticatedMerchantId` 또는 `authenticatedMerchantId + paymentNo`로 시작한다. 다른 가맹점 거래는 존재 여부를 노출하지 않는 404를 반환한다. 금융수단과 금융사는 이 조회로 얻은 저장값을 사용한다. 요청의 method/company 필드는 일치 검증에만 쓴다.
+
+### 프런트엔드 요청
+
+사용자 JWT만으로 merchant를 정하지 않는다. 카드 원문을 PG로 직접 보내는 기존 경로를 유지하기 위해 **PG가 발급한 결제 세션**을 추가한다. 세션 전용 DB 매핑 테이블은 만들지 않는다.
+
+1. 기존 checkout confirm이 READY Payment를 커밋한다.
+2. 브라우저가 신규 Ticksy `POST /ticket/api/v1/checkout/payments/{paymentNo}/gateway-session`을 사용자 JWT로 호출한다.
+3. Ticksy가 짧은 조회 트랜잭션에서 소유자·금액·수단·기한을 확인한다. 트랜잭션 종료 후 서버 자격증명으로 PG 준비 API를 호출한다.
+4. PG가 `(merchant, paymentNo)` 거래를 생성/재조회하고 서명한 세션을 반환한다. Ticksy는 `pgPaymentId`를 짧은 별도 트랜잭션으로 저장한 뒤 브라우저에 전달한다. PG 성공 뒤 저장/응답이 유실되면 같은 번호로 복구한다.
+5. 브라우저는 기존 `/payment-gateway/api/v1/payments/card/approve`, 카드 상태 조회 경로에 사용자 JWT와 `X-PG-Payment-Session`을 함께 전송한다. 카드 입력값은 계속 PG로 직접 보낸다.
+
+세션은 `iss`, `aud`, `exp`, `merchantId`, `pgPaymentId`, `buyerReference`, `paymentMethod`, `methodRevision`, `scope`에 서명한다. 서명 키는 사용자 JWT/서비스 토큰과 분리하여 환경 설정으로 주입한다. 원문은 DB·로그·장기 브라우저 저장소에 남기지 않는다. 브라우저 메모리에 두고 새로고침 시 Ticksy에서 다시 받는다.
+
+승인 세션은 기본 최대 5분이며 거래 승인 기한을 넘기지 않는다. 조회 세션도 최대 5분으로 하되 거래 기한 이후의 결과 확인을 허용한다. 기한 후 갱신은 본인 거래의 QUERY scope만 발급한다. 세션을 갱신해도 결제/금융 작업의 멱등 키는 바뀌지 않는다. PG가 JWT subject·세션 buyer·저장된 buyer를 대조하고, 승인 직전 잠금 아래에서도 수단/revision을 재검증한다.
+
+기존 브라우저 경로와 본문 필드는 유지할 수 있지만 **신규 세션 헤더가 필수**가 되므로 프런트엔드·Ticksy·PG를 조율해 배포해야 한다. 세션 없는 구버전 요청은 금융 처리 전에 거절한다. 일반 요청이 고른 merchant 코드로 우회하는 호환 모드는 만들지 않는다.
+
+### Ticksy 저장과 API 변화
+
+- `payments.pg_payment_id UUID NULL UNIQUE`를 추가한다. 외부 DB 간 FK는 두지 않는다. 카드 원승인 거래번호와 기존 paymentNo는 유지한다.
+- 신규 PG 서버 준비 API: `POST /api/v1/payments/gateway/prepare`. 준비 결과에 `pgPaymentId`, 기존 `paymentNo`, 상태, 카드의 승인/조회 세션을 반환한다. 세션은 인증된 서버가 요청한 buyer 범위에만 발급한다.
+- 수단 전환 API: `POST /api/v1/payments/gateway/{pgPaymentId}/method`. 초기 지원 전환은 CREDIT_CARD → BANK_TRANSFER 한 번이며 재요청에 같은 발급 결과를 반환한다.
+- 계좌 발급 호환 API는 서버 merchant 인증으로 공통 거래 준비·은행 발급을 호출하고 `pgPaymentId`를 추가 반환한다. `eventDateTime`으로부터 기한을 계산하는 코드는 Ticksy로 이동한다. Ticksy는 최초 기한·은행 요청값을 저장하여 재시도 때 다시 계산하지 않는다.
+- 현재 Ticksy 계좌 발급 HTTP는 checkout 트랜잭션 안에 있다. 후속 구현에서 분리할 때는 먼저 로컬 준비 상태/요청 스냅샷을 커밋하고, 외부 호출 후 짧은 바인딩 트랜잭션을 사용한다. 중간 실패를 신규 결제 생성으로 처리하지 않고 같은 요청으로 재개한다. 준비 중 로컬 만료/취소가 먼저 확정되면 PG 계좌의 취소 Outbox로 정리하고, 지연 입금 통지는 기존 취소 수렴 계약을 사용한다.
+- 카드 최초 validate와 최종 settle은 Ticksy 어댑터에서 호출한다. 결과 조회 응답은 `pgStatus`, `notificationStatus`를 추가하고 기존 카드 상태 문자열을 호환 projection으로 반환한다. 기존 200/202 판정과 재조회 흐름을 유지한다.
+
+## 7. 환불 모델과 트랜잭션
+
+`gateway_refunds`의 PK를 `gateway_refund_id UUID`로 변경하고 `merchant_id`, `pg_payment_id`, `merchant_refund_request_id`를 추가한다. 기존 수단·금액·원거래번호·환불 계좌·최초 성공 응답·REQUESTED/SUCCEEDED/FAILED/CLOSED·version은 유지한다. `(merchant_id, merchant_refund_request_id)`는 유니크다. `(pg_payment_id, merchant_id)` 복합 FK로 다른 가맹점 거래 연결을 DB에서도 차단한다.
+
+최초 환불 요청 보존 B는 **원거래를 잠그는 금융 트랜잭션 A보다 먼저 커밋**한다.
+
+1. 트랜잭션 없는 PG 조정 서비스가 인증·요청 형식과 소유 PG 거래를 확인한다.
+2. 등록 B에서 최초 요청을 INSERT하거나 기존 요청을 조회해 전 필드를 비교한다. 동시 삽입 충돌은 B 롤백 후 별도 조회로 처리한다. B에는 금융 변경이 없다.
+3. 금융 A가 PG 거래 → 환불 요청 → 금융 거래 → 카드 원장 순서로 잠그고 요청·최신 상태·잔액을 다시 검증한다.
+4. 성공한 요청이면 최초 응답을 반환한다. CLOSED이면 실행을 거절한다. 그 외에는 금융 환불·금융 이력·PG 누적 환불액/상태·PG 이력·환불 SUCCEEDED를 함께 커밋한다.
+5. A 롤백 후 실패 기록은 별도 트랜잭션에서 PG 거래 → 환불 요청 순으로 잠그고 예상 version과 성공/종료 여부를 확인한다. B가 남아 있으므로 같은 요청 ID로 복구할 수 있다.
+6. resolve/미실행 종료도 같은 잠금 순서를 따른다. 기록이 없는 ID의 CLOSED 등록 역시 원거래 잠금을 잡기 전에 수행하고, 이미 성공한 기록이면 최초 결과를 보존한다.
+
+이 순서 변경은 FK를 추가하면서 기존 B를 A의 원거래 잠금 안에 그대로 두는 문제를 피하기 위한 설계 판단이다. PostgreSQL의 FK 검사 구현은 부모 행에 KEY SHARE 잠금을 요청하며, FOR UPDATE와 충돌한다. [PostgreSQL FK 구현](https://github.com/postgres/postgres/blob/REL_17_STABLE/src/backend/utils/adt/ri_triggers.c), [행 잠금 공식 문서](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS).
+
+Ticksy의 기존 환불 프로세스 ID·최초 스냅샷·응답 유실 후 resolve 복구는 유지한다. PG 로컬 성공이 Ticksy까지 원자적으로 커밋되는 것으로 가정하지 않는다. 환불 응답 계약을 유지하므로 이 단계에서 중복된 환불 완료 callback을 새로 추가하지 않는다.
+
+## 8. 공통 잠금과 통보
+
+모든 금융 변경의 기본 잠금 순서는 **PG 거래 → 작업 기록(필요 시) → 계좌/원승인 → 카드 원장**이다. 공통 금융 서비스는 `MANDATORY`로 PG command 트랜잭션에 참여하고 독립 커밋하지 않는다. 카드·은행 정책 구현체도 전체 금융 호출을 동일 트랜잭션으로 전달한다.
+
+입금은 계좌번호로 PG ID를 scalar 조회한 뒤 PG 거래를 먼저 잠그고 계좌를 잠가 연결·금액·상태를 재확인한다. 은행 입금 API 진입점은 유지하되 PG가 원자성을 조정한다. 만료 배치도 계좌를 먼저 잠근 후 PG를 호출하지 않고 PG ID 목록을 가져와 거래별 동일 순서를 따른다. 카드 원장이 같아 여러 PG 거래가 경합해도 잠금 순서를 역전시키지 않는다.
+
+금융 행 잠금을 보유한 채 Ticksy HTTP를 호출하지 않는다. 카드 validate는 로컬 금융 트랜잭션 전에 수행하고, 승인 직전 PG 상태를 재검증한다. validate 이후 Ticksy 상태가 바뀐 경우 기존 최종 settle의 확정 거절·일회성 승인 보상으로 수렴한다.
+
+통보는 다음 방식으로 기존 전달 보장을 유지한다.
+
+- 기존 `virtual_account_deposit_outbox`와 `virtual_account_outbox_events`를 확장해 `pg_payment_id`, `merchant_id`, `event_id`를 연결한다. 기존 PENDING/DELIVERED와 PENDING/PUBLISHED의 의미는 유지한다.
+- 카드의 승인 이력 스캔 역할을 인계할 `gateway_card_notification_outbox`를 추가한다. 카드 승인·PG PAID·PG 이력·카드 통보 PENDING을 함께 커밋한다. 이는 PG→가맹점 통보용 Outbox다.
+- 세 Outbox의 전달은 PG 계층의 `MerchantNotificationService`와 등록 어댑터를 사용한다. 기존 계좌 입금 publisher가 금융 도메인에서 Ticksy Feign을 직접 참조하는 구조를 옮긴다.
+- Ticksy의 `virtual_account_cancel_outbox`는 유지하고 PG ID를 추가한다. Ticksy 로컬 취소·좌석 복원과 Outbox 저장의 공동 롤백을 유지한다.
+- 각각의 이벤트는 최초 payload·발생시각·eventId와 등록된 통보 대상 설정의 식별자/버전을 저장한다. 설정 버전은 코드/운영 설정에서 관리하고 미전달 이벤트가 있으면 해당 버전을 유지한다. 일반 요청의 URL·토픽은 받지 않는다.
+- HTTP는 검증된 가맹점 응답에 DELIVERED, Kafka는 브로커 확인에 PUBLISHED다. Kafka consumer 실패/DLT는 별도의 수신 경계다. PG HTTP 통보는 기존 고정 간격/무제한 재시도를 유지한다.
+
+카드 통보 Outbox·금융 거래는 함께 생기므로 승인 후 서버 종료도 복구된다. 기존 복구 스케줄러와 신규 카드 Outbox가 같은 건을 동시에 전달하지 않도록 이관 시 단일 경로로 전환한다.
+
+전달은 Outbox 행 잠금으로 중복 작업자를 제어한다. 외부 HTTP 중에는 금융/PG 거래 행을 잠그지 않는다. 응답 후 추가 금융 변경이 필요한 경우 현재 잠금을 놓고 **PG 거래 → 금융 거래 → Outbox** 순서의 새 로컬 트랜잭션에서 최종 반영한다. 전달 완료 전 실패하면 PENDING이 남아 같은 이벤트로 다시 전달된다. 기존 상태 재검사와 필요하면 version 비교로 중간의 취소/환불 결과를 덮어쓰지 않는다.
+
+Ticksy `RESERVATION_CANCELLED` 응답은 이 최종 트랜잭션에서 계좌 취소·PG CANCELLED·취소 이력·입금 Outbox DELIVERED를 함께 확정한다. 이미 같은 계좌가 취소되었으면 최초 입금 사실을 유지하면서 성공으로 종료한다. 카드의 확정 REJECTED도 승인 보상·PG CANCELLED·카드 Outbox 완료를 함께 커밋한다.
+
+## 9. 데이터 이전과 구현 순서
+
+DDL 초안은 새 핵심 모델만 정의하며 현재 DB에 적용할 마이그레이션이 아니다. 실제 이전은 쓰기/기존 publisher를 중단한 상태에서 원데이터를 보존하고 다음 순서로 수행한다.
+
+1. 운영 근거로 Ticksy 소유임이 확인된 데이터 집합과 merchant를 등록한다. 식별 불가·동일 번호의 카드/계좌 충돌·금액/예매자 불일치는 대사 목록으로 격리하고 자동 금융 처리/통보를 중단한다. `UNKNOWN` merchant로 묶어 계속 처리하지 않는다.
+2. 검증된 원승인/계좌에서 PG 거래를 생성한다. PG ID를 확정한 이관 결과는 이후 배치에서 재사용한다. 보존된 `(merchant, paymentNo)`와 존재하는 PG ID를 먼저 조회하여 이관 재실행에서도 새 거래를 만들지 않는다.
+3. 금융 FK·환불·Outbox 연결을 채운다. merchant 결제번호와 PG ID의 관계는 gateway_payments 자체로 유지한다. Ticksy DB의 PG ID 채움에는 검증된 이전 결과를 사용하며 영구 매핑 테이블을 만들지 않는다.
+4. `APPROVED`, `TICKET_PAYMENT_FAILED` 카드 금융 성공은 PG PAID + 통보 PENDING으로, `TICKET_PAYMENT_COMPLETED`는 PAID + 통보 완료로 이전한다. 부분/전체 환불은 성공 누적액을 유지한다. 기존 terminal APPROVAL_FAILED는 금융 승인 없음과 PG FAILED를 보존한다.
+5. 입금 계좌의 CANCELLED는 최초 입금 기록과 함께 이전한다. 이력/Outbox로 금융 사실을 확인할 수 없는 행은 시각·입금 사실을 만들어 채우지 않는다. 과거 환불은 기존 SUCCEEDED 기록과 금융 이력을 대사하여 누적액을 확정한다.
+6. 기존 Outbox 완료 상태를 되돌려 재발행하지 않는다. 미전달 payload와 시각을 그대로 인계하고 eventId를 한 번만 채운다. 과거 Kafka PUBLISHED를 Ticksy 반영 완료로 바꾸지 않는다.
+7. 정합성 검사 후 NOT NULL/FK/새 유니크를 적용하고 금융 테이블의 paymentNo 전역 유니크와 환불의 외부 ID 단독 PK를 전환한다. 데이터/이력/테이블 삭제는 하지 않는다.
+8. 신규 Ticksy 결제 세션 API·PG API·프런트엔드를 함께 반영하고 단일 통보 경로로 재개한다. READY 카드 중 PG 거래가 없는 기존 건은 유효 기한/소유자가 확인되면 세션 준비 시 생성한다.
+
+기존 SQL 전체 실행이나 `ddl-auto=update`만으로 위 데이터 이전을 대신하지 않는다. 구현 단계에서 신규 schema와 ALTER/이전 SQL을 별도로 제공하고 실제 운영 DB 실행은 별도 요청을 따른다.
+
+| 다음 구현 묶음 | 완료 기준 |
+| --- | --- |
+| 가맹점·PG 엔티티/리포지토리·인증 | 서로 다른 merchant의 같은 번호 생성, 다른 merchant 접근 차단 |
+| 카드 세션·거래 연결 | 사용자 소유권, 금액/수단/revision 위변조 차단, 기존 직접 PG UI 유지 |
+| 금융사별 서비스·공통 서비스 분리 | PG 검증/통보 참조 없이 금융 메서드와 로컬 트랜잭션 참여 |
+| 취소·환불·Outbox 연결 | 동일 키 재전달, 변경 금액 거절, 부분 환불/프로세스 범위, 공동 롤백 |
+| 이전·회귀 | 기존 데이터 충돌 검출, 이전 재실행, 기존 결제·계좌·카드·환불 테스트 |
+
+필수 추가 검증은 동일 카드번호의 서로 다른 PG 거래, 은행/카드사 라우터 누락·중복, 수단 전환/승인 경합, 입금/취소 경합, 환불 요청 등록과 FK 잠금 경합, Outbox 저장 실패의 전체 롤백, 세션 만료 후 QUERY 갱신, 통보/최종 반영 커밋 유실의 재전달이다. PostgreSQL의 FK·잠금 검증은 H2 결과만으로 완료 처리하지 않는다.
