@@ -1,3 +1,8 @@
+-- 숫자 코드는 DB가 발급한다. 인증 비밀값은 환경 설정에서만 주입한다.
+INSERT INTO merchants (merchant_name, status, credential_key, notification_adapter, notification_target_key)
+SELECT 'Ticksy', 'ACTIVE', 'ticksy', 'TICKSY', 'ticksy'
+WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE credential_key = 'ticksy');
+
 INSERT INTO dummy_cards (
     user_id,
     card_company,

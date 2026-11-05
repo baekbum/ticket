@@ -4,11 +4,14 @@ import dev.bum.common.config.LocalCorsConfig;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.security.TokenStateStore;
+import dev.bum.payment_gateway_service.security.merchant.MerchantAuthenticationFilter;
+import dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationService;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,6 +37,24 @@ public class SecurityConfig {
     private static final String ROLE_PAYMENT_PROVIDER = "PAYMENT_PROVIDER";
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain merchantFilterChain(
+            HttpSecurity http,
+            MerchantAuthenticationService merchants
+    ) throws Exception {
+
+        http.securityMatcher("/api/*/payments/gateway/**")
+                .csrf(csrf -> csrf.disable())
+                .cors(this::configureCors)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("MERCHANT"))
+                .addFilterBefore(new MerchantAuthenticationFilter(merchants), UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http

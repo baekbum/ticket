@@ -1,0 +1,93 @@
+package dev.bum.payment_gateway_service.jpa.gateway;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Map;
+
+@Entity
+@Table(name = "gateway_payment_histories", uniqueConstraints = @UniqueConstraint(
+        name = "uk_gateway_payment_histories_operation", columnNames = {"pg_payment_id", "operation_type", "operation_key"}),
+        indexes = @Index(name = "idx_gateway_payment_histories_payment_time",
+                columnList = "pg_payment_id,occurred_at,history_id"))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class GatewayPaymentHistory {
+
+    // 처리 이력 식별자.
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "history_id")
+    private Long historyId;
+
+    // 해당 업무 처리가 속한 PG 거래.
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "pg_payment_id", nullable = false, updatable = false,
+            foreignKey = @ForeignKey(name = "fk_gateway_payment_histories_payment"))
+    private GatewayPayment payment;
+
+    // 승인·입금·환불 등 작업 종류.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "operation_type", nullable = false, length = 40, updatable = false)
+    private GatewayPaymentOperation operationType;
+
+    // 동일 거래와 작업 종류 안에서 사용하는 안정적인 키.
+    @Column(name = "operation_key", nullable = false, length = 100, updatable = false)
+    private String operationKey;
+
+    // 변경 전 PG 상태. 최초 등록에는 없다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "before_status", length = 30, updatable = false)
+    private GatewayPaymentStatus beforeStatus;
+
+    // 변경 후 PG 상태.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "after_status", nullable = false, length = 30, updatable = false)
+    private GatewayPaymentStatus afterStatus;
+
+    // 이번 처리의 금액.
+    @Column(precision = 15, scale = 2, updatable = false)
+    private BigDecimal amount;
+
+    // 비밀값을 포함하지 않는 최초 요청 해시.
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "request_hash", length = 64, updatable = false)
+    private String requestHash;
+
+    // 명시적으로 허용한 처리 상세만 저장한다.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, updatable = false)
+    private Map<String, Object> details;
+
+    // 업무 처리가 확정된 시각.
+    @Column(name = "occurred_at", nullable = false, updatable = false)
+    private LocalDateTime occurredAt;
+
+    // 이력 저장 시각.
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    // 거래 준비와 같은 트랜잭션에서 최초 이력을 생성한다.
+    public static GatewayPaymentHistory registered(GatewayPayment payment) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.REGISTER;
+        history.operationKey = "INITIAL";
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of();
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+}

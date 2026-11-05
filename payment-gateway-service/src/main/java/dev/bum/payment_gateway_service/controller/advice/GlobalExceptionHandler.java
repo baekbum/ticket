@@ -2,6 +2,8 @@ package dev.bum.payment_gateway_service.controller.advice;
 
 import dev.bum.payment_gateway_service.exception.TicketPaymentCompleteException;
 import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
+import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
+import dev.bum.payment_gateway_service.exception.GatewayPaymentNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,6 +14,20 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(GatewayPaymentConflictException.class)
+    public ResponseEntity<Map<String, String>> handleGatewayConflict(GatewayPaymentConflictException exception) {
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "code", "GATEWAY_PAYMENT_REQUEST_MISMATCH", "message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(GatewayPaymentNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleGatewayNotFound(GatewayPaymentNotFoundException exception) {
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "code", "GATEWAY_PAYMENT_NOT_FOUND", "message", exception.getMessage()));
+    }
 
     @ExceptionHandler(CardPaymentPendingException.class)
     public ResponseEntity<Map<String, String>> handlePending(CardPaymentPendingException e) {

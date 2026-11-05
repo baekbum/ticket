@@ -1,5 +1,7 @@
 # 결제 API 계약
 
+PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
+
 현재 결제 흐름은 `ticket-service`가 checkout과 최종 결제 상태를 관리하고, `payment-gateway-service`가 카드 승인/가상계좌 발급/입금 확인을 담당한다.
 
 ## 공통 규칙

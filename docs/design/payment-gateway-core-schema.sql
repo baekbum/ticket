@@ -1,6 +1,7 @@
 -- PG 가맹점·거래·식별자 설계의 핵심 테이블 DDL 초안.
 -- 실행용 마이그레이션이 아니다. 기존 DB에 직접 적용하지 않는다.
--- 현재 src/main/resources/sql/schema.sql 및 애플리케이션에는 아직 반영하지 않았다.
+-- 핵심 모델은 src/main/resources/sql/schema.sql에 반영했다. 이 파일은 설계 기록이다.
+-- 기존 DB 적용은 src/main/resources/sql/add-merchants-gateway-payments.sql을 사용한다.
 -- 금융 테이블 FK, 환불 키 전환, Outbox 확장과 데이터 이전 SQL은 구현 단계에서 함께 작성한다.
 -- UUID는 애플리케이션에서 생성한다. 비밀값과 운영 merchant seed는 포함하지 않는다.
 

@@ -39,6 +39,10 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 app:
+  merchants:
+    credentials:
+      ticksy:
+        - ${app.ticket.service-token}
   payment-provider:
     token: ${APP_PAYMENT_PROVIDER_TOKEN:local-payment-provider-token}
   card:

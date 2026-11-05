@@ -2,7 +2,7 @@
 
 작성일: 2026-11-04. 현재 구현 분석은 [사전 분석](payment-gateway-refactoring-analysis.md)을 따른다.
 
-이 문서는 다음 구현의 기준 설계다. 아직 적용된 API나 운영 스키마를 설명하는 문서는 아니다. 이번 단계에서는 문서와 [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)을 작성한다. 실제 `schema.sql`, 애플리케이션 코드와 기존 DB용 마이그레이션은 후속 구현에서 함께 반영한다.
+이 문서는 전체 구현의 기준 설계다. [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)은 설계 기록으로 유지한다. 가맹점·PG 거래 모델과 서버 인증·준비/조회 API는 구현했으며, 실제 적용 범위와 SQL은 [기반 구현 문서](payment-gateway-core-implementation.md)를 따른다. 금융 연결·카드 세션·통보 책임 분리는 아래 설계에 따른 후속 작업이다.
 
 ## 1. 결정한 구조
 
