@@ -1,9 +1,9 @@
 -- PG 가맹점·거래·식별자 설계의 핵심 테이블 DDL 초안.
 -- 실행용 마이그레이션이 아니다. 기존 DB에 직접 적용하지 않는다.
 -- 핵심 모델은 src/main/resources/sql/schema.sql에 반영했다. 이 파일은 설계 기록이다.
--- 기존 DB 적용은 src/main/resources/sql/add-merchants-gateway-payments.sql을 사용한다.
+-- 현재 DB 정의와 비교·생성할 때는 src/main/resources/sql/schema.sql을 기준으로 사용한다.
 -- 금융 테이블 FK, 환불 키 전환, Outbox 확장과 데이터 이전 SQL은 구현 단계에서 함께 작성한다.
--- UUID는 애플리케이션에서 생성한다. 비밀값과 운영 merchant seed는 포함하지 않는다.
+-- yyyyMMdd + UUID를 애플리케이션에서 생성하고 VARCHAR(44) 문자열로 저장한다. 비밀값과 운영 merchant seed는 포함하지 않는다.
 
 CREATE TABLE merchants (
     -- 숫자 PK 자체를 가맹점 코드로 사용한다. 가맹점명은 중복을 허용한다.
@@ -27,7 +27,7 @@ CREATE TABLE merchants (
 );
 
 CREATE TABLE gateway_payments (
-    pg_payment_id UUID PRIMARY KEY,
+    pg_payment_id VARCHAR(44) PRIMARY KEY,
     merchant_id BIGINT NOT NULL,
     merchant_payment_no VARCHAR(60) NOT NULL,
     buyer_reference VARCHAR(50) NOT NULL,
@@ -83,7 +83,7 @@ CREATE INDEX idx_gateway_payments_expiration
 
 CREATE TABLE gateway_payment_histories (
     history_id BIGSERIAL PRIMARY KEY,
-    pg_payment_id UUID NOT NULL,
+    pg_payment_id VARCHAR(44) NOT NULL,
     operation_type VARCHAR(40) NOT NULL,
     operation_key VARCHAR(100) NOT NULL,
     before_status VARCHAR(30),

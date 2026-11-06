@@ -10,6 +10,7 @@ import dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationSe
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
@@ -38,6 +39,29 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
+    public SecurityFilterChain financialSimulationFilterChain(
+            HttpSecurity http,
+            FinancialSimulationToken token
+    ) throws Exception {
+
+        return http.securityMatcher("/internal/financial-simulations/**")
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("FINANCIAL_SIMULATOR"))
+                .addFilterBefore(new FinancialSimulationAuthenticationFilter(token),
+                        UsernamePasswordAuthenticationFilter.class).build();
+    }
+
+    @Bean
+    public FinancialSimulationToken financialSimulationToken(
+            @Value("${app.financial-simulation.token:}") String configuredToken
+    ) {
+
+        return new FinancialSimulationToken(configuredToken);
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain merchantFilterChain(
             HttpSecurity http,
             MerchantAuthenticationService merchants
@@ -54,7 +78,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(2)
+    @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http

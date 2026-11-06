@@ -2,6 +2,10 @@
 
 PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
 
+2026-11-06부터 기존 카드·가상계좌 외부 API는 [모의 금융 HTTP 경계](payment-gateway-financial-http.md)를 통해 처리한다. URL·입력·JSON·상태 코드는 유지하고 PG가 RestClient로 내부 전용 모의 컨트롤러를 호출한다. 금융 결과를 확인할 수 없는 연결/읽기 실패는 `503 FINANCIAL_PROVIDER_UNAVAILABLE`이며 같은 거래의 상태 확인/멱등 재요청 대상으로 취급한다.
+
+신규 `pgPaymentId`는 `yyyyMMdd + UUID`로 생성한 44자 문자열이며 자바 타입은 String, DB 컬럼은 VARCHAR(44)다. 날짜는 한국 시간 기준이고 날짜와 UUID 사이 구분자는 없다. 예: `20261105550e8400-e29b-41d4-a716-446655440000`. 기존 36자 UUID 식별자의 조회도 유지한다.
+
 현재 결제 흐름은 `ticket-service`가 checkout과 최종 결제 상태를 관리하고, `payment-gateway-service`가 카드 승인/가상계좌 발급/입금 확인을 담당한다.
 
 ## 공통 규칙

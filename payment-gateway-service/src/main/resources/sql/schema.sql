@@ -21,7 +21,7 @@ CREATE TABLE merchants (
 );
 
 CREATE TABLE gateway_payments (
-    pg_payment_id UUID PRIMARY KEY,
+    pg_payment_id VARCHAR(44) PRIMARY KEY,
     merchant_id BIGINT NOT NULL,
     merchant_payment_no VARCHAR(60) NOT NULL,
     buyer_reference VARCHAR(50) NOT NULL,
@@ -77,7 +77,7 @@ CREATE INDEX idx_gateway_payments_expiration
 
 CREATE TABLE gateway_payment_histories (
     history_id BIGSERIAL PRIMARY KEY,
-    pg_payment_id UUID NOT NULL,
+    pg_payment_id VARCHAR(44) NOT NULL,
     operation_type VARCHAR(40) NOT NULL,
     operation_key VARCHAR(100) NOT NULL,
     before_status VARCHAR(30),
@@ -153,6 +153,8 @@ CREATE INDEX idx_dummy_cards_card_company ON dummy_cards(card_company);
 CREATE TABLE dummy_card_payment_histories (
     history_id BIGSERIAL PRIMARY KEY,
     dummy_card_id BIGINT,
+    -- 기존 API 전환과 검증된 데이터 이관이 끝난 뒤 NOT NULL로 강화한다.
+    pg_payment_id VARCHAR(44),
     user_id VARCHAR(50) NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     transaction_id VARCHAR(80),
@@ -168,6 +170,9 @@ CREATE TABLE dummy_card_payment_histories (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_dummy_card_payment_histories_dummy_card_id FOREIGN KEY (dummy_card_id) REFERENCES dummy_cards(dummy_card_id),
+    CONSTRAINT fk_dummy_card_payment_histories_pg_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT uk_dummy_card_payment_histories_pg_payment UNIQUE (pg_payment_id),
     CONSTRAINT uk_dummy_card_payment_histories_payment_no UNIQUE (payment_no),
     CONSTRAINT chk_dummy_card_payment_histories_amount CHECK (amount > 0),
     CONSTRAINT chk_dummy_card_payment_histories_card_number_masked CHECK (card_number_masked ~ '^[0-9*]{4}-[0-9*]{4}-[0-9*]{4}-[0-9*]{4}$')
@@ -182,6 +187,8 @@ CREATE INDEX idx_dummy_card_payment_histories_status ON dummy_card_payment_histo
 -- ==========================================
 CREATE TABLE dummy_virtual_accounts (
     virtual_account_id BIGSERIAL PRIMARY KEY,
+    -- 기존 API 전환과 검증된 데이터 이관이 끝난 뒤 NOT NULL로 강화한다.
+    pg_payment_id VARCHAR(44),
     payment_no VARCHAR(60) NOT NULL,
     bank_company VARCHAR(30) NOT NULL,
     bank_name VARCHAR(50) NOT NULL,
@@ -195,6 +202,9 @@ CREATE TABLE dummy_virtual_accounts (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT fk_dummy_virtual_accounts_pg_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT uk_dummy_virtual_accounts_pg_payment UNIQUE (pg_payment_id),
     CONSTRAINT uk_dummy_virtual_accounts_payment_no UNIQUE (payment_no),
     CONSTRAINT uk_dummy_virtual_accounts_account_number UNIQUE (account_number),
     CONSTRAINT chk_dummy_virtual_accounts_amount CHECK (amount > 0)

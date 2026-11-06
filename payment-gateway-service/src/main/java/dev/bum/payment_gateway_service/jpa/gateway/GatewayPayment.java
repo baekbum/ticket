@@ -14,7 +14,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Entity
@@ -29,11 +32,13 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GatewayPayment {
 
-    // PG가 발급하는 거래 식별자. 가맹점 결제번호나 카드 거래번호와 다르다.
+    // PG 식별자 앞의 발급일은 서버 실행 환경과 무관하게 한국 날짜로 결정한다.
+    private static final ZoneId PAYMENT_ID_ZONE = ZoneId.of("Asia/Seoul");
+
+    // 최초 저장 시 yyyyMMdd + UUID로 발급하는 44자 문자열. 가맹점 결제번호나 카드 거래번호와 다르다.
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "pg_payment_id", updatable = false)
-    private UUID pgPaymentId;
+    @Column(name = "pg_payment_id", length = 44, updatable = false)
+    private String pgPaymentId;
 
     // 인증된 소유 가맹점.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -135,5 +140,15 @@ public class GatewayPayment {
     public boolean matches(GatewayPaymentTerms terms) {
 
         return creationRequestHash.equals(terms.fingerprint());
+    }
+
+    // 최초 저장에만 날짜와 UUID를 생성한다. 이미 발급한 식별자는 다시 생성하지 않는다.
+    @PrePersist
+    private void assignPaymentId() {
+
+        if (pgPaymentId == null) {
+            pgPaymentId = LocalDate.now(PAYMENT_ID_ZONE).format(DateTimeFormatter.BASIC_ISO_DATE)
+                    + UUID.randomUUID().toString();
+        }
     }
 }

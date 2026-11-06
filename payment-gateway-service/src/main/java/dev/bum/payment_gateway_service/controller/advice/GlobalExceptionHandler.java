@@ -9,11 +9,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<Map<String, String>> handleFinancialTransportFailure(ResourceAccessException exception) {
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                "code", "FINANCIAL_PROVIDER_UNAVAILABLE",
+                "message", "금융 처리 결과를 확인할 수 없습니다. 같은 결제번호로 상태를 확인하거나 재요청해주세요."));
+    }
 
     @ExceptionHandler(GatewayPaymentConflictException.class)
     public ResponseEntity<Map<String, String>> handleGatewayConflict(GatewayPaymentConflictException exception) {

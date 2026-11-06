@@ -1,12 +1,12 @@
 # PG 가맹점·거래 기반 구현
 
-이 문서는 [전체 목표 설계](payment-gateway-domain-design.md) 중 실제 적용한 기반 기능을 설명한다. 금융 거래 연결과 카드 결제 세션은 후속 단계다.
+이 문서는 [전체 목표 설계](payment-gateway-domain-design.md) 중 실제 적용한 기반 기능을 설명한다. 금융 모델의 날짜+UUID 문자열/FK 연결은 [금융 거래 연결 문서](payment-gateway-financial-links.md)에 정리했다. 기존 결제 진입점 연결과 카드 결제 세션은 후속 단계다.
 
 ## 적용 범위
 
 - `Merchant`, `GatewayPayment`, `GatewayPaymentHistory`와 가맹점 범위 리포지토리를 추가했다.
 - `merchants.merchant_id`가 숫자 가맹점 코드이며 가맹점명은 중복을 허용한다.
-- `gateway_payments`가 `(merchant_id, merchant_payment_no)`를 UUID PG 식별자에 매핑한다. 매핑 전용 테이블은 없다.
+- `gateway_payments`가 `(merchant_id, merchant_payment_no)`를 `yyyyMMdd + UUID` 형식 PG 식별자에 매핑한다. 식별자는 자바 String / DB VARCHAR(44)로 다루며 매핑 전용 테이블은 없다.
 - 서버 토큰을 자격증명 그룹 → 등록 merchant로 연결하는 인증을 추가했다. 요청의 merchantId만으로 거래 범위를 정하지 않는다.
 - 신규 준비와 조회 API를 추가했다. 준비는 금융 실행 없이 READY 거래와 REGISTER 이력만 같은 트랜잭션으로 저장한다.
 - 동시 최초 삽입의 유니크 충돌은 실패 트랜잭션이 종료된 후 별도 트랜잭션에서 승자의 결과를 검증해 재응답한다.
@@ -38,6 +38,8 @@
 
 응답은 `pgPaymentId`, `merchantId`, `paymentNo`, `buyerReference`, 저장된 수단·금융사·금액·환불 누적액·PG 상태·기한·생성시각을 포함한다. 자격증명 키·토큰·요청 해시는 노출하지 않는다. 다른 merchant의 PG ID와 존재하지 않는 ID는 모두 404다.
 
+`pgPaymentId`는 최초 저장 시 `@PrePersist`에서 한국 날짜(`Asia/Seoul`)의 `yyyyMMdd` 8자리 뒤에 하이픈을 포함한 UUID 36자를 바로 붙여 생성하는 44자 문자열이다. 예: `20261105550e8400-e29b-41d4-a716-446655440000`. 엔티티·DTO·컨트롤러·서비스·리포지토리의 타입은 모두 String이다. 재요청에서 발급일이나 ID를 새로 만들지 않는다. 조회는 유효한 날짜와 UUID를 검증하고 UUID 대소문자를 정규화한다. 이미 저장한 36자 UUID도 계속 조회하며 자동으로 접두사를 붙여 변경하지 않는다.
+
 | 결과 | 상태 |
 | --- | --- |
 | 준비/동일 요청/본인 merchant 거래 조회 | 200 |
@@ -68,24 +70,25 @@ app:
 
 **기존 금융 API는 아직 다중 가맹점으로 전환하지 않았다.** 기존 카드 사용자 JWT 경로와 Ticksy 내부 서비스 토큰 경로는 기존 계약을 유지한다. 다른 merchant의 새 토큰은 기존 발급·취소·환불·resolve API에 접근할 수 없다. 신규 ROLE_MERCHANT를 기존 ROLE_INTERNAL_SERVICE와 혼용하지 않는다. 기존 카드·계좌·환불 행에 merchant를 추정해 연결하지 않았다.
 
+카드 승인 거래와 가상계좌에는 nullable `pg_payment_id`와 FK/유니크 제약을 추가했다. PG ID를 받는 새 생성 메서드와 내부 조회도 제공한다. 기존 서비스가 이 생성 메서드를 사용하도록 전환하는 것은 다음 단계이며, 현재 기존 API의 신규 금융 행도 PG 연결 값은 NULL이다.
+
 이번 prepare 응답에는 카드 결제 세션 토큰이 없다. 기존 프런트엔드가 이 준비 거래를 승인에 사용하도록 연결하거나 새 가맹점의 실제 금융 처리를 활성화하는 것은 후속 작업이다. 기존 결제의 사용자 소유자 검증은 유지한다.
+
+2026-11-06 기존 금융 API의 서비스 직접 호출은 [RestClient → 모의 은행·카드 컨트롤러](payment-gateway-financial-http.md)로 변경했다. 준비/조회 API와 가맹점별 실제 금융 연결의 후속 범위는 그대로이며, HTTP 호출은 DB 트랜잭션 밖에서 수행한다.
 
 ## 스키마와 DB 적용
 
-- 신규 DB: [schema.sql](../payment-gateway-service/src/main/resources/sql/schema.sql)과 [initData.sql](../payment-gateway-service/src/main/resources/sql/initData.sql).
-- 기존 DB: [add-merchants-gateway-payments.sql](../payment-gateway-service/src/main/resources/sql/add-merchants-gateway-payments.sql).
+- 현재 테이블 정의: [schema.sql](../payment-gateway-service/src/main/resources/sql/schema.sql). 신규 DB는 이 파일과 [initData.sql](../payment-gateway-service/src/main/resources/sql/initData.sql)을 사용한다.
+- 최초 핵심 테이블 추가 이력: [add-merchants-gateway-payments.sql](../payment-gateway-service/src/main/resources/sql/add-merchants-gateway-payments.sql). 최초 적용 당시의 정의이며 이후 식별자 변경까지 포함한 최종 스키마를 대신하지 않는다.
 - 설계 기록: [DDL 초안](design/payment-gateway-core-schema.sql). 실행/배포 기준은 위 리소스 SQL이다.
 
-마이그레이션은 BEGIN/COMMIT과 트랜잭션 advisory lock을 사용한다. 새 테이블 3개·인덱스·FK/체크/유니크 제약을 생성하고 비밀값 없는 Ticksy 등록 1건을 추가한다. 기존 테이블 변경·삭제·초기화나 기존 금융 데이터 이전은 포함하지 않는다. 이미 테이블이 있으면 자동 무시하지 않고 오류로 롤백한다.
+최초 마이그레이션은 BEGIN/COMMIT과 트랜잭션 advisory lock으로 새 테이블 3개·인덱스·FK/체크/유니크 제약을 생성하고 비밀값 없는 Ticksy 등록 1건을 추가했다. 기존 금융 데이터 이전은 포함하지 않았다.
 
-```powershell
-Get-Content -Raw -Encoding UTF8 payment-gateway-service/src/main/resources/sql/add-merchants-gateway-payments.sql |
-  docker exec -i local-postgres psql -U postgres -d ticket -v ON_ERROR_STOP=1
-```
+금융 연결·문자열 전환·길이 확장에 사용했던 개별 SQL 3개는 적용 완료 후 2026-11-06 사용자 요청으로 삭제했다. 현재 스키마의 기준은 schema.sql이다.
 
 사용자 요청에 따라 2026-11-04 `local-postgres`의 `ticket` DB에 적용했다. **이 DB에서 다시 실행할 필요가 없다.** 적용 시 Ticksy의 숫자 코드는 DB 시퀀스로 발급하며 고정 번호를 코드에 넣지 않는다. 최종 데이터 이전 SQL은 원거래·환불·Outbox를 실제 연결하는 단계에서 별도로 추가한다.
 
-적용 후 실제 DB 조회 결과는 다음과 같다.
+최초 적용 후 실제 DB 조회 결과는 다음과 같다.
 
 | 확인 항목 | 결과 |
 | --- | --- |
@@ -94,6 +97,8 @@ Get-Content -Raw -Encoding UTF8 payment-gateway-service/src/main/resources/sql/a
 | PG 거래 / PG 이력 | 각 0건. PostgreSQL 검증용 데이터가 남지 않음 |
 | 기존 payments·카드 원장/승인·계좌/은행 이력·환불 | 적용 전후 각 0건으로 동일 |
 | 신규 테이블 PK·FK·유니크 제약 | 9개 확인. 금액·상태 등의 CHECK도 마이그레이션으로 생성 |
+
+2026-11-06 최신 schema.sql을 격리된 비교 스키마에 생성하고 실제 DB와 비교했다. PG 테이블 10개의 컬럼명·순서·타입/길이/정밀도·NULL·기본값·제약·인덱스가 모두 일치해 삭제·재생성 대상은 0개였다. 비교용 스키마는 롤백했으며 실제 테이블과 데이터는 그대로 유지했다.
 
 ## 검증 방법
 
@@ -125,3 +130,11 @@ Get-Content -Raw -Encoding UTF8 payment-gateway-service/src/main/resources/sql/a
 | 합계 | 236 | 0 | 0 |
 
 PG 139개에는 실제 PostgreSQL 테스트 5개가 포함된다. 해시 CHAR(64)의 JPA 타입 매핑과 실제 스키마 일치, 이름/번호 범위, FK·중복 작업 제약을 검증했다. 나머지 PG·Ticksy 선택 테스트는 단위 테스트 또는 격리 H2/모의 외부 경계를 사용한다. 기존 카드·계좌 입금·입금 전 취소 Outbox·환불 회귀를 포함한다. 후속 금융 연결 단계의 새 시나리오까지 검증 완료한 것으로 해석하지 않는다.
+
+2026-11-05 금융 모델의 UUID 연결을 추가한 뒤 PG 범위는 155개(실제 PostgreSQL 12개 포함)를 재실행해 모두 통과했다. 해당 단계의 변경과 검증 결과는 [금융 거래 연결 문서](payment-gateway-financial-links.md)에 정리했다.
+
+이후 사용자 요청으로 자바 String / DB VARCHAR(36)으로 전환하고 UUID 생성·조회 호환성 검증을 추가해 총 156개(실제 PostgreSQL 12개 포함)가 통과했다. 문자열 전환 SQL은 기존 ID와 NULL을 보존하는 별도 데이터 검증 후 실제 DB에도 적용했다.
+
+이어 신규 ID를 한국 날짜의 yyyyMMdd + UUID로 발급하도록 변경하고 DB를 VARCHAR(44)로 확장했다. 기존 36자 UUID 조회와 잘못된 날짜/UUID 검증을 포함해 최종 157개(실제 PostgreSQL 12개 포함)가 모두 통과했다. 확장 SQL의 기존 데이터 보존과 신규 schema.sql 실행도 별도 검증 스키마에서 확인하고 롤백했다.
+
+2026-11-06 모의 은행·카드 HTTP 경계 변경 후에는 172개(실제 loopback HTTP 13개, 실제 PostgreSQL 12개 포함)가 모두 통과했다. 상세 구조와 한계는 [금융 HTTP 구현](payment-gateway-financial-http.md)에 정리했다.

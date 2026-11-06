@@ -13,6 +13,13 @@ import java.util.Optional;
 
 public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVirtualAccount, Long> {
 
+    // PG 계층이 가맹점 소유권을 확인한 UUID 형식 문자열로 계좌를 찾는다.
+    Optional<DummyVirtualAccount> findByPgPaymentId(String pgPaymentId);
+
+    // 계좌를 잠그지 않고 PG 식별자만 찾는다. 후속 입금 흐름에서 PG 거래를 먼저 잠그기 위한 조회다.
+    @Query("select a.pgPaymentId from DummyVirtualAccount a where a.accountNumber = :accountNumber")
+    Optional<String> findPgPaymentIdByAccountNumber(@Param("accountNumber") String accountNumber);
+
     Optional<DummyVirtualAccount> findByPaymentNo(String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

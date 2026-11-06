@@ -9,8 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/v1/payments/gateway")
 @RequiredArgsConstructor
@@ -30,7 +28,7 @@ public class GatewayPaymentController {
     @GetMapping("/{pgPaymentId}")
     public ResponseEntity<GatewayPaymentResponse> find(
             @AuthenticationPrincipal AuthenticatedMerchant merchant,
-            @PathVariable UUID pgPaymentId
+            @PathVariable String pgPaymentId
     ) {
 
         return ResponseEntity.ok(payments.find(merchant, pgPaymentId));

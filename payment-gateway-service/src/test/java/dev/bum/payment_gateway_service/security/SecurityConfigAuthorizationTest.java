@@ -29,6 +29,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class SecurityConfigAuthorizationTest {
     @MockitoBean
+    private dev.bum.payment_gateway_service.service.gateway.FinancialSimulationGatewayService financialGateway;
+
+    @MockitoBean
     private dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationService merchantAuthenticationService;
 
     @MockitoBean

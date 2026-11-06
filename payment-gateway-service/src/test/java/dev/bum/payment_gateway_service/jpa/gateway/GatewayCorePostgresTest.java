@@ -1,14 +1,21 @@
 package dev.bum.payment_gateway_service.jpa.gateway;
 
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import dev.bum.common.service.ticket.payment.enums.CardCompany;
+import dev.bum.payment_gateway_service.jpa.card.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
+import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -16,7 +23,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -30,8 +39,9 @@ class GatewayCorePostgresTest {
 
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = {Merchant.class, GatewayPayment.class})
-    @EnableJpaRepositories(basePackageClasses = {MerchantJpaRepository.class, GatewayPaymentJpaRepository.class})
+    @EntityScan(basePackageClasses = {Merchant.class, GatewayPayment.class, DummyCard.class, DummyVirtualAccount.class})
+    @EnableJpaRepositories(basePackageClasses = {MerchantJpaRepository.class, GatewayPaymentJpaRepository.class,
+            DummyCardJpaRepository.class, DummyVirtualAccountJpaRepository.class})
     static class Config { }
 
     @DynamicPropertySource
@@ -46,6 +56,11 @@ class GatewayCorePostgresTest {
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired GatewayPaymentHistoryJpaRepository histories;
     @Autowired JdbcTemplate jdbc;
+    @Autowired TestEntityManager entityManager;
+    @Autowired DummyCardJpaRepository cards;
+    @Autowired DummyCardPaymentHistoryJpaRepository approvals;
+    @Autowired DummyVirtualAccountJpaRepository accounts;
+    @Autowired DummyVirtualAccountPaymentHistoryJpaRepository bankHistories;
 
     @Test
     void migratedSchemaAndNonSecretTicksyRegistrationExist() {
@@ -89,8 +104,126 @@ class GatewayCorePostgresTest {
                 insert into gateway_payments(pg_payment_id, merchant_id, merchant_payment_no, buyer_reference,
                     payment_method, amount, status, creation_request_hash, expires_at)
                 values (?, ?, 'VERIFY-ORPHAN', 'verify', 'CREDIT_CARD', 100, 'READY', ?, ?)
-                """, UUID.randomUUID(), Long.MAX_VALUE, "a".repeat(64), LocalDateTime.now().plusDays(1)))
+                """, UUID.randomUUID().toString(), Long.MAX_VALUE, "a".repeat(64), LocalDateTime.now().plusDays(1)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void actualFinancialColumnsAreNullableStringsAndConstrainedWithoutChangingTheCardLedger() {
+        assertThat(jdbc.queryForObject("""
+                select count(*) from information_schema.columns where table_schema = 'public'
+                  and table_name in ('dummy_card_payment_histories', 'dummy_virtual_accounts')
+                  and column_name = 'pg_payment_id' and data_type = 'character varying'
+                  and character_maximum_length = 44 and is_nullable = 'YES'
+                """, Long.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from pg_constraint where conname in (
+                  'fk_dummy_card_payment_histories_pg_payment', 'uk_dummy_card_payment_histories_pg_payment',
+                  'fk_dummy_virtual_accounts_pg_payment', 'uk_dummy_virtual_accounts_pg_payment')
+                """, Long.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from information_schema.columns where table_schema = 'public'
+                  and table_name = 'dummy_cards' and column_name = 'pg_payment_id'
+                """, Long.class)).isZero();
+    }
+
+    @Test
+    void actualFinancialRowsLinkToGatewayPaymentsAndOneCardHasSeveralApprovals() {
+        Merchant merchant = merchant();
+        DummyCard card = card();
+        GatewayPayment first = payment(merchant, "VERIFY-CARD-1", PaymentMethod.CREDIT_CARD);
+        GatewayPayment second = payment(merchant, "VERIFY-CARD-2", PaymentMethod.CREDIT_CARD);
+        GatewayPayment bank = payment(merchant, "VERIFY-BANK", PaymentMethod.BANK_TRANSFER);
+        assertThat(first.getPgPaymentId()).hasSize(44);
+        assertThatCode(() -> LocalDate.parse(first.getPgPaymentId().substring(0, 8), DateTimeFormatter.BASIC_ISO_DATE))
+                .doesNotThrowAnyException();
+        assertThat(UUID.fromString(first.getPgPaymentId().substring(8)).toString())
+                .isEqualTo(first.getPgPaymentId().substring(8));
+        approvals.saveAndFlush(approval(first.getPgPaymentId(), card, "VERIFY-CARD-1"));
+        approvals.saveAndFlush(approval(second.getPgPaymentId(), card, "VERIFY-CARD-2"));
+        DummyVirtualAccount account = accounts.saveAndFlush(account(bank.getPgPaymentId(), "VERIFY-BANK", "VERIFY-1000"));
+        Long historyId = bankHistories.saveAndFlush(DummyVirtualAccountPaymentHistory.issued(account)).getHistoryId();
+        entityManager.clear();
+
+        assertThat(approvals.findByPgPaymentId(first.getPgPaymentId()).orElseThrow().getDummyCard().getDummyCardId())
+                .isEqualTo(card.getDummyCardId());
+        assertThat(approvals.findByPgPaymentId(second.getPgPaymentId()).orElseThrow().getDummyCard().getDummyCardId())
+                .isEqualTo(card.getDummyCardId());
+        assertThat(accounts.findByPgPaymentId(bank.getPgPaymentId()).orElseThrow().getAccountNumber()).isEqualTo("VERIFY-1000");
+        assertThat(accounts.findPgPaymentIdByAccountNumber("VERIFY-1000")).contains(bank.getPgPaymentId());
+        assertThat(bankHistories.findById(historyId).orElseThrow().getVirtualAccount().getPgPaymentId())
+                .isEqualTo(bank.getPgPaymentId());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void actualForeignKeysRejectFinancialRowsWithAnUnknownGatewayPayment(PaymentMethod method) {
+        String unknownId = UUID.randomUUID().toString();
+        if (method == PaymentMethod.CREDIT_CARD) {
+            DummyCard card = card();
+            assertThatThrownBy(() -> approvals.saveAndFlush(approval(unknownId, card, "VERIFY-ORPHAN-CARD")))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        } else {
+            assertThatThrownBy(() -> accounts.saveAndFlush(account(unknownId, "VERIFY-ORPHAN-BANK", "VERIFY-2000")))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void actualUniqueConstraintsRejectTwoFinancialRowsForOneGatewayPayment(PaymentMethod method) {
+        GatewayPayment payment = payment(merchant(), "VERIFY-DUPLICATE", method);
+        if (method == PaymentMethod.CREDIT_CARD) {
+            DummyCard card = card();
+            approvals.saveAndFlush(approval(payment.getPgPaymentId(), card, "VERIFY-FIRST-CARD"));
+            assertThatThrownBy(() -> approvals.saveAndFlush(approval(payment.getPgPaymentId(), card, "VERIFY-SECOND-CARD")))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        } else {
+            accounts.saveAndFlush(account(payment.getPgPaymentId(), "VERIFY-FIRST-BANK", "VERIFY-3000"));
+            assertThatThrownBy(() -> accounts.saveAndFlush(account(payment.getPgPaymentId(), "VERIFY-SECOND-BANK", "VERIFY-4000")))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+    }
+
+    @Test
+    void actualDatabasePreservesSeveralLegacyRowsWithoutGatewayLinks() {
+        DummyCard card = card();
+        for (int index = 1; index <= 2; index++) {
+            approvals.saveAndFlush(DummyCardPaymentHistory.approved(card, "verify", "VERIFY-LEGACY-CARD-" + index,
+                    "VERIFY-TX-" + index, "4111-****-****-1111", new BigDecimal("100.00")));
+            accounts.saveAndFlush(DummyVirtualAccount.issue("VERIFY-LEGACY-BANK-" + index, BankCompany.KB,
+                    "VERIFY-LEGACY-" + index, new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59)));
+        }
+        entityManager.clear();
+
+        assertThat(approvals.findByPaymentNo("VERIFY-LEGACY-CARD-1").orElseThrow().getPgPaymentId()).isNull();
+        assertThat(approvals.findByPaymentNo("VERIFY-LEGACY-CARD-2").orElseThrow().getPgPaymentId()).isNull();
+        assertThat(accounts.findPgPaymentIdByAccountNumber("VERIFY-LEGACY-1")).isEmpty();
+        assertThat(accounts.findPgPaymentIdByAccountNumber("VERIFY-LEGACY-2")).isEmpty();
+    }
+
+    DummyCard card() {
+        return cards.saveAndFlush(DummyCard.builder().userId("verify-card-owner").cardCompany(CardCompany.SHINHAN)
+                .cardNumberHash(UUID.randomUUID().toString()).cardNumberLast4("1111")
+                .cvcHash("test-cvc-hash").cardPasswordHash("test-password-hash").customerName("PG 검증 카드")
+                .issuedAt(LocalDate.of(2020, 1, 1)).expiresAt(LocalDate.of(2099, 1, 1))
+                .limitAmount(new BigDecimal("10000.00")).build());
+    }
+
+    GatewayPayment payment(Merchant merchant, String paymentNo, PaymentMethod method) {
+        return payments.saveAndFlush(GatewayPayment.prepare(merchant, new GatewayPaymentTerms(paymentNo, "verify", method,
+                new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59),
+                method == PaymentMethod.BANK_TRANSFER ? BankCompany.KB : null)));
+    }
+
+    DummyCardPaymentHistory approval(String pgPaymentId, DummyCard card, String paymentNo) {
+        return DummyCardPaymentHistory.approved(pgPaymentId, card, "verify", paymentNo,
+                "VERIFY-TX-" + UUID.randomUUID(), "4111-****-****-1111", new BigDecimal("100.00"));
+    }
+
+    DummyVirtualAccount account(String pgPaymentId, String paymentNo, String accountNumber) {
+        return DummyVirtualAccount.issue(pgPaymentId, paymentNo, BankCompany.KB, accountNumber,
+                new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59));
     }
 
     Merchant merchant() {

@@ -10,6 +10,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.UUID;
 
 @Service
@@ -45,11 +48,13 @@ public class GatewayPaymentService {
      * 존재하지 않는 거래와 다른 가맹점 거래를 동일한 404로 처리한다.
      */
     @Transactional(readOnly = true)
-    public GatewayPaymentResponse find(AuthenticatedMerchant merchant, UUID paymentId) {
+    public GatewayPaymentResponse find(AuthenticatedMerchant merchant, String paymentId) {
 
         requirePrincipal(merchant);
 
-        return payments.findByPgPaymentIdAndMerchantMerchantId(paymentId, merchant.merchantId())
+        String normalizedPaymentId = normalizePaymentId(paymentId);
+
+        return payments.findByPgPaymentIdAndMerchantMerchantId(normalizedPaymentId, merchant.merchantId())
                 .map(GatewayPaymentResponse::from).orElseThrow(GatewayPaymentNotFoundException::new);
     }
 
@@ -74,5 +79,29 @@ public class GatewayPaymentService {
                 || merchant.credentialKey() == null || merchant.credentialKey().isBlank()) {
             throw new AccessDeniedException("가맹점 인증 정보가 필요합니다.");
         }
+    }
+
+    /**
+     * 날짜 접두사와 UUID를 검증하고 대소문자를 정규화한다. 기존 36자 UUID도 조회할 수 있다.
+     */
+    private String normalizePaymentId(String paymentId) {
+
+        if (paymentId == null || (paymentId.length() != 36 && paymentId.length() != 44)) {
+            throw new IllegalArgumentException("PG 결제 식별자 형식이 올바르지 않습니다.");
+        }
+
+        if (paymentId.length() == 36) {
+            return UUID.fromString(paymentId).toString();
+        }
+
+        String issuedDate = paymentId.substring(0, 8);
+
+        try {
+            LocalDate.parse(issuedDate, DateTimeFormatter.BASIC_ISO_DATE);
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException("PG 결제 식별자의 발급일이 올바르지 않습니다.", exception);
+        }
+
+        return issuedDate + UUID.fromString(paymentId.substring(8)).toString();
     }
 }

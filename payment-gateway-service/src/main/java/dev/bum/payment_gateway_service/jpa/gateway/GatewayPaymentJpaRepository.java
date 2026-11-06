@@ -7,11 +7,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
-import java.util.UUID;
 
-public interface GatewayPaymentJpaRepository extends JpaRepository<GatewayPayment, UUID> {
+public interface GatewayPaymentJpaRepository extends JpaRepository<GatewayPayment, String> {
 
-    Optional<GatewayPayment> findByPgPaymentIdAndMerchantMerchantId(UUID pgPaymentId, Long merchantId);
+    Optional<GatewayPayment> findByPgPaymentIdAndMerchantMerchantId(String pgPaymentId, Long merchantId);
 
     Optional<GatewayPayment> findByMerchantMerchantIdAndMerchantPaymentNo(Long merchantId, String paymentNo);
 
@@ -19,6 +18,6 @@ public interface GatewayPaymentJpaRepository extends JpaRepository<GatewayPaymen
     @Query("select p from GatewayPayment p where p.pgPaymentId = :paymentId and p.merchant.merchantId = :merchantId")
     Optional<GatewayPayment> findOwnedForUpdate(
             @Param("merchantId") Long merchantId,
-            @Param("paymentId") UUID paymentId
+            @Param("paymentId") String paymentId
     );
 }

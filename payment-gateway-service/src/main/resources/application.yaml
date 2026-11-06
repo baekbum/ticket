@@ -39,6 +39,11 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 app:
+  financial-simulation:
+    base-url: ${APP_FINANCIAL_SIMULATION_BASE_URL:}
+    token: ${APP_FINANCIAL_SIMULATION_TOKEN:}
+    connect-timeout: 2s
+    read-timeout: 15s
   merchants:
     credentials:
       ticksy:

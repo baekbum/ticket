@@ -14,6 +14,10 @@ import java.util.Optional;
 
 public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<DummyCardPaymentHistory, Long> {
 
+    // PG 계층이 가맹점 소유권을 확인한 UUID 형식 문자열로 원승인 거래를 찾는다.
+    @EntityGraph(attributePaths = "dummyCard")
+    Optional<DummyCardPaymentHistory> findByPgPaymentId(String pgPaymentId);
+
     @EntityGraph(attributePaths = "dummyCard")
     Optional<DummyCardPaymentHistory> findByPaymentNo(String paymentNo);
 

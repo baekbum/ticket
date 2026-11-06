@@ -20,6 +20,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_dummy_virtual_accounts_status", columnList = "status")
         },
         uniqueConstraints = {
+                @UniqueConstraint(name = "uk_dummy_virtual_accounts_pg_payment", columnNames = "pg_payment_id"),
                 @UniqueConstraint(name = "uk_dummy_virtual_accounts_payment_no", columnNames = "payment_no"),
                 @UniqueConstraint(name = "uk_dummy_virtual_accounts_account_number", columnNames = "account_number")
         }
@@ -45,6 +47,10 @@ public class DummyVirtualAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "virtual_account_id")
     private Long virtualAccountId;
+
+    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 기존 API 전환 전에는 null이며 입금 이력은 이 계좌를 통해 연결된다.
+    @Column(name = "pg_payment_id", length = 44, updatable = false)
+    private String pgPaymentId;
 
     // ticket-service에서 생성한 결제 식별 번호.
     @Column(name = "payment_no", nullable = false, length = 60)
@@ -98,7 +104,7 @@ public class DummyVirtualAccount {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 가상계좌를 발급한다.
+    // 기존 API의 가상계좌를 PG 연결 없이 발급한다. 진입점 전환이 끝나면 연결된 생성 경로를 사용한다.
     public static DummyVirtualAccount issue(
             String paymentNo,
             BankCompany bankCompany,
@@ -116,6 +122,24 @@ public class DummyVirtualAccount {
                 .status(VirtualAccountPaymentStatus.WAITING_DEPOSIT)
                 .expiresAt(expiresAt)
                 .build();
+    }
+
+    // PG 거래를 참조하는 계좌를 발급한다. 가맹점·금액·은행 검증은 PG 계층에서 수행한다.
+    public static DummyVirtualAccount issue(
+            String pgPaymentId,
+            String paymentNo,
+            BankCompany bankCompany,
+            String accountNumber,
+            BigDecimal amount,
+            LocalDateTime expiresAt
+    ) {
+
+        Objects.requireNonNull(pgPaymentId, "가상계좌에 연결할 PG 결제 식별자가 필요합니다.");
+
+        DummyVirtualAccount account = issue(paymentNo, bankCompany, accountNumber, amount, expiresAt);
+        account.pgPaymentId = pgPaymentId;
+
+        return account;
     }
 
     // 가상계좌 처리에서 입금 결과를 반영한다.

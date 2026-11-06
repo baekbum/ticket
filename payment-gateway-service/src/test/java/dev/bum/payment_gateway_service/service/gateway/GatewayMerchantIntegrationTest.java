@@ -25,6 +25,7 @@ import org.springframework.context.annotation.*;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.*;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,7 +34,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -69,6 +73,7 @@ class GatewayMerchantIntegrationTest {
     @Autowired MerchantJpaRepository merchants;
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired GatewayPaymentService service;
+    @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
     @MockitoSpyBean GatewayPaymentHistoryJpaRepository histories;
     @MockitoBean JwtTokenProvider jwt;
@@ -99,6 +104,48 @@ class GatewayMerchantIntegrationTest {
                 .header("X-Service-Token", "test-merchant-b")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.pgPaymentId").value(b.get("pgPaymentId").asText()));
         assertThat(payments.count()).isEqualTo(2);
+    }
+
+    @Test
+    void paymentIdentifiersUseTheKoreanDateAndUuidAndKeepLookupValidation() throws Exception {
+        LocalDate beforeGeneration = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        JsonNode original = prepared("test-merchant-a", request("PAY-STRING-ID", "4000"));
+        LocalDate afterGeneration = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        String paymentId = original.get("pgPaymentId").asText();
+        assertThat(paymentId).hasSize(44);
+        assertThat(LocalDate.parse(paymentId.substring(0, 8), DateTimeFormatter.BASIC_ISO_DATE))
+                .isIn(beforeGeneration, afterGeneration);
+        assertThat(UUID.fromString(paymentId.substring(8)).toString()).isEqualTo(paymentId.substring(8));
+
+        mvc.perform(get("/api/v1/payments/gateway/" + paymentId.toUpperCase(Locale.ROOT))
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pgPaymentId").value(paymentId));
+        mvc.perform(get("/api/v1/payments/gateway/not-a-uuid")
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/payments/gateway/20260230" + UUID.randomUUID())
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/payments/gateway/20261105" + "x".repeat(36))
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void existingUuidOnlyPaymentsRemainReadableWithoutReissuingTheirIdentifiers() throws Exception {
+        String legacyId = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update("""
+                insert into gateway_payments(pg_payment_id,merchant_id,merchant_payment_no,buyer_reference,
+                    payment_method,amount,refunded_amount,status,creation_request_hash,method_revision,
+                    expires_at,version,created_at,updated_at)
+                values (?,?,'PAY-LEGACY-ID','buyer','CREDIT_CARD',4000,0,'READY',?,0,?,0,?,?)
+                """, legacyId, first.getMerchantId(), request("PAY-LEGACY-ID", "4000").toTerms().fingerprint(),
+                deadline, now, now);
+
+        mvc.perform(get("/api/v1/payments/gateway/" + legacyId.toUpperCase(Locale.ROOT))
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pgPaymentId").value(legacyId));
+        mvc.perform(get("/api/v1/payments/gateway/" + legacyId)
+                .header("X-Service-Token", "test-merchant-b")).andExpect(status().isNotFound());
+        assertThat(payments.findById(legacyId)).isPresent();
     }
 
     @Test
@@ -193,7 +240,7 @@ class GatewayMerchantIntegrationTest {
                 }));
             }
             start.countDown();
-            Set<UUID> ids = new HashSet<>();
+            Set<String> ids = new HashSet<>();
             for (var future : futures) ids.add(future.get(20, TimeUnit.SECONDS).pgPaymentId());
             assertThat(ids).hasSize(1);
             assertThat(payments.count()).isEqualTo(1);

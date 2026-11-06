@@ -23,6 +23,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -33,6 +34,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_dummy_card_payment_histories_status", columnList = "status")
         },
         uniqueConstraints = {
+                @UniqueConstraint(name = "uk_dummy_card_payment_histories_pg_payment", columnNames = "pg_payment_id"),
                 @UniqueConstraint(name = "uk_dummy_card_payment_histories_payment_no", columnNames = "payment_no")
         }
 )
@@ -52,6 +54,10 @@ public class DummyCardPaymentHistory {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dummy_card_id")
     private DummyCard dummyCard;
+
+    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 기존 API 전환 전에는 null이며 카드 원장에는 저장하지 않는다.
+    @Column(name = "pg_payment_id", length = 44, updatable = false)
+    private String pgPaymentId;
 
     // 로그인한 예매자 ID. 카드 소유자는 연결된 dummyCard에 별도로 보관한다.
     @Column(name = "user_id", nullable = false, length = 50)
@@ -110,7 +116,7 @@ public class DummyCardPaymentHistory {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 카드 승인 결과를 반영한다.
+    // 기존 API의 카드 승인 결과를 PG 연결 없이 생성한다. 진입점 전환이 끝나면 연결된 생성 경로를 사용한다.
     public static DummyCardPaymentHistory approved(
             DummyCard dummyCard,
             String requestingUserId,
@@ -133,7 +139,27 @@ public class DummyCardPaymentHistory {
                 .build();
     }
 
-    // 카드 승인 실패 사유를 반영한다.
+    // PG 거래를 참조하는 카드 승인 거래를 생성한다. 가맹점·금액·수단 검증은 PG 계층에서 수행한다.
+    public static DummyCardPaymentHistory approved(
+            String pgPaymentId,
+            DummyCard dummyCard,
+            String requestingUserId,
+            String paymentNo,
+            String transactionId,
+            String maskedCardNumber,
+            BigDecimal amount
+    ) {
+
+        Objects.requireNonNull(pgPaymentId, "카드 승인에 연결할 PG 결제 식별자가 필요합니다.");
+
+        DummyCardPaymentHistory history = approved(
+                dummyCard, requestingUserId, paymentNo, transactionId, maskedCardNumber, amount);
+        history.pgPaymentId = pgPaymentId;
+
+        return history;
+    }
+
+    // 기존 API의 카드 승인 실패를 PG 연결 없이 기록한다.
     public static DummyCardPaymentHistory approvalFailed(
             DummyCard dummyCard,
             String userId,
@@ -155,6 +181,27 @@ public class DummyCardPaymentHistory {
                 .failureReason(failureReason)
                 .approvedAt(LocalDateTime.now())
                 .build();
+    }
+
+    // PG 거래에 속한 최초 승인 실패를 기록한다. 재시도와 재승인은 같은 거래 행을 기준으로 처리한다.
+    public static DummyCardPaymentHistory approvalFailed(
+            String pgPaymentId,
+            DummyCard dummyCard,
+            String userId,
+            String paymentNo,
+            CardCompany cardCompany,
+            String maskedCardNumber,
+            BigDecimal amount,
+            String failureReason
+    ) {
+
+        Objects.requireNonNull(pgPaymentId, "카드 승인 실패에 연결할 PG 결제 식별자가 필요합니다.");
+
+        DummyCardPaymentHistory history = approvalFailed(
+                dummyCard, userId, paymentNo, cardCompany, maskedCardNumber, amount, failureReason);
+        history.pgPaymentId = pgPaymentId;
+
+        return history;
     }
 
     // 티켓 서비스에 결제 완료 결과를 반영한다.

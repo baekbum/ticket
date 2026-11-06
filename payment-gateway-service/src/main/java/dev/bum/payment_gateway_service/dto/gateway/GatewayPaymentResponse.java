@@ -8,11 +8,10 @@ import dev.bum.payment_gateway_service.jpa.gateway.GatewayPaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 public record GatewayPaymentResponse(
-        // PG 발급 거래 식별자.
-        UUID pgPaymentId,
+    // PG가 yyyyMMdd + UUID로 생성한 문자열 거래 식별자. 기존 거래의 36자 UUID도 유지한다.
+    String pgPaymentId,
 
         // 인증된 거래 소유 가맹점의 숫자 코드.
         Long merchantId,
