@@ -6,18 +6,28 @@ import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException
 import dev.bum.payment_gateway_service.exception.GatewayPaymentNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataAccessException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.ResourceAccessException;
+import dev.bum.payment_gateway_service.exception.FinancialProviderResponseException;
 
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ResourceAccessException.class)
-    public ResponseEntity<Map<String, String>> handleFinancialTransportFailure(ResourceAccessException exception) {
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, String>> handleStorageFailure(DataAccessException exception) {
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                "code", "GATEWAY_STORAGE_UNAVAILABLE",
+                "message", "PG 처리 결과를 저장하지 못했습니다. 같은 PG 결제 식별자로 재요청해주세요."));
+    }
+
+    @ExceptionHandler({ResourceAccessException.class, FinancialProviderResponseException.class})
+    public ResponseEntity<Map<String, String>> handleFinancialTransportFailure(RuntimeException exception) {
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
                 "code", "FINANCIAL_PROVIDER_UNAVAILABLE",

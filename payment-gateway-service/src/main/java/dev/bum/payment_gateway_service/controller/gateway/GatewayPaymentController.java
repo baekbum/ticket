@@ -2,7 +2,7 @@ package dev.bum.payment_gateway_service.controller.gateway;
 
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
-import dev.bum.payment_gateway_service.service.gateway.GatewayPaymentService;
+import dev.bum.payment_gateway_service.service.gateway.payment.GatewayPaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

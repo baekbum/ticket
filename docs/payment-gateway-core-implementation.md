@@ -2,6 +2,8 @@
 
 이 문서는 [전체 목표 설계](payment-gateway-domain-design.md) 중 실제 적용한 기반 기능을 설명한다. 금융 모델의 날짜+UUID 문자열/FK 연결은 [금융 거래 연결 문서](payment-gateway-financial-links.md)에 정리했다. 기존 결제 진입점 연결과 카드 결제 세션은 후속 단계다.
 
+2026-11-08 가맹점 인증을 거쳐 준비 거래에 계좌를 연결하는 [PG 가상계좌 발급](payment-gateway-account-issuance.md)을 추가했다. 발급은 READY를 WAITING_DEPOSIT로 변경하고 결과 이력을 저장한다. 기존 Ticksy 요청의 자동 전환이나 신규 연결 거래의 입금·취소·통보까지 포함한 변경은 아니다.
+
 ## 적용 범위
 
 - `Merchant`, `GatewayPayment`, `GatewayPaymentHistory`와 가맹점 범위 리포지토리를 추가했다.
@@ -138,3 +140,5 @@ PG 139개에는 실제 PostgreSQL 테스트 5개가 포함된다. 해시 CHAR(64
 이어 신규 ID를 한국 날짜의 yyyyMMdd + UUID로 발급하도록 변경하고 DB를 VARCHAR(44)로 확장했다. 기존 36자 UUID 조회와 잘못된 날짜/UUID 검증을 포함해 최종 157개(실제 PostgreSQL 12개 포함)가 모두 통과했다. 확장 SQL의 기존 데이터 보존과 신규 schema.sql 실행도 별도 검증 스키마에서 확인하고 롤백했다.
 
 2026-11-06 모의 은행·카드 HTTP 경계 변경 후에는 172개(실제 loopback HTTP 13개, 실제 PostgreSQL 12개 포함)가 모두 통과했다. 상세 구조와 한계는 [금융 HTTP 구현](payment-gateway-financial-http.md)에 정리했다.
+
+2026-11-08 PG 가상계좌 발급 연결 후에는 같은 PG 선택 범위 189개(신규 발급 통합 16개, 기존 금융 HTTP 13개, 실제 PostgreSQL 13개 포함)가 모두 통과했다. 금융/PG 저장 실패와 HTTP 응답 유실의 복구 및 기존 API 범위 격리는 [PG 계좌 발급 문서](payment-gateway-account-issuance.md)에 정리했다. 실제 DB 스키마는 변경하지 않았으며 검증 데이터는 남기지 않았다.

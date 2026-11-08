@@ -10,8 +10,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record GatewayPaymentResponse(
-    // PG가 yyyyMMdd + UUID로 생성한 문자열 거래 식별자. 기존 거래의 36자 UUID도 유지한다.
-    String pgPaymentId,
+        // PG가 yyyyMMdd + UUID로 생성한 문자열 거래 식별자. 기존 거래의 36자 UUID도 유지한다.
+        String pgPaymentId,
 
         // 인증된 거래 소유 가맹점의 숫자 코드.
         Long merchantId,

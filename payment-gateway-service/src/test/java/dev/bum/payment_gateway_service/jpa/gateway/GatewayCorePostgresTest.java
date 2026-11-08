@@ -155,6 +155,31 @@ class GatewayCorePostgresTest {
                 .isEqualTo(bank.getPgPaymentId());
     }
 
+    @Test
+    void accountIssuanceStateAndJsonSnapshotAreStoredAndLegacyLookupsExcludeLinkedAccounts() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-ISSUANCE", PaymentMethod.BANK_TRANSFER);
+        histories.saveAndFlush(GatewayPaymentHistory.registered(payment));
+        DummyVirtualAccount account = accounts.saveAndFlush(account(payment.getPgPaymentId(), payment.getPgPaymentId(),
+                "VERIFY-ISSUE-1000"));
+        bankHistories.saveAndFlush(DummyVirtualAccountPaymentHistory.issued(account));
+        payment.waitForDeposit();
+        histories.saveAndFlush(GatewayPaymentHistory.accountIssued(payment, account.getAccountNumber(),
+                BankCompany.KB.getBankName(), VirtualAccountPaymentStatus.WAITING_DEPOSIT.name(),
+                GatewayPaymentStatus.READY));
+        entityManager.clear();
+
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getStatus())
+                .isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        assertThat(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(payment.getPgPaymentId(),
+                GatewayPaymentOperation.ISSUE_ACCOUNT, "INITIAL").orElseThrow().getDetails())
+                .containsEntry("accountNumber", "VERIFY-ISSUE-1000")
+                .containsEntry("bankStatus", "WAITING_DEPOSIT");
+        assertThat(accounts.findByPgPaymentId(payment.getPgPaymentId())).isPresent();
+        assertThat(accounts.findByPaymentNo(payment.getPgPaymentId())).isEmpty();
+        assertThat(accounts.findByPaymentNoForUpdate(payment.getPgPaymentId())).isEmpty();
+        assertThat(accounts.findByAccountNumber(account.getAccountNumber())).isEmpty();
+    }
+
     @ParameterizedTest
     @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
     void actualForeignKeysRejectFinancialRowsWithAnUnknownGatewayPayment(PaymentMethod method) {

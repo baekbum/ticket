@@ -136,6 +136,16 @@ public class GatewayPayment {
         return payment;
     }
 
+    // 은행의 실제 발급 성공을 확인한 뒤 입금 대기 상태로 전환한다.
+    public void waitForDeposit() {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || status != GatewayPaymentStatus.READY) {
+            throw new IllegalStateException("가상계좌 발급 결과를 반영할 수 없는 PG 상태입니다.");
+        }
+
+        status = GatewayPaymentStatus.WAITING_DEPOSIT;
+    }
+
     // 같은 키의 다른 요청을 기존 거래 성공으로 잘못 재응답하지 않는다.
     public boolean matches(GatewayPaymentTerms terms) {
 

@@ -20,22 +20,27 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     @Query("select a.pgPaymentId from DummyVirtualAccount a where a.accountNumber = :accountNumber")
     Optional<String> findPgPaymentIdByAccountNumber(@Param("accountNumber") String accountNumber);
 
-    Optional<DummyVirtualAccount> findByPaymentNo(String paymentNo);
+    // 기존 Ticksy 전용 조회에서는 가맹점 연결 거래를 찾지 않는다.
+    @Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo and a.pgPaymentId is null")
+    Optional<DummyVirtualAccount> findByPaymentNo(@Param("paymentNo") String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo")
+    @Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo and a.pgPaymentId is null")
     Optional<DummyVirtualAccount> findByPaymentNoForUpdate(@Param("paymentNo") String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<DummyVirtualAccount> findByAccountNumber(String accountNumber);
+    @Query("select a from DummyVirtualAccount a where a.accountNumber = :accountNumber and a.pgPaymentId is null")
+    Optional<DummyVirtualAccount> findByAccountNumber(@Param("accountNumber") String accountNumber);
 
     boolean existsByAccountNumber(String accountNumber);
 
-    List<DummyVirtualAccount> findTop100ByStatusOrderByDepositedAtAsc(VirtualAccountPaymentStatus status);
+    List<DummyVirtualAccount> findTop100ByStatusAndPgPaymentIdIsNullOrderByDepositedAtAsc(
+            VirtualAccountPaymentStatus status
+    );
 
     // 입금과 만료가 같은 계좌 행을 잠가 상태 변경을 순서대로 처리한다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<DummyVirtualAccount> findTop100ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+    List<DummyVirtualAccount> findTop100ByPgPaymentIdIsNullAndStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
             VirtualAccountPaymentStatus status,
             LocalDateTime expiresAt
     );

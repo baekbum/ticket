@@ -300,11 +300,13 @@ Ticksy가 환불 프로세스 ID와 원결제번호·환불 계좌·금액을 PG
 
 ## 10. 주요 소스 위치
 
+소스 링크는 2026-11-08 서비스 패키지 재배치 경로로 갱신했다. 분석 시점의 동작 설명과 실제 적용 단계의 차이는 [금융 HTTP 구현 문서](payment-gateway-financial-http.md)를 따른다.
+
 - 프런트엔드 결제 시작: [App.tsx](../client-service/src/App.tsx), [CardPaymentDialog.tsx](../client-service/src/CardPaymentDialog.tsx), [authenticatedRequest.ts](../client-service/src/authenticatedRequest.ts).
 - PG 인증·라우팅 권한: [SecurityConfig.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/security/SecurityConfig.java), 같은 디렉터리의 내부 서비스/입금 제공자 인증 필터와 validator.
-- PG 카드: [GatewayCardPaymentService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/card/GatewayCardPaymentService.java), 같은 디렉터리의 Approval/Settlement/RecoveryScheduler.
-- PG 계좌: [GatewayVirtualAccountService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/virtualAccount/GatewayVirtualAccountService.java), 같은 디렉터리의 Cancellation/Expiration/입금·만료 Outbox 클래스.
-- PG 환불: [GatewayRefundProcessService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/refund/GatewayRefundProcessService.java), 같은 디렉터리의 Creator/FailureRecorder/ResolutionService.
+- 기존 카드 처리: [GatewayCardPaymentService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/financial/card/GatewayCardPaymentService.java), 같은 디렉터리의 Approval. 가맹점 결과 반영과 복구는 `service.gateway.card`의 Settlement/RecoveryScheduler.
+- 기존 계좌 처리: [GatewayVirtualAccountService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/financial/virtualAccount/GatewayVirtualAccountService.java), 같은 디렉터리의 Cancellation/Expiration. 입금·만료 통보 Outbox는 `service.gateway.virtualAccount`.
+- PG 환불: [GatewayRefundProcessService.java](../payment-gateway-service/src/main/java/dev/bum/payment_gateway_service/service/gateway/refund/GatewayRefundProcessService.java), 같은 디렉터리의 Creator/FailureRecorder/ResolutionService.
 - Ticksy checkout: [CheckoutService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/checkout/CheckoutService.java), [CheckoutVirtualAccountService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/checkout/payment/CheckoutVirtualAccountService.java).
 - Ticksy 완료: [CardPaymentService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/payment/card/CardPaymentService.java), [VirtualAccountPaymentService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/payment/virtualAccount/VirtualAccountPaymentService.java), 같은 디렉터리의 VirtualAccountPaymentLockService.
 - Ticksy 취소·환불: [ReservationCancellationService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/reservation/reservation/ReservationCancellationService.java), [PaymentRefundProcessService.java](../ticket-service/src/main/java/dev/bum/ticket_service/service/payment/refund/PaymentRefundProcessService.java).

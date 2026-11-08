@@ -1,7 +1,7 @@
 package dev.bum.payment_gateway_service.security.merchant;
 
 import dev.bum.payment_gateway_service.security.InternalServiceAuthenticationFilter;
-import dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationService;
+import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

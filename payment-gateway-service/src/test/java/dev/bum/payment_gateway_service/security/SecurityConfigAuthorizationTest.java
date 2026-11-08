@@ -2,13 +2,14 @@ package dev.bum.payment_gateway_service.security;
 
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.payment_gateway_service.controller.card.GatewayCardPaymentController;
-import dev.bum.payment_gateway_service.controller.refund.GatewayRefundController;
-import dev.bum.payment_gateway_service.controller.virtualAccount.GatewayVirtualAccountController;
-import dev.bum.payment_gateway_service.service.card.GatewayCardPaymentService;
-import dev.bum.payment_gateway_service.service.refund.GatewayRefundResolutionService;
-import dev.bum.payment_gateway_service.service.virtualAccount.GatewayVirtualAccountService;
-import dev.bum.payment_gateway_service.service.virtualAccount.VirtualAccountCancellationService;
+import dev.bum.payment_gateway_service.controller.gateway.GatewayCardPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.GatewayRefundController;
+import dev.bum.payment_gateway_service.controller.gateway.GatewayVirtualAccountController;
+import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
+import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayVirtualAccountService;
+import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountCancellationService;
+import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
+import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundResolutionService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,10 +30,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class SecurityConfigAuthorizationTest {
     @MockitoBean
-    private dev.bum.payment_gateway_service.service.gateway.FinancialSimulationGatewayService financialGateway;
+    private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService issuance;
 
     @MockitoBean
-    private dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationService merchantAuthenticationService;
+    private dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService financialGateway;
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService merchantAuthenticationService;
 
     @MockitoBean
     private TokenStateStore tokenStateStore;

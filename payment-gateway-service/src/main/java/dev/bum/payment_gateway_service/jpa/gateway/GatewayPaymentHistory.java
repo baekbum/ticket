@@ -90,4 +90,27 @@ public class GatewayPaymentHistory {
 
         return history;
     }
+
+    // 금융 응답과 PG 상태가 확정된 트랜잭션에서 최초 발급 결과를 한 번 기록한다.
+    public static GatewayPaymentHistory accountIssued(
+            GatewayPayment payment,
+            String accountNumber,
+            String bankName,
+            String bankStatus,
+            GatewayPaymentStatus beforeStatus
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.ISSUE_ACCOUNT;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = beforeStatus;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("accountNumber", accountNumber, "bankName", bankName, "bankStatus", bankStatus);
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
 }

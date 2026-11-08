@@ -5,7 +5,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.payment_gateway_service.security.merchant.MerchantAuthenticationFilter;
-import dev.bum.payment_gateway_service.service.merchant.MerchantAuthenticationService;
+import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -67,7 +67,7 @@ public class SecurityConfig {
             MerchantAuthenticationService merchants
     ) throws Exception {
 
-        http.securityMatcher("/api/*/payments/gateway/**")
+        http.securityMatcher("/api/*/payments/gateway/**", "/api/*/payments/virtual-account/gateway/**")
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
