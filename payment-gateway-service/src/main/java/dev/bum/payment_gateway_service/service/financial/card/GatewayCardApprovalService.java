@@ -16,6 +16,7 @@ import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistory;
 import dev.bum.payment_gateway_service.jpa.card.DummyCardPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundProcessService;
+import dev.bum.payment_gateway_service.support.CardCredentials;
 
 import jakarta.annotation.Nonnull;
 
@@ -29,11 +30,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.LocalDate;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -270,21 +266,7 @@ public class GatewayCardApprovalService {
      */
     private void validateCard(DummyCard dummyCard, GatewayCardPaymentApproveRequest request, String cardNumber) {
 
-        if (!dummyCard.getCardNumberLast4().equals(cardNumber.substring(cardNumber.length() - 4))) {
-            throw new IllegalArgumentException("카드 정보가 일치하지 않습니다.");
-        }
-
-        if (!passwordEncoder.matches(request.getCvc(), dummyCard.getCvcHash())) {
-            throw new IllegalArgumentException("카드 CVC가 일치하지 않습니다.");
-        }
-
-        if (!passwordEncoder.matches(request.getCardPassword(), dummyCard.getCardPasswordHash())) {
-            throw new IllegalArgumentException("카드 비밀번호가 일치하지 않습니다.");
-        }
-
-        if (dummyCard.isExpired(LocalDate.now())) {
-            throw new IllegalArgumentException("만료된 카드입니다.");
-        }
+        CardCredentials.validate(dummyCard, cardNumber, request.getCvc(), request.getCardPassword(), passwordEncoder);
 
         if (!dummyCard.canPay(request.getAmount())) {
             throw new IllegalArgumentException("카드 결제 한도를 초과했거나 사용할 수 없는 카드입니다.");
@@ -296,7 +278,7 @@ public class GatewayCardApprovalService {
      */
     private String normalizeCardNumber(String value) {
 
-        return StringUtils.hasText(value) ? value.replaceAll("[^0-9]", "") : "";
+        return CardCredentials.normalize(value);
     }
 
     /**
@@ -322,7 +304,7 @@ public class GatewayCardApprovalService {
      */
     private String maskCardNumber(String cardNumber) {
 
-        return cardNumber.substring(0, 4) + "-****-****-" + cardNumber.substring(12);
+        return CardCredentials.mask(cardNumber);
     }
 
     /**
@@ -330,12 +312,6 @@ public class GatewayCardApprovalService {
      */
     private String sha256(String value) {
 
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("카드번호 해시를 생성할 수 없습니다.", e);
-        }
+        return CardCredentials.hash(value);
     }
 }

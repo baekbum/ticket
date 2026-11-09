@@ -67,7 +67,8 @@ public class SecurityConfig {
             MerchantAuthenticationService merchants
     ) throws Exception {
 
-        http.securityMatcher("/api/*/payments/gateway/**", "/api/*/payments/virtual-account/gateway/**")
+        http.securityMatcher("/api/*/payments/gateway/**", "/api/*/payments/virtual-account/gateway/**",
+                        "/api/*/payments/card/gateway/**")
                 .csrf(csrf -> csrf.disable())
                 .cors(this::configureCors)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

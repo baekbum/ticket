@@ -1,5 +1,9 @@
 # 결제 API 계약
 
+2026-11-09 신규 PG 카드 결과 통보는 [공통 요청/응답 계약](payment-gateway-standard-card-notification.md)을 사용한다. PG는 등록된 전체 URL을 공통 send 인자로 전달하고, Ticksy는 POST /api/v1/payments/internal/gateway/card/notifications에서 수신한다. 기존 settle 엔드포인트는 유지한다.
+
+2026-11-08 PG 거래 기반 카드 승인/조회 API와 가맹점 카드 통보 Outbox를 추가했다. POST /api/v1/payments/card/gateway/{pgPaymentId}/approve와 GET /api/v1/payments/card/gateway/{pgPaymentId}는 가맹점 서버 인증을 사용한다. 금융 승인 PAID와 통보 완료는 별도 상태다. 요청·응답·보상 계약은 [PG 카드 승인](payment-gateway-card-approval.md)을 따른다. 기존 사용자 JWT 카드 API와 Ticksy 호출은 유지한다.
+
 PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
 
 2026-11-08 가맹점 인증 기반 `POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue`를 추가했다. 준비된 PG 거래를 은행 계좌에 연결하고 PG 상태/발급 이력을 저장한다. 요청·응답·복구 계약은 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 따른다. 기존 Ticksy 호출은 아직 이 경로로 전환하지 않았으며 새 연결 계좌의 입금·취소·환불·만료·통보는 후속 단계다.

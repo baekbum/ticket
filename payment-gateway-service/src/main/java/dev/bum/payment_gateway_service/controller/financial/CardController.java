@@ -3,6 +3,7 @@ package dev.bum.payment_gateway_service.controller.financial;
 import dev.bum.payment_gateway_service.dto.card.*;
 import dev.bum.payment_gateway_service.security.FinancialSimulationAuthenticationFilter;
 import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
+import dev.bum.payment_gateway_service.service.financial.card.CardApprovalService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class CardController {
 
     private final GatewayCardPaymentService cards;
+    private final CardApprovalService pgApprovals;
 
     @PostMapping("/approve")
     public ResponseEntity<GatewayCardPaymentApproveResponse> approve(
@@ -23,6 +25,20 @@ public class CardController {
     ) {
 
         return ResponseEntity.ok(cards.approve(userId, request));
+    }
+
+    @PostMapping("/gateway/approve")
+    public ResponseEntity<FinancialCardApprovalResponse> approveGateway(
+            @Valid @RequestBody FinancialCardApproveRequest request
+    ) {
+
+        return ResponseEntity.ok(pgApprovals.approve(request));
+    }
+
+    @GetMapping("/gateway/{pgPaymentId}")
+    public ResponseEntity<FinancialCardApprovalResponse> gatewayStatus(@PathVariable String pgPaymentId) {
+
+        return ResponseEntity.of(pgApprovals.find(pgPaymentId));
     }
 
     @GetMapping("/payments/{paymentNo}")
@@ -38,6 +54,12 @@ public class CardController {
     public ResponseEntity<Boolean> approvalExists(@PathVariable String paymentNo) {
 
         return ResponseEntity.ok(cards.hasApprovalHistory(paymentNo));
+    }
+
+    @PostMapping("/gateway/{pgPaymentId}/cancel")
+    public ResponseEntity<FinancialCardApprovalResponse> cancelGateway(@PathVariable String pgPaymentId) {
+
+        return ResponseEntity.ok(pgApprovals.cancel(pgPaymentId));
     }
 
     @PostMapping("/refund")

@@ -61,6 +61,38 @@ class GatewayCorePostgresTest {
     @Autowired DummyCardPaymentHistoryJpaRepository approvals;
     @Autowired DummyVirtualAccountJpaRepository accounts;
     @Autowired DummyVirtualAccountPaymentHistoryJpaRepository bankHistories;
+    @Autowired GatewayCardNotificationJpaRepository notifications;
+    @Autowired MerchantNotificationEndpointJpaRepository endpoints;
+
+    @Test
+    void notificationEndpointKeysAreMerchantScopedAndPersistEncryptedCredentials() {
+        Merchant first = merchant();
+        Merchant second = merchant();
+        dev.bum.payment_gateway_service.service.gateway.notification.MerchantNotificationTokenCipher cipher =
+                new dev.bum.payment_gateway_service.service.gateway.notification.MerchantNotificationTokenCipher("verify-key");
+        MerchantNotificationEndpoint a = endpoints.saveAndFlush(MerchantNotificationEndpoint.register(
+                first, "same-key", "https://first.example/hook", cipher.encrypt("first-secret")));
+        endpoints.saveAndFlush(MerchantNotificationEndpoint.register(
+                second, "same-key", "https://second.example/hook", cipher.encrypt("second-secret")));
+        entityManager.clear();
+        assertThat(cipher.decrypt(endpoints.findByMerchantMerchantIdAndTargetKey(first.getMerchantId(), "same-key")
+                .orElseThrow().getServiceTokenCiphertext())).isEqualTo("first-secret");
+        assertThat(endpoints.findByMerchantMerchantIdAndTargetKey(second.getMerchantId(), "same-key")
+                .orElseThrow().getEndpointId()).isNotEqualTo(a.getEndpointId());
+        assertThat(endpoints.findByMerchantMerchantIdAndTargetKey(second.getMerchantId(), "missing")).isEmpty();
+        assertThat(jdbc.queryForObject("select service_token_ciphertext from merchant_notification_endpoints "
+                + "where endpoint_id = ?", String.class, a.getEndpointId())).doesNotContain("first-secret");
+    }
+
+    @Test
+    void actualEndpointConstraintRejectsDuplicateKeysForTheSameMerchant() {
+        Merchant owner = merchant();
+        endpoints.saveAndFlush(MerchantNotificationEndpoint.register(owner, "unique-key", "https://first.example/hook",
+                "v1:verify-encrypted-value"));
+        assertThatThrownBy(() -> endpoints.saveAndFlush(MerchantNotificationEndpoint.register(owner, "unique-key",
+                "https://second.example/hook", "v1:another-encrypted-value")))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
 
     @Test
     void migratedSchemaAndNonSecretTicksyRegistrationExist() {
@@ -80,6 +112,42 @@ class GatewayCorePostgresTest {
         assertThat(a.getPgPaymentId()).isNotEqualTo(b.getPgPaymentId());
         assertThat(payments.findByPgPaymentIdAndMerchantMerchantId(a.getPgPaymentId(), second.getMerchantId())).isEmpty();
         assertThat(histories.findById(history.getHistoryId()).orElseThrow().getDetails()).isEmpty();
+    }
+
+    @Test
+    void cardApprovalSnapshotAndLeasedNotificationAreMappedOnTheActualSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-PG-CARD", PaymentMethod.CREDIT_CARD);
+        dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse card =
+                new dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse(payment.getPgPaymentId(),
+                        "verify", CardCompany.SHINHAN, "a".repeat(64), "CARD-VERIFY", "4111-****-****-1111",
+                        payment.getAmount(), LocalDateTime.of(2026, 1, 1, 12, 0), CardPaymentHistoryStatus.APPROVED);
+        payment.approveCard(card.cardCompany(), card.approvedAt());
+        histories.saveAndFlush(GatewayPaymentHistory.cardApproved(payment, card, "a".repeat(64)));
+        Long id = notifications.saveAndFlush(GatewayCardNotification.pending(payment, card)).getNotificationId();
+        entityManager.clear();
+        GatewayCardNotification event = notifications.findForUpdate(id).orElseThrow();
+        assertThat(event.getEventId()).isEqualTo(payment.getPgPaymentId() + ":APPROVE:INITIAL");
+        assertThat(event.claim(LocalDateTime.now())).isNotNull();
+        notifications.flush();
+        event.delivered("ACCEPTED");
+        notifications.flush();
+        entityManager.clear();
+        assertThat(notifications.findById(id).orElseThrow().getStatus()).isEqualTo("DELIVERED");
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+    }
+
+    @Test
+    void notificationCompositeForeignKeyRejectsAnotherMerchant() {
+        Merchant owner = merchant();
+        Merchant other = merchant();
+        GatewayPayment payment = payment(owner, "VERIFY-NOTIFY-OWNER", PaymentMethod.CREDIT_CARD);
+        assertThatThrownBy(() -> jdbc.update("""
+                insert into gateway_card_notification_outbox(event_id, pg_payment_id, merchant_id,
+                    merchant_payment_no, buyer_reference, notification_contract, notification_target_key,
+                    transaction_id, card_company, masked_card_number, amount, approved_at)
+                values ('VERIFY-EVENT', ?, ?, 'VERIFY-NO', 'verify', 'TICKSY', 'verify',
+                    'CARD-VERIFY', 'SHINHAN', '4111-****-****-1111', 100, CURRENT_TIMESTAMP)
+                """, payment.getPgPaymentId(), other.getMerchantId())).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

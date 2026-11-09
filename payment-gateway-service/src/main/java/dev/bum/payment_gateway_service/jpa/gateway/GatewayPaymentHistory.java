@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse;
 
 @Entity
 @Table(name = "gateway_payment_histories", uniqueConstraints = @UniqueConstraint(
@@ -86,6 +87,45 @@ public class GatewayPaymentHistory {
         history.amount = payment.getAmount();
         history.requestHash = payment.getCreationRequestHash();
         history.details = Map.of();
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
+    // 승인 결과와 PG 완료 상태·통보 Outbox를 같은 PG 트랜잭션으로 기록한다.
+    public static GatewayPaymentHistory cardApproved(
+            GatewayPayment payment,
+            FinancialCardApprovalResponse card,
+            String requestHash
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.APPROVE;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = GatewayPaymentStatus.READY;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = requestHash;
+        history.details = Map.of("transactionId", card.transactionId(), "cardCompany", card.cardCompany().name(),
+                "maskedCardNumber", card.maskedCardNumber(), "approvedAt", card.approvedAt().toString());
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
+    // 가맹점의 확정 거절에 대해 실제 승인 보상이 끝난 사실을 한 번 기록한다.
+    public static GatewayPaymentHistory cardApprovalCancelled(GatewayPayment payment, String transactionId) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.CANCEL_APPROVAL;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = GatewayPaymentStatus.PAID;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("transactionId", transactionId, "reason", "MERCHANT_PAYMENT_REJECTED");
         history.occurredAt = LocalDateTime.now();
 
         return history;

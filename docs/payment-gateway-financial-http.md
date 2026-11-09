@@ -33,9 +33,10 @@ service
 │  ├─ payment             # PG 거래 준비·조회·명령 트랜잭션
 │  ├─ merchant            # 등록 가맹점 자격증명 인증
 │  ├─ client              # RestClient를 통한 금융기관 HTTP 호출
-│  ├─ card                # Ticksy 카드 결과 반영·복구 스케줄러
+│  ├─ card                # PG 카드 승인 조정·확정, 기존 Ticksy 결과 반영·복구
 │  ├─ virtualAccount      # PG 계좌 발급 조정·결과 확정·가맹점 통보 Outbox
-│  └─ refund              # PG 환불 프로세스·멱등 결과·실패 기록·resolve
+│  ├─ refund              # PG 환불 프로세스·멱등 결과·실패 기록·resolve
+│  └─ notification        # 가맹점 카드 통보 Outbox·계약 어댑터·재시도
 └─ financial
    ├─ card                # 기존 카드 처리 진입 서비스·승인/한도/환불
    └─ virtualAccount      # 은행 계좌 발급·입금·취소·만료
@@ -74,7 +75,7 @@ flowchart LR
 
 외부 컨트롤러는 금융 서비스를 직접 주입하지 않고 HTTP 중계 서비스를 호출한다. 모의 금융 컨트롤러가 기존 처리 서비스를 주입한다. 모의 컨트롤러는 기존 외부 URL과 다른 경로를 사용하므로 HTTP 호출이 PG 진입점으로 재귀 진입하지 않는다.
 
-새 가맹점 준비/조회 API는 `GatewayPaymentService`를 사용한다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 추가해 준비된 은행 거래를 계좌와 연결했다. 이 경로의 은행 서비스는 Ticksy를 호출하지 않는다. 기존 Ticksy 호출 전환과 신규 거래의 입금·취소·환불·만료·통보, 카드 승인의 PG 거래 연결은 후속 작업이다.
+새 가맹점 준비/조회 API는 `GatewayPaymentService`를 사용한다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 추가해 준비된 은행 거래를 계좌와 연결했다. 이 경로의 은행 서비스는 Ticksy를 호출하지 않는다. 기존 Ticksy 호출 전환과 신규 은행 거래의 입금·취소·환불·만료·통보는 후속 작업이다. 같은 날 [PG 거래 기반 카드 승인](payment-gateway-card-approval.md)을 추가해 신규 카드 원승인과 PG 상태·이력·가맹점 통보를 연결했다.
 
 ## API 연결
 

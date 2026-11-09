@@ -3,6 +3,10 @@ package dev.bum.payment_gateway_service.controller.gateway;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentApproveRequest;
 import dev.bum.payment_gateway_service.dto.card.GatewayCardPaymentRefundRequest;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
+import dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApprovalService;
+import dev.bum.payment_gateway_service.dto.gateway.GatewayCardApprovalRequest;
+import dev.bum.payment_gateway_service.dto.gateway.GatewayCardApprovalResponse;
+import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 public class GatewayCardPaymentController {
 
     private final FinancialSimulationGatewayService financialGateway;
+    private final GatewayCardApprovalService approvals;
 
     @PostMapping("/approve")
     public ResponseEntity<byte[]> approve(
@@ -28,6 +33,25 @@ public class GatewayCardPaymentController {
     ) {
 
         return financialGateway.approveCard(currentUserId, request);
+    }
+
+    @PostMapping("/gateway/{pgPaymentId}/approve")
+    public ResponseEntity<GatewayCardApprovalResponse> approveGateway(
+            @AuthenticationPrincipal AuthenticatedMerchant merchant,
+            @PathVariable String pgPaymentId,
+            @Valid @RequestBody GatewayCardApprovalRequest request
+    ) {
+
+        return ResponseEntity.ok(approvals.approve(merchant, pgPaymentId, request));
+    }
+
+    @GetMapping("/gateway/{pgPaymentId}")
+    public ResponseEntity<GatewayCardApprovalResponse> gatewayStatus(
+            @AuthenticationPrincipal AuthenticatedMerchant merchant,
+            @PathVariable String pgPaymentId
+    ) {
+
+        return ResponseEntity.ok(approvals.status(merchant, pgPaymentId));
     }
 
     @GetMapping("/{paymentNo}")

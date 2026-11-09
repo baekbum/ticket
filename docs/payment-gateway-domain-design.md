@@ -4,7 +4,7 @@
 
 이 문서는 전체 구현의 기준 설계다. [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)은 설계 기록으로 유지한다. 가맹점·PG 거래 모델과 서버 인증·준비/조회 API는 구현했으며, 실제 적용 범위와 SQL은 [기반 구현 문서](payment-gateway-core-implementation.md)를 따른다. 금융 연결·카드 세션·통보 책임 분리는 아래 설계에 따른 후속 작업이다.
 
-2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 구현했으며, 신규 연결 거래의 입금·취소·통보와 카드 승인 연결은 후속 단계다.
+2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 구현했으며, 신규 은행 연결 거래의 입금·취소·통보는 후속 단계다. 같은 날 [PG 카드 승인](payment-gateway-card-approval.md)과 가맹점 통보 Outbox를 추가했다.
 
 ## 1. 결정한 구조
 
@@ -120,8 +120,8 @@ JSON의 기존 `paymentNo`, `transactionId`, `paymentRefundProcessId` 이름은 
 | `merchant_name` | VARCHAR(100), NOT NULL, 중복 허용 | 가맹점 표시 이름. 식별·인증 기준으로 사용하지 않음 |
 | `status` | ACTIVE / SUSPENDED | 신규 처리 허용 정책 |
 | `credential_key` | VARCHAR(64), NOT NULL, UNIQUE | 서버 설정의 인증 자격증명 그룹 참조 |
-| `notification_adapter` | VARCHAR(40), NOT NULL | 허용된 가맹점 어댑터 코드 |
-| `notification_target_key` | VARCHAR(100), NOT NULL | 등록된 HTTP/Kafka 통보 대상 설정 참조 |
+| `notification_contract` | VARCHAR(40), NOT NULL | 통보 DTO 필드 구성·응답 규칙의 계약 버전 코드. 현재 CARD_NOTIFICATION_V1 지원 |
+| `notification_target_key` | VARCHAR(100), NOT NULL | merchant_id와 함께 merchant_notification_endpoints의 등록 대상 참조 |
 | `created_at`, `updated_at` | TIMESTAMP(6) | 생성·수정 시각 |
 
 `merchants` 자체가 숫자 코드와 가맹점명을 매핑한다. 별도의 가맹점 코드 매핑 테이블이나 문자열 `merchant_code` 컬럼은 추가하지 않는다. 예시는 다음과 같다.
@@ -298,7 +298,7 @@ PG 상태/작업 확인은 짧은 PG 트랜잭션으로 처리한다. 이 트랜
 - 각각의 이벤트는 최초 payload·발생시각·eventId와 등록된 통보 대상 설정의 식별자/버전을 저장한다. 설정 버전은 코드/운영 설정에서 관리하고 미전달 이벤트가 있으면 해당 버전을 유지한다. 일반 요청의 URL·토픽은 받지 않는다.
 - HTTP는 검증된 가맹점 응답에 DELIVERED, Kafka는 브로커 확인에 PUBLISHED다. Kafka consumer 실패/DLT는 별도의 수신 경계다. PG HTTP 통보는 기존 고정 간격/무제한 재시도를 유지한다.
 
-현재 카드 승인 후 복구는 기존 승인 이력 스케줄러가 담당한다. 후속 PG 결과 확정/통보 Outbox로 이관할 때 기존 경로와 동시에 같은 건을 전달하지 않도록 전환한다. 금융 성공 후 PG 결과 확정 전 종료도 조회/복구 대상으로 다룬다.
+기존 NULL 연결 카드 거래의 승인 후 복구는 기존 승인 이력 스케줄러가 담당한다. 신규 PG 연결 카드 거래는 별도 가맹점 통보 Outbox로 전달하고 기존 스케줄러 조회에서 제외한다. 금융 성공 후 PG 결과 확정 전 종료는 같은 승인 요청의 재요청에서 카드사 원승인 조회로 복구한다.
 
 현재 전달은 기존 Outbox 행 잠금과 재시도를 유지한다. 후속 PG 책임 분리에서는 외부 HTTP 중 금융/PG 행 잠금을 보유하지 않고 금융 보상 HTTP와 PG 결과 확정도 분리한다. 전달 완료 전 실패하면 PENDING이 남아 같은 이벤트로 다시 전달되도록 한다. 상태 재검사와 version 비교로 중간의 취소/환불 결과를 덮어쓰지 않는다.
 

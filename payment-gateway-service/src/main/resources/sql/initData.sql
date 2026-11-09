@@ -1,7 +1,10 @@
 -- 숫자 코드는 DB가 발급한다. 인증 비밀값은 환경 설정에서만 주입한다.
-INSERT INTO merchants (merchant_name, status, credential_key, notification_adapter, notification_target_key)
-SELECT 'Ticksy', 'ACTIVE', 'ticksy', 'TICKSY', 'ticksy'
+INSERT INTO merchants (merchant_name, status, credential_key, notification_contract, notification_target_key)
+SELECT 'Ticksy', 'ACTIVE', 'ticksy', 'CARD_NOTIFICATION_V1', 'ticksy'
 WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE credential_key = 'ticksy');
+
+-- 통보 대상은 MerchantNotificationEndpointService.register로 별도 등록한다.
+-- 평문 토큰이나 환경별 암호문을 초기 데이터 SQL에 고정하지 않는다.
 
 INSERT INTO dummy_cards (
     user_id,

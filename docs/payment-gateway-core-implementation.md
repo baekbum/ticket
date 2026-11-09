@@ -58,7 +58,7 @@ SUSPENDED merchant는 새 준비를 할 수 없고 기존 거래는 조회할 �
 
 기본 `app.merchants.credentials.ticksy` 그룹은 기존 `app.ticket.service-token`을 재사용한다. 운영에서는 기존과 같이 `APP_INTERNAL_SERVICE_TOKEN`을 주입한다. 원문 토큰은 DB에 넣지 않고 `credential_key = ticksy`로 merchant를 등록한다.
 
-가맹점 추가 시 서버 설정과 DB 등록을 둘 다 수행한다. 예를 들어 별도 환경 설정에서 다음과 같이 주입할 수 있다. 실제 비밀값을 커밋하지 않는다.
+PG 요청 인증을 위한 가맹점 추가 시 서버 자격증명 설정과 DB 등록을 둘 다 수행한다. 발신 통보 URL·토큰은 별도로 merchant_notification_endpoints에서 관리하며 YAML 대상 목록을 사용하지 않는다. 예를 들어 별도 환경 설정에서 다음과 같이 주입할 수 있다. 실제 비밀값을 커밋하지 않는다.
 
 ```yaml
 app:
@@ -72,11 +72,13 @@ app:
 
 **기존 금융 API는 아직 다중 가맹점으로 전환하지 않았다.** 기존 카드 사용자 JWT 경로와 Ticksy 내부 서비스 토큰 경로는 기존 계약을 유지한다. 다른 merchant의 새 토큰은 기존 발급·취소·환불·resolve API에 접근할 수 없다. 신규 ROLE_MERCHANT를 기존 ROLE_INTERNAL_SERVICE와 혼용하지 않는다. 기존 카드·계좌·환불 행에 merchant를 추정해 연결하지 않았다.
 
-카드 승인 거래와 가상계좌에는 nullable `pg_payment_id`와 FK/유니크 제약을 추가했다. PG ID를 받는 새 생성 메서드와 내부 조회도 제공한다. 기존 서비스가 이 생성 메서드를 사용하도록 전환하는 것은 다음 단계이며, 현재 기존 API의 신규 금융 행도 PG 연결 값은 NULL이다.
+카드 승인 거래와 가상계좌에는 nullable `pg_payment_id`와 FK/유니크 제약을 추가했다. PG ID를 받는 새 생성 메서드와 내부 조회도 제공한다. 신규 PG 계좌 발급과 카드 승인 API는 이 연결 생성 메서드를 사용한다. 현재 기존 API가 만드는 금융 행은 호환성을 위해 PG 연결 값 NULL을 유지한다.
 
-이번 prepare 응답에는 카드 결제 세션 토큰이 없다. 기존 프런트엔드가 이 준비 거래를 승인에 사용하도록 연결하거나 새 가맹점의 실제 금융 처리를 활성화하는 것은 후속 작업이다. 기존 결제의 사용자 소유자 검증은 유지한다.
+이번 prepare 응답에는 카드 결제 세션 토큰이 없다. 가맹점 서버용 PG 계좌 발급/카드 승인 API는 준비 거래를 사용한다. 기존 프런트엔드의 카드 세션 연계와 Ticksy 호출 전환은 후속 작업이며 기존 사용자 소유자 검증은 유지한다.
 
 2026-11-06 기존 금융 API의 서비스 직접 호출은 [RestClient → 모의 은행·카드 컨트롤러](payment-gateway-financial-http.md)로 변경했다. 준비/조회 API와 가맹점별 실제 금융 연결의 후속 범위는 그대로이며, HTTP 호출은 DB 트랜잭션 밖에서 수행한다.
+
+2026-11-08 [PG 카드 승인](payment-gateway-card-approval.md)을 추가했다. 신규 카드 승인 PAID·APPROVE 이력·가맹점 통보 Outbox를 함께 저장하며, 확정 거절에 대한 승인 보상도 같은 PG ID로 복구한다. 기존 JWT API는 유지한다. 검증은 전체 PG 217개와 추가 빈 등록 검사 1개, 총 218개가 통과했다.
 
 ## 스키마와 DB 적용
 

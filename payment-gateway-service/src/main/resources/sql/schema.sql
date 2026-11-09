@@ -5,7 +5,7 @@ CREATE TABLE merchants (
     merchant_name VARCHAR(100) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'SUSPENDED',
     credential_key VARCHAR(64) NOT NULL,
-    notification_adapter VARCHAR(40) NOT NULL,
+    notification_contract VARCHAR(40) NOT NULL,
     notification_target_key VARCHAR(100) NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -15,9 +15,27 @@ CREATE TABLE merchants (
     CONSTRAINT chk_merchants_name CHECK (btrim(merchant_name) <> ''),
     CONSTRAINT chk_merchants_credential_key CHECK (btrim(credential_key) <> ''),
     CONSTRAINT chk_merchants_notification_config CHECK (
-        btrim(notification_adapter) <> '' AND btrim(notification_target_key) <> ''
+        btrim(notification_contract) <> '' AND btrim(notification_target_key) <> ''
     ),
     CONSTRAINT chk_merchants_status CHECK (status IN ('ACTIVE', 'SUSPENDED'))
+);
+
+-- 가맹점별 통보 URL·발신 인증값. 비밀값은 외부 키로 암호화한 뒤 등록한다.
+CREATE TABLE merchant_notification_endpoints (
+    endpoint_id BIGSERIAL PRIMARY KEY,
+    merchant_id BIGINT NOT NULL,
+    target_key VARCHAR(100) NOT NULL,
+    notification_url VARCHAR(2048) NOT NULL,
+    service_token_ciphertext TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_merchant_notification_endpoints_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(merchant_id),
+    CONSTRAINT uk_merchant_notification_endpoints_target UNIQUE (merchant_id, target_key),
+    CONSTRAINT chk_merchant_notification_endpoints_key CHECK (btrim(target_key) <> '' AND target_key = btrim(target_key)),
+    CONSTRAINT chk_merchant_notification_endpoints_url CHECK (btrim(notification_url) <> ''),
+    CONSTRAINT chk_merchant_notification_endpoints_token CHECK (service_token_ciphertext LIKE 'v1:%')
 );
 
 CREATE TABLE gateway_payments (
@@ -303,3 +321,48 @@ CREATE TABLE gateway_refunds (
     CONSTRAINT chk_gateway_refunds_amount CHECK (refund_amount > 0)
 );
 CREATE INDEX idx_gateway_refunds_payment_no ON gateway_refunds(payment_no);
+
+-- 기존 DB에 한 번만 적용한다. 기존 테이블/행은 변경하거나 삭제하지 않는다.
+
+CREATE TABLE gateway_card_notification_outbox (
+    notification_id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(100) NOT NULL,
+    pg_payment_id VARCHAR(44) NOT NULL,
+    merchant_id BIGINT NOT NULL,
+    merchant_payment_no VARCHAR(60) NOT NULL,
+    buyer_reference VARCHAR(50) NOT NULL,
+    notification_contract VARCHAR(40) NOT NULL,
+    notification_target_key VARCHAR(100) NOT NULL,
+    transaction_id VARCHAR(80) NOT NULL,
+    card_company VARCHAR(30) NOT NULL,
+    masked_card_number VARCHAR(30) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    approved_at TIMESTAMP(6) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    attempt INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lease_until TIMESTAMP(6),
+    outcome VARCHAR(30),
+    last_error_type VARCHAR(100),
+    delivered_at TIMESTAMP(6),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_gateway_card_notification_event UNIQUE (event_id),
+    CONSTRAINT uk_gateway_card_notification_payment UNIQUE (pg_payment_id),
+    CONSTRAINT fk_gateway_card_notification_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT fk_gateway_card_notification_owner FOREIGN KEY (pg_payment_id, merchant_id)
+        REFERENCES gateway_payments(pg_payment_id, merchant_id),
+    CONSTRAINT chk_gateway_card_notification_status CHECK (status IN ('PENDING', 'SENDING', 'DELIVERED')),
+    CONSTRAINT chk_gateway_card_notification_amount CHECK (amount > 0),
+    CONSTRAINT chk_gateway_card_notification_attempt CHECK (attempt >= 0),
+    CONSTRAINT chk_gateway_card_notification_lease CHECK ((status = 'SENDING') = (lease_until IS NOT NULL)),
+    CONSTRAINT chk_gateway_card_notification_result CHECK (
+        (status = 'DELIVERED' AND outcome IS NOT NULL AND outcome IN ('ACCEPTED', 'REJECTED') AND delivered_at IS NOT NULL)
+        OR (status <> 'DELIVERED' AND outcome IS NULL AND delivered_at IS NULL)
+    )
+);
+CREATE INDEX idx_gateway_card_notification_ready
+    ON gateway_card_notification_outbox(status, next_attempt_at, notification_id);
+CREATE INDEX idx_gateway_card_notification_lease
+    ON gateway_card_notification_outbox(status, lease_until, notification_id);

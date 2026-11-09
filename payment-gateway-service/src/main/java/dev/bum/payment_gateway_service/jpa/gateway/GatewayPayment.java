@@ -146,6 +146,30 @@ public class GatewayPayment {
         status = GatewayPaymentStatus.WAITING_DEPOSIT;
     }
 
+    // 카드사의 원승인 성공을 확인한 뒤 금융 완료 상태로 전환한다.
+    public void approveCard(CardCompany company, LocalDateTime approvedAt) {
+
+        if (paymentMethod != PaymentMethod.CREDIT_CARD || status != GatewayPaymentStatus.READY
+                || company == null || approvedAt == null) {
+            throw new IllegalStateException("카드 승인 결과를 반영할 수 없는 PG 상태입니다.");
+        }
+
+        cardCompany = company;
+        paidAt = approvedAt;
+        status = GatewayPaymentStatus.PAID;
+    }
+
+    // 실제 카드사 승인 보상이 완료된 뒤에만 PG 결제를 취소한다.
+    public void cancelCardApproval() {
+
+        if (paymentMethod != PaymentMethod.CREDIT_CARD || status != GatewayPaymentStatus.PAID) {
+            throw new IllegalStateException("카드 승인 보상을 반영할 수 없는 PG 상태입니다.");
+        }
+
+        status = GatewayPaymentStatus.CANCELLED;
+        cancelledAt = LocalDateTime.now();
+    }
+
     // 같은 키의 다른 요청을 기존 거래 성공으로 잘못 재응답하지 않는다.
     public boolean matches(GatewayPaymentTerms terms) {
 

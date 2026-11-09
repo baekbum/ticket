@@ -18,19 +18,35 @@ public interface DummyCardPaymentHistoryJpaRepository extends JpaRepository<Dumm
     @EntityGraph(attributePaths = "dummyCard")
     Optional<DummyCardPaymentHistory> findByPgPaymentId(String pgPaymentId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select h from DummyCardPaymentHistory h where h.pgPaymentId = :id")
+    Optional<DummyCardPaymentHistory> findByPgPaymentIdForUpdate(@Param("id") String pgPaymentId);
+
     @EntityGraph(attributePaths = "dummyCard")
-    Optional<DummyCardPaymentHistory> findByPaymentNo(String paymentNo);
+    @Query("select h from DummyCardPaymentHistory h where h.paymentNo = :paymentNo and h.pgPaymentId is null")
+    Optional<DummyCardPaymentHistory> findByPaymentNo(@Param("paymentNo") String paymentNo);
 
-    boolean existsByPaymentNo(String paymentNo);
+    @Query("select (count(h) > 0) from DummyCardPaymentHistory h where h.paymentNo = :paymentNo and h.pgPaymentId is null")
+    boolean existsByPaymentNo(@Param("paymentNo") String paymentNo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<DummyCardPaymentHistory> findByPaymentNoAndTransactionId(String paymentNo, String transactionId);
+    @Query("""
+            select h from DummyCardPaymentHistory h where h.paymentNo = :paymentNo
+              and h.transactionId = :transactionId and h.pgPaymentId is null
+            """)
+    Optional<DummyCardPaymentHistory> findByPaymentNoAndTransactionId(
+            @Param("paymentNo") String paymentNo,
+            @Param("transactionId") String transactionId
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select h from DummyCardPaymentHistory h where h.paymentNo = :paymentNo")
+    @Query("select h from DummyCardPaymentHistory h where h.paymentNo = :paymentNo and h.pgPaymentId is null")
     Optional<DummyCardPaymentHistory> findByPaymentNoForUpdate(@Param("paymentNo") String paymentNo);
 
-    @Query("select h.paymentNo from DummyCardPaymentHistory h where h.status in :statuses order by h.updatedAt, h.historyId")
+    @Query("""
+            select h.paymentNo from DummyCardPaymentHistory h
+             where h.status in :statuses and h.pgPaymentId is null order by h.updatedAt, h.historyId
+            """)
     List<String> findPendingPaymentNos(
             @Param("statuses") Collection<CardPaymentHistoryStatus> statuses,
             Pageable pageable

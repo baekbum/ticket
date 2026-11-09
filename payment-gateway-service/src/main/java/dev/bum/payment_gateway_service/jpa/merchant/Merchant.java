@@ -35,11 +35,12 @@ public class Merchant {
     @Column(name = "credential_key", nullable = false, length = 64, updatable = false)
     private String credentialKey;
 
-    // 등록된 가맹점 응답 계약의 어댑터 코드.
-    @Column(name = "notification_adapter", nullable = false, length = 40)
-    private String notificationAdapter;
+    // 가맹점이 사용하는 통보 DTO의 필드 구성·응답 규칙을 식별하는 계약 버전 코드.
+    // 현재는 CARD_NOTIFICATION_V1 지원 여부만 검사한다. 클래스명이나 자동 DTO 선택 값이 아니다.
+    @Column(name = "notification_contract", nullable = false, length = 40)
+    private String notificationContract;
 
-    // 운영 설정에서 관리하는 통보 대상 키.
+    // merchant_notification_endpoints에서 이 가맹점의 등록 URL·암호화 인증값을 찾는 대상 키.
     @Column(name = "notification_target_key", nullable = false, length = 100)
     private String notificationTargetKey;
 
@@ -54,12 +55,12 @@ public class Merchant {
     private LocalDateTime updatedAt;
 
     // 비밀값 없이 신규 가맹점을 등록하고 초기에는 사용을 중단한다.
-    public static Merchant register(String name, String credentialKey, String adapter, String targetKey) {
+    public static Merchant register(String name, String credentialKey, String notificationContract, String targetKey) {
 
         Merchant merchant = new Merchant();
         merchant.merchantName = required(name, 100);
         merchant.credentialKey = required(credentialKey, 64);
-        merchant.notificationAdapter = required(adapter, 40);
+        merchant.notificationContract = required(notificationContract, 40);
         merchant.notificationTargetKey = required(targetKey, 100);
         merchant.status = MerchantStatus.SUSPENDED;
 

@@ -155,6 +155,7 @@ public class DummyCardPaymentHistory {
         DummyCardPaymentHistory history = approved(
                 dummyCard, requestingUserId, paymentNo, transactionId, maskedCardNumber, amount);
         history.pgPaymentId = pgPaymentId;
+        history.approvedAt = history.approvedAt.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
 
         return history;
     }

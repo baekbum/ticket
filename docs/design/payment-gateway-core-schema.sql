@@ -11,7 +11,7 @@ CREATE TABLE merchants (
     merchant_name VARCHAR(100) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'SUSPENDED',
     credential_key VARCHAR(64) NOT NULL,
-    notification_adapter VARCHAR(40) NOT NULL,
+    notification_contract VARCHAR(40) NOT NULL,
     notification_target_key VARCHAR(100) NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -21,9 +21,26 @@ CREATE TABLE merchants (
     CONSTRAINT chk_merchants_name CHECK (btrim(merchant_name) <> ''),
     CONSTRAINT chk_merchants_credential_key CHECK (btrim(credential_key) <> ''),
     CONSTRAINT chk_merchants_notification_config CHECK (
-        btrim(notification_adapter) <> '' AND btrim(notification_target_key) <> ''
+        btrim(notification_contract) <> '' AND btrim(notification_target_key) <> ''
     ),
     CONSTRAINT chk_merchants_status CHECK (status IN ('ACTIVE', 'SUSPENDED'))
+);
+
+CREATE TABLE merchant_notification_endpoints (
+    endpoint_id BIGSERIAL PRIMARY KEY,
+    merchant_id BIGINT NOT NULL,
+    target_key VARCHAR(100) NOT NULL,
+    notification_url VARCHAR(2048) NOT NULL,
+    service_token_ciphertext TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_merchant_notification_endpoints_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(merchant_id),
+    CONSTRAINT uk_merchant_notification_endpoints_target UNIQUE (merchant_id, target_key),
+    CONSTRAINT chk_merchant_notification_endpoints_key CHECK (btrim(target_key) <> '' AND target_key = btrim(target_key)),
+    CONSTRAINT chk_merchant_notification_endpoints_url CHECK (btrim(notification_url) <> ''),
+    CONSTRAINT chk_merchant_notification_endpoints_token CHECK (service_token_ciphertext LIKE 'v1:%')
 );
 
 CREATE TABLE gateway_payments (

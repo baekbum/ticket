@@ -41,6 +41,11 @@ import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
+import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
+import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificationResponse;
+import dev.bum.ticket_service.service.payment.card.CardPaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentService;
+import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
 
 import jakarta.persistence.EntityManager;
 
@@ -77,7 +82,8 @@ import static org.mockito.Mockito.times;
 @Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
-        PaymentCompletionService.class, PaymentExpirationService.class})
+        PaymentCompletionService.class, PaymentExpirationService.class,
+        CardPaymentService.class, PaymentService.class, GatewayCardNotificationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
     @MockitoBean PaymentGatewayRefundClient refundResolution;
@@ -115,7 +121,34 @@ class PaymentModelIntegrationTest {
     @Autowired EntityManager entityManager;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired VirtualAccountPaymentService virtualAccountPayments;
+    @Autowired GatewayCardNotificationService cardNotifications;
     @MockitoBean TicketRepository ticketRepository;
+
+    @Test
+    void standardCardNotificationUpdatesTheRealPaymentTicketsAndSeatsAndReplaysWithoutDuplicateHistory() {
+        Payment payment = payments.saveAndFlush(payment("standard-card-notification"));
+        given(ticketRepository.selectByReservation(payment.getReservation()))
+                .willReturn(tickets.findByReservation(payment.getReservation()));
+        String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
+        CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
+                payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
+                new BigDecimal("12000"), "CARD-STANDARD", CardCompany.SHINHAN, "4111-****-****-1111",
+                LocalDateTime.now());
+        CardPaymentNotificationResponse first = cardNotifications.receive(event);
+        payments.flush();
+        assertThat(first.outcome()).isEqualTo(CardPaymentNotificationResponse.Outcome.ACCEPTED);
+        assertThat(first.matches(event)).isTrue();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getStatus().name().equals("PAID"))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.RESERVED);
+        long historyCount = paymentHistories.count();
+        CardPaymentNotificationResponse replay = cardNotifications.receive(event);
+        payments.flush();
+        assertThat(replay).isEqualTo(first);
+        assertThat(paymentHistories.count()).isEqualTo(historyCount);
+    }
 
     @ParameterizedTest
     @ValueSource(ints = {0, 3000, 8000})
@@ -345,6 +378,23 @@ class PaymentModelIntegrationTest {
                                 .createQuery("select count(p) from PaymentProcess p", Long.class)
                                 .getSingleResult())
                 .isZero();
+    }
+
+    @Test
+    void standardCardNotificationCannotReviveACancelledPayment() {
+        Payment payment = payment("cancelled-standard-card");
+        payment.cancel();
+        payments.saveAndFlush(payment);
+        String pgId = "20261109550e8400-e29b-41d4-a716-446655440001";
+        CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
+                payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
+                new BigDecimal("12000"), "CARD-CANCELLED", CardCompany.SHINHAN, "4111-****-****-1111",
+                LocalDateTime.now());
+        long historyCount = paymentHistories.count();
+        assertThat(cardNotifications.receive(event).outcome()).isEqualTo(CardPaymentNotificationResponse.Outcome.REJECTED);
+        payments.flush();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(paymentHistories.count()).isEqualTo(historyCount);
     }
 
     private Payment payment(String key) {

@@ -12,11 +12,19 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.ResourceAccessException;
 import dev.bum.payment_gateway_service.exception.FinancialProviderResponseException;
+import dev.bum.payment_gateway_service.exception.FinancialApprovalRejectedException;
 
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(FinancialApprovalRejectedException.class)
+    public ResponseEntity<Map<String, String>> handleCardRejection(FinancialApprovalRejectedException exception) {
+
+        return ResponseEntity.badRequest().body(Map.of("code", "CARD_APPROVAL_REJECTED",
+                "message", exception.getMessage()));
+    }
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Map<String, String>> handleStorageFailure(DataAccessException exception) {

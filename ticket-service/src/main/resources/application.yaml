@@ -97,6 +97,7 @@ app:
     reservation-fee-per-ticket: 4000
     delivery-fee: 3200
   payment-gateway:
+    merchant-id: ${APP_PG_MERCHANT_ID:1}
     base-url: http://localhost:8099
   kafka-dlt:
     slack:

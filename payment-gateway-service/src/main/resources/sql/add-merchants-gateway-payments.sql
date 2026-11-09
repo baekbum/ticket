@@ -9,7 +9,7 @@ CREATE TABLE merchants (
     merchant_name VARCHAR(100) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'SUSPENDED',
     credential_key VARCHAR(64) NOT NULL,
-    notification_adapter VARCHAR(40) NOT NULL,
+    notification_contract VARCHAR(40) NOT NULL,
     notification_target_key VARCHAR(100) NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -19,7 +19,7 @@ CREATE TABLE merchants (
     CONSTRAINT chk_merchants_name CHECK (btrim(merchant_name) <> ''),
     CONSTRAINT chk_merchants_credential_key CHECK (btrim(credential_key) <> ''),
     CONSTRAINT chk_merchants_notification_config CHECK (
-        btrim(notification_adapter) <> '' AND btrim(notification_target_key) <> ''
+        btrim(notification_contract) <> '' AND btrim(notification_target_key) <> ''
     ),
     CONSTRAINT chk_merchants_status CHECK (status IN ('ACTIVE', 'SUSPENDED'))
 );
@@ -121,7 +121,7 @@ CREATE INDEX idx_gateway_payment_histories_payment_time
     ON gateway_payment_histories(pg_payment_id, occurred_at, history_id);
 
 -- 숫자 코드는 DB가 발급한다. 인증 비밀값은 환경 설정에서만 주입한다.
-INSERT INTO merchants (merchant_name, status, credential_key, notification_adapter, notification_target_key)
+INSERT INTO merchants (merchant_name, status, credential_key, notification_contract, notification_target_key)
 SELECT 'Ticksy', 'ACTIVE', 'ticksy', 'TICKSY', 'ticksy'
 WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE credential_key = 'ticksy');
 COMMIT;

@@ -74,6 +74,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class FinancialSimulationHttpIntegrationTest {
 
+    @MockitoBean
+    dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApprovalService pgCardApprovals;
+    @MockitoBean
+    dev.bum.payment_gateway_service.service.financial.card.CardApprovalService financialCardApprovals;
+
     @Configuration
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")

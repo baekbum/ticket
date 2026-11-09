@@ -6,6 +6,7 @@ import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.exception.FinancialProviderResponseException;
 import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
+import dev.bum.payment_gateway_service.exception.FinancialApprovalRejectedException;
 import dev.bum.payment_gateway_service.security.FinancialSimulationAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,6 +44,34 @@ public class FinancialSimulationGatewayService {
         return exchange(financialSimulationRestClient.post().uri(uri("cards", "approve"))
                 .header(FinancialSimulationAuthenticationFilter.USER_HEADER, userId)
                 .contentType(MediaType.APPLICATION_JSON).body(request));
+    }
+
+    /**
+     * PG가 검증한 원거래로 카드사 원승인을 한 번 요청한다.
+     */
+    public FinancialCardApprovalResponse approveGatewayCard(FinancialCardApproveRequest request) {
+
+        return financialSimulationRestClient.post().uri(uri("cards", "gateway", "approve"))
+                .contentType(MediaType.APPLICATION_JSON).body(request).exchange((sent, response) -> cardResponse(response));
+    }
+
+    /**
+     * 확정 업무 거절에 대한 원승인 보상을 같은 PG 식별자로 멱등 요청한다.
+     */
+    public FinancialCardApprovalResponse cancelGatewayCard(String pgPaymentId) {
+
+        return financialSimulationRestClient.post().uri(uri("cards", "gateway", pgPaymentId, "cancel"))
+                .exchange((sent, response) -> cardResponse(response));
+    }
+
+    /**
+     * 응답 유실/PG 저장 실패 후 원승인 금융 사실을 조회해 재승인 없이 복구한다.
+     */
+    public Optional<FinancialCardApprovalResponse> gatewayCardStatus(String pgPaymentId) {
+
+        return financialSimulationRestClient.get().uri(uri("cards", "gateway", pgPaymentId))
+                .exchange((sent, response) -> response.getStatusCode().value() == 404
+                        ? Optional.empty() : Optional.of(cardResponse(response)));
     }
 
     /**
@@ -182,6 +211,38 @@ public class FinancialSimulationGatewayService {
             }
 
             return bank;
+        } catch (RestClientException exception) {
+            throw new FinancialProviderResponseException(exception);
+        }
+    }
+
+    /**
+     * 확정 거절과 금융 결과 확인 불가를 구분하고 검증할 원승인 객체만 반환한다.
+     */
+    private FinancialCardApprovalResponse cardResponse(
+            RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse response
+    ) throws java.io.IOException {
+
+        if (response.getStatusCode().value() == 400) {
+            throw new FinancialApprovalRejectedException();
+        }
+
+        if (response.getStatusCode().value() == 409) {
+            throw new GatewayPaymentConflictException("동일 PG 거래의 카드 승인 요청이 일치하지 않습니다.");
+        }
+
+        if (response.getStatusCode().value() != 200) {
+            throw new FinancialProviderResponseException();
+        }
+
+        try {
+            FinancialCardApprovalResponse card = response.bodyTo(FinancialCardApprovalResponse.class);
+
+            if (card == null) {
+                throw new FinancialProviderResponseException();
+            }
+
+            return card;
         } catch (RestClientException exception) {
             throw new FinancialProviderResponseException(exception);
         }
