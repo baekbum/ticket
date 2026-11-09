@@ -3,10 +3,12 @@ package dev.bum.payment_gateway_service.controller.financial;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.dto.bank.*;
+import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayVirtualAccountService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountCancellationService;
+import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,13 +23,14 @@ public class BankController {
     private final VirtualAccountCancellationService cancellation;
     private final BankVirtualAccountIssuanceService issuance;
     private final BankVirtualAccountIssueCommandService issuedAccounts;
+    private final BankVirtualAccountDepositService deposits;
 
     @PostMapping("/issue")
-    public ResponseEntity<GatewayVirtualAccountIssueResponse> issue(
+    public ResponseEntity<FinancialVirtualAccountIssueResponse> issue(
             @Valid @RequestBody GatewayVirtualAccountIssueRequest request
     ) {
 
-        return ResponseEntity.ok(accounts.issue(request));
+        return ResponseEntity.ok(FinancialVirtualAccountIssueResponse.from(accounts.issue(request)));
     }
 
     @PostMapping("/gateway/issue")
@@ -44,33 +47,53 @@ public class BankController {
         return ResponseEntity.of(issuedAccounts.find(pgPaymentId));
     }
 
-    @GetMapping("/{paymentNo}")
-    public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
+    @GetMapping("/gateway/{pgPaymentId}/deposit")
+    public ResponseEntity<BankVirtualAccountDepositResponse> gatewayDeposit(@PathVariable String pgPaymentId) {
 
-        return ResponseEntity.ok(accounts.status(paymentNo));
+        return ResponseEntity.of(deposits.find(pgPaymentId));
     }
 
-    @PostMapping("/deposit")
-    public ResponseEntity<GatewayVirtualAccountDepositResponse> deposit(
+    @GetMapping("/{paymentNo}")
+    public ResponseEntity<FinancialVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
+
+        return ResponseEntity.ok(FinancialVirtualAccountStatusResponse.from(accounts.status(paymentNo)));
+    }
+
+    @PostMapping("/gateway/deposit")
+    public ResponseEntity<BankVirtualAccountDepositResponse> depositGatewayAccount(
             @Valid @RequestBody GatewayVirtualAccountDepositRequest request
     ) {
 
-        return ResponseEntity.ok(accounts.deposit(request));
+        return ResponseEntity.ok(deposits.deposit(request));
+    }
+
+    @PostMapping("/gateway/{pgPaymentId}/reject-deposit")
+    public ResponseEntity<BankVirtualAccountDepositResponse> rejectGatewayDeposit(@PathVariable String pgPaymentId) {
+
+        return ResponseEntity.ok(deposits.rejectDeposit(pgPaymentId));
+    }
+
+    @PostMapping("/deposit")
+    public ResponseEntity<FinancialVirtualAccountDepositResponse> deposit(
+            @Valid @RequestBody GatewayVirtualAccountDepositRequest request
+    ) {
+
+        return ResponseEntity.ok(FinancialVirtualAccountDepositResponse.from(accounts.deposit(request)));
     }
 
     @PostMapping("/refund")
-    public ResponseEntity<GatewayVirtualAccountRefundResponse> refund(
+    public ResponseEntity<FinancialVirtualAccountRefundResponse> refund(
             @Valid @RequestBody GatewayVirtualAccountRefundRequest request
     ) {
 
-        return ResponseEntity.ok(accounts.refund(request));
+        return ResponseEntity.ok(FinancialVirtualAccountRefundResponse.from(accounts.refund(request)));
     }
 
     @PostMapping("/cancel")
-    public ResponseEntity<GatewayVirtualAccountCancelResponse> cancel(
+    public ResponseEntity<FinancialVirtualAccountCancelResponse> cancel(
             @Valid @RequestBody GatewayVirtualAccountCancelRequest request
     ) {
 
-        return ResponseEntity.ok(cancellation.cancel(request));
+        return ResponseEntity.ok(FinancialVirtualAccountCancelResponse.from(cancellation.cancel(request)));
     }
 }

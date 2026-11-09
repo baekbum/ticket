@@ -47,7 +47,7 @@ public record CardPaymentNotification(
 
         // PG가 보존한 최초 금융 승인 시각.
         @NotNull LocalDateTime approvedAt
-) {
+) implements GatewayPaymentNotification {
 
     // 통보 DTO의 필드 구성·타입·의미와 응답 처리 규칙을 묶은 계약 버전 식별자다.
     // 향후 V2가 다른 필드나 응답 형식을 사용한다면 V1과 구분하는 코드가 된다.

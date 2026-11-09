@@ -15,9 +15,27 @@ import dev.bum.payment_gateway_service.exception.FinancialProviderResponseExcept
 import dev.bum.payment_gateway_service.exception.FinancialApprovalRejectedException;
 
 import java.util.Map;
+import dev.bum.payment_gateway_service.exception.FinancialApiException;
+import dev.bum.payment_gateway_service.exception.FinancialPaymentPendingException;
+import dev.bum.payment_gateway_service.dto.gateway.GatewayApiErrorResponse;
+import dev.bum.payment_gateway_service.dto.gateway.GatewayCardPaymentPendingResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(FinancialApiException.class)
+    public ResponseEntity<GatewayApiErrorResponse> handleFinancialApiError(FinancialApiException exception) {
+
+        return ResponseEntity.status(exception.getStatusCode()).body(GatewayApiErrorResponse.from(exception.getResponse()));
+    }
+
+    @ExceptionHandler(FinancialPaymentPendingException.class)
+    public ResponseEntity<GatewayCardPaymentPendingResponse> handleFinancialPending(
+            FinancialPaymentPendingException exception
+    ) {
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(GatewayCardPaymentPendingResponse.from(exception.getResponse()));
+    }
 
     @ExceptionHandler(FinancialApprovalRejectedException.class)
     public ResponseEntity<Map<String, String>> handleCardRejection(FinancialApprovalRejectedException exception) {

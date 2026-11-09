@@ -73,7 +73,7 @@ class GatewayCardApprovalIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+    @Import({GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayCardApprovalService.class, GatewayCardApprovalCommandService.class,

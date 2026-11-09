@@ -4,7 +4,7 @@
 
 이 문서는 전체 구현의 기준 설계다. [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)은 설계 기록으로 유지한다. 가맹점·PG 거래 모델과 서버 인증·준비/조회 API는 구현했으며, 실제 적용 범위와 SQL은 [기반 구현 문서](payment-gateway-core-implementation.md)를 따른다. 금융 연결·카드 세션·통보 책임 분리는 아래 설계에 따른 후속 작업이다.
 
-2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 구현했으며, 신규 은행 연결 거래의 입금·취소·통보는 후속 단계다. 같은 날 [PG 카드 승인](payment-gateway-card-approval.md)과 가맹점 통보 Outbox를 추가했다.
+2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)과 [PG 카드 승인](payment-gateway-card-approval.md)을 구현했다. 2026-11-09 신규 은행 연결 거래의 [입금·가맹점 통보·응답 유실 복구](payment-gateway-account-deposit.md)도 연결했다. PG 거래 기반 입금 전 취소·만료·환불은 후속 단계다.
 
 ## 1. 결정한 구조
 

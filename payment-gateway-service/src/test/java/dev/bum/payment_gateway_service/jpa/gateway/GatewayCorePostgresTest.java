@@ -63,6 +63,51 @@ class GatewayCorePostgresTest {
     @Autowired DummyVirtualAccountPaymentHistoryJpaRepository bankHistories;
     @Autowired GatewayCardNotificationJpaRepository notifications;
     @Autowired MerchantNotificationEndpointJpaRepository endpoints;
+    @Autowired GatewayBankNotificationJpaRepository bankNotifications;
+
+    @Test
+    void bankDepositOutboxAndImmutableFactsAreMappedOnTheActualPostgresSchema() {
+        Merchant merchant = merchant();
+        GatewayPayment payment = payment(merchant, "VERIFY-BANK-DEPOSIT", PaymentMethod.BANK_TRANSFER);
+        payment.waitForDeposit();
+        LocalDateTime at = LocalDateTime.of(2026, 11, 9, 12, 0, 0, 123456000);
+        DummyVirtualAccount account = accounts.saveAndFlush(DummyVirtualAccount.issue(payment.getPgPaymentId(),
+                payment.getPgPaymentId(), BankCompany.KB, "VERIFY-BANK-ACCOUNT", payment.getAmount(), payment.getExpiresAt()));
+        account.deposit("입금자", at);
+        bankHistories.saveAndFlush(DummyVirtualAccountPaymentHistory.deposited(account));
+        assertThat(payments.findUnconfirmedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
+                .contains(payment.getPgPaymentId());
+        var bank = new dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse(payment.getPgPaymentId(),
+                BankCompany.KB, BankCompany.KB.getBankName(), "VERIFY-BANK-ACCOUNT", payment.getAmount(),
+                payment.getExpiresAt(), "입금자", at, VirtualAccountPaymentStatus.DEPOSITED);
+        payment.receiveDeposit(at);
+        histories.saveAndFlush(GatewayPaymentHistory.deposited(payment, bank, GatewayPaymentStatus.WAITING_DEPOSIT));
+        Long id = bankNotifications.saveAndFlush(GatewayBankNotification.pending(payment, bank)).getNotificationId();
+        assertThat(payments.findUnconfirmedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
+                .doesNotContain(payment.getPgPaymentId());
+        entityManager.clear();
+        GatewayBankNotification event = bankNotifications.findForUpdate(id).orElseThrow();
+        assertThat(event.claim(LocalDateTime.now()).depositedAt()).isEqualTo(at);
+        bankNotifications.flush();
+        event.delivered("APPLIED");
+        bankNotifications.flush();
+        entityManager.clear();
+        assertThat(bankNotifications.findById(id).orElseThrow().getStatus()).isEqualTo("DELIVERED");
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getPaidAt()).isEqualTo(at);
+    }
+
+    @Test
+    void actualBankNotificationCompositeForeignKeyRejectsAnotherMerchant() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-BANK-NOTIFY-OWNER", PaymentMethod.BANK_TRANSFER);
+        Merchant other = merchant();
+        assertThatThrownBy(() -> jdbc.update("""
+                insert into gateway_bank_notification_outbox(event_id, pg_payment_id, merchant_id,
+                    merchant_payment_no, buyer_reference, notification_contract, notification_target_key,
+                    account_number, bank_company, depositor_name, amount, deposited_at)
+                values ('VERIFY-BANK-EVENT', ?, ?, 'VERIFY-NO', 'verify', 'PAYMENT_NOTIFICATION_V1', 'verify',
+                    'VERIFY-ACCOUNT', 'KB', '입금자', 100, CURRENT_TIMESTAMP)
+                """, payment.getPgPaymentId(), other.getMerchantId())).isInstanceOf(DataIntegrityViolationException.class);
+    }
 
     @Test
     void notificationEndpointKeysAreMerchantScopedAndPersistEncryptedCredentials() {

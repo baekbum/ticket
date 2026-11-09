@@ -36,7 +36,7 @@ public class Merchant {
     private String credentialKey;
 
     // 가맹점이 사용하는 통보 DTO의 필드 구성·응답 규칙을 식별하는 계약 버전 코드.
-    // 현재는 CARD_NOTIFICATION_V1 지원 여부만 검사한다. 클래스명이나 자동 DTO 선택 값이 아니다.
+    // 공통 PAYMENT_NOTIFICATION_V1을 사용하며 기존 CARD_NOTIFICATION_V1도 호환한다. 클래스명 선택 값이 아니다.
     @Column(name = "notification_contract", nullable = false, length = 40)
     private String notificationContract;
 

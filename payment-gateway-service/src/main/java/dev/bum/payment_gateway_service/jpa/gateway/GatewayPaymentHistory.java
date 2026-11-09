@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse;
+import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
 
 @Entity
 @Table(name = "gateway_payment_histories", uniqueConstraints = @UniqueConstraint(
@@ -126,6 +127,45 @@ public class GatewayPaymentHistory {
         history.amount = payment.getAmount();
         history.requestHash = payment.getCreationRequestHash();
         history.details = Map.of("transactionId", transactionId, "reason", "MERCHANT_PAYMENT_REJECTED");
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
+    // 최초 입금 사실과 PG 상태·통보 Outbox를 같은 트랜잭션에 기록한다.
+    public static GatewayPaymentHistory deposited(
+            GatewayPayment payment,
+            BankVirtualAccountDepositResponse bank,
+            GatewayPaymentStatus beforeStatus
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.DEPOSIT;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = beforeStatus;
+        history.afterStatus = payment.getStatus();
+        history.amount = bank.amount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("accountNumber", bank.accountNumber(), "bankCompany", bank.bankCompany().name(),
+                "depositorName", bank.depositorName(), "depositedAt", bank.depositedAt().toString());
+        history.occurredAt = bank.depositedAt();
+
+        return history;
+    }
+
+    // 취소된 예매의 입금 통보를 정리했으며 실제 반환은 하지 않았다는 사실을 기록한다.
+    public static GatewayPaymentHistory depositedPaymentCancelled(GatewayPayment payment) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.CANCEL;
+        history.operationKey = "MERCHANT_REJECTED_DEPOSIT";
+        history.beforeStatus = GatewayPaymentStatus.PAID;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("reason", "RESERVATION_CANCELLED", "fundsReturned", false);
         history.occurredAt = LocalDateTime.now();
 
         return history;

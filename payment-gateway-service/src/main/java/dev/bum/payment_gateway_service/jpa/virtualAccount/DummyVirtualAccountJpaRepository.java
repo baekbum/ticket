@@ -20,6 +20,16 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     @Query("select a.pgPaymentId from DummyVirtualAccount a where a.accountNumber = :accountNumber")
     Optional<String> findPgPaymentIdByAccountNumber(@Param("accountNumber") String accountNumber);
 
+    // 신규 금융 입금은 PG 연결 계좌만 잠근다. 기존 paymentNo 전용 경로와 섞지 않는다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from DummyVirtualAccount a where a.accountNumber = :number and a.pgPaymentId is not null")
+    Optional<DummyVirtualAccount> findLinkedByAccountNumberForUpdate(@Param("number") String number);
+
+    // 취소 예매 응답을 정리할 때도 같은 은행 계좌 잠금을 사용한다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from DummyVirtualAccount a where a.pgPaymentId = :id")
+    Optional<DummyVirtualAccount> findLinkedByPgPaymentIdForUpdate(@Param("id") String id);
+
     // 기존 Ticksy 전용 조회에서는 가맹점 연결 거래를 찾지 않는다.
     @Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo and a.pgPaymentId is null")
     Optional<DummyVirtualAccount> findByPaymentNo(@Param("paymentNo") String paymentNo);

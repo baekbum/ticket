@@ -83,7 +83,8 @@ import static org.mockito.Mockito.times;
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
         PaymentCompletionService.class, PaymentExpirationService.class,
-        CardPaymentService.class, PaymentService.class, GatewayCardNotificationService.class})
+        CardPaymentService.class, PaymentService.class, GatewayCardNotificationService.class,
+        dev.bum.ticket_service.service.payment.notification.GatewayBankNotificationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
     @MockitoBean PaymentGatewayRefundClient refundResolution;
@@ -123,6 +124,68 @@ class PaymentModelIntegrationTest {
     @Autowired VirtualAccountPaymentService virtualAccountPayments;
     @Autowired GatewayCardNotificationService cardNotifications;
     @MockitoBean TicketRepository ticketRepository;
+    @Autowired dev.bum.ticket_service.service.payment.notification.GatewayBankNotificationService bankNotifications;
+
+    @Test
+    void standardBankNotificationUpdatesTheRealPaymentAndReplaysWithoutNewHistory() {
+        Payment payment = payment("standard-bank-notification");
+        payment.switchToBankTransfer();
+        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payments.saveAndFlush(payment);
+        given(ticketRepository.selectByReservation(payment.getReservation()))
+                .willReturn(tickets.findByReservation(payment.getReservation()));
+        var event = bankEvent(payment, "user");
+        var first = bankNotifications.receive(event);
+        payments.flush();
+        assertThat(first.outcome()).isEqualTo(dev.bum.common.service.paymentgateway.notification.BankDepositNotificationResponse.Outcome.APPLIED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getStatus().name().equals("PAID"))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.RESERVED);
+        long count = paymentHistories.count();
+        assertThat(bankNotifications.receive(event)).isEqualTo(first);
+        payments.flush();
+        assertThat(paymentHistories.count()).isEqualTo(count);
+    }
+
+    @Test
+    void standardBankNotificationCannotReviveCancelledReservationOrReclaimAvailableSeats() {
+        Payment payment = payment("cancelled-bank-notification");
+        payment.switchToBankTransfer();
+        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payment.cancel();
+        payment.getReservation().cancel();
+        tickets.findByReservation(payment.getReservation()).forEach(ticket -> ticket.getSeat().available());
+        payments.saveAndFlush(payment);
+        long count = paymentHistories.count();
+        assertThat(bankNotifications.receive(bankEvent(payment, "user")).outcome())
+                .isEqualTo(dev.bum.common.service.paymentgateway.notification.BankDepositNotificationResponse.Outcome.RESERVATION_CANCELLED);
+        payments.flush();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.AVAILABLE);
+        assertThat(paymentHistories.count()).isEqualTo(count);
+    }
+
+    @Test
+    void standardBankNotificationRejectsAnotherBuyerBeforeCompletingThePayment() {
+        Payment payment = payment("bank-wrong-owner");
+        payment.switchToBankTransfer();
+        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payments.saveAndFlush(payment);
+        assertThatThrownBy(() -> bankNotifications.receive(bankEvent(payment, "another-user")))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+    }
+
+    dev.bum.common.service.paymentgateway.notification.BankDepositNotification bankEvent(Payment payment, String buyer) {
+        String id = "20261109550e8400-e29b-41d4-a716-446655440002";
+        return new dev.bum.common.service.paymentgateway.notification.BankDepositNotification(1, id + ":DEPOSIT:INITIAL",
+                1L, id, payment.getPaymentNo(), buyer, PaymentMethod.BANK_TRANSFER, PaymentStatus.PAID,
+                new BigDecimal("12000"), "1111-123456", BankCompany.KB, "입금자", LocalDateTime.now().withNano(123456000));
+    }
 
     @Test
     void standardCardNotificationUpdatesTheRealPaymentTicketsAndSeatsAndReplaysWithoutDuplicateHistory() {

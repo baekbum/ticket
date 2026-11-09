@@ -55,6 +55,16 @@ public class PaymentService {
 
         return virtualAccountPaymentService.completeDepositFromGateway(request);
     }
+    /**
+     * 공통 PG 통보의 예매 소유자까지 확인하고 기존 입금 멱등 처리와 취소 예매 규칙을 적용한다.
+     */
+    public PaymentResponse completeVirtualAccountDepositFromGateway(
+            VirtualAccountDepositCompleteRequest request,
+            String buyerReference
+    ) {
+
+        return virtualAccountPaymentService.completeDepositFromGateway(request, buyerReference);
+    }
 
     /**
      * payment-gateway 만료 스케줄러가 발행한 가상계좌 만료 이벤트를 결제 만료 상태로 반영한다.

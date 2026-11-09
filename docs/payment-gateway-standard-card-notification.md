@@ -2,6 +2,8 @@
 
 2026-11-09 가맹점별 발신 어댑터를 없애고 하나의 공통 전송 구현으로 변경했다. PG가 통보 규격을 정의하고, Ticksy 등 각 가맹점이 그 규격을 받는 수신 API를 구현한다.
 
+같은 날 [은행 입금 통보](payment-gateway-account-deposit.md)를 확장했다. 신규 표준 계약은 PAYMENT_NOTIFICATION_V1이고 Ticksy의 공통 수신 경로는 /api/v1/payments/internal/gateway/notifications다. 기존 카드 DTO·전용 수신 API와 CARD_NOTIFICATION_V1 코드도 호환한다. 아래 카드 도입 당시 검증/등록 기록과 현재 공통 수신 API의 범위를 구분한다.
+
 ## 역할과 호출
 
 ~~~text

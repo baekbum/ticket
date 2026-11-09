@@ -47,7 +47,7 @@ public class DummyVirtualAccountPaymentHistory {
     @JoinColumn(name = "virtual_account_id", nullable = false)
     private DummyVirtualAccount virtualAccount;
 
-    // ticket-service에서 생성한 결제 식별 번호.
+    // 계좌의 은행 내부 참조값. 신규 PG 연결 거래에서는 가맹점 결제번호 대신 pgPaymentId를 보존한다.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 

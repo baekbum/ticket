@@ -2,7 +2,7 @@
 
 2026-11-05 구현한 첫 번째 금융 연결 단계다. 모델과 DB에 PG 참조를 추가하며, 기존 카드 승인/가상계좌 발급 API를 PG 거래에 연결하는 두 번째 단계와 구분한다.
 
-2026-11-08 [가맹점 PG 거래 기반 가상계좌 발급](payment-gateway-account-issuance.md)을 추가했다. 새 경로의 발급에는 이 문서의 PG 참조를 실제 저장하며, 기존 금융 API는 NULL 참조 거래를 계속 처리한다. 새 은행 연결 거래의 입금·취소·환불·만료·통보는 후속 단계다. 같은 날 [PG 카드 승인](payment-gateway-card-approval.md)도 연결했으며 기존 카드의 NULL 연결 거래는 유지한다.
+2026-11-08 [가맹점 PG 거래 기반 가상계좌 발급](payment-gateway-account-issuance.md)을 추가했다. 새 경로의 발급에는 이 문서의 PG 참조를 실제 저장하며, 기존 금융 API는 NULL 참조 거래를 계속 처리한다. 2026-11-09 새 은행 연결 거래의 [입금·PG 확정·가맹점 통보](payment-gateway-account-deposit.md)도 연결했다. PG 거래 기반 입금 전 취소·환불·만료는 후속 단계다. [PG 카드 승인](payment-gateway-card-approval.md)과 기존 카드의 NULL 연결 거래도 유지한다.
 
 ## 모델과 책임
 

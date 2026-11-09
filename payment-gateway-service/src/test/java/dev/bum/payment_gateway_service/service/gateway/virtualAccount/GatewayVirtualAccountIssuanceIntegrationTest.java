@@ -74,7 +74,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+    @Import({dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
+            SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
@@ -82,6 +83,9 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             BankVirtualAccountIssueCommandService.class, GatewayPaymentController.class,
             GatewayVirtualAccountController.class, BankController.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,
             VirtualAccountCancellationService.class, VirtualAccountDepositOutboxService.class,
             VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
             VirtualAccountExpirationScheduler.class})
@@ -93,6 +97,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired DummyVirtualAccountJpaRepository accounts;
     @Autowired VirtualAccountDepositOutboxJpaRepository depositOutbox;
+    @Autowired GatewayBankNotificationJpaRepository bankNotifications;
     @Autowired VirtualAccountOutboxEventJpaRepository expiryOutbox;
     @Autowired GatewayVirtualAccountIssuanceService issuance;
     @Autowired PlatformTransactionManager transactions;
@@ -111,6 +116,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
 
     @BeforeEach
     void setup() {
+        bankNotifications.deleteAll();
         depositOutbox.deleteAll();
         expiryOutbox.deleteAll();
         bankHistories.deleteAll();
@@ -328,7 +334,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     }
 
     @Test
-    void legacyTicksyApisCannotReadCancelOrDepositIntoNewMerchantAccounts() throws Exception {
+    void legacyReadAndCancelStayIsolatedWhileProviderDepositsUseTheLinkedPgFlow() throws Exception {
         String id = prepare("test-merchant-b", "PAY-ISOLATED", PaymentMethod.BANK_TRANSFER);
         JsonNode issued = issued("test-merchant-b", id);
         mvc.perform(get("/api/v1/payments/virtual-account/internal/" + id + "/status")
@@ -342,11 +348,12 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
                 issued.get("accountNumber").asText(), "입금자", new BigDecimal("100"), LocalDateTime.now());
         mvc.perform(post("/api/v1/payments/virtual-account/deposit").header("X-Payment-Provider-Token", "test-provider")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(deposit)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pgPaymentId").value(id));
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
-                .isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
+                .isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
         assertThat(depositOutbox.count()).isZero();
-        assertThat(bankHistories.count()).isEqualTo(1);
+        assertThat(bankHistories.count()).isEqualTo(2);
+        assertThat(bankNotifications.count()).isEqualTo(1);
         verifyNoInteractions(ticket);
     }
 

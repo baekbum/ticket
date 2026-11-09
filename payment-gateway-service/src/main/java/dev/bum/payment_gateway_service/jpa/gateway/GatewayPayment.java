@@ -170,6 +170,35 @@ public class GatewayPayment {
         cancelledAt = LocalDateTime.now();
     }
 
+    // 은행의 최초 입금 시각을 보존한다. 이미 취소된 거래를 입금으로 되살리지 않는다.
+    public void receiveDeposit(LocalDateTime depositedAt) {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || depositedAt == null
+                || (status != GatewayPaymentStatus.WAITING_DEPOSIT && status != GatewayPaymentStatus.CANCELLED)) {
+            throw new IllegalStateException("은행 입금 사실을 반영할 수 없는 PG 상태입니다.");
+        }
+
+        paidAt = depositedAt;
+
+        if (status != GatewayPaymentStatus.CANCELLED) {
+            status = GatewayPaymentStatus.PAID;
+        }
+    }
+
+    // 취소된 예매의 입금 통보를 정리한다. 결제 취소는 실제 자금 반환을 뜻하지 않는다.
+    public void cancelDepositedPayment() {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || paidAt == null
+                || (status != GatewayPaymentStatus.PAID && status != GatewayPaymentStatus.CANCELLED)) {
+            throw new IllegalStateException("입금된 PG 거래를 취소할 수 없습니다.");
+        }
+
+        if (status != GatewayPaymentStatus.CANCELLED) {
+            status = GatewayPaymentStatus.CANCELLED;
+            cancelledAt = LocalDateTime.now();
+        }
+    }
+
     // 같은 키의 다른 요청을 기존 거래 성공으로 잘못 재응답하지 않는다.
     public boolean matches(GatewayPaymentTerms terms) {
 

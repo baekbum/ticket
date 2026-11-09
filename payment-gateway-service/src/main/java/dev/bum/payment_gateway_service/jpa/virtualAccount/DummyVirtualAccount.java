@@ -52,7 +52,7 @@ public class DummyVirtualAccount {
     @Column(name = "pg_payment_id", length = 44, updatable = false)
     private String pgPaymentId;
 
-    // ticket-service에서 생성한 결제 식별 번호.
+    // 기존 계좌는 Ticksy 결제번호, 신규 PG 연결 계좌는 pgPaymentId를 쓰는 은행 내부 참조값.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 

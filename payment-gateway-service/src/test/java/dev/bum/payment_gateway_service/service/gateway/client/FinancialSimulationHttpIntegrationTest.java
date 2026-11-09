@@ -83,11 +83,16 @@ class FinancialSimulationHttpIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+    @Import({dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
+            SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+            dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class,
             GatewayCardPaymentController.class, GatewayVirtualAccountController.class,
             CardController.class, BankController.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,
             VirtualAccountCancellationService.class, VirtualAccountDepositOutboxService.class,
             VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService.class,
@@ -126,14 +131,22 @@ class FinancialSimulationHttpIntegrationTest {
             assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
                     .extracting("authority").containsExactly("ROLE_FINANCIAL_SIMULATOR");
             return GatewayCardPaymentApproveResponse.builder().paymentNo("PAY-CARD").transactionId("CARD-1")
-                    .userId("buyer").approved(true).build();
+                    .userId("buyer").approved(true).cardCompany(CardCompany.SHINHAN).maskedCardNumber("4111-****-****-1111")
+                    .approvedAmount(new BigDecimal("100")).currentMonthUsedAmount(new BigDecimal("250"))
+                    .limitAmount(new BigDecimal("1000")).message("승인 완료").build();
         });
 
         mvc.perform(post("/api/v1/payments/card/approve").with(user())
                 .header(FinancialSimulationAuthenticationFilter.USER_HEADER, "victim")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(cardRequest())))
                 .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.approved").value(true)).andExpect(jsonPath("$.userId").value("buyer"));
+                .andExpect(jsonPath("$.approved").value(true)).andExpect(jsonPath("$.userId").value("buyer"))
+                .andExpect(jsonPath("$.transactionId").value("CARD-1"))
+                .andExpect(jsonPath("$.cardCompany").value("SHINHAN"))
+                .andExpect(jsonPath("$.maskedCardNumber").value("4111-****-****-1111"))
+                .andExpect(jsonPath("$.approvedAmount").value(100))
+                .andExpect(jsonPath("$.currentMonthUsedAmount").value(250))
+                .andExpect(jsonPath("$.limitAmount").value(1000)).andExpect(jsonPath("$.message").value("승인 완료"));
         verify(cards, times(1)).approve(eq("buyer"), any());
     }
 
@@ -192,7 +205,13 @@ class FinancialSimulationHttpIntegrationTest {
         JsonNode issued = issue("PAY-DEPOSIT");
         GatewayVirtualAccountDepositRequest request = depositRequest(issued);
         for (int attempt = 0; attempt < 2; attempt++) {
-            providerPost(request).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DEPOSITED"));
+            var result = providerPost(request).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DEPOSITED"))
+                    .andExpect(jsonPath("$.message").exists()).andReturn();
+            JsonNode body = json.readTree(result.getResponse().getContentAsByteArray());
+            assertThat(body.has("pgPaymentId")).isFalse();
+            assertThat(body.has("pgStatus")).isFalse();
+            assertThat(body.has("notificationStatus")).isFalse();
         }
         DummyVirtualAccount account = accounts.findByPaymentNo("PAY-DEPOSIT").orElseThrow();
         assertThat(account.getDepositedAt()).isEqualTo(request.getDepositedAt());
@@ -227,17 +246,32 @@ class FinancialSimulationHttpIntegrationTest {
 
     @Test
     void bothRefundRequestsKeepTheirExistingProcessIdentifierAcrossHttp() throws Exception {
+        when(cards.refund(any())).thenReturn(GatewayCardPaymentRefundResponse.builder().paymentNo("PAY-CARD")
+                .transactionId("CARD-1").refundedAmount(BigDecimal.TEN)
+                .status(dev.bum.payment_gateway_service.jpa.card.CardPaymentHistoryStatus.PARTIALLY_REFUNDED)
+                .message("카드 환불 완료").build());
         GatewayCardPaymentRefundRequest card = new GatewayCardPaymentRefundRequest(71L, "PAY-CARD", "CARD-1", BigDecimal.TEN);
         mvc.perform(post("/api/v1/payments/card/refund").header("X-Service-Token", "test-service-token")
-                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(card))).andExpect(status().isOk());
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(card))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentNo").value("PAY-CARD"))
+                .andExpect(jsonPath("$.transactionId").value("CARD-1"))
+                .andExpect(jsonPath("$.refundedAmount").value(10))
+                .andExpect(jsonPath("$.status").value("PARTIALLY_REFUNDED"));
         ArgumentCaptor<GatewayCardPaymentRefundRequest> capturedCard = ArgumentCaptor.forClass(GatewayCardPaymentRefundRequest.class);
         verify(cards).refund(capturedCard.capture());
         assertThat(capturedCard.getValue()).isEqualTo(card);
 
-        doReturn(null).when(bank).refund(any());
+        doReturn(GatewayVirtualAccountRefundResponse.builder().paymentNo("PAY-BANK").refundBankCompany(BankCompany.KB)
+                .refundAccountNumber("refund-account").refundAccountHolder("환불 예금주").refundedAmount(BigDecimal.TEN)
+                .message("계좌 환불 완료").build()).when(bank).refund(any());
         GatewayVirtualAccountRefundRequest account = new GatewayVirtualAccountRefundRequest(72L, "PAY-BANK", BankCompany.KB,
                 "refund-account", "환불 예금주", BigDecimal.TEN);
-        bankPost("refund", account).andExpect(status().isOk());
+        bankPost("refund", account).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentNo").value("PAY-BANK"))
+                .andExpect(jsonPath("$.refundBankCompany").value("KB"))
+                .andExpect(jsonPath("$.refundAccountNumber").value("refund-account"))
+                .andExpect(jsonPath("$.refundAccountHolder").value("환불 예금주"))
+                .andExpect(jsonPath("$.refundedAmount").value(10));
         ArgumentCaptor<GatewayVirtualAccountRefundRequest> capturedBank = ArgumentCaptor.forClass(GatewayVirtualAccountRefundRequest.class);
         verify(bank).refund(capturedBank.capture());
         assertThat(capturedBank.getValue()).isEqualTo(account);

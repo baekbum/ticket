@@ -6,8 +6,13 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountR
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
-import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueResponse;
+import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
+import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResponse;
 import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,15 +29,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class GatewayVirtualAccountController {
 
-    private final FinancialSimulationGatewayService financialGateway;
+    private final GatewayVirtualAccountApiService accounts;
     private final GatewayVirtualAccountIssuanceService issuance;
+    private final GatewayVirtualAccountDepositService deposits;
 
     @PostMapping("/issue")
-    public ResponseEntity<byte[]> issue(
+    public ResponseEntity<GatewayVirtualAccountIssueResponse> issue(
             @Valid @RequestBody GatewayVirtualAccountIssueRequest request
     ) {
 
-        return financialGateway.issueAccount(request);
+        return ResponseEntity.ok(accounts.issue(request));
     }
 
     @PostMapping("/gateway/{pgPaymentId}/issue")
@@ -46,32 +52,32 @@ public class GatewayVirtualAccountController {
     }
 
     @GetMapping("/internal/{paymentNo}/status")
-    public ResponseEntity<byte[]> status(@PathVariable String paymentNo) {
+    public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
 
-        return financialGateway.accountStatus(paymentNo);
+        return ResponseEntity.ok(accounts.status(paymentNo));
     }
 
     @PostMapping("/deposit")
-    public ResponseEntity<byte[]> deposit(
+    public ResponseEntity<GatewayVirtualAccountPaymentDepositResponse> deposit(
             @Valid @RequestBody GatewayVirtualAccountDepositRequest request
     ) {
 
-        return financialGateway.deposit(request);
+        return ResponseEntity.ok(deposits.deposit(request));
     }
 
     @PostMapping("/refund")
-    public ResponseEntity<byte[]> refund(
+    public ResponseEntity<GatewayVirtualAccountRefundResponse> refund(
             @Valid @RequestBody GatewayVirtualAccountRefundRequest request
     ) {
 
-        return financialGateway.refundAccount(request);
+        return ResponseEntity.ok(accounts.refund(request));
     }
 
     @PostMapping("/cancel")
-    public ResponseEntity<byte[]> cancel(
+    public ResponseEntity<GatewayVirtualAccountCancelResponse> cancel(
             @Valid @RequestBody GatewayVirtualAccountCancelRequest request
     ) {
 
-        return financialGateway.cancelAccount(request);
+        return ResponseEntity.ok(accounts.cancel(request));
     }
 }

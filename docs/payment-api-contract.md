@@ -281,6 +281,14 @@ outcome은 COMPLETED 또는 REJECTED다. REJECTED는 ticket이 EXPIRED/CANCELLED
 
 ticket의 신규 내부 API를 먼저 배포한 뒤 gateway를 배포해야 한다. 브라우저는 HTTP 202와 상태 조회 계약을 반영해야 한다.
 
+## PG 거래 기반 가상계좌 입금
+
+신규 PG 연결 계좌도 기존 `POST /api/v1/payments/virtual-account/deposit`와 입금 제공자 인증으로 처리한다. 요청은 계좌번호·금액·입금자·선택 입금 시각이며, 저장된 계좌의 PG 참조로 가맹점을 찾는다. 신규 응답에는 `pgPaymentId`, 가맹점의 `paymentNo`, 은행 `status`, `pgStatus`, `notificationStatus`를 구분해 반환한다. 기존 NULL 연결 계좌의 응답은 유지한다.
+
+새 금융 경계는 `/internal/financial-simulations/banks/virtual-accounts/gateway/deposit` POST와 `/gateway/{pgPaymentId}/deposit` GET이다. 둘 다 기존 금융 내부 인증을 사용한다. 은행 입금·이력과 PG 상태·이력·Outbox는 HTTP를 사이에 둔 별도 커밋이며, 재시도와 30초 복구 스케줄러가 같은 최초 입금을 재사용한다.
+
+가맹점의 표준 통보 URL은 Ticksy 기준 `POST /api/v1/payments/internal/gateway/notifications`다. 카드/은행을 허용된 `paymentMethod` DTO로 수신한다. 은행 응답은 같은 가맹점/PG/이벤트/계좌/금액을 확인하고 APPLIED 또는 RESERVATION_CANCELLED를 반환한다. 통신 실패를 예매 취소로 처리하지 않는다. [식별자·트랜잭션·호환성 상세](payment-gateway-account-deposit.md)를 참고한다.
+
 ## 무통장 만료 이벤트
 
 무통장 만료는 사용자 요청이 아니라 스케줄러 기반 후처리이므로 Kafka outbox로 처리한다.

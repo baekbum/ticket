@@ -37,7 +37,23 @@ public class VirtualAccountPaymentService {
      */
     public PaymentResponse completeDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
 
+        return completeDepositFromGateway(request, null);
+    }
+
+    /**
+     * 새 PG 통보는 가맹점이 준비한 예매 소유자까지 검증한다. 기존 내부 계약은 유지한다.
+     */
+    public PaymentResponse completeDepositFromGateway(
+            VirtualAccountDepositCompleteRequest request,
+            String buyerReference
+    ) {
+
         Payment payment = paymentLocks.lock(request.getPaymentNo());
+
+        if (buyerReference != null && (payment.getReservation() == null
+                || !buyerReference.equals(payment.getReservation().getUserId()))) {
+            throw new org.springframework.security.access.AccessDeniedException("입금 통보의 예매 소유자가 일치하지 않습니다.");
+        }
 
         validateGatewayVirtualAccountDeposit(payment, request);
         if (isDepositApplied(payment) || isCancelledReservation(payment)) {

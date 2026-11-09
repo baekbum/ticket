@@ -13,7 +13,7 @@ public record GatewayCardApprovalPreparation(
         boolean activeMerchant,
 
         // 신규 승인 전에 지원 여부를 검사할 통보 DTO/응답 계약의 버전 코드.
-        // 현재는 CARD_NOTIFICATION_V1만 허용하며 이 값으로 DTO나 구현체를 자동 선택하지 않는다.
+        // 공통 PAYMENT_NOTIFICATION_V1과 기존 카드 V1을 검사하며 이 값으로 DTO나 구현체를 자동 선택하지 않는다.
         String notificationContract,
 
         // 가맹점 ID와 함께 DB의 수신 API URL·암호화 인증값을 찾는 대상 키. 통보 DTO 형식과는 별개다.

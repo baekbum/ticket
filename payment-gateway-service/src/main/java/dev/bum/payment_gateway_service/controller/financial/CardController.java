@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.controller.financial;
 
 import dev.bum.payment_gateway_service.dto.card.*;
+import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.security.FinancialSimulationAuthenticationFilter;
 import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
 import dev.bum.payment_gateway_service.service.financial.card.CardApprovalService;
@@ -19,12 +20,12 @@ public class CardController {
     private final CardApprovalService pgApprovals;
 
     @PostMapping("/approve")
-    public ResponseEntity<GatewayCardPaymentApproveResponse> approve(
+    public ResponseEntity<FinancialCardPaymentApproveResponse> approve(
             @NotBlank @RequestHeader(FinancialSimulationAuthenticationFilter.USER_HEADER) String userId,
             @Valid @RequestBody GatewayCardPaymentApproveRequest request
     ) {
 
-        return ResponseEntity.ok(cards.approve(userId, request));
+        return ResponseEntity.ok(FinancialCardPaymentApproveResponse.from(cards.approve(userId, request)));
     }
 
     @PostMapping("/gateway/approve")
@@ -42,12 +43,12 @@ public class CardController {
     }
 
     @GetMapping("/payments/{paymentNo}")
-    public ResponseEntity<GatewayCardPaymentStatusResponse> status(
+    public ResponseEntity<FinancialCardPaymentStatusResponse> status(
             @NotBlank @RequestHeader(FinancialSimulationAuthenticationFilter.USER_HEADER) String userId,
             @PathVariable String paymentNo
     ) {
 
-        return ResponseEntity.ok(cards.status(userId, paymentNo));
+        return ResponseEntity.ok(FinancialCardPaymentStatusResponse.from(cards.status(userId, paymentNo)));
     }
 
     @GetMapping("/payments/{paymentNo}/approval-exists")
@@ -63,10 +64,10 @@ public class CardController {
     }
 
     @PostMapping("/refund")
-    public ResponseEntity<GatewayCardPaymentRefundResponse> refund(
+    public ResponseEntity<FinancialCardPaymentRefundResponse> refund(
             @Valid @RequestBody GatewayCardPaymentRefundRequest request
     ) {
 
-        return ResponseEntity.ok(cards.refund(request));
+        return ResponseEntity.ok(FinancialCardPaymentRefundResponse.from(cards.refund(request)));
     }
 }

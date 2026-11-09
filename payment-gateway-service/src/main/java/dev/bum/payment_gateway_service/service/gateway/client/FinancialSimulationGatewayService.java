@@ -2,6 +2,9 @@ package dev.bum.payment_gateway_service.service.gateway.client;
 
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
 import dev.bum.payment_gateway_service.dto.card.*;
+import dev.bum.payment_gateway_service.dto.financial.*;
+import dev.bum.payment_gateway_service.exception.FinancialApiException;
+import dev.bum.payment_gateway_service.exception.FinancialPaymentPendingException;
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.exception.FinancialProviderResponseException;
@@ -28,7 +31,7 @@ import java.util.Optional;
 @Transactional(propagation = Propagation.NEVER)
 public class FinancialSimulationGatewayService {
 
-    // 기존 응답 상태·본문을 보존하면서 모의 금융 컨트롤러에 실제 HTTP 요청을 보낸다.
+    // 금융 컨트롤러를 HTTP로 호출하고 성공·대기·오류 본문을 각각 명시적인 DTO로 읽는다.
     private final RestClient financialSimulationRestClient;
     // 같은 애플리케이션의 실제 HTTP 포트를 요청 시점에 확인한다.
     private final Environment environment;
@@ -39,11 +42,11 @@ public class FinancialSimulationGatewayService {
     /**
      * 인증된 사용자 ID를 내부 헤더로 전달해 모의 카드 승인 컨트롤러를 호출한다.
      */
-    public ResponseEntity<byte[]> approveCard(String userId, GatewayCardPaymentApproveRequest request) {
+    public FinancialCardPaymentApproveResponse approveCard(String userId, GatewayCardPaymentApproveRequest request) {
 
         return exchange(financialSimulationRestClient.post().uri(uri("cards", "approve"))
                 .header(FinancialSimulationAuthenticationFilter.USER_HEADER, userId)
-                .contentType(MediaType.APPLICATION_JSON).body(request));
+                .contentType(MediaType.APPLICATION_JSON).body(request), FinancialCardPaymentApproveResponse.class);
     }
 
     /**
@@ -77,9 +80,9 @@ public class FinancialSimulationGatewayService {
     /**
      * 모의 은행 컨트롤러에 가상계좌 발급을 요청한다.
      */
-    public ResponseEntity<byte[]> issueAccount(GatewayVirtualAccountIssueRequest request) {
+    public FinancialVirtualAccountIssueResponse issueAccount(GatewayVirtualAccountIssueRequest request) {
 
-        return post(request, "banks", "virtual-accounts", "issue");
+        return post(request, FinancialVirtualAccountIssueResponse.class, "banks", "virtual-accounts", "issue");
     }
 
     /**
@@ -100,26 +103,26 @@ public class FinancialSimulationGatewayService {
     /**
      * 인증된 사용자가 소유한 카드 거래 상태를 HTTP로 조회한다.
      */
-    public ResponseEntity<byte[]> cardStatus(String userId, String paymentNo) {
+    public FinancialCardPaymentStatusResponse cardStatus(String userId, String paymentNo) {
 
         return exchange(financialSimulationRestClient.get().uri(uri("cards", "payments", paymentNo))
-                .header(FinancialSimulationAuthenticationFilter.USER_HEADER, userId));
+                .header(FinancialSimulationAuthenticationFilter.USER_HEADER, userId), FinancialCardPaymentStatusResponse.class);
     }
 
     /**
      * Ticksy 복구 처리에 필요한 승인 이력 존재 여부를 조회한다.
      */
-    public ResponseEntity<byte[]> approvalExists(String paymentNo) {
+    public Boolean approvalExists(String paymentNo) {
 
-        return exchange(financialSimulationRestClient.get().uri(uri("cards", "payments", paymentNo, "approval-exists")));
+        return exchange(financialSimulationRestClient.get().uri(uri("cards", "payments", paymentNo, "approval-exists")), Boolean.class);
     }
 
     /**
      * 모의 은행의 가상계좌 처리 상태를 조회한다.
      */
-    public ResponseEntity<byte[]> accountStatus(String paymentNo) {
+    public FinancialVirtualAccountStatusResponse accountStatus(String paymentNo) {
 
-        return exchange(financialSimulationRestClient.get().uri(uri("banks", "virtual-accounts", paymentNo)));
+        return exchange(financialSimulationRestClient.get().uri(uri("banks", "virtual-accounts", paymentNo)), FinancialVirtualAccountStatusResponse.class);
     }
 
     /**
@@ -138,57 +141,115 @@ public class FinancialSimulationGatewayService {
     }
 
     /**
+     * PG 연결 계좌의 입금 사실을 은행의 별도 트랜잭션으로 확정한다.
+     */
+    public BankVirtualAccountDepositResponse depositGatewayAccount(GatewayVirtualAccountDepositRequest request) {
+
+        return financialSimulationRestClient.post().uri(uri("banks", "virtual-accounts", "gateway", "deposit"))
+                .contentType(MediaType.APPLICATION_JSON).body(request)
+                .exchange((sent, response) -> depositResponse(response));
+    }
+
+    /**
+     * 응답 유실이나 PG 확정 실패 후 최초 은행 입금을 다시 조회한다.
+     */
+    public Optional<BankVirtualAccountDepositResponse> gatewayDepositStatus(String pgPaymentId) {
+
+        return financialSimulationRestClient.get()
+                .uri(uri("banks", "virtual-accounts", "gateway", pgPaymentId, "deposit"))
+                .exchange((sent, response) -> response.getStatusCode().value() == 404
+                        ? Optional.empty() : Optional.of(depositResponse(response)));
+    }
+
+    /**
+     * 취소 예매의 입금에 대해 실제 반환 없이 은행 계좌 상태만 정리한다.
+     */
+    public BankVirtualAccountDepositResponse rejectGatewayDeposit(String pgPaymentId) {
+
+        return financialSimulationRestClient.post()
+                .uri(uri("banks", "virtual-accounts", "gateway", pgPaymentId, "reject-deposit"))
+                .exchange((sent, response) -> depositResponse(response));
+    }
+
+    /**
      * 최초 환불 프로세스 ID를 그대로 전달해 카드 환불을 요청한다.
      */
-    public ResponseEntity<byte[]> refundCard(GatewayCardPaymentRefundRequest request) {
+    public FinancialCardPaymentRefundResponse refundCard(GatewayCardPaymentRefundRequest request) {
 
-        return post(request, "cards", "refund");
+        return post(request, FinancialCardPaymentRefundResponse.class, "cards", "refund");
     }
 
     /**
      * 입금 제공자가 인증한 요청을 모의 은행의 입금 진입점에 전달한다.
      */
-    public ResponseEntity<byte[]> deposit(GatewayVirtualAccountDepositRequest request) {
+    public FinancialVirtualAccountDepositResponse deposit(GatewayVirtualAccountDepositRequest request) {
 
-        return post(request, "banks", "virtual-accounts", "deposit");
+        return post(request, FinancialVirtualAccountDepositResponse.class, "banks", "virtual-accounts", "deposit");
     }
 
     /**
      * 최초 환불 프로세스 ID를 유지해 가상계좌 환불을 요청한다.
      */
-    public ResponseEntity<byte[]> refundAccount(GatewayVirtualAccountRefundRequest request) {
+    public FinancialVirtualAccountRefundResponse refundAccount(GatewayVirtualAccountRefundRequest request) {
 
-        return post(request, "banks", "virtual-accounts", "refund");
+        return post(request, FinancialVirtualAccountRefundResponse.class, "banks", "virtual-accounts", "refund");
     }
 
     /**
      * Ticksy의 입금 전 취소 요청을 모의 은행에 전달한다.
      */
-    public ResponseEntity<byte[]> cancelAccount(GatewayVirtualAccountCancelRequest request) {
+    public FinancialVirtualAccountCancelResponse cancelAccount(GatewayVirtualAccountCancelRequest request) {
 
-        return post(request, "banks", "virtual-accounts", "cancel");
+        return post(request, FinancialVirtualAccountCancelResponse.class, "banks", "virtual-accounts", "cancel");
     }
 
     /**
-     * 원래 결제번호·작업 식별자를 유지하며 POST를 한 번 수행한다. 업무 재시도 키를 만들지 않는다.
+     * 최초 작업 식별자를 유지하며 금융 응답을 지정된 성공 DTO로 읽는다.
      */
-    private ResponseEntity<byte[]> post(Object request, String... path) {
+    private <T> T post(Object request, Class<T> responseType, String... path) {
 
         return exchange(financialSimulationRestClient.post().uri(uri(path))
-                .contentType(MediaType.APPLICATION_JSON).body(request));
+                .contentType(MediaType.APPLICATION_JSON).body(request), responseType);
     }
 
     /**
-     * 202 PENDING 및 금융 거절 응답도 상태·JSON 본문 그대로 돌려준다. 외부 인증 헤더는 전달하지 않는다.
+     * 성공·202 대기·오류를 구분한다. 본문이 없거나 형식이 잘못된 성공을 정상 처리로 반환하지 않는다.
      */
-    private ResponseEntity<byte[]> exchange(RestClient.RequestHeadersSpec<?> request) {
+    private <T> T exchange(RestClient.RequestHeadersSpec<?> request, Class<T> responseType) {
 
-        return request.exchange((sent, response) -> {
-            MediaType contentType = response.getHeaders().getContentType();
+        return request.accept(MediaType.APPLICATION_JSON).exchange((sent, response) -> {
+            try {
+                if (response.getStatusCode().value() == 202) {
+                    FinancialCardPaymentPendingResponse pending = response.bodyTo(FinancialCardPaymentPendingResponse.class);
 
-            return ResponseEntity.status(response.getStatusCode())
-                    .contentType(contentType == null ? MediaType.APPLICATION_JSON : contentType)
-                    .body(response.getBody().readAllBytes());
+                    if (pending == null || !"PENDING".equals(pending.status())
+                            || pending.paymentNo() == null || pending.paymentNo().isBlank()
+                            || pending.message() == null || pending.message().isBlank()) {
+                        throw new FinancialProviderResponseException();
+                    }
+
+                    throw new FinancialPaymentPendingException(pending);
+                }
+
+                if (response.getStatusCode().value() != 200) {
+                    throw new FinancialApiException(response.getStatusCode(), response.bodyTo(FinancialApiErrorResponse.class));
+                }
+
+                T result = response.bodyTo(responseType);
+
+                if (result == null) {
+                    throw new FinancialProviderResponseException();
+                }
+
+                if (result instanceof FinancialPaymentResponse payment
+                        && (payment.paymentNo() == null || payment.paymentNo().isBlank())) {
+                    throw new FinancialProviderResponseException();
+                }
+
+                return result;
+            } catch (RestClientException failure) {
+                throw new FinancialProviderResponseException(failure);
+            }
         });
     }
 
@@ -205,6 +266,34 @@ public class FinancialSimulationGatewayService {
 
         try {
             BankVirtualAccountIssueResponse bank = response.bodyTo(BankVirtualAccountIssueResponse.class);
+
+            if (bank == null) {
+                throw new FinancialProviderResponseException();
+            }
+
+            return bank;
+        } catch (RestClientException exception) {
+            throw new FinancialProviderResponseException(exception);
+        }
+    }
+
+    /**
+     * 확정 입금 거절과 저장소/통신 실패를 구분한다. 원거래 검증은 PG 확정 단계에서 수행한다.
+     */
+    private BankVirtualAccountDepositResponse depositResponse(
+            RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse response
+    ) throws java.io.IOException {
+
+        if (response.getStatusCode().value() == 400 || response.getStatusCode().value() == 409) {
+            throw new GatewayPaymentConflictException("은행의 입금 요청이 최초 거래 또는 계좌 조건과 일치하지 않습니다.");
+        }
+
+        if (response.getStatusCode().value() != 200) {
+            throw new FinancialProviderResponseException();
+        }
+
+        try {
+            BankVirtualAccountDepositResponse bank = response.bodyTo(BankVirtualAccountDepositResponse.class);
 
             if (bank == null) {
                 throw new FinancialProviderResponseException();

@@ -118,7 +118,7 @@ HTTP는 같은 프로세스와 DB라도 다른 서버 요청/트랜잭션이다.
 
 중계 계층은 업무 요청을 자동 재시도하거나 새 결제/환불 ID를 생성하지 않는다. 기존 paymentNo와 환불 프로세스 ID를 그대로 전달한다. 연결/응답 시간 초과는 `503 FINANCIAL_PROVIDER_UNAVAILABLE`로 반환하고 금융 실패·취소 상태로 바꾸지 않는다. 모의 금융 저장소 오류는 해당 서비스의 롤백 후 `503 FINANCIAL_STORAGE_UNAVAILABLE`로 반환한다.
 
-`RestClient.exchange`로 금융 서버의 상태와 JSON 본문을 전달한다. `202 PENDING`, 400 거절, 403 소유권 거절을 200 승인으로 바꾸지 않는다. HTTP 중계의 자바 응답 타입은 byte[]지만 HTTP 응답은 기존 JSON이다. API 요청/응답 본문과 카드 비밀정보를 로그로 추가하지 않는다. [Spring RestClient 공식 문서](https://docs.spring.io/spring-framework/reference/6.2/integration/rest-clients.html#rest-restclient-exchange).
+`RestClient.exchange`로 금융 서버의 상태와 JSON 본문을 읽는다. 2026-11-09 [금융/PG 응답 DTO 분리](payment-gateway-response-contract.md)로 byte[] 전달을 제거했다. 성공은 금융 전용 DTO에서 PG 응답으로 변환하고, `202 PENDING`·업무/인증/저장소 오류는 각각의 DTO와 예외 응답 경로로 상태·기존 필드를 유지한다. 202나 400/403을 200 승인으로 바꾸지 않는다. API 요청/응답 본문과 카드 비밀정보를 로그로 추가하지 않는다.
 
 같은 웹 서버에 두 HTTP 요청이 필요하므로 별도 금융 서비스를 배포한 운영 환경과 동시 처리 용량이 같지는 않다. 이 단계는 한 애플리케이션 안에서 금융 HTTP 경계를 모의하는 구조다.
 

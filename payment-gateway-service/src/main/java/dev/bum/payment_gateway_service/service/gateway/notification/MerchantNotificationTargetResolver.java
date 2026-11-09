@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.service.gateway.notification;
 
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
+import dev.bum.common.service.paymentgateway.notification.GatewayPaymentNotification;
 import dev.bum.payment_gateway_service.jpa.merchant.MerchantNotificationEndpoint;
 import dev.bum.payment_gateway_service.jpa.merchant.MerchantNotificationEndpointJpaRepository;
 import dev.bum.payment_gateway_service.dto.gateway.MerchantNotificationTarget;
@@ -25,7 +26,7 @@ public class MerchantNotificationTargetResolver {
     @Transactional(readOnly = true)
     public MerchantNotificationTarget resolve(Long merchantId, String contract, String targetKey) {
 
-        if (!CardPaymentNotification.CONTRACT.equals(contract)) {
+        if (!GatewayPaymentNotification.CONTRACT.equals(contract) && !CardPaymentNotification.CONTRACT.equals(contract)) {
             throw new IllegalArgumentException("지원하지 않는 가맹점 통보 규격입니다.");
         }
 

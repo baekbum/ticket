@@ -366,3 +366,47 @@ CREATE INDEX idx_gateway_card_notification_ready
     ON gateway_card_notification_outbox(status, next_attempt_at, notification_id);
 CREATE INDEX idx_gateway_card_notification_lease
     ON gateway_card_notification_outbox(status, lease_until, notification_id);
+
+-- PG 거래 기반 은행 입금의 가맹점 통보 전용 Outbox. 은행→PG 내부 Outbox가 아니다.
+CREATE TABLE gateway_bank_notification_outbox (
+    notification_id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(100) NOT NULL,
+    pg_payment_id VARCHAR(44) NOT NULL,
+    merchant_id BIGINT NOT NULL,
+    merchant_payment_no VARCHAR(60) NOT NULL,
+    buyer_reference VARCHAR(50) NOT NULL,
+    notification_contract VARCHAR(40) NOT NULL,
+    notification_target_key VARCHAR(100) NOT NULL,
+    account_number VARCHAR(30) NOT NULL,
+    bank_company VARCHAR(30) NOT NULL,
+    depositor_name VARCHAR(50) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    deposited_at TIMESTAMP(6) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    attempt INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lease_until TIMESTAMP(6),
+    outcome VARCHAR(30),
+    last_error_type VARCHAR(100),
+    delivered_at TIMESTAMP(6),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_gateway_bank_notification_event UNIQUE (event_id),
+    CONSTRAINT uk_gateway_bank_notification_payment UNIQUE (pg_payment_id),
+    CONSTRAINT fk_gateway_bank_notification_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT fk_gateway_bank_notification_owner FOREIGN KEY (pg_payment_id, merchant_id)
+        REFERENCES gateway_payments(pg_payment_id, merchant_id),
+    CONSTRAINT chk_gateway_bank_notification_status CHECK (status IN ('PENDING', 'SENDING', 'DELIVERED')),
+    CONSTRAINT chk_gateway_bank_notification_amount CHECK (amount > 0),
+    CONSTRAINT chk_gateway_bank_notification_attempt CHECK (attempt >= 0),
+    CONSTRAINT chk_gateway_bank_notification_lease CHECK ((status = 'SENDING') = (lease_until IS NOT NULL)),
+    CONSTRAINT chk_gateway_bank_notification_result CHECK (
+        (status = 'DELIVERED' AND outcome IS NOT NULL AND outcome IN ('APPLIED', 'RESERVATION_CANCELLED') AND delivered_at IS NOT NULL)
+        OR (status <> 'DELIVERED' AND outcome IS NULL AND delivered_at IS NULL)
+    )
+);
+CREATE INDEX idx_gateway_bank_notification_ready
+    ON gateway_bank_notification_outbox(status, next_attempt_at, notification_id);
+CREATE INDEX idx_gateway_bank_notification_lease
+    ON gateway_bank_notification_outbox(status, lease_until, notification_id);

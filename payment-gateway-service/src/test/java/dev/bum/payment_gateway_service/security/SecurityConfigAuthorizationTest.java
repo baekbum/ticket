@@ -36,7 +36,13 @@ class SecurityConfigAuthorizationTest {
     private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService issuance;
 
     @MockitoBean
-    private dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService financialGateway;
+    private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService deposits;
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService cardApi;
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService accountApi;
 
     @MockitoBean
     private dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService merchantAuthenticationService;
