@@ -410,3 +410,43 @@ CREATE INDEX idx_gateway_bank_notification_ready
     ON gateway_bank_notification_outbox(status, next_attempt_at, notification_id);
 CREATE INDEX idx_gateway_bank_notification_lease
     ON gateway_bank_notification_outbox(status, lease_until, notification_id);
+
+-- HTTP 경계의 세 전달 단계는 flow별로 독립적인 Outbox 행과 임대를 사용한다.
+CREATE TABLE bank_transfer_outbox (
+    outbox_id BIGSERIAL PRIMARY KEY,
+    flow VARCHAR(40) NOT NULL,
+    event_id VARCHAR(100) NOT NULL,
+    pg_payment_id VARCHAR(44) NOT NULL,
+    payload JSONB NOT NULL,
+    result JSONB,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    attempt INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lease_until TIMESTAMP(6),
+    last_error_type VARCHAR(100),
+    delivered_at TIMESTAMP(6),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_bank_transfer_event UNIQUE (flow, event_id),
+    CONSTRAINT uk_bank_transfer_operation UNIQUE (flow, pg_payment_id),
+    CONSTRAINT fk_bank_transfer_payment FOREIGN KEY (pg_payment_id) REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT chk_bank_transfer_flow CHECK (flow IN ('BANK_DEPOSIT', 'BANK_CANCEL_REQUEST', 'MERCHANT_CANCEL_RESULT')),
+    CONSTRAINT chk_bank_transfer_status CHECK (status IN ('PENDING', 'SENDING', 'DELIVERED')),
+    CONSTRAINT chk_bank_transfer_attempt CHECK (attempt >= 0),
+    CONSTRAINT chk_bank_transfer_lease CHECK ((status = 'SENDING') = (lease_until IS NOT NULL)),
+    CONSTRAINT chk_bank_transfer_result CHECK (
+        (status = 'DELIVERED' AND result IS NOT NULL AND delivered_at IS NOT NULL)
+        OR (status <> 'DELIVERED' AND result IS NULL AND delivered_at IS NULL)
+    )
+);
+CREATE INDEX idx_bank_transfer_ready ON bank_transfer_outbox(flow, status, next_attempt_at, outbox_id);
+CREATE INDEX idx_bank_transfer_lease ON bank_transfer_outbox(flow, status, lease_until, outbox_id);
+
+-- 은행은 전체 취소의 최초 성공/거절을 고정한다. Outbox가 아닌 수신 측 멱등 처리 결과다.
+CREATE TABLE bank_virtual_account_cancellations (
+    pg_payment_id VARCHAR(44) PRIMARY KEY,
+    request_payload JSONB NOT NULL,
+    result_payload JSONB NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_bank_cancel_payment FOREIGN KEY (pg_payment_id) REFERENCES gateway_payments(pg_payment_id)
+);

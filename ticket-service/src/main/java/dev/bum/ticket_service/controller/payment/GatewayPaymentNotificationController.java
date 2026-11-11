@@ -13,6 +13,15 @@ import org.springframework.web.bind.annotation.*;
 public class GatewayPaymentNotificationController {
 
     private final GatewayPaymentNotificationService notifications;
+    private final GatewayBankCancellationNotificationService cancellations;
+
+    @PostMapping(value = "/notifications", headers = "X-PG-Event-Type=BANK_CANCELLATION")
+    public ResponseEntity<BankCancellationNotificationResponse> cancellation(
+            @Valid @RequestBody BankCancellationNotification notification
+    ) {
+
+        return ResponseEntity.ok(cancellations.receive(notification));
+    }
 
     @PostMapping("/notifications")
     public ResponseEntity<?> receive(@Valid @RequestBody GatewayPaymentNotification notification) {

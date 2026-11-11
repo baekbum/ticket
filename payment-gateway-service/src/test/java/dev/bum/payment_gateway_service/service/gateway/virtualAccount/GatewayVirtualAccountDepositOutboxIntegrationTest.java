@@ -55,13 +55,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false)
-@ContextConfiguration(classes = VirtualAccountDepositOutboxIntegrationTest.PersistenceConfig.class)
-@Import({GatewayVirtualAccountService.class, VirtualAccountDepositOutboxService.class,
-        VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
+@ContextConfiguration(classes = GatewayVirtualAccountDepositOutboxIntegrationTest.PersistenceConfig.class)
+@Import({GatewayVirtualAccountService.class, GatewayVirtualAccountDepositOutboxService.class,
+        GatewayVirtualAccountDepositOutboxDispatcher.class, GatewayVirtualAccountDepositOutboxPublisher.class,
         VirtualAccountCancellationService.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class VirtualAccountDepositOutboxIntegrationTest {
+class GatewayVirtualAccountDepositOutboxIntegrationTest {
     @Configuration
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
@@ -76,7 +76,7 @@ class VirtualAccountDepositOutboxIntegrationTest {
     @Autowired DummyVirtualAccountPaymentHistoryJpaRepository histories;
     @Autowired PlatformTransactionManager transactions;
     @Autowired JdbcTemplate jdbc;
-    @MockitoSpyBean VirtualAccountDepositOutboxDispatcher dispatcher;
+    @MockitoSpyBean GatewayVirtualAccountDepositOutboxDispatcher dispatcher;
     @MockitoBean TicketPaymentClient ticket;
     @MockitoBean GatewayRefundProcessService refunds;
 

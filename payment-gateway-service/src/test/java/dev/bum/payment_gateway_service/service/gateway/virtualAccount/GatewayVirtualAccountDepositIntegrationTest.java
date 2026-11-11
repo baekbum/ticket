@@ -70,14 +70,20 @@ class GatewayVirtualAccountDepositIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
+    @Import({
+            dev.bum.payment_gateway_service.service.outbox.BankTransferOutboxCommands.class,
+            BankDepositNotificationClient.class, BankDepositOutboxDispatcher.class, GatewayBankEventController.class,
+            GatewayBankCancellationDispatcher.class,dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
             SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
             BankVirtualAccountIssueCommandService.class, BankVirtualAccountDepositService.class,
-            GatewayVirtualAccountDepositService.class, GatewayVirtualAccountDepositCommands.class,
+            GatewayVirtualAccountDepositCommands.class,
             GatewayPaymentController.class, GatewayVirtualAccountController.class, BankController.class,
             GlobalExceptionHandler.class, FinancialSimulationExceptionHandler.class,
             MerchantNotificationTargetResolver.class, MerchantNotificationTokenCipher.class,
@@ -93,7 +99,11 @@ class GatewayVirtualAccountDepositIntegrationTest {
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired DummyVirtualAccountJpaRepository accounts;
     @Autowired BankVirtualAccountDepositService bank;
-    @Autowired GatewayVirtualAccountDepositService deposits;
+    @Autowired GatewayVirtualAccountDepositCommands depositCommands;
+    @Autowired BankDepositOutboxDispatcher bankDispatcher;
+    @MockitoSpyBean dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository bankOutboxes;
+    @MockitoSpyBean BankDepositNotificationClient bankClient;
+    @Autowired BankVirtualAccountCancellationJpaRepository bankCancellations;
     @Autowired GatewayBankNotificationDispatcher dispatcher;
     @Autowired GatewayBankNotificationCommands delivery;
     @Autowired PlatformTransactionManager transactions;
@@ -118,6 +128,8 @@ class GatewayVirtualAccountDepositIntegrationTest {
 
     @BeforeEach
     void setup() throws Exception {
+        bankOutboxes.deleteAll();
+        bankCancellations.deleteAll();
         notifications.deleteAll();
         bankHistories.deleteAll();
         accounts.deleteAll();
@@ -168,9 +180,9 @@ class GatewayVirtualAccountDepositIntegrationTest {
     void depositCommitsBankHistoryAndPgPaymentHistoryAndMerchantNotification() throws Exception {
         String id = issue("merchant-a", "PAY-DEPOSIT");
         deposit(id).andExpect(status().isOk()).andExpect(jsonPath("$.pgPaymentId").value(id))
-                .andExpect(jsonPath("$.paymentNo").value("PAY-DEPOSIT"))
-                .andExpect(jsonPath("$.status").value("DEPOSITED")).andExpect(jsonPath("$.pgStatus").value("PAID"))
-                .andExpect(jsonPath("$.notificationStatus").value("PENDING"));
+                .andExpect(jsonPath("$.accountNumber").value(request(id).getAccountNumber()))
+                .andExpect(jsonPath("$.status").value("DEPOSITED")).andExpect(jsonPath("$.pgStatus").doesNotExist())
+                .andExpect(jsonPath("$.notificationStatus").doesNotExist());
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getDepositedAt()).isEqualTo(depositedAt);
         assertThat(payments.findById(id).orElseThrow().getPaidAt()).isEqualTo(depositedAt);
         assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
@@ -255,16 +267,16 @@ class GatewayVirtualAccountDepositIntegrationTest {
     void pgOutboxFailureRollsBackPgButRecoveryUsesTheCommittedBankDeposit() throws Exception {
         String id = issue("merchant-a", "PG-OUTBOX-ROLLBACK");
         doThrow(new DataIntegrityViolationException("simulated")).when(notifications).saveAndFlush(any());
-        deposit(id).andExpect(status().isServiceUnavailable());
+        deposit(id).andExpect(status().isOk());
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
         assertThat(payments.findById(id).orElseThrow().getPaidAt()).isNull();
         assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(2);
         assertThat(notifications.count()).isZero();
         reset(notifications);
-        deposits.recoverDeposits();
+        retryBankNow(id);
+        bankDispatcher.retryPending();
         assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
         assertThat(event(id).getDepositedAt()).isEqualTo(depositedAt);
-        verify(financial, times(1)).depositGatewayAccount(any());
     }
 
     @Test
@@ -272,37 +284,24 @@ class GatewayVirtualAccountDepositIntegrationTest {
         String id = issue("merchant-a", "PG-HISTORY-ROLLBACK");
         doThrow(new DataIntegrityViolationException("simulated")).when(histories)
                 .saveAndFlush(argThat(history -> history.getOperationType() == GatewayPaymentOperation.DEPOSIT));
-        deposit(id).andExpect(status().isServiceUnavailable());
+        deposit(id).andExpect(status().isOk());
         assertThat(payments.findById(id).orElseThrow().getPaidAt()).isNull();
         assertThat(notifications.count()).isZero();
         reset(histories);
+        retryBankNow(id);
         deposit(id).andExpect(status().isOk());
         assertThat(bankHistories.count()).isEqualTo(2);
         assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
     }
 
     @Test
-    void bankResponseLossIsRecoveredWithoutAnotherFinancialExecution() throws Exception {
-        String id = issue("merchant-a", "BANK-RESPONSE-LOST");
-        doAnswer(invocation -> { invocation.callRealMethod(); throw new ResourceAccessException("simulated loss"); })
-                .when(financial).depositGatewayAccount(any());
-        deposit(id).andExpect(status().isServiceUnavailable());
-        deposits.recoverDeposits();
-        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
-        assertThat(bankHistories.count()).isEqualTo(2);
-        assertThat(notifications.count()).isEqualTo(1);
-        verify(financial, times(1)).depositGatewayAccount(any());
-    }
-
-    @Test
-    void bankEntryAndProcessRestartRecoverFromDurableBankFactsWithoutAnInternalOutbox() throws Exception {
+    void bankEntryAndProcessRestartRetryTheDurableBankDepositOutbox() throws Exception {
         String id = issue("merchant-a", "BANK-DIRECT");
         bank.deposit(request(id));
         assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
-        deposits.recoverDeposits();
-        deposits.recoverDeposits();
+        bankDispatcher.retryPending();
+        bankDispatcher.retryPending();
         assertThat(notifications.count()).isEqualTo(1);
-        verify(financial, never()).depositGatewayAccount(any());
     }
 
     @Test
@@ -361,7 +360,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         assertThat(account.getStatus()).isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
         assertThat(account.getDepositedAt()).isEqualTo(depositedAt);
         assertThat(account.getAmount()).isEqualByComparingTo("100");
-        deposit(id).andExpect(status().isOk()).andExpect(jsonPath("$.pgStatus").value("CANCELLED"));
+        deposit(id).andExpect(status().isOk()).andExpect(jsonPath("$.pgStatus").doesNotExist());
         assertThat(bankHistories.count()).isEqualTo(3);
         assertThat(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(id, GatewayPaymentOperation.CANCEL,
                 "MERCHANT_REJECTED_DEPOSIT").orElseThrow().getDetails()).containsEntry("fundsReturned", false);
@@ -414,7 +413,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
 
     @Test
     void depositOrNotificationHttpCannotRunInsideAnOuterTransaction() {
-        assertThatThrownBy(() -> new TransactionTemplate(transactions).execute(status -> deposits.deposit(null)))
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).execute(status -> bankClient.send(null)))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> dispatcher.retryPending()))
                 .isInstanceOf(IllegalTransactionStateException.class);
@@ -424,30 +423,12 @@ class GatewayVirtualAccountDepositIntegrationTest {
     void depositsRequireProviderAuthenticationAndInternalBankEntryIsNotPublic() throws Exception {
         String id = issue("merchant-a", "AUTH");
         byte[] body = json.writeValueAsBytes(request(id));
-        mvc.perform(post("/api/v1/payments/virtual-account/deposit").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/payments/virtual-account/deposit").header("X-Service-Token", "merchant-a")
+        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("X-Service-Token", "merchant-a")
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         mvc.perform(post("/internal/financial-simulations/banks/virtual-accounts/gateway/deposit")
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void mismatchedBankResponsesDoNotCompleteTheWrongPgTransactionAndCanBeRecovered() throws Exception {
-        String id = issue("merchant-a", "WRONG-BANK-RESPONSE");
-        String other = issue("merchant-b", "WRONG-BANK-RESPONSE");
-        doAnswer(invocation -> {
-            BankVirtualAccountDepositResponse actual = (BankVirtualAccountDepositResponse) invocation.callRealMethod();
-            return new BankVirtualAccountDepositResponse(other, actual.bankCompany(), actual.bankName(), actual.accountNumber(),
-                    actual.amount(), actual.expiresAt(), actual.depositorName(), actual.depositedAt(), actual.status());
-        }).when(financial).depositGatewayAccount(any());
-        deposit(id).andExpect(status().isServiceUnavailable());
-        assertThat(payments.findById(other).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
-        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
-        assertThat(notifications.count()).isZero();
-        deposits.recoverDeposits();
-        assertThat(event(id).getMerchantId()).isEqualTo(first.getMerchantId());
-        assertThat(notifications.count()).isEqualTo(1);
     }
 
     @Test
@@ -456,7 +437,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         bank.deposit(request(id));
         new TransactionTemplate(transactions).executeWithoutResult(status ->
                 merchants.findById(first.getMerchantId()).orElseThrow().suspend());
-        deposits.recoverDeposits();
+        bankDispatcher.retryPending();
         assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
         assertThat(notifications.count()).isEqualTo(1);
     }
@@ -469,11 +450,154 @@ class GatewayVirtualAccountDepositIntegrationTest {
         postDeposit(late).andExpect(status().isConflict());
         assertThat(bankHistories.count()).isEqualTo(1);
         bank.deposit(request(id));
-        deposits.recoverDeposits();
+        bankDispatcher.retryPending();
         assertThat(event(id).getDepositedAt()).isEqualTo(depositedAt);
     }
 
+    @Test
+    void callerRollbackAlsoRollsBackTheBankDepositHistoryAndOutbox() throws Exception {
+        String id = issue("merchant-a", "JOIN-CALLER-TRANSACTION");
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            bank.deposit(request(id));
+            assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+            assertThat(bankHistories.count()).isEqualTo(2);
+            assertThat(bankOutboxes.count()).isEqualTo(1);
+            status.setRollbackOnly();
+        });
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getDepositedAt()).isNull();
+        assertThat(bankHistories.count()).isEqualTo(1);
+        assertThat(bankOutboxes.count()).isZero();
+        assertThat(notifications.count()).isZero();
+    }
+
+    @Test
+    void rejectedDepositCleanupAlsoJoinsTheCallerTransaction() throws Exception {
+        String id = issue("merchant-a", "JOIN-CLEANUP-TRANSACTION");
+        bank.deposit(request(id));
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            bank.rejectDeposit(id);
+            assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.CANCELLED);
+            status.setRollbackOnly();
+        });
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getDepositedAt()).isEqualTo(depositedAt);
+        assertThat(bankHistories.count()).isEqualTo(2);
+        assertThat(bankOutboxes.count()).isEqualTo(1);
+    }
+
+    @Test
+    void callerRollbackAlsoRollsBackPgDepositHistoryAndNotificationWhileTheBankFactRemainsCommitted() throws Exception {
+        String id = issue("merchant-a", "JOIN-PG-CALLER-TRANSACTION");
+        bank.deposit(request(id));
+        BankVirtualAccountDepositResponse bankDeposit = bank.find(id).orElseThrow();
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            depositCommands.confirm(id, bankDeposit);
+            assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+            assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+            assertThat(notifications.count()).isEqualTo(1);
+            status.setRollbackOnly();
+        });
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        assertThat(payments.findById(id).orElseThrow().getPaidAt()).isNull();
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(2);
+        assertThat(notifications.count()).isZero();
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+        assertThat(bankHistories.count()).isEqualTo(2);
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("PENDING");
+        bankDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+        assertThat(notifications.count()).isEqualTo(1);
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("DELIVERED");
+    }
+
+    @Test
+    void bankAcknowledgesDepositBeforePgAndMerchantHaveProcessedIt() throws Exception {
+        String id = issue("merchant-a", "ASYNC-BOUNDARIES");
+        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("X-Payment-Provider-Token", "bank-provider")
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request(id))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DEPOSITED"))
+                .andExpect(jsonPath("$.pgStatus").doesNotExist());
+        assertThat(payments.findById(id).orElseThrow().getPaidAt()).isNull();
+        assertThat(notifications.count()).isZero();
+        assertThat(bankOutboxes.count()).isEqualTo(1);
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("PENDING");
+        bankDispatcher.retryPending();
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("DELIVERED");
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+        assertThat(event(id).getStatus()).isEqualTo("PENDING");
+        mode.set("ERROR");
+        dispatcher.retryPending();
+        assertThat(event(id).getStatus()).isEqualTo("PENDING");
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("DELIVERED");
+    }
+
+    @Test
+    void bankOutboxStorageFailureRollsBackTheBankDepositAndHistory() throws Exception {
+        String id = issue("merchant-a", "BANK-OUTBOX-ROLLBACK");
+        doThrow(new DataIntegrityViolationException("simulated")).when(bankOutboxes).saveAndFlush(any());
+        deposit(id).andExpect(status().isServiceUnavailable());
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getDepositedAt()).isNull();
+        assertThat(bankHistories.count()).isEqualTo(1);
+        assertThat(bankOutboxes.count()).isZero();
+        assertThat(notifications.count()).isZero();
+    }
+
+    @Test
+    void aLostPgAcknowledgementRetriesTheSameDepositWithoutDuplicatingPgOrMerchantOutbox() throws Exception {
+        String id = issue("merchant-a", "PG-ACK-LOSS");
+        bank.deposit(request(id));
+        doAnswer(i -> { i.callRealMethod(); throw new ResourceAccessException("lost acknowledgement"); })
+                .when(bankClient).send(any());
+        bankDispatcher.retryPending();
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("PENDING");
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+        Map<String,Object> original = bankOutboxes.findAll().getFirst().getPayload();
+        reset(bankClient);
+        retryBankNow(id);
+        bankDispatcher.retryPending();
+        assertThat(bankOutboxes.findAll().getFirst().getPayload()).isEqualTo(original);
+        assertThat(bankOutboxes.findAll().getFirst().getStatus()).isEqualTo("DELIVERED");
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+        assertThat(notifications.count()).isEqualTo(1);
+    }
+
+    @Test
+    void theSameDepositEventWithChangedFactsIsRejectedByPgAndCannotOverwriteTheFirstDeposit() throws Exception {
+        String id = issue("merchant-a", "CHANGED-BANK-EVENT");
+        bank.deposit(request(id));
+        BankDepositEvent original = BankDepositEvent.from(bank.find(id).orElseThrow());
+        assertThat(bankClient.send(original).matches(original)).isTrue();
+        BankVirtualAccountDepositResponse b = original.deposit();
+        BankDepositEvent changed = new BankDepositEvent(original.eventId(), new BankVirtualAccountDepositResponse(id,
+                b.bankCompany(), b.bankName(), b.accountNumber(), b.amount(), b.expiresAt(), "other-name", b.depositedAt(), b.status()));
+        assertThatThrownBy(() -> bankClient.send(changed)).isInstanceOf(RuntimeException.class);
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+        assertThat(event(id).getDepositorName()).isEqualTo("입금자");
+    }
+
+    @Test
+    void internalDepositReceiverRequiresTheFinancialTokenAndTheFixedEventId() throws Exception {
+        String id = issue("merchant-a", "BANK-EVENT-AUTH");
+        bank.deposit(request(id));
+        BankDepositEvent event = BankDepositEvent.from(bank.find(id).orElseThrow());
+        String path = "/internal/financial-simulations/gateway/bank-deposits";
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(event)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("X-Service-Token", "merchant-a").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(event))).andExpect(status().isUnauthorized());
+        assertThatThrownBy(() -> bankClient.send(new BankDepositEvent("other-event", event.deposit())))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(notifications.count()).isZero();
+    }
+
     GatewayBankNotification event(String id) { return notifications.findByPaymentPgPaymentId(id).orElseThrow(); }
+
+    void retryBankNow(String id) {
+        jdbc.update("update bank_transfer_outbox set next_attempt_at = ? where pg_payment_id = ? and flow = 'BANK_DEPOSIT'",
+                LocalDateTime.now().minusSeconds(1), id);
+    }
 
     void retryNow(String id) {
         jdbc.update("update gateway_bank_notification_outbox set next_attempt_at = ? where pg_payment_id = ?",
@@ -511,7 +635,10 @@ class GatewayVirtualAccountDepositIntegrationTest {
     ResultActions deposit(String id) throws Exception { return postDeposit(request(id)); }
 
     ResultActions postDeposit(GatewayVirtualAccountDepositRequest request) throws Exception {
-        return mvc.perform(post("/api/v1/payments/virtual-account/deposit").header("X-Payment-Provider-Token", "bank-provider")
+        ResultActions response = mvc.perform(post("/api/v1/banks/virtual-accounts/deposit")
+                .header("X-Payment-Provider-Token", "bank-provider")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)));
+        bankDispatcher.retryPending();
+        return response;
     }
 }

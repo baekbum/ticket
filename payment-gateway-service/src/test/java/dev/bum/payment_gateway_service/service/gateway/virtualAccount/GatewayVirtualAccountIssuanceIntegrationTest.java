@@ -74,7 +74,11 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
+    @Import({
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
             SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
@@ -84,10 +88,9 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             GatewayVirtualAccountController.class, BankController.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
-            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,
-            VirtualAccountCancellationService.class, VirtualAccountDepositOutboxService.class,
-            VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
+            VirtualAccountCancellationService.class, GatewayVirtualAccountDepositOutboxService.class,
+            GatewayVirtualAccountDepositOutboxDispatcher.class, GatewayVirtualAccountDepositOutboxPublisher.class,
             VirtualAccountExpirationScheduler.class})
     static class Config { }
 
@@ -98,6 +101,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @Autowired DummyVirtualAccountJpaRepository accounts;
     @Autowired VirtualAccountDepositOutboxJpaRepository depositOutbox;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
+    @Autowired dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository bankOutboxes;
     @Autowired VirtualAccountOutboxEventJpaRepository expiryOutbox;
     @Autowired GatewayVirtualAccountIssuanceService issuance;
     @Autowired PlatformTransactionManager transactions;
@@ -116,6 +120,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
 
     @BeforeEach
     void setup() {
+        bankOutboxes.deleteAll();
         bankNotifications.deleteAll();
         depositOutbox.deleteAll();
         expiryOutbox.deleteAll();
@@ -346,15 +351,27 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
                 .andExpect(status().isBadRequest());
         GatewayVirtualAccountDepositRequest deposit = new GatewayVirtualAccountDepositRequest(
                 issued.get("accountNumber").asText(), "입금자", new BigDecimal("100"), LocalDateTime.now());
-        mvc.perform(post("/api/v1/payments/virtual-account/deposit").header("X-Payment-Provider-Token", "test-provider")
+        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("X-Payment-Provider-Token", "test-provider")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(deposit)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.pgPaymentId").value(id));
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
                 .isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
         assertThat(depositOutbox.count()).isZero();
         assertThat(bankHistories.count()).isEqualTo(2);
-        assertThat(bankNotifications.count()).isEqualTo(1);
+        assertThat(bankNotifications.count()).isZero();
+        assertThat(bankOutboxes.count()).isEqualTo(1);
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
         verifyNoInteractions(ticket);
+    }
+
+    @Test
+    void oldInternalDepositAliasesAreRemovedEvenForTheFinancialClient() throws Exception {
+        for (String suffix : new String[]{"/deposit", "/gateway/deposit"}) {
+            mvc.perform(post("/internal/financial-simulations/banks/virtual-accounts" + suffix)
+                    .header(FinancialSimulationAuthenticationFilter.TOKEN_HEADER, internalToken.value())
+                    .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isMethodNotAllowed());
+        }
     }
 
     @Test

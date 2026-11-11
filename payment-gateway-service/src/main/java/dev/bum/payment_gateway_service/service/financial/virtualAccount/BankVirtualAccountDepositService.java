@@ -1,12 +1,16 @@
 package dev.bum.payment_gateway_service.service.financial.virtualAccount;
 
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
+import dev.bum.payment_gateway_service.dto.bank.BankDepositEvent;
+import dev.bum.payment_gateway_service.jpa.outbox.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -14,17 +18,22 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class BankVirtualAccountDepositService {
 
     // 은행은 계좌 행만 잠가 최초 입금과 중복 요청을 직렬화한다.
     private final DummyVirtualAccountJpaRepository accounts;
     // 입금과 은행 이력은 같은 금융 트랜잭션으로 저장한다.
     private final DummyVirtualAccountPaymentHistoryJpaRepository histories;
+    // 은행 입금과 PG 통보 의도를 같은 은행 트랜잭션으로 확정한다.
+    private final BankTransferOutboxJpaRepository notifications;
+    // 불변 입금 DTO를 JSON 스냅샷으로 저장한다.
+    private final ObjectMapper json;
 
     /**
-     * PG 연결 계좌의 입금을 한 번 반영한다. 가맹점 조회·Ticksy 호출·PG Outbox 저장은 하지 않는다.
+     * PG 연결 계좌의 입금·은행 이력·은행→PG 통보 Outbox를 같은 트랜잭션으로 처리한다.
+     * 호출자의 트랜잭션이 있으면 참여하고, 없으면 새로 시작한다.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BankVirtualAccountDepositResponse deposit(GatewayVirtualAccountDepositRequest request) {
 
         DummyVirtualAccount account = accounts.findLinkedByAccountNumberForUpdate(request.getAccountNumber())
@@ -43,6 +52,8 @@ public class BankVirtualAccountDepositService {
                 throw new GatewayPaymentConflictException("이미 처리된 최초 입금 정보와 요청이 일치하지 않습니다.");
             }
 
+            enqueue(account);
+
             return BankVirtualAccountDepositResponse.from(account);
         }
 
@@ -56,8 +67,18 @@ public class BankVirtualAccountDepositService {
 
         account.deposit(request.getDepositorName(), depositedAt);
         histories.saveAndFlush(DummyVirtualAccountPaymentHistory.deposited(account));
+        enqueue(account);
 
         return BankVirtualAccountDepositResponse.from(account);
+    }
+
+    /**
+     * 전환 전 은행 입금 자료도 최초 금융 사실로 통보 의도를 복구한다. PG 상태는 직접 조회하지 않는다.
+     */
+    public void enqueueExistingDeposit(String pgPaymentId) {
+
+        accounts.findLinkedByPgPaymentIdForUpdate(pgPaymentId).filter(account -> account.getDepositedAt() != null)
+                .ifPresent(this::enqueue);
     }
 
     /**
@@ -73,7 +94,6 @@ public class BankVirtualAccountDepositService {
     /**
      * 가맹점의 취소 예매 응답에 따라 계좌를 정리한다. 최초 입금 사실을 보존하며 실제 반환은 하지 않는다.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BankVirtualAccountDepositResponse rejectDeposit(String pgPaymentId) {
 
         DummyVirtualAccount account = accounts.findLinkedByPgPaymentIdForUpdate(pgPaymentId).orElseThrow();
@@ -88,5 +108,24 @@ public class BankVirtualAccountDepositService {
         }
 
         return BankVirtualAccountDepositResponse.from(account);
+    }
+
+    /**
+     * 최초 입금의 금융 사실을 고정한다. 취소 후 재시도도 입금 이벤트 내용은 바뀌지 않는다.
+     */
+    private void enqueue(DummyVirtualAccount account) {
+
+        // 입금 사실을 PG로 보내기 위한 OUTBOX에 이미 해당 건이 존재하면, 넣지 않는다.
+        if (notifications.findByFlowAndPgPaymentId(BankTransferOutbox.Flow.BANK_DEPOSIT, account.getPgPaymentId()).isPresent()) {
+            return;
+        }
+
+        BankVirtualAccountDepositResponse bank = new BankVirtualAccountDepositResponse(account.getPgPaymentId(),
+                account.getBankCompany(), account.getBankName(), account.getAccountNumber(), account.getAmount(),
+                account.getExpiresAt(), account.getDepositorName(), account.getDepositedAt(),
+                VirtualAccountPaymentStatus.DEPOSITED);
+        BankDepositEvent event = BankDepositEvent.from(bank);
+        notifications.saveAndFlush(BankTransferOutbox.pending(BankTransferOutbox.Flow.BANK_DEPOSIT, event.eventId(),
+                account.getPgPaymentId(), json.convertValue(event, new TypeReference<>() { })));
     }
 }

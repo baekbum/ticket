@@ -1,5 +1,7 @@
 # 금융 응답과 PG 응답 DTO 분리
 
+2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
+
 2026-11-09: 기존 금융 HTTP 중계의 `ResponseEntity<byte[]>`와 공개 PG 컨트롤러의 `ResponseEntity<?>`를 제거했다. URL·권한·JSON 필드·200/202/오류 상태 계약은 유지하고 자바 응답 타입을 명시한다.
 
 ## 경계와 책임
@@ -39,7 +41,7 @@ PG Controller
 
 ## 입금 응답 통일
 
-`GatewayVirtualAccountDepositService.deposit()`는 기존 미연결 계좌와 새 PG 연결 계좌 모두 GatewayVirtualAccountPaymentDepositResponse를 반환한다. 컨트롤러는 ResponseEntity<GatewayVirtualAccountPaymentDepositResponse>로 선언한다.
+`BankController`는 PG 연결 계좌 테스트에 ResponseEntity<BankVirtualAccountDepositResponse>, 기존 미연결 계좌 테스트에 ResponseEntity<FinancialVirtualAccountDepositResponse>를 반환한다. PG의 입금 우회 서비스는 제거했다. 은행 입금 수신 컨트롤러는 기존 BankDepositAcknowledgement를 유지한다.
 
 기존 계좌에는 실제 PG 거래·통보 상태가 없으므로 `pgPaymentId`, `pgStatus`, `notificationStatus`만 null일 때 JSON에서 제외한다. 기존의 paymentNo·은행·계좌·입금자·금액·은행 상태·기한·입금 시각·message 필드는 유지한다. 새 PG 연결 계좌는 기존 세 PG 필드를 계속 포함한다. 가맹점이나 PG 거래를 새로 만들거나 과거 계좌를 일괄 연결하지 않는다.
 

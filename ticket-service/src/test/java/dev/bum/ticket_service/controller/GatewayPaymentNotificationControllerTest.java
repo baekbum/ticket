@@ -40,6 +40,7 @@ class GatewayPaymentNotificationControllerTest {
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     @MockitoBean PaymentService payments;
+    @MockitoBean GatewayBankCancellationNotificationService cancellations;
     final String path = "/api/v1/payments/internal/gateway/notifications";
     final String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
 
@@ -126,6 +127,27 @@ class GatewayPaymentNotificationControllerTest {
                 .thenReturn(payment(PaymentStatus.WAITING_DEPOSIT));
         assertThatThrownBy(() -> new GatewayBankNotificationService(payments, 1).receive(event()))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void theRegisteredUrlRoutesCancellationByTheStandardEventHeader() throws Exception {
+        var event = new BankCancellationNotification(1, pgId + ":CANCEL:INITIAL", 1L, pgId, "PAY-1", "buyer",
+                PaymentMethod.BANK_TRANSFER, new BigDecimal("100"), "1111-123456", BankCompany.KB, "CANCELLED",
+                "PG_MERCHANT_CANCELLED", LocalDateTime.of(2026, 11, 10, 15, 0), false);
+        when(cancellations.receive(any())).thenReturn(BankCancellationNotificationResponse.of(event));
+        mvc.perform(post(path).header("X-Service-Token", "test-pg-inbound")
+                .header("X-PG-Event-Type", BankCancellationNotification.EVENT_TYPE)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(event)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("CANCELLED"));
+        verify(cancellations).receive(event);
+        verifyNoInteractions(payments);
+    }
+
+    @Test
+    void cancellationEventHeaderDoesNotBypassServiceAuthentication() throws Exception {
+        mvc.perform(post(path).header("X-PG-Event-Type", BankCancellationNotification.EVENT_TYPE)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
+        verifyNoInteractions(cancellations);
     }
 
     BankDepositNotification event() {

@@ -1,5 +1,7 @@
 # 결제 API 계약
 
+2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
+
 2026-11-09 신규 PG 카드 결과 통보는 [공통 요청/응답 계약](payment-gateway-standard-card-notification.md)을 사용한다. PG는 등록된 전체 URL을 공통 send 인자로 전달하고, Ticksy는 POST /api/v1/payments/internal/gateway/card/notifications에서 수신한다. 기존 settle 엔드포인트는 유지한다.
 
 2026-11-08 PG 거래 기반 카드 승인/조회 API와 가맹점 카드 통보 Outbox를 추가했다. POST /api/v1/payments/card/gateway/{pgPaymentId}/approve와 GET /api/v1/payments/card/gateway/{pgPaymentId}는 가맹점 서버 인증을 사용한다. 금융 승인 PAID와 통보 완료는 별도 상태다. 요청·응답·보상 계약은 [PG 카드 승인](payment-gateway-card-approval.md)을 따른다. 기존 사용자 JWT 카드 API와 Ticksy 호출은 유지한다.
@@ -20,7 +22,7 @@ PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경�
 - `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
 - 카드 승인과 승인 상태 조회는 사용자 access token으로 `payment-gateway-service`에 직접 요청한다.
 - 가상계좌 발급과 카드/가상계좌 환불은 `ticket-service`가 `X-Service-Token`으로 `payment-gateway-service`에 요청한다.
-- 가상계좌 입금 통지는 결제 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
+- 가상계좌 테스트 입금 발생은 입금 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
 - `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
 - 서비스 간 내부 API는 `X-Service-Token` 헤더로 보호한다.
 
@@ -195,7 +197,7 @@ Content-Type: application/json
 ## Gateway 가상계좌 입금
 
 ```http
-POST /payment-gateway/api/v1/payments/virtual-account/deposit
+POST /payment-gateway/api/v1/banks/virtual-accounts/legacy/deposit
 X-Payment-Provider-Token: {paymentProviderToken}
 Content-Type: application/json
 ```
@@ -281,13 +283,13 @@ outcome은 COMPLETED 또는 REJECTED다. REJECTED는 ticket이 EXPIRED/CANCELLED
 
 ticket의 신규 내부 API를 먼저 배포한 뒤 gateway를 배포해야 한다. 브라우저는 HTTP 202와 상태 조회 계약을 반영해야 한다.
 
-## PG 거래 기반 가상계좌 입금
+## PG 거래 기반 가상계좌 취소와 입금 Outbox
 
-신규 PG 연결 계좌도 기존 `POST /api/v1/payments/virtual-account/deposit`와 입금 제공자 인증으로 처리한다. 요청은 계좌번호·금액·입금자·선택 입금 시각이며, 저장된 계좌의 PG 참조로 가맹점을 찾는다. 신규 응답에는 `pgPaymentId`, 가맹점의 `paymentNo`, 은행 `status`, `pgStatus`, `notificationStatus`를 구분해 반환한다. 기존 NULL 연결 계좌의 응답은 유지한다.
+POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/cancel은 가맹점 인증과 원거래·예매자·금액·은행·계좌 검증 후 취소 요청 Outbox를 저장하고 HTTP 202 PROCESSING을 반환한다. 은행 확정 후 동일 요청은 HTTP 200 CANCELLED/REJECTED와 최초 사유를 반환한다. GET /api/v1/payments/virtual-account/gateway/{pgPaymentId}/cancellation으로 소유 가맹점만 접수/결과를 조회할 수 있다. 취소 가능 여부는 은행 책임이며 취소 경로에서 입금 처리를 호출하지 않는다.
 
-새 금융 경계는 `/internal/financial-simulations/banks/virtual-accounts/gateway/deposit` POST와 `/gateway/{pgPaymentId}/deposit` GET이다. 둘 다 기존 금융 내부 인증을 사용한다. 은행 입금·이력과 PG 상태·이력·Outbox는 HTTP를 사이에 둔 별도 커밋이며, 재시도와 30초 복구 스케줄러가 같은 최초 입금을 재사용한다.
+은행 확정 결과·PG 상태/이력·은행 요청 Outbox DELIVERED·가맹점 결과 Outbox 저장은 하나의 PG 트랜잭션이다. 은행의 업무 거절도 전달은 완료하며 가맹점에 거절을 통보한다. 최종 통보는 기존 등록 URL에 X-PG-Event-Type: BANK_CANCELLATION과 BankCancellationNotification을 보내며, 같은 이벤트/금액/결과의 BankCancellationNotificationResponse를 확인한다. [취소·멱등성·트랜잭션 상세](payment-gateway-account-cancellation.md)를 따른다.
 
-가맹점의 표준 통보 URL은 Ticksy 기준 `POST /api/v1/payments/internal/gateway/notifications`다. 카드/은행을 허용된 `paymentMethod` DTO로 수신한다. 은행 응답은 같은 가맹점/PG/이벤트/계좌/금액을 확인하고 APPLIED 또는 RESERVATION_CANCELLED를 반환한다. 통신 실패를 예매 취소로 처리하지 않는다. [식별자·트랜잭션·호환성 상세](payment-gateway-account-deposit.md)를 참고한다.
+입금 제공자용 POST /api/v1/banks/virtual-accounts/deposit으로 분리했다. 새 PG 연결 계좌의 은행 입금·이력·은행→PG Outbox를 커밋한 뒤 응답하며 PG PAID나 가맹점 전달 완료를 보장하지 않는다. 은행은 POST /internal/financial-simulations/gateway/bank-deposits로 고정된 최초 입금을 통보한다. PG는 입금·이력·PG→가맹점 입금 Outbox를 커밋한 뒤 확인 응답한다. 은행과 가맹점 전달은 독립 재시도한다. 기존 NULL 연결 계좌는 기존 계약을 유지한다. [입금·지연 순서·복구 상세](payment-gateway-account-deposit.md)를 따른다.
 
 ## 무통장 만료 이벤트
 

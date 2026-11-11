@@ -109,6 +109,14 @@ public class DummyVirtualAccountPaymentHistory {
                 .build();
     }
 
+    // 신규 은행 경로는 Ticksy 업무 용어 없이 PG 요청에 따른 계좌 정리 사실만 기록한다.
+    public static DummyVirtualAccountPaymentHistory cancelledByGateway(DummyVirtualAccount virtualAccount) {
+
+        return DummyVirtualAccountPaymentHistory.builder().virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo()).historyType(VirtualAccountPaymentHistoryType.CANCELLED)
+                .message("PG 원거래 요청으로 가상계좌를 취소했습니다. 자금 반환은 실행하지 않았습니다.").build();
+    }
+
     // 환불 결과와 금액을 반영한다.
     public static DummyVirtualAccountPaymentHistory refunded(
             DummyVirtualAccount virtualAccount,

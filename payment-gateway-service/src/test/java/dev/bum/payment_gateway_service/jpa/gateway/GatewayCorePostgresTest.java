@@ -36,12 +36,15 @@ import static org.assertj.core.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @EnabledIfEnvironmentVariable(named = "GATEWAY_CORE_VERIFY_URL", matches = "jdbc:postgresql:.*")
 class GatewayCorePostgresTest {
+    @Autowired dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository transferEvents;
+    @Autowired dev.bum.payment_gateway_service.jpa.virtualAccount.BankVirtualAccountCancellationJpaRepository cancelReceipts;
 
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = {Merchant.class, GatewayPayment.class, DummyCard.class, DummyVirtualAccount.class})
+    @EntityScan(basePackageClasses = {Merchant.class, GatewayPayment.class, DummyCard.class, DummyVirtualAccount.class, dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.class})
     @EnableJpaRepositories(basePackageClasses = {MerchantJpaRepository.class, GatewayPaymentJpaRepository.class,
-            DummyCardJpaRepository.class, DummyVirtualAccountJpaRepository.class})
+            DummyCardJpaRepository.class, DummyVirtualAccountJpaRepository.class,
+            dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository.class})
     static class Config { }
 
     @DynamicPropertySource
@@ -64,6 +67,81 @@ class GatewayCorePostgresTest {
     @Autowired GatewayCardNotificationJpaRepository notifications;
     @Autowired MerchantNotificationEndpointJpaRepository endpoints;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
+    @Test
+    void cancellationOutboxStepsHaveIndependentKeysLeasesAndResultsOnPostgres() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-OUTBOX-STEPS", PaymentMethod.BANK_TRANSFER);
+        var request = transferEvents.saveAndFlush(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.pending(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_CANCEL_REQUEST,
+                payment.getPgPaymentId() + ":CANCEL:INITIAL", payment.getPgPaymentId(), java.util.Map.of("amount", "100.00")));
+        var notice = transferEvents.saveAndFlush(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.pending(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.MERCHANT_CANCEL_RESULT,
+                payment.getPgPaymentId() + ":CANCEL:INITIAL", payment.getPgPaymentId(), java.util.Map.of("outcome", "REJECTED")));
+        var delivery = request.claim(LocalDateTime.now());
+        transferEvents.flush();
+        request.delivered(java.util.Map.of("outcome", "REJECTED", "reason", "ALREADY_DEPOSITED"));
+        transferEvents.flush();
+        entityManager.clear();
+        var stored = transferEvents.findById(request.getOutboxId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo("DELIVERED");
+        assertThat(stored.getResult()).containsEntry("outcome", "REJECTED");
+        assertThat(stored.owns(delivery)).isFalse();
+        assertThat(transferEvents.findById(notice.getOutboxId()).orElseThrow().getStatus()).isEqualTo("PENDING");
+        assertThat(transferEvents.findReadyIds(notice.getFlow(), LocalDateTime.now(),
+                org.springframework.data.domain.PageRequest.of(0, 100))).contains(notice.getOutboxId());
+    }
+
+    @Test
+    void aDurableBankCancellationReceiptPreservesNullableJsonResultFieldsOnPostgres() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-BANK-RECEIPT", PaymentMethod.BANK_TRANSFER);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("outcome", "REJECTED");
+        result.put("account", null);
+        cancelReceipts.saveAndFlush(dev.bum.payment_gateway_service.jpa.virtualAccount.BankVirtualAccountCancellation.completed(
+                payment.getPgPaymentId(), java.util.Map.of("amount", "100.00", "accountNumber", "not-issued"), result));
+        entityManager.clear();
+        assertThat(cancelReceipts.findById(payment.getPgPaymentId()).orElseThrow().getResultPayload())
+                .containsEntry("outcome", "REJECTED").containsEntry("account", null);
+    }
+
+    @Test
+    void cancellationSnapshotUsesTheActualPostgresSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-CANCELLATION", PaymentMethod.BANK_TRANSFER);
+        DummyVirtualAccount account = accounts.saveAndFlush(DummyVirtualAccount.issue(payment.getPgPaymentId(),
+                payment.getPgPaymentId(), BankCompany.KB, "VERIFY-CANCEL-ACCOUNT", payment.getAmount(), payment.getExpiresAt()));
+        payment.waitForDeposit();
+        account.cancel(dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountCancelResponse.REQUESTED_REASON);
+        bankHistories.saveAndFlush(DummyVirtualAccountPaymentHistory.cancelledByGateway(account));
+        payment.cancelVirtualAccount();
+        LocalDateTime cancelledAt = payment.getCancelledAt();
+        GatewayPaymentHistory history = histories.saveAndFlush(GatewayPaymentHistory.virtualAccountCancelled(payment,
+                dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountCancelResponse.from(account),
+                GatewayPaymentStatus.WAITING_DEPOSIT));
+        entityManager.clear();
+        assertThat(histories.findById(history.getHistoryId()).orElseThrow().getDetails())
+                .containsEntry("accountNumber", "VERIFY-CANCEL-ACCOUNT").containsEntry("fundsReturned", false);
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getCancelledAt()).isEqualTo(cancelledAt);
+    }
+
+    @Test
+    void cancellingAnExistingDepositPreservesItsTimestamp() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-CANCEL-DEPOSIT", PaymentMethod.BANK_TRANSFER);
+        DummyVirtualAccount account = accounts.saveAndFlush(DummyVirtualAccount.issue(payment.getPgPaymentId(),
+                payment.getPgPaymentId(), BankCompany.KB, "VERIFY-CANCEL-DEPOSIT", payment.getAmount(), payment.getExpiresAt()));
+        LocalDateTime depositedAt = LocalDateTime.of(2026, 11, 10, 12, 0, 0, 123456000);
+        account.deposit("입금자", depositedAt);
+        account.cancel("MERCHANT_RESERVATION_CANCELLED_NO_FUNDS_RETURNED");
+        accounts.flush();
+        payment.waitForDeposit();
+        payment.receiveDeposit(depositedAt);
+        payment.cancelDepositedPayment();
+        GatewayPaymentHistory history = histories.saveAndFlush(GatewayPaymentHistory.virtualAccountCancelled(payment,
+                dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountCancelResponse.from(account), GatewayPaymentStatus.PAID));
+        entityManager.clear();
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getPaidAt()).isEqualTo(depositedAt);
+        assertThat(accounts.findByPgPaymentId(payment.getPgPaymentId()).orElseThrow().getDepositedAt()).isEqualTo(depositedAt);
+        assertThat(histories.findById(history.getHistoryId()).orElseThrow().getDetails())
+                .containsEntry("depositedAt", depositedAt.toString()).containsEntry("fundsReturned", false);
+    }
 
     @Test
     void bankDepositOutboxAndImmutableFactsAreMappedOnTheActualPostgresSchema() {
@@ -75,7 +153,7 @@ class GatewayCorePostgresTest {
                 payment.getPgPaymentId(), BankCompany.KB, "VERIFY-BANK-ACCOUNT", payment.getAmount(), payment.getExpiresAt()));
         account.deposit("입금자", at);
         bankHistories.saveAndFlush(DummyVirtualAccountPaymentHistory.deposited(account));
-        assertThat(payments.findUnconfirmedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
+        assertThat(accounts.findUnnotifiedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
                 .contains(payment.getPgPaymentId());
         var bank = new dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse(payment.getPgPaymentId(),
                 BankCompany.KB, BankCompany.KB.getBankName(), "VERIFY-BANK-ACCOUNT", payment.getAmount(),
@@ -83,7 +161,10 @@ class GatewayCorePostgresTest {
         payment.receiveDeposit(at);
         histories.saveAndFlush(GatewayPaymentHistory.deposited(payment, bank, GatewayPaymentStatus.WAITING_DEPOSIT));
         Long id = bankNotifications.saveAndFlush(GatewayBankNotification.pending(payment, bank)).getNotificationId();
-        assertThat(payments.findUnconfirmedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
+        transferEvents.saveAndFlush(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.pending(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_DEPOSIT,
+                payment.getPgPaymentId() + ":DEPOSIT:INITIAL", payment.getPgPaymentId(), java.util.Map.of("verified", true)));
+        assertThat(accounts.findUnnotifiedDepositIds(org.springframework.data.domain.PageRequest.of(0, 100)))
                 .doesNotContain(payment.getPgPaymentId());
         entityManager.clear();
         GatewayBankNotification event = bankNotifications.findForUpdate(id).orElseThrow();

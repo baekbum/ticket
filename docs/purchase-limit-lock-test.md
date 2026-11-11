@@ -28,4 +28,4 @@ Remove-Item Env:TICKET_TEST_POSTGRES_PORT
 docker stop ticket-purchase-lock-verification
 ```
 
-테스트는 Redis·PG HTTP 호출을 포함하지 않는다. 신규 DB에는 schema.sql을 적용한다. 기존 잠금 테이블이 있는 DB는 예매 관련 쓰기를 중단한 상태에서 sql/add-ticket-purchase-count.sql을 적용한 후 변경된 서비스를 배포해야 한다. 이 스크립트는 ticket_count 컬럼을 추가하고 기존 행을 유효 티켓 수로 초기화한다.
+테스트는 Redis·PG HTTP 호출을 포함하지 않는다. 신규 DB에는 schema.sql을 적용한다. 현재 DB에는 ticket_count 컬럼과 제약이 반영됐으며 유효 티켓 수와의 불일치도 없음을 확인했다. 해당 일회성 추가 SQL은 삭제했다. 다른 기존 DB는 예매 관련 쓰기를 중단한 상태에서 최신 스키마와 컬럼·제약을 대조하고, 필요하면 기존 행을 유효 티켓 수로 보정한다.

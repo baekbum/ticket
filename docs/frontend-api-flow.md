@@ -515,7 +515,7 @@ Content-Type: application/json
 #### 13-2. 가상계좌 입금 시뮬레이션
 
 ```http
-POST /api/v1/payments/virtual-account/deposit
+POST /api/v1/banks/virtual-accounts/legacy/deposit
 Authorization: Bearer {adminAccessToken}
 Content-Type: application/json
 ```
@@ -610,7 +610,7 @@ Authorization: Bearer {accessToken}
 9. POST /api/v1/seat/occupy with X-Active-Token
 10. POST /api/v1/checkout/prepare with X-Active-Token
 11. 배송/쿠폰/결제수단 제출 후 paymentNo 발급
-12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
+12. 무통장 선택 시 POST /api/v1/banks/virtual-accounts/legacy/deposit
 13. GET  /api/v1/reservation/select/id/{reservationId}
 14. GET  /api/v1/ticket/reservation/{reservationId}
 ```

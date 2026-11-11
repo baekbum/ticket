@@ -3,18 +3,18 @@ package dev.bum.payment_gateway_service.service.gateway.virtualAccount;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.gateway.GatewayVirtualAccountPaymentDepositResponse;
-import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.exception.*;
 import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class GatewayVirtualAccountDepositCommands {
 
     // 은행의 PG 참조로 원거래를 찾고 PG 상태 확정 때만 잠근다.
@@ -25,23 +25,9 @@ public class GatewayVirtualAccountDepositCommands {
     private final GatewayBankNotificationJpaRepository notifications;
 
     /**
-     * 금융 실행 전에 요청 금액과 저장된 결제수단을 검증한다. 외부 HTTP 동안 락을 유지하지 않는다.
+     * 최초 은행 입금과 연결을 검증하고 PG 상태·입금 이력·통보를 같은 트랜잭션으로 처리한다.
+     * 호출자의 트랜잭션이 있으면 참여하고, 없으면 새로 시작한다.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public void inspect(String pgPaymentId, GatewayVirtualAccountDepositRequest request) {
-
-        GatewayPayment payment = payments.findById(pgPaymentId).orElseThrow(GatewayPaymentNotFoundException::new);
-
-        if (payment.getPaymentMethod() != PaymentMethod.BANK_TRANSFER || request.getAmount() == null
-                || payment.getAmount().compareTo(request.getAmount()) != 0) {
-            throw new GatewayPaymentConflictException("입금 요청이 준비된 PG 원거래와 일치하지 않습니다.");
-        }
-    }
-
-    /**
-     * 최초 은행 입금과 연결을 검증하고 PG 상태·입금 이력·통보를 함께 커밋한다.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GatewayVirtualAccountPaymentDepositResponse confirm(
             String expectedId,
             BankVirtualAccountDepositResponse bank

@@ -26,7 +26,7 @@ import java.time.format.DateTimeFormatter;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class VirtualAccountDepositOutboxPublisher {
+public class GatewayVirtualAccountDepositOutboxPublisher {
 
     // 외부 응답에 사용할 날짜와 시각 표시 형식.
     private static final DateTimeFormatter RESPONSE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

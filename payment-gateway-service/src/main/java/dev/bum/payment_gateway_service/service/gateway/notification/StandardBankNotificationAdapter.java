@@ -2,6 +2,7 @@ package dev.bum.payment_gateway_service.service.gateway.notification;
 
 import dev.bum.common.service.paymentgateway.notification.*;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -26,6 +27,31 @@ public class StandardBankNotificationAdapter {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofSeconds(10));
         client = builder.clone().requestFactory(factory).build();
+    }
+
+    /**
+     * 같은 등록 URL로 취소 성공/거절을 통보한다. 기존 입금 DTO와는 표준 이벤트 헤더로 구분한다.
+     */
+    public BankCancellationNotificationResponse sendCancellation(
+            URI url,
+            String token,
+            BankCancellationNotification notification
+    ) {
+
+        notification.validateContract();
+        ResponseEntity<BankCancellationNotificationResponse> received = client.post().uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Service-Token", token).header("X-PG-Event-Id", notification.eventId())
+                .header("X-PG-Event-Type", BankCancellationNotification.EVENT_TYPE)
+                .header("X-PG-Payment-Id", notification.pgPaymentId()).body(notification)
+                .retrieve().toEntity(BankCancellationNotificationResponse.class);
+        BankCancellationNotificationResponse response = received.getBody();
+
+        if (received.getStatusCode().value() != 200 || response == null || !response.matches(notification)) {
+            throw new IllegalStateException("가맹점 취소 결과 응답이 최초 이벤트와 일치하지 않습니다.");
+        }
+
+        return response;
     }
 
     /**

@@ -22,7 +22,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPay
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentHistoryType;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundProcessService;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.VirtualAccountDepositOutboxService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositOutboxService;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,7 +81,7 @@ class GatewayVirtualAccountServiceTest {
     private DummyVirtualAccountPaymentHistoryJpaRepository dummyVirtualAccountPaymentHistoryJpaRepository;
 
     @Mock
-    private VirtualAccountDepositOutboxService depositOutboxService;
+    private GatewayVirtualAccountDepositOutboxService depositOutboxService;
 
     @Mock
     private VirtualAccountOutboxEventJpaRepository expirationOutbox;

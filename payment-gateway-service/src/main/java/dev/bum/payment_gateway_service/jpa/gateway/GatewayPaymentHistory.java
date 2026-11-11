@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse;
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
+import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountCancelResponse;
+import java.util.LinkedHashMap;
 
 @Entity
 @Table(name = "gateway_payment_histories", uniqueConstraints = @UniqueConstraint(
@@ -166,6 +168,56 @@ public class GatewayPaymentHistory {
         history.amount = payment.getAmount();
         history.requestHash = payment.getCreationRequestHash();
         history.details = Map.of("reason", "RESERVATION_CANCELLED", "fundsReturned", false);
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
+    // 가맹점의 전체 계좌 취소 작업을 거래·CANCEL·INITIAL 범위에서 한 번 기록한다.
+    public static GatewayPaymentHistory virtualAccountCancelled(
+            GatewayPayment payment,
+            BankVirtualAccountCancelResponse bank,
+            GatewayPaymentStatus beforeStatus
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.CANCEL;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = beforeStatus;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("accountNumber", bank.accountNumber());
+        snapshot.put("bankName", bank.bankName());
+        snapshot.put("bankCompany", bank.bankCompany().name());
+        snapshot.put("expiresAt", bank.expiresAt().toString());
+        snapshot.put("fundsReturned", false);
+
+        if (bank.depositedAt() != null) {
+            snapshot.put("depositedAt", bank.depositedAt().toString());
+            snapshot.put("depositorName", bank.depositorName());
+        }
+
+        history.details = Map.copyOf(snapshot);
+        history.occurredAt = payment.getCancelledAt();
+
+        return history;
+    }
+
+    // 취소 거절은 금융 상태를 바꾸지 않고 업무 결과만 남긴다.
+    public static GatewayPaymentHistory virtualAccountCancellationRejected(GatewayPayment payment, String reason) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.CANCEL;
+        history.operationKey = "REJECTED_INITIAL";
+        history.beforeStatus = payment.getStatus();
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("reason", reason, "fundsReturned", false);
         history.occurredAt = LocalDateTime.now();
 
         return history;

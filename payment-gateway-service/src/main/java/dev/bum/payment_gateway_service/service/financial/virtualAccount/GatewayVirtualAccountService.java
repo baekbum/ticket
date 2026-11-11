@@ -20,7 +20,7 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPay
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccountPaymentHistoryJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
 import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundProcessService;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.VirtualAccountDepositOutboxService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositOutboxService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +54,7 @@ public class GatewayVirtualAccountService {
     // 게이트웨이 환불 업무 처리를 담당하는 서비스.
     private final GatewayRefundProcessService refundProcesses;
     // 가상계좌 입금 Outbox 이벤트 업무 처리를 담당하는 서비스.
-    private final VirtualAccountDepositOutboxService depositOutboxService;
+    private final GatewayVirtualAccountDepositOutboxService depositOutboxService;
     // 가상계좌 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountOutboxEventJpaRepository expirationOutbox;
 

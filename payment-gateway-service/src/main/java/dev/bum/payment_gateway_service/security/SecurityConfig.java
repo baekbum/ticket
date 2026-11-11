@@ -100,7 +100,10 @@ public class SecurityConfig {
                                 "/api/*/payments/virtual-account/issue",
                                 "/api/*/payments/virtual-account/refund"
                         ).hasRole(ROLE_INTERNAL) // 가상 계좌 발급 또는 결제 금액 환불의 경우 ticket 서비스를 통해 이루어짐
-                        .requestMatchers(HttpMethod.POST, "/api/*/payments/virtual-account/deposit").hasRole(ROLE_PAYMENT_PROVIDER) // 무통장 입금 케이스
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/*/banks/virtual-accounts/deposit",
+                                "/api/*/banks/virtual-accounts/legacy/deposit"
+                        ).hasRole(ROLE_PAYMENT_PROVIDER) // 은행 입금 제공자의 업무 진입점
                         .anyRequest().denyAll()
                 );
 

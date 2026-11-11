@@ -37,13 +37,13 @@ public class CardController {
     }
 
     @GetMapping("/gateway/{pgPaymentId}")
-    public ResponseEntity<FinancialCardApprovalResponse> gatewayStatus(@PathVariable String pgPaymentId) {
+    public ResponseEntity<FinancialCardApprovalResponse> findGatewayStatus(@PathVariable String pgPaymentId) {
 
         return ResponseEntity.of(pgApprovals.find(pgPaymentId));
     }
 
     @GetMapping("/payments/{paymentNo}")
-    public ResponseEntity<FinancialCardPaymentStatusResponse> status(
+    public ResponseEntity<FinancialCardPaymentStatusResponse> findStatus(
             @NotBlank @RequestHeader(FinancialSimulationAuthenticationFilter.USER_HEADER) String userId,
             @PathVariable String paymentNo
     ) {
@@ -52,7 +52,7 @@ public class CardController {
     }
 
     @GetMapping("/payments/{paymentNo}/approval-exists")
-    public ResponseEntity<Boolean> approvalExists(@PathVariable String paymentNo) {
+    public ResponseEntity<Boolean> findApprovalExists(@PathVariable String paymentNo) {
 
         return ResponseEntity.ok(cards.hasApprovalHistory(paymentNo));
     }

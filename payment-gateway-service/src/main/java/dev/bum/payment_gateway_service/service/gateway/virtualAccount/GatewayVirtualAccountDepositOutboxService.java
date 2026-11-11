@@ -12,12 +12,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Service
 @RequiredArgsConstructor
-public class VirtualAccountDepositOutboxService {
+public class GatewayVirtualAccountDepositOutboxService {
 
     // 가상계좌 입금 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountDepositOutboxJpaRepository repository;
     // 가상계좌 입금 Outbox 이벤트 발행 대기 작업을 순회하고 실행하는 도구.
-    private final VirtualAccountDepositOutboxDispatcher dispatcher;
+    private final GatewayVirtualAccountDepositOutboxDispatcher dispatcher;
 
     /**
      * 가상계좌 입금 Outbox 이벤트 처리에서 발행 대기 이벤트로 저장한다.

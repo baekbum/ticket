@@ -83,7 +83,7 @@ app:
 ## 스키마와 DB 적용
 
 - 현재 테이블 정의: [schema.sql](../payment-gateway-service/src/main/resources/sql/schema.sql). 신규 DB는 이 파일과 [initData.sql](../payment-gateway-service/src/main/resources/sql/initData.sql)을 사용한다.
-- 최초 핵심 테이블 추가 이력: [add-merchants-gateway-payments.sql](../payment-gateway-service/src/main/resources/sql/add-merchants-gateway-payments.sql). 최초 적용 당시의 정의이며 이후 식별자 변경까지 포함한 최종 스키마를 대신하지 않는다.
+- 최초 핵심 테이블 추가용 일회성 SQL은 현재 DB 반영을 확인한 뒤 삭제했다. 이후 식별자 변경까지 포함한 최신 정의는 PG의 schema.sql을 따른다.
 - 설계 기록: [DDL 초안](design/payment-gateway-core-schema.sql). 실행/배포 기준은 위 리소스 SQL이다.
 
 최초 마이그레이션은 BEGIN/COMMIT과 트랜잭션 advisory lock으로 새 테이블 3개·인덱스·FK/체크/유니크 제약을 생성하고 비밀값 없는 Ticksy 등록 1건을 추가했다. 기존 금융 데이터 이전은 포함하지 않았다.
@@ -144,3 +144,9 @@ PG 139개에는 실제 PostgreSQL 테스트 5개가 포함된다. 해시 CHAR(64
 2026-11-06 모의 은행·카드 HTTP 경계 변경 후에는 172개(실제 loopback HTTP 13개, 실제 PostgreSQL 12개 포함)가 모두 통과했다. 상세 구조와 한계는 [금융 HTTP 구현](payment-gateway-financial-http.md)에 정리했다.
 
 2026-11-08 PG 가상계좌 발급 연결 후에는 같은 PG 선택 범위 189개(신규 발급 통합 16개, 기존 금융 HTTP 13개, 실제 PostgreSQL 13개 포함)가 모두 통과했다. 금융/PG 저장 실패와 HTTP 응답 유실의 복구 및 기존 API 범위 격리는 [PG 계좌 발급 문서](payment-gateway-account-issuance.md)에 정리했다. 실제 DB 스키마는 변경하지 않았으며 검증 데이터는 남기지 않았다.
+
+## DB 스키마 대조와 일회성 마이그레이션 정리 (2026-11-11)
+
+실행 중인 local-postgres 컨테이너의 ticket DB에 대해 두 서비스 schema.sql의 44개 테이블·481개 컬럼·119개 제약조건·61개 명시 인덱스를 읽기 전용으로 대조했다. 컬럼 타입/길이/NULL/기본값, 키 및 CHECK 제약의 정의·검증 상태, 인덱스 정의가 일치했다. DB 전체 public 테이블은 61개이며 다른 서비스 테이블은 이번 정리 범위에 포함하지 않는다.
+
+제거된 과거 은행 상태·입금 이력 타입, 기존 미연결 계좌의 누락 입금 Outbox, ticket_count와 유효 티켓 수의 불일치는 모두 0건이었다. PG 4개·Ticksy 3개, 총 7개의 add-*.sql 파일을 삭제하고 최신 정의는 각 서비스 schema.sql에 남겼다. DB DDL·DML은 실행하지 않았으며 기존 테이블 삭제·초기화·데이터 변경은 없다. 다른 기존 DB까지 적용됐다는 의미는 아니므로 별도 환경은 해당 DB의 현재 상태에 맞춰 변경을 준비한다.

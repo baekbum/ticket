@@ -49,7 +49,7 @@ public class GatewayCardPaymentController {
     }
 
     @GetMapping("/gateway/{pgPaymentId}")
-    public ResponseEntity<GatewayCardApprovalResponse> gatewayStatus(
+    public ResponseEntity<GatewayCardApprovalResponse> findGatewayStatus(
             @AuthenticationPrincipal AuthenticatedMerchant merchant,
             @PathVariable String pgPaymentId
     ) {
@@ -58,7 +58,7 @@ public class GatewayCardPaymentController {
     }
 
     @GetMapping("/{paymentNo}")
-    public ResponseEntity<GatewayCardPaymentStatusResponse> status(
+    public ResponseEntity<GatewayCardPaymentStatusResponse> findStatus(
             @AuthenticationPrincipal String currentUserId,
             @PathVariable String paymentNo
     ) {
@@ -67,7 +67,7 @@ public class GatewayCardPaymentController {
     }
 
     @GetMapping("/internal/{paymentNo}/approval-exists")
-    public ResponseEntity<Boolean> approvalExists(@PathVariable String paymentNo) {
+    public ResponseEntity<Boolean> findApprovalExists(@PathVariable String paymentNo) {
 
         return ResponseEntity.ok(cards.approvalExists(paymentNo));
     }

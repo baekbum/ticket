@@ -20,6 +20,16 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     @Query("select a.pgPaymentId from DummyVirtualAccount a where a.accountNumber = :accountNumber")
     Optional<String> findPgPaymentIdByAccountNumber(@Param("accountNumber") String accountNumber);
 
+    // 기존 은행 입금 자료 중 통보 의도가 없는 행만 은행 책임으로 Outbox에 편입한다.
+    @Query(value = """
+            select a.pg_payment_id from dummy_virtual_accounts a
+             where a.pg_payment_id is not null and a.deposited_at is not null
+               and not exists (select 1 from bank_transfer_outbox e
+                                where e.pg_payment_id = a.pg_payment_id and e.flow = 'BANK_DEPOSIT')
+             order by a.deposited_at, a.pg_payment_id
+            """, nativeQuery = true)
+    List<String> findUnnotifiedDepositIds(org.springframework.data.domain.Pageable page);
+
     // 신규 금융 입금은 PG 연결 계좌만 잠근다. 기존 paymentNo 전용 경로와 섞지 않는다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from DummyVirtualAccount a where a.accountNumber = :number and a.pgPaymentId is not null")

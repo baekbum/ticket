@@ -1,8 +1,10 @@
 # PG 거래와 금융 모델 연결
 
+2026-11-10 최신 변경: 은행 입금은 은행→PG와 PG→가맹점의 독립 Outbox, PG ID 취소는 비동기 접수→은행 요청 Outbox→가맹점 결과 Outbox로 변경했다. 취소 경로의 입금 복구 호출과 PG의 은행 원장 직접 대사를 제거했다. 아래 초기 단계 설명보다 [입금 문서](payment-gateway-account-deposit.md)와 [취소 문서](payment-gateway-account-cancellation.md)의 현재 계약을 우선한다.
+
 2026-11-05 구현한 첫 번째 금융 연결 단계다. 모델과 DB에 PG 참조를 추가하며, 기존 카드 승인/가상계좌 발급 API를 PG 거래에 연결하는 두 번째 단계와 구분한다.
 
-2026-11-08 [가맹점 PG 거래 기반 가상계좌 발급](payment-gateway-account-issuance.md)을 추가했다. 새 경로의 발급에는 이 문서의 PG 참조를 실제 저장하며, 기존 금융 API는 NULL 참조 거래를 계속 처리한다. 2026-11-09 새 은행 연결 거래의 [입금·PG 확정·가맹점 통보](payment-gateway-account-deposit.md)도 연결했다. PG 거래 기반 입금 전 취소·환불·만료는 후속 단계다. [PG 카드 승인](payment-gateway-card-approval.md)과 기존 카드의 NULL 연결 거래도 유지한다.
+2026-11-08 [가맹점 PG 거래 기반 가상계좌 발급](payment-gateway-account-issuance.md)을 추가했다. 새 경로의 발급에는 이 문서의 PG 참조를 실제 저장하며, 기존 금융 API는 NULL 참조 거래를 계속 처리한다. 2026-11-09 새 은행 연결 거래의 [입금·PG 확정·가맹점 통보](payment-gateway-account-deposit.md)도 연결했다. 2026-11-10 [PG 거래 기반 입금 전 취소](payment-gateway-account-cancellation.md)도 연결했다. 환불·만료는 후속 단계다. [PG 카드 승인](payment-gateway-card-approval.md)과 기존 카드의 NULL 연결 거래도 유지한다.
 
 ## 모델과 책임
 

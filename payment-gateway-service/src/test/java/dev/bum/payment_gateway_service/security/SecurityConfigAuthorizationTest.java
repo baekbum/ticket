@@ -24,11 +24,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {GatewayCardPaymentController.class, GatewayVirtualAccountController.class, GatewayRefundController.class},
+        controllers = {GatewayCardPaymentController.class, GatewayVirtualAccountController.class, GatewayRefundController.class, dev.bum.payment_gateway_service.controller.financial.BankController.class},
         properties = "app.ticket.base-url=http://localhost:8082"
 )
 @Import(SecurityConfig.class)
 class SecurityConfigAuthorizationTest {
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService bankIssuance;
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService bankAccounts;
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService bankCancellation;
 
     @MockitoBean
     private dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApprovalService pgCardApprovals;
@@ -36,7 +43,10 @@ class SecurityConfigAuthorizationTest {
     private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService issuance;
 
     @MockitoBean
-    private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService deposits;
+    private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService deposits;
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService cancellation;
 
     @MockitoBean
     private dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService cardApi;
@@ -190,14 +200,46 @@ class SecurityConfigAuthorizationTest {
     @Test
     @WithMockUser(roles = "USER")
     void user_cannot_notify_virtual_account_deposit() throws Exception {
-        mockMvc.perform(post("/api/v1/payments/virtual-account/deposit"))
+        mockMvc.perform(post("/api/v1/banks/virtual-accounts/deposit"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void payment_provider_can_reach_virtual_account_deposit() throws Exception {
-        mockMvc.perform(post("/api/v1/payments/virtual-account/deposit")
+        mockMvc.perform(post("/api/v1/banks/virtual-accounts/deposit")
                         .header(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "test-provider-token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void providerCannotUseTheRemovedPgDepositEntry() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/virtual-account/deposit")
+                .header(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "test-provider-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void removedSupportEntriesCannotBeUsedByTheProvider() throws Exception {
+        for (String path : new String[]{"/api/v1/support/banks/virtual-accounts/deposit",
+                "/api/v1/support/banks/virtual-accounts/gateway/deposit"}) {
+            mockMvc.perform(post(path).header(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "test-provider-token"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void ordinaryServiceTokenCannotDepositIntoBank() throws Exception {
+        for (String path : new String[]{"/api/v1/banks/virtual-accounts/legacy/deposit",
+                "/api/v1/banks/virtual-accounts/deposit"}) {
+            mockMvc.perform(post(path).header(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER, "test-service-token"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void providerCanReachTheLegacyBankDepositEntry() throws Exception {
+        mockMvc.perform(post("/api/v1/banks/virtual-accounts/legacy/deposit")
+                .header(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "test-provider-token"))
                 .andExpect(status().isBadRequest());
     }
 

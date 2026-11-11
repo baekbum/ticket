@@ -33,7 +33,7 @@ ALTER TABLE gateway_refunds
 COMMIT;
 ```
 
-1. `gateway_refunds`가 없는 DB에는 `payment-gateway-service/src/main/resources/sql/add-gateway-refunds.sql`을 적용한다. 기존 테이블은 위 상태 변환 SQL로 갱신한다. 초기화용 `schema.sql` 전체를 기존 DB에 실행하지 않는다.
+1. gateway_refunds의 최신 정의는 PG의 schema.sql을 따른다. 현재 DB 반영이 확인된 일회성 추가 SQL은 삭제했다. 다른 기존 DB에서 테이블이 없다면 필요한 CREATE TABLE·INDEX만 별도 적용하고, 기존 테이블은 위 상태 변환 SQL로 갱신한다. 초기화용 `schema.sql` 전체를 기존 DB에 실행하지 않는다.
 2. ticket과 PG를 함께 갱신한다. 새 PG는 프로세스 ID 없는 환불 요청을 거부하므로 구버전 ticket에서 새 PG로 환불 요청이 들어가지 않도록 환불을 잠시 중단하거나 배포를 조율한다.
 3. 배포 이전에 이미 실행된 환불에는 이 테이블의 기록이 없다. 과거 PG 성공 여부가 불명확한 프로세스를 자동 재시도하지 말고 PG 이력과 대조한다. 가상계좌 누적 한도 검증에도 과거 환불액은 자동 포함되지 않으므로 기존 환불 건은 별도로 정합성을 확인해야 한다.
 

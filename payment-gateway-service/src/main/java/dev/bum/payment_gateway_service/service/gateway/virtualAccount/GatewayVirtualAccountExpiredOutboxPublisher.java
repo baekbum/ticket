@@ -25,7 +25,7 @@ import java.util.concurrent.CompletionException;
         havingValue = "true",
         matchIfMissing = true
 )
-public class VirtualAccountExpiredOutboxPublisher {
+public class GatewayVirtualAccountExpiredOutboxPublisher {
 
     // 가상계좌 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;

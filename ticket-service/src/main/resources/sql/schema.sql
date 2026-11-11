@@ -503,3 +503,13 @@ CREATE TABLE IF NOT EXISTS virtual_account_cancel_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_va_cancel_outbox_ready
     ON virtual_account_cancel_outbox(status, next_attempt_at, outbox_id);
+
+-- PG의 최종 은행 취소 결과 수신 이력. 예매·좌석 취소와 자금 반환을 다시 실행하지 않는다.
+CREATE TABLE gateway_bank_cancellation_receipts (
+    event_id VARCHAR(100) PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    payload JSONB NOT NULL,
+    received_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_gateway_bank_cancel_receipt_payment UNIQUE (payment_no),
+    CONSTRAINT fk_gateway_bank_cancel_receipt_payment FOREIGN KEY (payment_no) REFERENCES payments(payment_no)
+);

@@ -25,7 +25,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
-class VirtualAccountExpiredOutboxPublisherTest {
+class GatewayVirtualAccountExpiredOutboxPublisherTest {
 
     @Mock
     private VirtualAccountOutboxEventJpaRepository virtualAccountOutboxEventJpaRepository;
@@ -34,7 +34,7 @@ class VirtualAccountExpiredOutboxPublisherTest {
     private VirtualAccountExpiredEventProducer virtualAccountExpiredEventProducer;
 
     @InjectMocks
-    private VirtualAccountExpiredOutboxPublisher publisher;
+    private GatewayVirtualAccountExpiredOutboxPublisher publisher;
 
     @Test
     @DisplayName("대기 중인 가상계좌 만료 outbox를 Kafka로 발행하고 완료 처리한다")

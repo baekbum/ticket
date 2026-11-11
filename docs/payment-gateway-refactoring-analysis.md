@@ -289,7 +289,7 @@ Ticksy가 환불 프로세스 ID와 원결제번호·환불 계좌·금액을 PG
 | `GatewayCardApprovalServiceTest`, `GatewayCardFlowIntegrationTest` | 승인 커밋 순서, 요청 금액 불일치, 중복·동시 승인, 다른 사용자 접근, 타인 명의 카드, 명확한 거절의 일회성 보상, 응답/커밋 유실 복구 |
 | `GatewayCardHttpContractTest`, `GatewayCardRecoverySchedulerTest` | 202/PENDING 계약, 같은 승인 건의 복구 |
 | `GatewayVirtualAccountServiceTest` | 발급 반복·은행/금액 불일치·입금 재요청·환불 한도 |
-| `VirtualAccountDepositOutboxIntegrationTest` | 입금/Outbox 롤백, 커밋 전 미호출, 응답 유실, 병렬 전달, 취소 수렴, 취소/완료 공동 롤백, 입금·취소 경합 |
+| `GatewayVirtualAccountDepositOutboxIntegrationTest` | 입금/Outbox 롤백, 커밋 전 미호출, 응답 유실, 병렬 전달, 취소 수렴, 취소/완료 공동 롤백, 입금·취소 경합 |
 | `VirtualAccountExpirationConcurrencyTest` | 입금·만료 경합, 동시 만료, 계좌·이력·만료 Outbox 공동 롤백 |
 | `GatewayRefundIntegrationTest`, `GatewayRefundProcessServiceTest` | 동일 환불 replay·변경 거부, 부분 환불 누적 한도, 요청 독립 커밋, 실패 후 같은 키 재시도, resolve/CLOSED, 늦은 실패 보호 |
 | PG 보안·Feign 설정 테스트 | 사용자·내부 서비스·입금 제공자 경로 구분, 토큰 전달 |

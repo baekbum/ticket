@@ -1,6 +1,5 @@
 package dev.bum.payment_gateway_service.controller.gateway;
 
-import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
@@ -12,7 +11,7 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountR
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountStatusResponse;
 import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResponse;
 import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +30,7 @@ public class GatewayVirtualAccountController {
 
     private final GatewayVirtualAccountApiService accounts;
     private final GatewayVirtualAccountIssuanceService issuance;
-    private final GatewayVirtualAccountDepositService deposits;
+    private final GatewayVirtualAccountCancellationService cancellation;
 
     @PostMapping("/issue")
     public ResponseEntity<GatewayVirtualAccountIssueResponse> issue(
@@ -51,18 +50,19 @@ public class GatewayVirtualAccountController {
         return ResponseEntity.ok(issuance.issue(merchant, pgPaymentId, request));
     }
 
-    @GetMapping("/internal/{paymentNo}/status")
-    public ResponseEntity<GatewayVirtualAccountStatusResponse> status(@PathVariable String paymentNo) {
-
-        return ResponseEntity.ok(accounts.status(paymentNo));
-    }
-
-    @PostMapping("/deposit")
-    public ResponseEntity<GatewayVirtualAccountPaymentDepositResponse> deposit(
-            @Valid @RequestBody GatewayVirtualAccountDepositRequest request
+    @GetMapping("/gateway/{pgPaymentId}/cancellation")
+    public ResponseEntity<GatewayVirtualAccountCancellationResponse> findGatewayCancellation(
+            @AuthenticationPrincipal AuthenticatedMerchant merchant,
+            @PathVariable String pgPaymentId
     ) {
 
-        return ResponseEntity.ok(deposits.deposit(request));
+        return ResponseEntity.ok(cancellation.find(merchant, pgPaymentId));
+    }
+
+    @GetMapping("/internal/{paymentNo}/status")
+    public ResponseEntity<GatewayVirtualAccountStatusResponse> findStatus(@PathVariable String paymentNo) {
+
+        return ResponseEntity.ok(accounts.status(paymentNo));
     }
 
     @PostMapping("/refund")
@@ -71,6 +71,18 @@ public class GatewayVirtualAccountController {
     ) {
 
         return ResponseEntity.ok(accounts.refund(request));
+    }
+
+    @PostMapping("/gateway/{pgPaymentId}/cancel")
+    public ResponseEntity<GatewayVirtualAccountCancellationResponse> cancelGatewayPayment(
+            @AuthenticationPrincipal AuthenticatedMerchant merchant,
+            @PathVariable String pgPaymentId,
+            @Valid @RequestBody GatewayVirtualAccountPaymentCancelRequest request
+    ) {
+
+        GatewayVirtualAccountCancellationResponse response = cancellation.cancel(merchant, pgPaymentId, request);
+
+        return ResponseEntity.status(response.completed() ? 200 : 202).body(response);
     }
 
     @PostMapping("/cancel")

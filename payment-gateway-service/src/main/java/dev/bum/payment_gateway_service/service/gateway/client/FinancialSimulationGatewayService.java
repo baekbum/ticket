@@ -141,16 +141,6 @@ public class FinancialSimulationGatewayService {
     }
 
     /**
-     * PG 연결 계좌의 입금 사실을 은행의 별도 트랜잭션으로 확정한다.
-     */
-    public BankVirtualAccountDepositResponse depositGatewayAccount(GatewayVirtualAccountDepositRequest request) {
-
-        return financialSimulationRestClient.post().uri(uri("banks", "virtual-accounts", "gateway", "deposit"))
-                .contentType(MediaType.APPLICATION_JSON).body(request)
-                .exchange((sent, response) -> depositResponse(response));
-    }
-
-    /**
      * 응답 유실이나 PG 확정 실패 후 최초 은행 입금을 다시 조회한다.
      */
     public Optional<BankVirtualAccountDepositResponse> gatewayDepositStatus(String pgPaymentId) {
@@ -172,19 +162,55 @@ public class FinancialSimulationGatewayService {
     }
 
     /**
+     * 같은 PG 원거래의 입금 전 계좌 취소를 은행의 별도 트랜잭션으로 요청한다.
+     */
+    public BankVirtualAccountCancelResponse cancelGatewayAccount(BankVirtualAccountCancelRequest request) {
+
+        BankVirtualAccountCancellationResult result = requestGatewayCancellation(request);
+
+        if (!"CANCELLED".equals(result.outcome())) {
+            throw new GatewayPaymentConflictException("은행에서 취소 요청을 거절했습니다.");
+        }
+
+        return result.account();
+    }
+
+    /**
+     * Outbox의 동일 취소 요청을 보내고 성공/업무 거절을 구분한 최종 결과를 받는다.
+     */
+    public BankVirtualAccountCancellationResult requestGatewayCancellation(BankVirtualAccountCancelRequest request) {
+
+        ResponseEntity<BankVirtualAccountCancellationResult> received = financialSimulationRestClient.post()
+                .uri(uri("banks", "virtual-accounts", "gateway", "cancel"))
+                .header("X-PG-Event-Id", request.pgPaymentId() + ":CANCEL:INITIAL")
+                .contentType(MediaType.APPLICATION_JSON).body(request).retrieve()
+                .toEntity(BankVirtualAccountCancellationResult.class);
+        BankVirtualAccountCancellationResult result = received.getBody();
+
+        if (received.getStatusCode().value() != 200 || result == null || !result.matches(request)) {
+            throw new FinancialProviderResponseException();
+        }
+
+        return result;
+    }
+
+    /**
+     * 은행에 이미 커밋된 취소만 조회해 재시도나 프로세스 중단을 복구한다.
+     */
+    public Optional<BankVirtualAccountCancelResponse> gatewayCancellationStatus(String pgPaymentId) {
+
+        return financialSimulationRestClient.get()
+                .uri(uri("banks", "virtual-accounts", "gateway", pgPaymentId, "cancellation"))
+                .exchange((sent, response) -> response.getStatusCode().value() == 404
+                        ? Optional.empty() : Optional.of(cancellationResponse(response)));
+    }
+
+    /**
      * 최초 환불 프로세스 ID를 그대로 전달해 카드 환불을 요청한다.
      */
     public FinancialCardPaymentRefundResponse refundCard(GatewayCardPaymentRefundRequest request) {
 
         return post(request, FinancialCardPaymentRefundResponse.class, "cards", "refund");
-    }
-
-    /**
-     * 입금 제공자가 인증한 요청을 모의 은행의 입금 진입점에 전달한다.
-     */
-    public FinancialVirtualAccountDepositResponse deposit(GatewayVirtualAccountDepositRequest request) {
-
-        return post(request, FinancialVirtualAccountDepositResponse.class, "banks", "virtual-accounts", "deposit");
     }
 
     /**
@@ -294,6 +320,34 @@ public class FinancialSimulationGatewayService {
 
         try {
             BankVirtualAccountDepositResponse bank = response.bodyTo(BankVirtualAccountDepositResponse.class);
+
+            if (bank == null) {
+                throw new FinancialProviderResponseException();
+            }
+
+            return bank;
+        } catch (RestClientException exception) {
+            throw new FinancialProviderResponseException(exception);
+        }
+    }
+
+    /**
+     * 확정 취소 거절과 은행 결과 확인 불가를 구분한다. 원거래 대조는 PG 명령에서 수행한다.
+     */
+    private BankVirtualAccountCancelResponse cancellationResponse(
+            RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse response
+    ) throws java.io.IOException {
+
+        if (response.getStatusCode().value() == 400 || response.getStatusCode().value() == 409) {
+            throw new GatewayPaymentConflictException("은행 원계좌가 취소 조건과 일치하지 않습니다.");
+        }
+
+        if (response.getStatusCode().value() != 200) {
+            throw new FinancialProviderResponseException();
+        }
+
+        try {
+            BankVirtualAccountCancelResponse bank = response.bodyTo(BankVirtualAccountCancelResponse.class);
 
             if (bank == null) {
                 throw new FinancialProviderResponseException();

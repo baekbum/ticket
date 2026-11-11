@@ -1,5 +1,7 @@
 # PG와 모의 은행·카드의 HTTP 호출
 
+2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
+
 2026-11-06 사용자 요청에 따라 은행·카드 금융 API 진입을 메서드 직접 호출에서 RestClient HTTP 호출로 변경했다. 같은 PG 애플리케이션과 DB를 유지하며 별도 은행/카드 서비스를 배포하지 않는다.
 
 ## 컨트롤러 패키지
@@ -89,7 +91,8 @@ flowchart LR
 | POST `/api/v1/payments/card/refund` | POST `/cards/refund` |
 | POST `/api/v1/payments/virtual-account/issue` | POST `/banks/virtual-accounts/issue` |
 | GET `/api/v1/payments/virtual-account/internal/{paymentNo}/status` | GET `/banks/virtual-accounts/{paymentNo}` |
-| POST `/api/v1/payments/virtual-account/deposit` | POST `/banks/virtual-accounts/deposit` |
+| POST `/api/v1/banks/virtual-accounts/legacy/deposit` | BankController에서 기존 은행 입금 서비스를 직접 호출 |
+| POST `/api/v1/banks/virtual-accounts/deposit` | BankController에서 PG 연결 은행 입금 서비스를 직접 호출 |
 | POST `/api/v1/payments/virtual-account/refund` | POST `/banks/virtual-accounts/refund` |
 | POST `/api/v1/payments/virtual-account/cancel` | POST `/banks/virtual-accounts/cancel` |
 

@@ -14,12 +14,12 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class VirtualAccountDepositOutboxDispatcher {
+public class GatewayVirtualAccountDepositOutboxDispatcher {
 
     // 가상계좌 입금 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
     private final VirtualAccountDepositOutboxJpaRepository repository;
     // 가상계좌 입금 Outbox 이벤트 이벤트 발행을 담당하는 도구.
-    private final VirtualAccountDepositOutboxPublisher publisher;
+    private final GatewayVirtualAccountDepositOutboxPublisher publisher;
     // 한 번에 처리할 발행 대기 이벤트 수.
     @Value("${app.virtual-account.deposit-outbox.batch-size:100}")
     private int batchSize = 100;

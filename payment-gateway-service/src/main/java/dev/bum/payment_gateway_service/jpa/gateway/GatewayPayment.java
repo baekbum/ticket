@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Entity
@@ -185,6 +186,36 @@ public class GatewayPayment {
         }
     }
 
+    // 은행의 취소 커밋을 확인한 뒤 입금 전 PG 거래를 취소한다. 같은 거래 재요청은 최초 시각을 유지한다.
+    public void cancelVirtualAccount() {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || paidAt != null
+                || (status != GatewayPaymentStatus.WAITING_DEPOSIT && status != GatewayPaymentStatus.CANCELLED)) {
+            throw new IllegalStateException("입금 전 취소를 반영할 수 없는 PG 상태입니다.");
+        }
+
+        if (status != GatewayPaymentStatus.CANCELLED) {
+            status = GatewayPaymentStatus.CANCELLED;
+            cancelledAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        }
+    }
+
+    // 은행이 확정한 취소만 반영한다. 입금 여부 판단·입금 이력 생성·자금 반환은 수행하지 않는다.
+    public void confirmBankCancellation() {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalStateException("은행 취소 결과를 반영할 수 없는 결제수단입니다.");
+        }
+
+        if (status != GatewayPaymentStatus.CANCELLED) {
+            status = GatewayPaymentStatus.CANCELLED;
+        }
+
+        if (cancelledAt == null) {
+            cancelledAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        }
+    }
+
     // 취소된 예매의 입금 통보를 정리한다. 결제 취소는 실제 자금 반환을 뜻하지 않는다.
     public void cancelDepositedPayment() {
 
@@ -195,7 +226,7 @@ public class GatewayPayment {
 
         if (status != GatewayPaymentStatus.CANCELLED) {
             status = GatewayPaymentStatus.CANCELLED;
-            cancelledAt = LocalDateTime.now();
+            cancelledAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         }
     }
 

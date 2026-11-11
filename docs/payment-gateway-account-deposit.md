@@ -1,93 +1,55 @@
-# PG 거래 기반 가상계좌 입금과 가맹점 통보
+# PG 거래 기반 은행 입금과 독립 Outbox 전달
 
-2026-11-09: 발급된 PG 연결 계좌의 입금·최초 금융 사실 복구·공통 가맹점 통보를 연결한다. 은행과 PG는 같은 앱/DB에 있으나 현재 선택한 RestClient HTTP 경계는 유지한다.
+2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
 
-## 현재 흐름과 변경 범위
+2026-11-10: 은행→PG와 PG→가맹점 전달을 각각 독립적인 Outbox로 처리한다. 은행의 최초 입금은 PG가 미리 판단하거나 동기 응답에서 확정하지 않는다. [취소 흐름](payment-gateway-account-cancellation.md)과도 분리한다.
 
-기존 공개 입금 API는 `POST /api/v1/payments/virtual-account/deposit`이며 `X-Payment-Provider-Token` 인증을 유지한다. 요청의 계좌번호에서 저장된 `pgPaymentId`를 찾는다. 가맹점 코드·결제수단·통보 URL을 요청 본문으로 선택하지 않는다.
+## 진입점과 금융 책임
 
-~~~text
-인증된 입금 제공자
- → GatewayVirtualAccountController
- → GatewayVirtualAccountDepositService (NEVER)
-     → PG 원거래 수단·금액 검증
-     → RestClient → BankController → BankVirtualAccountDepositService
-         → 계좌 잠금 → 최초 입금 + 은행 이력 커밋
-     → GatewayVirtualAccountDepositCommands
-         → PG 거래 잠금 → PAID + DEPOSIT 이력 + 가맹점 통보 Outbox 커밋
- → GatewayBankNotificationDispatcher
-     → 짧은 임대 트랜잭션 커밋
-     → DB 등록 가맹점 URL로 공통 HTTP 통보
-     → 별도 트랜잭션에서 전달 결과 확정
-~~~
+은행 입금 진입점 POST /api/v1/banks/virtual-accounts/deposit은 기존 X-Payment-Provider-Token 인증을 유지한다. BankController가 BankVirtualAccountDepositService를 직접 호출해 은행 입금·이력·은행→PG Outbox를 함께 커밋한 뒤 BankVirtualAccountDepositResponse를 반환한다. 이 응답은 은행 사실이며 pgStatus·가맹점 paymentNo·가맹점 notificationStatus를 포함하지 않는다. PG 입금 반영은 이후 독립적인 은행 Outbox 통보에서 진행된다.
 
-PG 연결이 없는 기존 계좌는 기존 금융 HTTP 경로·응답·입금 Outbox·Ticksy 계약을 유지한다. 신규 연결 계좌는 기존 Ticksy 전용 Outbox에 저장하지 않는다. 기존 paymentNo 단독 조회·취소·환불도 신규 연결 계좌에 접근하지 못한다.
+은행 직접 입금 진입점도 같은 BankVirtualAccountDepositService를 사용한다. 은행은 계좌 행을 잠가 금액·상태·입금기한·최초 입금자/시각을 검증한다. BankVirtualAccountDepositService는 클래스의 @Transactional에 따른 기본 REQUIRED 전파를 사용한다. 입금 완료·은행 이력·BANK_DEPOSIT Outbox 저장은 같은 트랜잭션이며, 상위 트랜잭션이 있으면 참여하고 없으면 새로 시작한다. 저장 실패나 상위 트랜잭션 롤백 때 함께 롤백한다. 조회 find만 readOnly=true를 유지한다. 은행 도메인은 가맹점이나 Ticksy API를 호출하지 않는다.
 
-신규 응답은 기존 은행 입금 필드에 `pgPaymentId`, `pgStatus`, `notificationStatus`를 추가하며 `paymentNo`에는 소유 가맹점의 결제번호를 반환한다. `status`는 은행 계좌 상태이며 PG 금융 상태·가맹점 통보 상태와 구분한다. 통보 성공을 기다리지 않고 입금 반영 결과를 반환한다.
+기존 pg_payment_id가 NULL인 계좌의 API·입금 통보·이력은 기존 경로를 유지한다. 새 은행 Outbox에 가맹점이 불명확한 과거 자료를 임의 편입하지 않는다.
 
-이후 [응답 DTO 분리](payment-gateway-response-contract.md)에서 기존/신규 계좌의 자바 응답을 GatewayVirtualAccountPaymentDepositResponse로 통일했다. 기존 계좌는 PG 전용 세 필드를 JSON에서 제외해 이전 필드 계약을 유지하며, byte[] 또는 ResponseEntity<?>를 반환하지 않는다.
+## 은행→PG
 
-## 식별자·검증·멱등성
+은행 Outbox 워커 BankDepositOutboxDispatcher가 고정된 BankDepositEvent를 HTTP로 보낸다. eventId는 pgPaymentId:DEPOSIT:INITIAL이다. 은행은 최초 계좌·금액·은행·입금자·입금 시각을 고정하며, 나중에 계좌가 취소돼도 이 입금 이벤트를 다른 내용으로 바꾸지 않는다.
 
-- 은행 계좌는 `pgPaymentId`를 불변으로 참조하고, 은행 내부 `payment_no`에도 PG ID를 사용한다. 서로 다른 가맹점의 같은 결제번호가 금융 테이블에서 충돌하지 않는다.
-- 은행은 계좌 행을 비관적으로 잠그고 금액·입금자·입금 기한·계좌 상태를 확인한다. 이미 최초 입금 시각이 있으면 상태가 CANCELLED여도 기존 입금 사실로 같은 요청을 재응답한다.
-- 같은 계좌의 최초 입금은 한 번만 기록한다. 다른 금액·입금자 또는 명시적으로 다른 시각을 보내면 409로 거절한다. 재요청 시 시각을 생략하면 최초 저장 시각을 재사용한다.
-- PG는 저장된 BANK_TRANSFER 수단·금액·은행·기한·발급 계좌와 금융 응답을 대조한다. 다른 PG ID·계좌의 응답을 성공으로 반영하지 않는다.
-- PG 이력은 `(pg_payment_id, DEPOSIT, INITIAL)`로 고정한다. 같은 이벤트 ID는 `{pgPaymentId}:DEPOSIT:INITIAL`이며 재시도마다 새 키를 만들지 않는다.
-- 최초 PG 발급 확정이 유실된 READY 거래에 은행 입금이 확인되면 발급 이력과 입금 결과를 함께 복구한다. 기존 준비/발급 이력을 중복 생성하지 않는다.
-- 은행은 Ticksy API·가맹점 인증·공연일 규칙을 참조하지 않는다. 발급 때 받은 일반적인 입금 기한을 사용한다.
+수신 API는 POST /internal/financial-simulations/gateway/bank-deposits다. 현재 같은 앱 내 HTTP 금융 경계 전용 토큰을 사용한다. 일반 가맹점/내부 서비스 토큰만으로 호출할 수 없다. 요청 주소는 서버 설정 app.bank.gateway-base-url이며 비어 있으면 실제 실행 포트의 loopback을 사용한다. 일반 결제 요청에 주소를 받지 않는다.
 
-## 트랜잭션과 실패 복구
+GatewayVirtualAccountDepositCommands도 클래스의 @Transactional로 기본 REQUIRED 전파를 사용한다. 상위 트랜잭션이 있으면 참여하고 없으면 수신 처리에서 새로 시작한다. confirm에서는 PG 원거래를 잠그고 저장된 수단·은행·금액·계좌·기한과 최초 입금 사실을 검증한다. PG 상태/paidAt·DEPOSIT/INITIAL 이력·gateway_bank_notification_outbox를 같은 PG 트랜잭션에 커밋한 뒤 BankDepositAcknowledgement를 HTTP 200으로 반환한다. 기존 입금이면 같은 사실을 대조하고 새 이력·Outbox 없이 확인한다. 발급 확인만 유실된 READY 거래는 발급 이력도 함께 복구한다.
 
-| 경계 | 함께 커밋·롤백하는 항목 |
-| --- | --- |
-| 은행 입금 | 계좌의 최초 입금 반영 + 은행 입금 이력 |
-| PG 입금 확정 | PG 상태·paidAt + DEPOSIT 이력 + PG→가맹점 Outbox |
-| 취소 예매 결과 확정 | PG CANCELLED + 취소 이력 + Outbox 전달 완료 |
+은행은 이벤트/PG/계좌/금액/시각이 일치하는 PG 커밋 확인을 받아야 은행 Outbox를 DELIVERED로 바꾼다. PG 저장 실패·응답 유실·5xx·202·잘못된 확인은 같은 이벤트로 재시도한다. PG가 커밋 후 응답만 유실된 경우 재전달도 최초 사실의 멱등 확인을 반환한다. 여기서 은행→PG 전달은 종료되며 가맹점 통보 결과를 기다리지 않는다.
 
-HTTP를 사이에 둔 은행/PG 트랜잭션 전체가 원자적이라고 가정하지 않는다. 은행 커밋 후 응답이 유실되거나 PG 이력/Outbox 저장이 실패하면 PG만 롤백될 수 있다. 같은 요청 재시도는 은행의 최초 입금을 재사용한다.
+## PG→가맹점
 
-`GatewayVirtualAccountDepositService.recoverDeposits()`는 30초마다 최대 100개의 미확정 금융 입금을 찾고 은행 HTTP 조회로 원사실을 확인해 PG 결과를 복구한다. 직접 은행 입금 진입점이 호출되거나 프로세스가 중단된 경우도 동일하다. 확정 DEPOSIT 이력이 있으면 복구 후보에서 제외된다. 은행↔PG 내부 전달용 Outbox는 추가하지 않는다.
+GatewayBankNotificationDispatcher는 기존 gateway_bank_notification_outbox에서 60초 임대를 커밋한 후 등록 merchant_notification_endpoints의 URL·복호화 토큰으로 BankDepositNotification을 보낸다. 임의 주소·가맹점별 Java 클래스·YAML 대상 목록은 사용하지 않는다. 기본 계약은 PAYMENT_NOTIFICATION_V1이며 기존 CARD_NOTIFICATION_V1 호환도 유지한다.
 
-PG 조율 서비스와 통보 Dispatcher는 NEVER로 외부 HTTP가 기존 트랜잭션 안에 들어가는 것을 차단한다. 은행 입금과 PG 확정은 각각 짧은 REQUIRES_NEW 트랜잭션이다. 통보는 60초 임대 후 HTTP를 수행하며, 늦게 돌아온 이전 attempt의 결과는 새 결과를 덮어쓰지 못한다. 전달 실패는 30초 후 같은 이벤트로 재시도하고 금융 PAID를 실패로 변경하지 않는다.
+Ticksy의 공통 수신 URL은 POST /api/v1/payments/internal/gateway/notifications다. 은행 입금 DTO에는 최초 이벤트/가맹점/PG/가맹점 번호/소유자/금액/계좌/은행/입금자/시각이 포함된다. Ticksy는 기존 소유자 검증·입금 완료·예매/티켓/좌석 규칙과 멱등 이력을 적용한 뒤 APPLIED 또는 RESERVATION_CANCELLED를 반환한다. PG는 응답의 거래/이벤트/계좌/금액까지 확인한 후 가맹점 Outbox를 DELIVERED로 바꾼다.
 
-## 공통 가맹점 수신 계약
+가맹점 실패는 이 Outbox만 재시도하며 은행 입금이나 은행→PG 전달 완료를 되돌리지 않는다. 기존 카드 전용 통보 URL과 입금 완료 API도 호환 경로로 남긴다.
 
-같은 가맹점의 카드/은행 통보를 하나의 등록 URL로 수신하도록 공통 `GatewayPaymentNotification` 계약을 추가했다. JSON의 `paymentMethod`로 허용된 두 DTO만 선택하며 임의 클래스명은 해석하지 않는다. 컨트롤러는 요청/응답만 처리하고 수단별 서비스 선택은 수신 서비스가 담당한다.
+## 경합·복구와 자금 반환
 
-- 표준 계약 코드: `PAYMENT_NOTIFICATION_V1`
-- 호환 계약 코드: 기존 카드 Outbox의 `CARD_NOTIFICATION_V1`도 Resolver에서 허용한다.
-- 새 Ticksy 공통 수신 API: `POST /api/v1/payments/internal/gateway/notifications`
-- 기존 카드 전용 `/api/v1/payments/internal/gateway/card/notifications`와 기존 가상계좌 입금 완료 API는 유지한다.
-- `BankDepositNotification`: 버전, 이벤트 ID, 가맹점 ID, PG ID, 가맹점 결제번호, 예매자, 수단, 금융 상태, 최초 금액·계좌·은행·입금자·시각.
-- `BankDepositNotificationResponse`: 수신한 거래/가맹점/이벤트/계좌/금액을 확인하며 결과는 APPLIED 또는 RESERVATION_CANCELLED다. 통신 실패·잘못된 응답은 확정 거절로 처리하지 않는다.
+같은 최초 입금의 중복·동시 요청은 은행 계좌 잠금과 PG 거래 잠금, 각 작업 유니크 제약으로 하나의 입금/이력/Outbox에 수렴한다. 같은 키에 다른 금액·입금자·시각은 거절한다. 시각 생략 재요청은 이미 확정된 최초 시각을 사용한다.
 
-Ticksy는 서버에 설정한 가맹점 ID를 확인하고 기존 입금 처리에 예매 소유자 검증을 추가해 사용한다. 중복·지연 통보에도 기존 결제·예매·티켓·좌석 상태 및 이력 규칙을 재사용한다. 결제수단/금액/계좌/은행/소유자가 다르면 반영하지 않는다.
+취소된 PG에 입금 이벤트가 늦게 도착하면 최초 입금 사실은 기록하지만 CANCELLED를 PAID로 되돌리지 않는다. Ticksy가 취소 예매임을 확인하면 기존 reject-deposit 은행 정리 HTTP 후 PG 취소 이력·가맹점 입금 Outbox 완료를 함께 반영한다. 최초 금액·시각·입금자·이력은 유지한다. 이 계좌 취소는 실제 자금 반환이 아니며 fundsReturned=false다.
 
-URL과 암호화한 토큰은 기존 `merchant_notification_endpoints`에서 가맹점 ID + 대상 키로 조회한다. 신규 가맹점별 Java 구현체나 YAML 대상을 추가하지 않는다. 발급/입금 요청에서 임의 URL을 받지 않는다.
+HTTP 동안 은행/PG/Outbox 락을 유지하지 않는다. 각 단계는 실패 후 30초 재시도, 60초 임대 만료 회수, attempt로 지연 워커의 덮어쓰기 방지를 적용한다. 금융 성공과 전달 실패는 다른 상태다. PG가 은행 테이블과 PG 이력을 직접 대사하던 recoverDeposits는 제거했다. 기존 은행 입금 중 새 통보 Outbox가 없는 행은 은행 저장소만 조회해 한 번 편입한다.
 
-## 취소 예매의 입금 통보
+## 스키마·호환성
 
-Ticksy가 RESERVATION_CANCELLED를 반환하면 입금으로 예매·티켓·좌석을 되살리지 않는다. 은행 HTTP의 `reject-deposit`가 원계좌를 CANCELLED로 정리하고, PG는 CANCELLED·취소 이력·Outbox 완료를 함께 확정한다. 계좌 정리나 PG 저장 실패는 같은 거래/이벤트로 재시도한다.
+은행→PG 통보는 bank_transfer_outbox의 BANK_DEPOSIT 행이다. PG→가맹점 입금 통보는 기존 gateway_bank_notification_outbox다. 취소의 두 전달 단계와는 별도 행/상태/재시도다. 기존 테이블 삭제·초기화는 없다. PG와 Ticksy schema.sql, 추가 전용 SQL의 상세는 취소 문서를 참고한다.
 
-이 경로는 실제 자금 반환이 아니다. 계좌와 PG의 최초 입금 시각·금액·입금 이력은 보존한다. PG 취소 이력에는 `fundsReturned=false`를 명시한다. 이미 정리된 동일 계좌의 재시도에도 새 입금이나 취소 이력을 추가하지 않는다.
+현재 Ticksy checkout은 기존 발급 API를 사용한다. prepare·pgPaymentId 저장·새 호출 전환과 PG 연결 만료/환불은 후속 범위다. 늦은 입금의 실제 반환 기능은 구현하지 않는다.
 
-## 스키마와 적용
+## 최종 검증 (2026-11-11)
 
-`schema.sql`에 `gateway_bank_notification_outbox`를 추가한다. PG/소유 가맹점/최초 입금/계약/대상 키/이벤트/임대/재시도/완료 상태를 저장한다. PG 거래별 및 이벤트별 유니크, `(pg_payment_id, merchant_id)` 복합 FK로 소유권을 확인한다. 기존 테이블 삭제·초기화나 과거 금융 데이터 일괄 연결은 하지 않는다. 별도 마이그레이션 파일은 만들지 않는다.
+동일 회귀 명령의 최종 실행이 BUILD SUCCESSFUL로 완료됐다. 공통 45개, PG 311개, Ticksy 130개로 총 486개가 통과했고 실패·오류는 0개다. 선택 환경 변수 CHECKOUT_TEST_POSTGRES_URL이 없는 기존 CheckoutPrepareRetryIntegrationTest 11개만 조건부 건너뜀이다. 실제 PostgreSQL의 PG 테스트 23개는 모두 실행해 통과했다.
 
-Ticksy 등록 대상은 공통 API URL과 PAYMENT_NOTIFICATION_V1으로 전환한다. 기존 카드 이벤트의 식별자·payload·계약 스냅샷은 재발급하지 않는다. 공통 수신 API는 기존 카드 DTO도 그대로 수신한다. 배포 시 Ticksy 공통 수신 API를 먼저 준비한 뒤 등록 URL을 변경해야 한다.
+검증에는 은행 입금/PG 통보 Outbox의 독립 완료, 가맹점별 동일 결제번호, 다른 가맹점 접근 차단, 같은 키의 다른 내용 거절, 중복·동시 취소, 입금/취소 경합, 은행·PG·가맹점 응답 유실, 은행 이력/Outbox/멱등 결과 저장 실패 롤백, PG 이력/다음 Outbox 저장 실패 롤백, 임대 회수·이전 워커 무시, 취소 후 지연 입금의 사실 보존, 표준 헤더/DTO의 실제 HTTP 전송, 가맹점 수신 이력과 재응답, 기존 카드·가상계좌·환불·예매·좌석·checkout·Feign 회귀를 포함한다.
 
-## 남은 범위
+실제 local-postgres/ticket DB에는 추가 전용 DDL로 3개 테이블을 생성했다. public 테이블은 58개에서 61개가 됐고, 기존 가맹점 1건과 결제 데이터는 유지됐다. 검증 후 PG/Ticksy 결제와 신규 Outbox/수신 이력은 모두 0건이다. 실제 DB 검증은 DDL validate와 롤백을 사용했고 실제 테이블 삭제·초기화는 수행하지 않았다. 빌드가 변경한 기존 Querydsl 13개 파일은 원본과 실질 내용이 같음을 확인한 후 EOF만 복원했으며 새 수신 이력 Q 클래스는 보존했다. git diff --check가 통과했다.
 
-가맹점의 PG 거래 기반 입금 전 취소 API와 만료 스케줄러 연동, 새 PG 거래의 환불, Ticksy/프런트의 prepare 및 pgPaymentId 저장 전환은 후속 작업이다. 기존 취소/입금 경합 회귀는 유지하고 이번에는 입금 통보에서 취소 예매가 확인된 경우의 수렴을 연결한다. 늦은 입금의 실제 자금 반환 기능은 구현하지 않는다.
-
-## 검증 결과
-
-2026-11-09 회귀 검증은 공통 모듈 45개, PG 257개, Ticksy 118개로 총 420개가 실패·오류·건너뜀 없이 통과했다. PG는 서비스·보안·설정·실제 PostgreSQL 모델을, Ticksy는 결제 서비스·checkout·Feign 설정·기존/신규 수신 API·실제 결제 모델을 포함한다.
-
-이후 미확정 입금 대사 조회를 은행 저장소에서 PG 저장소로 이동하고 응답 message 호환성을 정리한 최종 코드에 대해 입금 통합 22개와 실제 PostgreSQL 19개, 총 41개를 다시 실행해 모두 통과했다. 실제 PostgreSQL에서는 미확정 입금의 native 대사 조회, 확정 후 제외, Outbox 매핑·임대·완료·복합 소유 FK를 검증했다. 실제 DB 테스트는 DDL validate와 롤백만 사용한다.
-
-검증 범위에는 서로 다른 가맹점의 동일 결제번호·동일 대상 키, 중복/동시 입금, 다른 금액·입금자·시각, 잘못된 금융 응답, 은행 이력 저장 실패의 전체 금융 롤백, PG 이력/Outbox 저장 실패의 전체 PG 롤백, 은행·통보 응답 유실, 재시작 복구, 비활성 대상 재시도, 임대 만료/늦은 워커, 취소 예매 상태 수렴과 실제 자금 반환 없음이 포함된다. Ticksy 실제 결제 모델에서도 소유자 불일치 차단, 중복 이력 방지, 취소 예매 및 AVAILABLE 좌석 유지가 통과했다.
-
-실제 local-postgres/ticket DB의 public 테이블은 58개다. 새 gateway_bank_notification_outbox와 두 전달 인덱스 및 유니크/소유 FK/상태 제약을 적용했다. Ticksy 1건은 PAYMENT_NOTIFICATION_V1과 공통 수신 URL로 갱신했고 암호화 토큰은 유지했다. 검증 후 PG 거래·신규 은행/카드 통보 Outbox는 0건이며 기존 테이블 삭제·초기화는 하지 않았다. 별도 마이그레이션 SQL은 생성하지 않았다. 빌드가 생성한 Querydsl 파일 13개의 끝 빈 줄만 원본과 대조해 정리했고 git diff --check가 통과했다.
+배포 시 추가 스키마와 Ticksy의 새 결과 수신 처리를 먼저 반영한 뒤 PG 워커를 배포한다. 기존 Ticksy checkout의 PG ID 저장·새 API 호출 전환과 PG 연결 만료/환불은 후속 범위다.

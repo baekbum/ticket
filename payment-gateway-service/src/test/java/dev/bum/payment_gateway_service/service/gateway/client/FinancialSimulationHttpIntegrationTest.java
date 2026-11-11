@@ -25,9 +25,9 @@ import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenti
 import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundProcessService;
 import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssuanceService;
 import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountIssueCommandService;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.VirtualAccountDepositOutboxDispatcher;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.VirtualAccountDepositOutboxPublisher;
-import dev.bum.payment_gateway_service.service.gateway.virtualAccount.VirtualAccountDepositOutboxService;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositOutboxDispatcher;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositOutboxPublisher;
+import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositOutboxService;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,7 +83,11 @@ class FinancialSimulationHttpIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
+    @Import({
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
             SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class,
@@ -91,10 +95,9 @@ class FinancialSimulationHttpIntegrationTest {
             CardController.class, BankController.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
-            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,
-            VirtualAccountCancellationService.class, VirtualAccountDepositOutboxService.class,
-            VirtualAccountDepositOutboxDispatcher.class, VirtualAccountDepositOutboxPublisher.class,
+            VirtualAccountCancellationService.class, GatewayVirtualAccountDepositOutboxService.class,
+            GatewayVirtualAccountDepositOutboxDispatcher.class, GatewayVirtualAccountDepositOutboxPublisher.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService.class,
             GatewayVirtualAccountIssuanceService.class, GatewayVirtualAccountIssueCommandService.class})
@@ -322,7 +325,7 @@ class FinancialSimulationHttpIntegrationTest {
     }
 
     ResultActions providerPost(GatewayVirtualAccountDepositRequest request) throws Exception {
-        return mvc.perform(post("/api/v1/payments/virtual-account/deposit")
+        return mvc.perform(post("/api/v1/banks/virtual-accounts/legacy/deposit")
                 .header("X-Payment-Provider-Token", "test-provider-token").contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsBytes(request)));
     }
