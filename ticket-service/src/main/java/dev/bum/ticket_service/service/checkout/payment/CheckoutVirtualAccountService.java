@@ -2,73 +2,59 @@ package dev.bum.ticket_service.service.checkout.payment;
 
 import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
-import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
-import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueRequest;
-import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class CheckoutVirtualAccountService {
 
-    // 게이트웨이 가상계좌 API를 호출하는 클라이언트.
-    private final PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
+    // 공연일과 입금기한을 한국 시간으로 계산하는 애플리케이션 시계.
+    private final Clock clock;
 
     /**
-     * 가상계좌를 발급한다.
+     * 로컬 트랜잭션에 최초 발급 의도를 저장한다. PG HTTP 호출은 커밋 후 수행한다.
      */
     public void issue(CheckoutConfirmRequest request, Payment payment) {
 
-        GatewayVirtualAccountIssueResponse virtualAccount = issueVirtualAccountFromGateway(request, payment);
-        if (virtualAccount == null || !Boolean.TRUE.equals(virtualAccount.getIssued())
-                || virtualAccount.getStatus() != GatewayVirtualAccountStatus.WAITING_DEPOSIT
-                || !StringUtils.hasText(virtualAccount.getBankName())
-                || !StringUtils.hasText(virtualAccount.getAccountNumber())
-                || virtualAccount.getExpiresAt() == null) {
-            throw new IllegalStateException("가상계좌 발급에 실패했습니다.");
-        }
-        // PG 발급 응답을 현재 결제 트랜잭션에서 반영한다.
-        payment.waitDeposit(
-                virtualAccount.getBankName(),
-                virtualAccount.getAccountNumber(),
-                virtualAccount.getExpiresAt()
-        );
-    }
-
-    /**
-     * 게이트웨이에 가상계좌 발급을 요청한다.
-     */
-    private GatewayVirtualAccountIssueResponse issueVirtualAccountFromGateway(
-            CheckoutConfirmRequest request,
-            Payment payment
-    ) {
-
         BankCompany bankCompany = resolveBankCompany(request);
-        return paymentGatewayVirtualAccountClient.issue(
-                GatewayVirtualAccountIssueRequest.builder()
-                        .paymentNo(payment.getPaymentNo())
-                        .bankCompany(bankCompany)
-                        .amount(BigDecimal.valueOf(payment.getAmount()))
-                        .eventDateTime(payment.getReservation().getEvent().getEventDateTime())
-                        .build()
-        );
+
+        if (payment.getGatewayBankCompany() != null) {
+            if (payment.getGatewayBankCompany() != bankCompany) {
+                throw new IllegalArgumentException("같은 결제번호의 최초 은행과 일치하지 않습니다.");
+            }
+
+            return;
+        }
+
+        LocalDate today = LocalDate.now(clock);
+        LocalDate eventDate = payment.getReservation().getEvent().getEventDateTime().toLocalDate();
+
+        if (!today.isBefore(eventDate)) {
+            throw new IllegalArgumentException("공연 당일에는 무통장 입금을 사용할 수 없습니다.");
+        }
+
+        LocalDate expirationDate = today.plusDays(1).isBefore(eventDate) ? today.plusDays(1) : today;
+        payment.planGatewayAccount(bankCompany, LocalDateTime.of(expirationDate, LocalTime.of(23, 59, 59)));
     }
 
     /**
-     * 요청에 사용할 은행 정보를 결정한다.
+     * 최초 발급 요청의 은행 코드를 확인한다.
      */
     private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
 
         if (!StringUtils.hasText(request.getBankCode())) {
             throw new IllegalArgumentException("은행 코드가 필요합니다.");
         }
+
         try {
             return BankCompany.valueOf(request.getBankCode().trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {

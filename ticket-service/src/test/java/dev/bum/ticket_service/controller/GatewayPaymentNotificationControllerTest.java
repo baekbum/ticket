@@ -40,6 +40,7 @@ class GatewayPaymentNotificationControllerTest {
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     @MockitoBean PaymentService payments;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutCommands accounts;
     @MockitoBean GatewayBankCancellationNotificationService cancellations;
     final String path = "/api/v1/payments/internal/gateway/notifications";
     final String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
@@ -125,7 +126,7 @@ class GatewayPaymentNotificationControllerTest {
     void anUnclearLocalResultCannotBecomeASuccessAcknowledgement() {
         when(payments.completeVirtualAccountDepositFromGateway(any(), eq("buyer")))
                 .thenReturn(payment(PaymentStatus.WAITING_DEPOSIT));
-        assertThatThrownBy(() -> new GatewayBankNotificationService(payments, 1).receive(event()))
+        assertThatThrownBy(() -> new GatewayBankNotificationService(payments, accounts, 1).receive(event()))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -157,7 +158,7 @@ class GatewayPaymentNotificationControllerTest {
     }
 
     PaymentResponse payment(PaymentStatus status) {
-        return PaymentResponse.builder().paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).status(status).amount(100)
+        return PaymentResponse.builder().paymentNo("PAY-1").pgPaymentId(pgId).method(PaymentMethod.BANK_TRANSFER).status(status).amount(100)
                 .bankName(BankCompany.KB.getBankName()).accountNumber("1111-123456").depositorName("입금자")
                 .paidAt("2026-11-09 12:00:00").build();
     }

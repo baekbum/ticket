@@ -1,5 +1,9 @@
 # 결제 API 계약
 
+2026-11-12 계좌 발급은 같은 checkout HTTP 요청 안에서 최초 1회 + 추가 3회만 시도한다. 일시 오류가 계속되면 503 GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED를 반환하고 사용자가 같은 checkout 멱등키로 재요청한다. 일반 발급 디스패쳐는 제거했으며 입금·취소 Outbox는 유지한다. [현재 발급 재시도 계약](ticksy-gateway-virtual-account.md)을 참고한다.
+
+2026-11-11 Ticksy 신규 무통장 checkout은 가맹점 인증 PG prepare → pgPaymentId 저장 → 계좌 발급으로 전환했다. 취소 Outbox는 신규 PG ID 경로의 202 접수와 최종 통보를 구분한다. 기존 checkout URL은 유지하고 PaymentResponse에 nullable pgPaymentId를 추가한다. [Ticksy 호출·스키마·현재 제한](ticksy-gateway-virtual-account.md)을 우선한다. 신규 PG 거래의 환불·만료 연결은 후속 작업이다.
+
 2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
 
 2026-11-09 신규 PG 카드 결과 통보는 [공통 요청/응답 계약](payment-gateway-standard-card-notification.md)을 사용한다. PG는 등록된 전체 URL을 공통 send 인자로 전달하고, Ticksy는 POST /api/v1/payments/internal/gateway/card/notifications에서 수신한다. 기존 settle 엔드포인트는 유지한다.
@@ -8,7 +12,7 @@
 
 PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
 
-2026-11-08 가맹점 인증 기반 `POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue`를 추가했다. 준비된 PG 거래를 은행 계좌에 연결하고 PG 상태/발급 이력을 저장한다. 요청·응답·복구 계약은 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 따른다. 기존 Ticksy 호출은 아직 이 경로로 전환하지 않았으며 새 연결 계좌의 입금·취소·환불·만료·통보는 후속 단계다.
+2026-11-08 가맹점 인증 기반 `POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue`를 추가했다. 준비된 PG 거래를 은행 계좌에 연결하고 PG 상태/발급 이력을 저장한다. 요청·응답·복구 계약은 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 따른다. 현재 Ticksy 신규 발급·입금·입금 전 취소는 이 경로로 전환했다. 새 연결 거래의 환불·만료는 후속 단계다.
 
 2026-11-06부터 기존 카드·가상계좌 외부 API는 [모의 금융 HTTP 경계](payment-gateway-financial-http.md)를 통해 처리한다. URL·입력·JSON·상태 코드는 유지하고 PG가 RestClient로 내부 전용 모의 컨트롤러를 호출한다. 금융 결과를 확인할 수 없는 연결/읽기 실패는 `503 FINANCIAL_PROVIDER_UNAVAILABLE`이며 같은 거래의 상태 확인/멱등 재요청 대상으로 취급한다.
 

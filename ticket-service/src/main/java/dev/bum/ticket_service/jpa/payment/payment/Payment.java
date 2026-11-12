@@ -2,6 +2,7 @@ package dev.bum.ticket_service.jpa.payment.payment;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
@@ -40,6 +41,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -52,6 +54,7 @@ import java.util.List;
         uniqueConstraints = {
             @UniqueConstraint(name = "uk_payments_reservation_id", columnNames = "reservation_id"),
             @UniqueConstraint(name = "uk_payments_payment_no", columnNames = "payment_no"),
+            @UniqueConstraint(name = "uk_payments_pg_payment_id", columnNames = "pg_payment_id"),
             @UniqueConstraint(name = "uk_payments_account_number", columnNames = "account_number"),
             @UniqueConstraint(name = "uk_payments_idempotency_key", columnNames = "idempotency_key")
         })
@@ -76,6 +79,23 @@ public class Payment {
     // 사용자나 외부 API가 입금/결제 완료 요청을 보낼 때 사용하는 결제 식별 번호.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
+
+    // PG가 발급한 원거래 식별자. 과거 결제는 null이며 결제번호로 추측해 연결하지 않는다.
+    @Column(name = "pg_payment_id", length = 44)
+    private String pgPaymentId;
+
+    // 신규 PG 발급의 불변 은행 조건. null이면 기존 결제 경로다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gateway_bank_company", length = 30)
+    private BankCompany gatewayBankCompany;
+
+    // 재시도 날짜가 바뀌어도 prepare에 같은 기한을 전달한다.
+    @Column(name = "gateway_expires_at")
+    private LocalDateTime gatewayExpiresAt;
+
+    // PG 발급 결과가 아직 로컬 결제에 반영되지 않았다. 한 요청의 제한 재시도와 같은 checkout 키 재요청에 사용한다.
+    @Column(name = "gateway_issue_pending", nullable = false)
+    private boolean gatewayIssuePending;
 
     // 무통장, 신용카드, 간편결제 같은 결제 수단.
     @Enumerated(EnumType.STRING)
@@ -267,6 +287,7 @@ public class Payment {
                         this.reservation != null ? this.reservation.getReservationId() : null)
                 .orderId(this.reservation != null ? this.reservation.getOrderId() : null)
                 .paymentNo(this.paymentNo)
+                .pgPaymentId(this.pgPaymentId)
                 .method(this.method)
                 .status(this.status)
                 .amount(getAmount())
@@ -299,6 +320,63 @@ public class Payment {
 
         process.move(PaymentProcessStage.WAITING_DEPOSIT, null);
         record(PaymentHistoryType.ACCOUNT_ISSUED, before, null);
+    }
+
+    // 외부 호출 전에 최초 은행과 입금기한을 고정하고 복구할 발급 의도를 저장한다.
+    public void planGatewayAccount(BankCompany bankCompany, LocalDateTime deadline) {
+
+        if (method != PaymentMethod.BANK_TRANSFER || bankCompany == null || deadline == null) {
+            throw new IllegalArgumentException("무통장 결제의 은행과 입금기한이 필요합니다.");
+        }
+
+        if (gatewayBankCompany != null) {
+            if (gatewayBankCompany != bankCompany || !gatewayExpiresAt.equals(deadline)) {
+                throw new IllegalArgumentException("최초 가상계좌 발급 조건과 일치하지 않습니다.");
+            }
+
+            return;
+        }
+
+        gatewayBankCompany = bankCompany;
+        gatewayExpiresAt = deadline;
+        gatewayIssuePending = true;
+        expiresAt = deadline;
+        virtualAccountInfo = new VirtualAccountPaymentInfo();
+        virtualAccountInfo.issue(bankCompany.getBankName(), null);
+    }
+
+    // 동일 가맹점 결제번호로 준비한 PG 거래만 한 번 연결한다.
+    public void bindGatewayPayment(String id) {
+
+        if (id == null || !id.matches("(?:\\d{8})?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+                || (pgPaymentId != null && !pgPaymentId.equals(id))) {
+            throw new IllegalArgumentException("원거래의 PG 식별자가 일치하지 않습니다.");
+        }
+
+        pgPaymentId = id;
+    }
+
+    // 발급 응답 유실을 복구한다. 이미 취소·입금된 결제를 입금 대기로 되돌리지 않는다.
+    public void bindGatewayAccount(String bankName, String accountNumber, LocalDateTime deadline) {
+
+        if (pgPaymentId == null || !Objects.equals(gatewayExpiresAt, deadline)
+                || !gatewayBankCompany.getBankName().equals(bankName)
+                || accountNumber == null || accountNumber.isBlank()) {
+            throw new IllegalArgumentException("발급 결과가 최초 PG 거래 조건과 일치하지 않습니다.");
+        }
+
+        if (getAccountNumber() != null) {
+            if (!getAccountNumber().equals(accountNumber)) {
+                throw new IllegalArgumentException("최초 발급 계좌번호와 일치하지 않습니다.");
+            }
+        } else if (status == PaymentStatus.READY) {
+            waitDeposit(bankName, accountNumber, deadline);
+        } else {
+            virtualAccountInfo.issue(bankName, accountNumber);
+            record(PaymentHistoryType.ACCOUNT_ISSUED, status, "발급 결과 수신 전에 로컬 상태가 변경됨");
+        }
+
+        gatewayIssuePending = false;
     }
 
     // 카드 결제를 계좌이체 방식으로 변경한다.

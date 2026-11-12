@@ -71,12 +71,27 @@ public class VirtualAccountReconciliationService {
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
             throw new IllegalArgumentException("무통장 결제만 조회할 수 있습니다.");
         }
+        rejectLinkedPayment(paymentNo);
+
         GatewayVirtualAccountStatusResponse status = gateway.status(paymentNo);
         String problem = validator.problem(payment, status);
         return new VirtualAccountReconciliationResponse(
                 payment.toResponse(), status, problem == null,
                 problem == null ? "입금 정보를 확인했습니다. 결제 완료 재반영이 가능합니다." : problem
         );
+    }
+
+    /**
+     * 신규 PG 거래는 기존 paymentNo 기반 은행 조회·수동 정산 경로로 보내지 않는다.
+     */
+    private void rejectLinkedPayment(String paymentNo) {
+
+        Payment payment = payments.findByPaymentNo(paymentNo)
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+
+        if (payment.getGatewayBankCompany() != null) {
+            throw new IllegalStateException("신규 PG 거래는 PG 입금 통보 재시도로 복구해야 합니다.");
+        }
     }
 
     /**
@@ -87,6 +102,9 @@ public class VirtualAccountReconciliationService {
         if (!StringUtils.hasText(reason)) {
             throw new IllegalArgumentException("처리 사유를 입력해주세요.");
         }
+
+        rejectLinkedPayment(paymentNo);
+
         GatewayVirtualAccountStatusResponse status = gateway.status(paymentNo);
         PaymentResponse result = completion.complete(paymentNo, status);
         AuditContext.setAfterData(Map.of(

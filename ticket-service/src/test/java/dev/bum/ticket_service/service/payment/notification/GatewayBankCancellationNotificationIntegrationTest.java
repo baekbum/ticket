@@ -41,6 +41,7 @@ class GatewayBankCancellationNotificationIntegrationTest {
     @Autowired ObjectMapper json;
     @MockitoSpyBean GatewayBankCancellationReceiptJpaRepository receipts;
     @MockitoBean PaymentJpaRepository payments;
+    @MockitoBean VirtualAccountCancelOutboxJpaRepository cancellations;
     Payment payment;
 
     @BeforeEach
@@ -50,6 +51,10 @@ class GatewayBankCancellationNotificationIntegrationTest {
         Reservation reservation = mock(Reservation.class);
         when(reservation.getUserId()).thenReturn("buyer");
         when(payment.getReservation()).thenReturn(reservation);
+        when(payment.getPgPaymentId()).thenReturn("20261110550e8400-e29b-41d4-a716-446655440000");
+        VirtualAccountCancelOutbox pending = mock(VirtualAccountCancelOutbox.class);
+        when(cancellations.findIdByPaymentNo("PAY-1")).thenReturn(Optional.of(1L));
+        when(cancellations.findByIdForUpdate(1L)).thenReturn(Optional.of(pending));
         when(payment.getMethod()).thenReturn(PaymentMethod.BANK_TRANSFER);
         when(payment.getStatus()).thenReturn(PaymentStatus.CANCELLED);
         when(payment.getAmount()).thenReturn(100);

@@ -2,7 +2,7 @@
 
 2026-11-10 최신 변경: 은행 입금은 은행→PG와 PG→가맹점의 독립 Outbox, PG ID 취소는 비동기 접수→은행 요청 Outbox→가맹점 결과 Outbox로 변경했다. 취소 경로의 입금 복구 호출과 PG의 은행 원장 직접 대사를 제거했다. 아래 초기 단계 설명보다 [입금 문서](payment-gateway-account-deposit.md)와 [취소 문서](payment-gateway-account-cancellation.md)의 현재 계약을 우선한다.
 
-2026-11-08 PG 거래를 은행의 실제 발급 결과에 연결했다. 이 문서는 PG 측 발급 연동을 다룬다. 2026-11-09 [입금·가맹점 통보·응답 유실 복구](payment-gateway-account-deposit.md)를 연결했다. 2026-11-10 [PG 거래 기반 입금 전 취소](payment-gateway-account-cancellation.md)를 연결했다. Ticksy 호출 전환과 환불·만료는 후속 작업이다.
+2026-11-08 PG 거래를 은행의 실제 발급 결과에 연결했다. 이 문서는 PG 측 발급 연동을 다룬다. 2026-11-09 [입금·가맹점 통보·응답 유실 복구](payment-gateway-account-deposit.md)를 연결했다. 2026-11-10 [PG 거래 기반 입금 전 취소](payment-gateway-account-cancellation.md)를 연결했다. Ticksy 신규 발급·입금 전 취소 호출은 [Ticksy 연동 문서](ticksy-gateway-virtual-account.md)대로 전환했다. 환불·만료는 후속 작업이다.
 
 ## 호출과 책임
 

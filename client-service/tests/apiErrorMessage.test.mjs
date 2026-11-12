@@ -31,3 +31,11 @@ test('주요 HTTP 상태와 알 수 없는 상태에도 안내 문구를 제공�
   assert.match(getApiErrorMessage(502, ''), /일시적인 서비스 오류/);
   assert.match(getApiErrorMessage(499, '{"code":"UNKNOWN_ERROR"}'), /요청을 완료하지 못했습니다/);
 });
+
+test('발급 결과 미확인 503에는 같은 결제 요청 재시도 안내만 표시한다', () => {
+  const body = JSON.stringify({ code: 'GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED', message: 'SQL 내부 오류 상세' });
+  assert.equal(getApiErrorMessage(503, body),
+    '가상계좌 발급 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도하거나 예매 내역을 확인해주세요.');
+  assert.match(getApiErrorMessage(500, body), /일시적인 서비스 오류/);
+  assert.match(getApiErrorMessage(503, '{"code":"UNKNOWN","message":"내부 예외"}'), /일시적인 서비스 오류/);
+});

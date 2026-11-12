@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class GatewayBankCancellationNotificationService {
@@ -20,6 +22,8 @@ public class GatewayBankCancellationNotificationService {
     private final PaymentJpaRepository payments;
     // 수신 완료·거절 결과를 모두 저장하고 같은 이벤트의 다른 내용은 거절한다.
     private final GatewayBankCancellationReceiptJpaRepository receipts;
+    // 요청 전달 완료와 최종 은행 결과를 각각 기록한다.
+    private final VirtualAccountCancelOutboxJpaRepository cancellations;
     // 최초 통보의 JSON 스냅샷 변환.
     private final ObjectMapper json;
     // 이 수신 서버에 등록된 PG 가맹점 코드.
@@ -32,6 +36,7 @@ public class GatewayBankCancellationNotificationService {
             PaymentJpaRepository payments,
             GatewayBankCancellationReceiptJpaRepository receipts,
             ObjectMapper json,
+            VirtualAccountCancelOutboxJpaRepository cancellations,
             @Value("${app.payment-gateway.merchant-id:1}") long merchantId
     ) {
 
@@ -42,6 +47,7 @@ public class GatewayBankCancellationNotificationService {
         this.payments = payments;
         this.receipts = receipts;
         this.json = json;
+        this.cancellations = cancellations;
         this.merchantId = merchantId;
     }
 
@@ -60,7 +66,8 @@ public class GatewayBankCancellationNotificationService {
         Payment payment = payments.findByPaymentNoForUpdate(event.merchantPaymentNo())
                 .orElseThrow(() -> new IllegalArgumentException("통보 대상 결제가 없습니다."));
 
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getReservation() == null
+        if (!event.pgPaymentId().equals(payment.getPgPaymentId())
+                || payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getReservation() == null
                 || !event.buyerReference().equals(payment.getReservation().getUserId())
                 || BigDecimal.valueOf(payment.getAmount()).compareTo(event.amount()) != 0
                 || !event.accountNumber().equals(payment.getAccountNumber())
@@ -68,7 +75,7 @@ public class GatewayBankCancellationNotificationService {
             throw new IllegalArgumentException("취소 결과 통보가 로컬 원거래와 일치하지 않습니다.");
         }
 
-        var previous = receipts.findByPaymentNo(event.merchantPaymentNo());
+        Optional<GatewayBankCancellationReceipt> previous = receipts.findByPaymentNo(event.merchantPaymentNo());
 
         if (previous.isPresent()) {
             BankCancellationNotification original = json.convertValue(previous.get().getPayload(), BankCancellationNotification.class);
@@ -83,6 +90,13 @@ public class GatewayBankCancellationNotificationService {
         if ("CANCELLED".equals(event.outcome()) && payment.getStatus() != PaymentStatus.CANCELLED) {
             throw new IllegalStateException("로컬 예매 취소가 확인되지 않았습니다.");
         }
+
+        Long outboxId = cancellations.findIdByPaymentNo(event.merchantPaymentNo())
+                .orElseThrow(() -> new IllegalStateException("최초 PG 취소 요청이 없습니다."));
+        VirtualAccountCancelOutbox outbox = cancellations.findByIdForUpdate(outboxId).orElseThrow();
+        outbox.bindGateway(payment);
+        outbox.gatewayResult(event.outcome(), event.reason());
+        outbox.delivered(LocalDateTime.now());
 
         receipts.saveAndFlush(GatewayBankCancellationReceipt.received(event.eventId(), event.merchantPaymentNo(),
                 json.convertValue(event, new TypeReference<>() { })));

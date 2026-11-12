@@ -118,6 +118,10 @@ public class ReservationCancellationService {
             );
         }
 
+        if (payment.getGatewayBankCompany() != null) {
+            throw new IllegalStateException("입금 완료된 신규 PG 원거래 환불은 아직 지원하지 않습니다.");
+        }
+
         validatePaidCancellation(payment, reservation, activeTickets);
 
         // 4·5. 동일 요청은 최초 조건으로 재개하고, 변경 요청은 마감·기존 PG 결과를 확인한다.
@@ -211,7 +215,8 @@ public class ReservationCancellationService {
             PaymentRefundRequestContext requestContext
     ) {
 
-        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
+        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT
+                && !(payment.getStatus() == PaymentStatus.READY && payment.getGatewayBankCompany() != null)) {
             throw new IllegalStateException("결제 대기 티켓과 결제 상태가 일치하지 않습니다.");
         }
 

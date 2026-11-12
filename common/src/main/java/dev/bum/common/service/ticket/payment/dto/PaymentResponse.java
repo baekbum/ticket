@@ -26,6 +26,9 @@ public class PaymentResponse {
     // 결제 번호.
     private String paymentNo;
 
+    // 신규 PG 거래 식별자. 기존 결제는 null이다.
+    private String pgPaymentId;
+
     // 결제 수단.
     private PaymentMethod method;
 

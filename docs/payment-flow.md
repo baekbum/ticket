@@ -69,82 +69,25 @@ paymentNo unique 제약은 중복 승인 저장을 차단한다. 완료/취소/�
 
 ## 무통장 입금
 
-### 처리 순서
+신규 Ticksy 호출은 [PG 거래 기반 checkout·취소 연동](ticksy-gateway-virtual-account.md)을 따른다.
 
-```text
-1. 프론트 -> ticket-service
-   CheckoutController.prepare 호출
-   대기열 active token과 좌석 점유 상태 검증
+~~~text
+Ticksy checkout 로컬 커밋(예매 + Payment + 고정 발급 조건)
+→ PG prepare → Ticksy pgPaymentId 저장
+→ PG issue → RestClient → BankController
+→ Ticksy 계좌·WAITING_DEPOSIT 저장
 
-2. 프론트 -> ticket-service
-   CheckoutController.confirm 호출
-   예약/배송/Payment 생성
-   Payment.status = READY
+입금: BankController → 은행 Outbox → PG 수신·거래 반영
+      → PG 가맹점 통보 Outbox → Ticksy 입금 확정
 
-3. ticket-service -> payment-gateway-service
-   가상계좌 발급 API 호출
-   paymentNo, 은행사, 금액, 공연일시 전달
+취소: Ticksy 예매·좌석 취소 + 취소 Outbox
+      → PG 202 접수 → 은행 취소 요청 Outbox
+      → PG 최종 결과 통보 Outbox → Ticksy 수신 receipt
+~~~
 
-4. payment-gateway-service
-   공연 당일 무통장 입금 불가 검증
-   은행사 고유 번호와 랜덤 값으로 가상계좌번호 생성
-   입금 만료 시각 계산
-   DummyVirtualAccount.status = WAITING_DEPOSIT
-   발급 이력 저장
+새 결제의 은행·입금기한은 Ticksy에서 고정하고 모든 HTTP는 로컬 DB 트랜잭션 밖에서 실행한다. PG 결제 상태, 은행 상태, 요청 전달 완료, 최종 취소 결과는 구분한다. 입금과 취소가 경합하면 기존 RESERVATION_CANCELLED 정책과 최초 입금 사실을 보존한다. 실제 늦은 입금 반환은 수행하지 않는다.
 
-5. ticket-service
-   gateway 응답의 은행명, 계좌번호, 만료일을 Payment에 반영
-   Payment.status = WAITING_DEPOSIT
-   프론트에 계좌 정보 반환
-
-6. 프론트
-   예매 완료 화면에 입금 계좌, 금액, 만료 시각 표시
-   이 시점은 결제 완료가 아니라 입금 대기 상태
-
-7. 입금 발생 -> payment-gateway-service
-   무통장 입금 API 호출
-   계좌번호, 입금자명, 금액 검증
-   DummyVirtualAccount.status = DEPOSITED
-   입금 이력과 PENDING 입금 Outbox 저장 → 함께 커밋
-
-8. payment-gateway-service -> ticket-service
-   커밋 후 입금 Outbox로 입금 완료 내부 API 호출
-   실패·응답 유실·응답 불일치는 PENDING 유지, 일정 간격으로 동일 요청 재전달
-
-9. ticket-service
-   Payment.status = PAID
-   예약/티켓/좌석 상태 확정
-
-10. payment-gateway-service
-    완료 응답의 결제번호·결제수단·금액·은행·계좌·입금자·입금 시각 확인
-    입금 Outbox = DELIVERED로 커밋. 계좌 상태는 DEPOSITED 유지
-```
-
-Ticket은 같은 입금 완료 요청을 다시 받아도 이미 `PAID`·부분 환불·전액 환불인 결제의 최초 입금 정보를 확인해 기존 결과를 반환한다. 따라서 PG는 응답만 유실된 경우에도 동일한 요청으로 결과를 확인할 수 있다. 상세 커밋·재시도·배포 절차는 [가상계좌 입금 Outbox](virtual-account-deposit-outbox.md)를 따른다.
-
-### 관리자 입금 확인 및 재반영
-
-1. 관리자가 Ticket 관리자 화면에서 최신순 가상계좌 결제 목록을 확인한다. 결제번호 검색·Ticket 상태 필터·페이지 이동은 Ticket DB만 조회한다.
-2. 결제 행을 선택하면 상세 팝업에서 Ticket이 내부 서비스 토큰으로 PG 상태를 조회하고, Ticket 결제와 PG 입금 상태·금액·계좌·입금 시각을 함께 표시한다. PG가 `WAITING_DEPOSIT`이면 완료 처리를 허용하지 않는다.
-3. PG가 `DEPOSITED`이고 Ticket이 `WAITING_DEPOSIT`이면 관리자가 사유를 입력해 재반영할 수 있다.
-4. 재반영 요청은 PG 상태를 다시 조회하고 Ticket 결제를 잠근 뒤 금액·계좌·입금 기한·예약·티켓·좌석 상태를 검증한다. 기존 결제 완료 로직으로 `PAID`와 예약·티켓·좌석을 함께 확정한다.
-5. Ticket이 이미 `PAID`이거나 `EXPIRED`·`CANCELLED` 등 입금 대기가 아닌 상태면 재반영을 막는다. 만료·취소 건은 좌석이 풀렸을 수 있으므로 별도 조치가 필요하다.
-
-PG의 계좌 상태는 입금 사실을 나타낸다. 전달 여부는 입금 Outbox, 예매 완료 여부는 Ticket의 결제 상태로 확인한다. 이전 PG 연동 상태는 배포 SQL로 `DEPOSITED`로 변환한다.
-
-### 상태 흐름
-
-```text
-ticket Payment: READY -> WAITING_DEPOSIT -> PAID
-gateway virtual account: WAITING_DEPOSIT -> DEPOSITED
-gateway deposit outbox: PENDING -> DELIVERED
-```
-
-### 입금 만료 기준
-
-- 공연 당일에는 무통장 입금 결제를 사용할 수 없다.
-- 공연 전날이면 발급 당일 `23:59:59`까지 입금 가능하다.
-- 그 외에는 다음날 `23:59:59`까지 입금 가능하다.
+PG ID가 없는 기존 계좌의 동기 취소·관리자 입금 재반영은 유지한다. 신규 거래의 환불·만료 통보·관리자 수동 정산은 후속 전환 대상이며 기존 paymentNo 기반 환불·정산으로 우회하지 않는다. 신규 PG 만료와 Ticksy 좌석 정리 연결은 아직 완료되지 않았다.
 
 ## 구매 제한 카운트 기준
 

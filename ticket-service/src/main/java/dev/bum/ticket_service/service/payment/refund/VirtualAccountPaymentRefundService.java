@@ -83,6 +83,10 @@ public class VirtualAccountPaymentRefundService {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
         }
 
+        if (payment.getGatewayBankCompany() != null) {
+            throw new IllegalStateException("신규 PG 원거래 환불은 아직 지원하지 않습니다.");
+        }
+
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
             throw new IllegalArgumentException("무통장 결제가 아닙니다.");
         }

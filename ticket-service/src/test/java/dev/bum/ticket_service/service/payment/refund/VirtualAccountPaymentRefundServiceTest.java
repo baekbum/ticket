@@ -31,6 +31,18 @@ class VirtualAccountPaymentRefundServiceTest {
     private VirtualAccountPaymentRefundService virtualAccountPaymentRefundService;
 
     @Test
+    void linkedPaymentCannotUseLegacyRefundEvenWithAValidRefundAccount() {
+        Payment payment = virtualAccountPayment();
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundAll(payment, refundAccount(), 1L))
+                .hasMessageContaining("신규 PG 원거래 환불");
+        assertThatThrownBy(() -> virtualAccountPaymentRefundService.refundPartial(payment, 100, refundAccount(), 2L))
+                .hasMessageContaining("신규 PG 원거래 환불");
+        then(paymentGatewayVirtualAccountClient).shouldHaveNoInteractions();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+    }
+
+    @Test
     @DisplayName("무통장 전체 환불 요청 후 결제를 전체 환불 상태로 변경한다")
     void refund_all_virtual_account_payment() {
         Payment payment = virtualAccountPayment();

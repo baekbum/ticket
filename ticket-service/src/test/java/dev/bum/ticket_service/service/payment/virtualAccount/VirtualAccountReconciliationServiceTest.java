@@ -30,6 +30,22 @@ class VirtualAccountReconciliationServiceTest {
     @Mock private VirtualAccountReconciliationValidator validator;
 
     @Test
+    void linkedPaymentCannotReachLegacyGatewayInspectionOrManualCompletion() {
+        Payment payment = Payment.builder().paymentNo("PAY-NEW").method(PaymentMethod.BANK_TRANSFER)
+                .status(PaymentStatus.WAITING_DEPOSIT).amount(100).build();
+        payment.planGatewayAccount(dev.bum.common.service.ticket.payment.enums.BankCompany.KB,
+                LocalDateTime.now().plusDays(1));
+        given(payments.findByPaymentNo("PAY-NEW")).willReturn(java.util.Optional.of(payment));
+        VirtualAccountReconciliationService service = new VirtualAccountReconciliationService(payments, gateway, completion, validator);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.inspect("PAY-NEW"))
+                .hasMessageContaining("PG 입금 통보 재시도");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.complete("PAY-NEW", "admin", "reason"))
+                .hasMessageContaining("PG 입금 통보 재시도");
+        then(gateway).shouldHaveNoInteractions();
+        then(completion).shouldHaveNoInteractions();
+    }
+
+    @Test
     void list_uses_ticket_data_without_querying_gateway() {
         Payment payment = Payment.builder()
                 .paymentNo("PAY-NEW")

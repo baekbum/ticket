@@ -49,6 +49,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = VirtualAccountCancelOutboxIntegrationTest.PersistenceConfig.class)
 @Import({ReservationCancellationService.class, TicketPurchaseCountService.class, TicketRepositoryImpl.class,
         VirtualAccountCancelOutboxService.class, VirtualAccountCancelOutboxPublisher.class,
+        VirtualAccountCancelOutboxCommands.class,
         VirtualAccountCancelOutboxDispatcher.class, VirtualAccountPaymentLockService.class,
         VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class,
         VirtualAccountReconciliationCompletionService.class, VirtualAccountReconciliationValidator.class})
@@ -73,6 +74,9 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @Autowired VirtualAccountPaymentService deposits;
     @Autowired VirtualAccountReconciliationCompletionService reconciliation;
     @Autowired VirtualAccountCancelOutboxPublisher publisher;
+    @MockitoSpyBean VirtualAccountCancelOutboxCommands deliveryCommands;
+    @MockitoBean dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayTransactionClient transactionGateway;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService issuance;
     @Autowired VirtualAccountCancelOutboxDispatcher dispatcher;
     @Autowired VirtualAccountCancelOutboxService enqueue;
     @MockitoSpyBean VirtualAccountCancelOutboxJpaRepository outbox;
@@ -218,16 +222,18 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @Test void deliveryCommitFailureLeavesWorkForSafeRetry() {
         cancel();
         AtomicInteger attempts = new AtomicInteger();
+        doThrow(new IllegalStateException("완료 커밋 실패")).doCallRealMethod()
+                .when(deliveryCommands).delivered(anyLong(), anyLong(), isNull(), isNull());
         doAnswer(invocation -> {
-            if (attempts.incrementAndGet() == 1) TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void beforeCommit(boolean readOnly) { throw new IllegalStateException("완료 커밋 실패"); }
-            });
+            attempts.incrementAndGet();
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             var payload = record().toRequest();
             return new GatewayVirtualAccountCancelResponse(payload.paymentNo(), payload.bankName(), payload.accountNumber(),
                     payload.amount(), GatewayVirtualAccountStatus.CANCELLED);
         }).when(gateway).cancel(any());
         dispatcher.retryPendingEvents();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
+        makeReady();
         dispatcher.retryPendingEvents();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
         assertThat(attempts).hasValue(2);
@@ -299,11 +305,29 @@ class VirtualAccountCancelOutboxIntegrationTest {
                 var first = pool.submit(() -> publisher.deliver(id));
                 await(sending);
                 var second = pool.submit(() -> publisher.deliver(id));
-                assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                second.get(3, TimeUnit.SECONDS);
                 release.countDown(); first.get(10, TimeUnit.SECONDS); second.get(10, TimeUnit.SECONDS);
             } finally { release.countDown(); }
         }
         verify(gateway, times(1)).cancel(any());
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
+    }
+
+    @Test void expiredLeaseCanBeReclaimedAndAStaleWorkerCannotCompleteOrFailTheNewAttempt() {
+        cancel();
+        Long id = record().getOutboxId();
+        VirtualAccountCancelOutbox first = deliveryCommands.claimDelivery(id);
+        assertThat(deliveryCommands.claimDelivery(id)).isNull();
+        jdbc.update("update virtual_account_cancel_outbox set lease_until = ? where outbox_id = ?",
+                LocalDateTime.now().minusMinutes(1), id);
+        VirtualAccountCancelOutbox second = deliveryCommands.claimDelivery(id);
+        assertThat(second.getDeliveryAttempt()).isEqualTo(first.getDeliveryAttempt() + 1);
+        deliveryCommands.delivered(id, first.getDeliveryAttempt(), null, null);
+        deliveryCommands.failed(id, first.getDeliveryAttempt(), "LATE_FAILURE", LocalDateTime.now());
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
+        assertThat(record().getDeliveryAttempt()).isEqualTo(second.getDeliveryAttempt());
+        assertThat(record().getLastErrorType()).isNull();
+        deliveryCommands.delivered(id, second.getDeliveryAttempt(), null, null);
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
     }
 

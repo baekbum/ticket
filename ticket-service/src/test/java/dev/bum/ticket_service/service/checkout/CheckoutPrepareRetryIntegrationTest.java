@@ -78,12 +78,12 @@ import static org.mockito.Mockito.when;
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({CheckoutService.class, CheckoutIdempotencyKeyGenerator.class, EventBookingGuard.class})
+@Import({CheckoutTransactionService.class, CheckoutIdempotencyKeyGenerator.class, EventBookingGuard.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named = "CHECKOUT_TEST_POSTGRES_URL", matches = "jdbc:postgresql:.*")
 class CheckoutPrepareRetryIntegrationTest {
 
-    @Autowired CheckoutService checkout;
+    @Autowired CheckoutTransactionService checkout;
     @Autowired CheckoutAttemptJpaRepository attempts;
     @Autowired EventJpaRepository events;
     @Autowired SeatJpaRepository seats;

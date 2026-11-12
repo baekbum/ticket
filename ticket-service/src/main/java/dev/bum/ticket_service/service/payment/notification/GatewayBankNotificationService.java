@@ -4,6 +4,7 @@ import dev.bum.common.service.paymentgateway.notification.*;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.service.payment.payment.PaymentService;
+import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutCommands;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ public class GatewayBankNotificationService {
 
     // 기존 계좌/은행/금액 검증·입금 완료·취소 예매·중복 통보 처리를 재사용한다.
     private final PaymentService payments;
+    // 발급 응답보다 통보가 먼저 도착해도 저장한 PG 원거래로 계좌를 연결한다.
+    private final GatewayVirtualAccountCheckoutCommands accounts;
     // 이 수신 서버에 PG가 발급한 가맹점 코드.
     private final long merchantId;
 
@@ -25,6 +28,7 @@ public class GatewayBankNotificationService {
      */
     public GatewayBankNotificationService(
             PaymentService payments,
+            GatewayVirtualAccountCheckoutCommands accounts,
             @Value("${app.payment-gateway.merchant-id:1}") long merchantId
     ) {
 
@@ -33,6 +37,7 @@ public class GatewayBankNotificationService {
         }
 
         this.payments = payments;
+        this.accounts = accounts;
         this.merchantId = merchantId;
     }
 
@@ -48,13 +53,16 @@ public class GatewayBankNotificationService {
             throw new AccessDeniedException("이 가맹점에 대한 PG 통보가 아닙니다.");
         }
 
+        accounts.bindDeposit(event);
+
         VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
                 .paymentNo(event.merchantPaymentNo()).bankCompany(event.bankCompany())
                 .bankName(event.bankCompany().getBankName()).accountNumber(event.accountNumber())
                 .depositorName(event.depositorName()).amount(event.amount()).depositedAt(event.depositedAt()).build();
         PaymentResponse payment = payments.completeVirtualAccountDepositFromGateway(request, event.buyerReference());
 
-        if (payment == null || !event.merchantPaymentNo().equals(payment.getPaymentNo())
+        if (payment == null || !event.pgPaymentId().equals(payment.getPgPaymentId())
+                || !event.merchantPaymentNo().equals(payment.getPaymentNo())
                 || payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getAmount() == null
                 || event.amount().compareTo(BigDecimal.valueOf(payment.getAmount())) != 0
                 || !event.accountNumber().equals(payment.getAccountNumber())

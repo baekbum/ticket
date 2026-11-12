@@ -80,6 +80,8 @@ import static org.mockito.Mockito.times;
 @DataJpaTest
 @ActiveProfiles("test")
 @Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
+        dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutCommands.class,
+        dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService.class,
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
         PaymentCompletionService.class, PaymentExpirationService.class,
@@ -130,7 +132,9 @@ class PaymentModelIntegrationTest {
     void standardBankNotificationUpdatesTheRealPaymentAndReplaysWithoutNewHistory() {
         Payment payment = payment("standard-bank-notification");
         payment.switchToBankTransfer();
-        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
         payments.saveAndFlush(payment);
         given(ticketRepository.selectByReservation(payment.getReservation()))
                 .willReturn(tickets.findByReservation(payment.getReservation()));
@@ -153,7 +157,9 @@ class PaymentModelIntegrationTest {
     void standardBankNotificationCannotReviveCancelledReservationOrReclaimAvailableSeats() {
         Payment payment = payment("cancelled-bank-notification");
         payment.switchToBankTransfer();
-        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
         payment.cancel();
         payment.getReservation().cancel();
         tickets.findByReservation(payment.getReservation()).forEach(ticket -> ticket.getSeat().available());
@@ -173,7 +179,9 @@ class PaymentModelIntegrationTest {
     void standardBankNotificationRejectsAnotherBuyerBeforeCompletingThePayment() {
         Payment payment = payment("bank-wrong-owner");
         payment.switchToBankTransfer();
-        payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().plusDays(1));
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
         payments.saveAndFlush(payment);
         assertThatThrownBy(() -> bankNotifications.receive(bankEvent(payment, "another-user")))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
