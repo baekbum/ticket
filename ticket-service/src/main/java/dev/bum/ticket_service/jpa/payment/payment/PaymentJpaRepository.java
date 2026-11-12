@@ -43,6 +43,23 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByPaymentNo(String paymentNo);
 
+    // 기한은 조회 후보 선정에만 사용한다. 실제 만료는 PG의 확정 상태를 확인한 후 처리한다.
+    @Query("""
+            select p.paymentId from Payment p
+            where p.paymentId > :afterId and p.gatewayBankCompany is not null
+              and p.method = :method
+              and p.status in :statuses
+              and p.gatewayExpiresAt <= :now
+            order by p.paymentId
+            """)
+    List<Long> findGatewayExpirationCandidateIds(
+            @Param("now") LocalDateTime now,
+            @Param("afterId") Long afterId,
+            @Param("method") PaymentMethod method,
+            @Param("statuses") Collection<PaymentStatus> statuses,
+            Pageable page
+    );
+
     @Query("select p.reservation.reservationId from Payment p where p.paymentNo = :paymentNo")
     Optional<Long> findReservationIdByPaymentNo(@Param("paymentNo") String paymentNo);
 
@@ -70,8 +87,9 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
             select p.paymentId
             from Payment p
             where p.status in :statuses
-              and not (p.method = dev.bum.common.service.ticket.payment.enums.PaymentMethod.BANK_TRANSFER
-                       and p.status = dev.bum.common.service.ticket.payment.enums.PaymentStatus.WAITING_DEPOSIT)
+              and not (p.method = :bankTransferMethod
+                       and (p.status = :waitingDepositStatus
+                            or p.gatewayBankCompany is not null))
               and p.expiresAt is not null
               and p.expiresAt <= :now
             order by p.expiresAt asc, p.paymentId asc
@@ -79,6 +97,8 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     @Observed(name = "ticket.repository.payment.find-expired-payment-ids", contextualName = "ticket repository payment find expired payment ids")
     List<Long> findExpiredPaymentIds(
             @Param("statuses") Collection<PaymentStatus> statuses,
+            @Param("bankTransferMethod") PaymentMethod bankTransferMethod,
+            @Param("waitingDepositStatus") PaymentStatus waitingDepositStatus,
             @Param("now") LocalDateTime now,
             Pageable pageable
     );

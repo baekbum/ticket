@@ -22,6 +22,7 @@ import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
@@ -204,7 +205,7 @@ class ReservationManagementServiceTest {
         given(reservationDiscountJpaRepository.findByReservation(reservation)).willReturn(List.of());
         given(reservationDeliveryJpaRepository.findByReservation(reservation)).willReturn(Optional.empty());
         given(paymentJpaRepository.findByReservation(reservation)).willReturn(Optional.of(payment));
-        given(paymentRefundHistoryJpaRepository.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation))
+        given(paymentRefundHistoryJpaRepository.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation, PaymentRefundHistoryType.LOCAL_APPLIED))
                 .willReturn(List.of(refundHistory));
 
         var response = reservationManagementService.selectDetailById(1L);

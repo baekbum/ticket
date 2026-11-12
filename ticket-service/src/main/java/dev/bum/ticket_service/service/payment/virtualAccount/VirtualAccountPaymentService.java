@@ -70,6 +70,10 @@ public class VirtualAccountPaymentService {
 
         Payment payment = paymentLocks.lock(event.getPaymentNo());
 
+        if (payment.getGatewayBankCompany() != null) {
+            throw new IllegalArgumentException("PG 연결 계좌 만료는 PG의 확정 상태 조회로만 반영합니다.");
+        }
+
         validateGatewayVirtualAccountExpiration(payment, event);
         if (payment.getStatus() == PaymentStatus.EXPIRED || isDepositApplied(payment) || isCancelledReservation(payment)) {
             return payment.toResponse();
@@ -122,7 +126,10 @@ public class VirtualAccountPaymentService {
         }
 
         if (payment.getExpiresAt() != null && request.getDepositedAt() != null && request.getDepositedAt().isAfter(payment.getExpiresAt())) {
-            paymentExpirationService.expire(payment);
+            if (payment.getGatewayBankCompany() == null) {
+                paymentExpirationService.expire(payment);
+            }
+
             throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
     }

@@ -231,6 +231,7 @@ CREATE TABLE dummy_virtual_accounts (
 CREATE INDEX idx_dummy_virtual_accounts_payment_no ON dummy_virtual_accounts(payment_no);
 CREATE INDEX idx_dummy_virtual_accounts_account_number ON dummy_virtual_accounts(account_number);
 CREATE INDEX idx_dummy_virtual_accounts_status ON dummy_virtual_accounts(status);
+CREATE INDEX idx_dummy_virtual_accounts_expiration ON dummy_virtual_accounts(status, expires_at, pg_payment_id);
 
 -- ==========================================
 -- Dummy virtual account payment histories 테이블
@@ -430,7 +431,7 @@ CREATE TABLE bank_transfer_outbox (
     CONSTRAINT uk_bank_transfer_event UNIQUE (flow, event_id),
     CONSTRAINT uk_bank_transfer_operation UNIQUE (flow, pg_payment_id),
     CONSTRAINT fk_bank_transfer_payment FOREIGN KEY (pg_payment_id) REFERENCES gateway_payments(pg_payment_id),
-    CONSTRAINT chk_bank_transfer_flow CHECK (flow IN ('BANK_DEPOSIT', 'BANK_CANCEL_REQUEST', 'MERCHANT_CANCEL_RESULT')),
+    CONSTRAINT chk_bank_transfer_flow CHECK (flow IN ('BANK_DEPOSIT', 'BANK_EXPIRATION', 'BANK_CANCEL_REQUEST', 'MERCHANT_CANCEL_RESULT')),
     CONSTRAINT chk_bank_transfer_status CHECK (status IN ('PENDING', 'SENDING', 'DELIVERED')),
     CONSTRAINT chk_bank_transfer_attempt CHECK (attempt >= 0),
     CONSTRAINT chk_bank_transfer_lease CHECK ((status = 'SENDING') = (lease_until IS NOT NULL)),

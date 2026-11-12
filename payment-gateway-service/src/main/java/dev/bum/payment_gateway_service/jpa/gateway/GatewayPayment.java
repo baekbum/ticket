@@ -230,6 +230,20 @@ public class GatewayPayment {
         }
     }
 
+    // 은행이 미입금을 확인한 만료만 반영한다. 실제 입금과 확정 취소는 만료로 덮어쓰지 않는다.
+    public void expireVirtualAccount() {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || paidAt != null
+                || (status != GatewayPaymentStatus.READY && status != GatewayPaymentStatus.WAITING_DEPOSIT
+                    && status != GatewayPaymentStatus.EXPIRED && status != GatewayPaymentStatus.CANCELLED)) {
+            throw new IllegalStateException("은행 만료를 반영할 수 없는 PG 거래 상태입니다.");
+        }
+
+        if (status != GatewayPaymentStatus.CANCELLED) {
+            status = GatewayPaymentStatus.EXPIRED;
+        }
+    }
+
     // 같은 키의 다른 요청을 기존 거래 성공으로 잘못 재응답하지 않는다.
     public boolean matches(GatewayPaymentTerms terms) {
 

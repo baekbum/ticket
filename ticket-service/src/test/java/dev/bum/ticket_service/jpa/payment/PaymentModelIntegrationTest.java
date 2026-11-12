@@ -260,7 +260,7 @@ class PaymentModelIntegrationTest {
         payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().minusDays(1));
         payments.saveAndFlush(payment);
         assertThat(payments.findExpiredPaymentIds(List.of(PaymentStatus.READY, PaymentStatus.WAITING_DEPOSIT),
-                LocalDateTime.now(), PageRequest.of(0, 100)
+                PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.now(), PageRequest.of(0, 100)
         )).doesNotContain(payment.getPaymentId());
     }
 
@@ -358,7 +358,7 @@ class PaymentModelIntegrationTest {
                                         List.of(PaymentRefundProcessStatus.GATEWAY_SUCCEEDED)))
                 .map(PaymentRefundProcess::getPaymentRefundProcessId)
                 .contains(id);
-        assertThat(refundHistories.existsByPaymentRefundProcess(loaded)).isFalse();
+        assertThat(refundHistories.existsByPaymentRefundProcess(loaded, PaymentRefundHistoryType.LOCAL_APPLIED)).isFalse();
     }
 
     @Test
@@ -387,7 +387,7 @@ class PaymentModelIntegrationTest {
         Reservation reservation = process.getReservation();
         entityManager.clear();
 
-        List<PaymentRefundHistory> successful = refundHistories.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation);
+        List<PaymentRefundHistory> successful = refundHistories.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation, PaymentRefundHistoryType.LOCAL_APPLIED);
         assertThat(successful).hasSize(1);
         assertThat(successful.getFirst().toResponse().getRefundAmount()).isEqualTo(5000);
         assertThat(successful.getFirst().toResponse().getTickets().getFirst().getTicketPrice())
@@ -398,7 +398,7 @@ class PaymentModelIntegrationTest {
         PaymentRefundProcess loaded = processes.findById(id).orElseThrow();
         assertThat(loaded.getRefund().getStatus()).isEqualTo(PaymentRefundStatus.COMPLETED);
         assertThat(loaded.getHistories()).hasSize(6);
-        assertThat(refundHistories.existsByPaymentRefundProcess(loaded)).isTrue();
+        assertThat(refundHistories.existsByPaymentRefundProcess(loaded, PaymentRefundHistoryType.LOCAL_APPLIED)).isTrue();
     }
 
     @Test

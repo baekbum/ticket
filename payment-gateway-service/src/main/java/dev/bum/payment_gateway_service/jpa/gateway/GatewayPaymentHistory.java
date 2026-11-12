@@ -15,6 +15,7 @@ import dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse;
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountCancelResponse;
 import java.util.LinkedHashMap;
+import dev.bum.payment_gateway_service.dto.bank.BankExpirationEvent;
 
 @Entity
 @Table(name = "gateway_payment_histories", uniqueConstraints = @UniqueConstraint(
@@ -219,6 +220,29 @@ public class GatewayPaymentHistory {
         history.requestHash = payment.getCreationRequestHash();
         history.details = Map.of("reason", reason, "fundsReturned", false);
         history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
+    // 최초 은행 만료 사실과 PG 상태를 같은 트랜잭션에 기록한다. 가맹점 만료 통보는 만들지 않는다.
+    public static GatewayPaymentHistory virtualAccountExpired(
+            GatewayPayment payment,
+            BankExpirationEvent event,
+            GatewayPaymentStatus beforeStatus
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.EXPIRE;
+        history.operationKey = "INITIAL";
+        history.beforeStatus = beforeStatus;
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = payment.getCreationRequestHash();
+        history.details = Map.of("eventId", event.eventId(), "accountNumber", event.accountNumber(),
+                "bankCompany", event.bankCompany().name(), "expiresAt", event.expiresAt().toString(),
+                "expiredAt", event.expiredAt().toString());
+        history.occurredAt = event.expiredAt();
 
         return history;
     }

@@ -49,7 +49,8 @@ import java.util.Objects;
         indexes = {
             @Index(
                     name = "idx_payments_idempotency_key_status",
-                    columnList = "idempotency_key,status")
+                    columnList = "idempotency_key,status"),
+            @Index(name = "idx_payments_gateway_expiration", columnList = "method,status,gateway_expires_at,payment_id")
         },
         uniqueConstraints = {
             @UniqueConstraint(name = "uk_payments_reservation_id", columnNames = "reservation_id"),
@@ -467,6 +468,7 @@ public class Payment {
         if (status == PaymentStatus.EXPIRED) return;
         PaymentStatus before = status;
         this.status = PaymentStatus.EXPIRED;
+        this.gatewayIssuePending = false;
         process.move(PaymentProcessStage.EXPIRED, null);
         record(PaymentHistoryType.EXPIRED, before, null);
     }

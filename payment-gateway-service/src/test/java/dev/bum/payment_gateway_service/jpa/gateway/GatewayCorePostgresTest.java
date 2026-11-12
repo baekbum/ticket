@@ -68,6 +68,26 @@ class GatewayCorePostgresTest {
     @Autowired MerchantNotificationEndpointJpaRepository endpoints;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
     @Test
+    void bankExpirationFlowAndPgHistoryAreAcceptedByTheActualPostgresSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-BANK-EXPIRATION", PaymentMethod.BANK_TRANSFER);
+        var event = new dev.bum.payment_gateway_service.dto.bank.BankExpirationEvent(
+                payment.getPgPaymentId() + ":EXPIRE:INITIAL", payment.getPgPaymentId(), "1111-123456",
+                payment.getBankCompany(), payment.getAmount(), payment.getExpiresAt(), payment.getExpiresAt().plusSeconds(1));
+        var outbox = transferEvents.saveAndFlush(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.pending(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_EXPIRATION,
+                event.eventId(), event.pgPaymentId(), java.util.Map.of("eventId", event.eventId(), "expiredAt", event.expiredAt().toString())));
+        GatewayPaymentStatus before = payment.getStatus();
+        payment.expireVirtualAccount();
+        histories.saveAndFlush(GatewayPaymentHistory.virtualAccountExpired(payment, event, before));
+        entityManager.clear();
+        assertThat(transferEvents.findById(outbox.getOutboxId()).orElseThrow().getFlow())
+                .isEqualTo(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_EXPIRATION);
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(payment.getPgPaymentId(),
+                GatewayPaymentOperation.EXPIRE, "INITIAL")).isPresent();
+    }
+
+    @Test
     void cancellationOutboxStepsHaveIndependentKeysLeasesAndResultsOnPostgres() {
         GatewayPayment payment = payment(merchant(), "VERIFY-OUTBOX-STEPS", PaymentMethod.BANK_TRANSFER);
         var request = transferEvents.saveAndFlush(dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.pending(

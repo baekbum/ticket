@@ -73,6 +73,9 @@ class GatewayVirtualAccountDepositIntegrationTest {
     @Import({
             dev.bum.payment_gateway_service.service.outbox.BankTransferOutboxCommands.class,
             BankDepositNotificationClient.class, BankDepositOutboxDispatcher.class, GatewayBankEventController.class,
+            BankVirtualAccountExpirationService.class, BankVirtualAccountExpirationScheduler.class,
+            BankExpirationNotificationClient.class, BankExpirationOutboxDispatcher.class,
+            GatewayVirtualAccountExpirationCommands.class, GatewayBankExpirationEventController.class,
             GatewayBankCancellationDispatcher.class,dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
@@ -101,6 +104,13 @@ class GatewayVirtualAccountDepositIntegrationTest {
     @Autowired BankVirtualAccountDepositService bank;
     @Autowired GatewayVirtualAccountDepositCommands depositCommands;
     @Autowired BankDepositOutboxDispatcher bankDispatcher;
+    @Autowired BankVirtualAccountExpirationService expirations;
+    @Autowired BankVirtualAccountExpirationScheduler expirationScheduler;
+    @Autowired BankExpirationOutboxDispatcher expirationDispatcher;
+    @Autowired GatewayVirtualAccountExpirationCommands expirationCommands;
+    @Autowired FinancialSimulationToken financialToken;
+    @Autowired jakarta.persistence.EntityManager entityManager;
+    @MockitoSpyBean BankExpirationNotificationClient expirationClient;
     @MockitoSpyBean dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository bankOutboxes;
     @MockitoSpyBean BankDepositNotificationClient bankClient;
     @Autowired BankVirtualAccountCancellationJpaRepository bankCancellations;
@@ -608,6 +618,176 @@ class GatewayVirtualAccountDepositIntegrationTest {
         Merchant merchant = Merchant.register("같은 표시 이름", key, GatewayPaymentNotification.CONTRACT, "default");
         merchant.activate();
         return merchants.saveAndFlush(merchant);
+    }
+
+
+    @Test void bankExpirationAndPgCommitAreIndependentAndDoNotNotifyTheMerchant() throws Exception {
+        String id = issue("merchant-a", "EXPIRATION");
+        assertThat(expirations.expire(id, deadline.plusSeconds(1))).isTrue();
+        assertThat(expirations.expire(id, deadline.plusSeconds(2))).isFalse();
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        assertThat(expirationRow(id).getStatus()).isEqualTo("PENDING");
+        expirationDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(expirationRow(id).getStatus()).isEqualTo("DELIVERED");
+        assertThat(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(id,
+                GatewayPaymentOperation.EXPIRE, "INITIAL")).isPresent();
+        assertThat(notifications.count()).isZero(); assertThat(received).isEmpty();
+        mvc.perform(get("/api/v1/payments/gateway/" + id).header("X-Service-Token", "merchant-a"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("EXPIRED"));
+    }
+
+    @Test void aBankDepositBeforeDeadlineCannotExpireEvenWhilePgAndMerchantNotificationsAreDelayed() throws Exception {
+        String id = issue("merchant-a", "DEPOSIT-BEFORE-EXPIRY");
+        bank.deposit(request(id));
+        assertThat(expirations.expire(id, deadline.plusDays(1))).isFalse();
+        assertThat(bankOutboxes.findByFlowAndPgPaymentId(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_EXPIRATION, id)).isEmpty();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        bankDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+        assertThat(payments.findById(id).orElseThrow().getPaidAt()).isEqualTo(depositedAt);
+        assertThat(expirations.expire(id, deadline.plusDays(2))).isFalse();
+        assertThat(received).isEmpty();
+        dispatcher.retryPending(); assertThat(received).hasSize(1);
+        assertThat(received.peek().depositedAt()).isEqualTo(depositedAt);
+    }
+
+    @Test void exactDeadlineIsStillAvailableAndOnlyStrictlyLaterBankTimeCanExpireIt() throws Exception {
+        String id = issue("merchant-a", "EXACT-DEADLINE");
+        assertThat(expirations.expire(id, deadline)).isFalse();
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
+        assertThat(expirations.expire(id, deadline.plusSeconds(1))).isTrue();
+    }
+
+    @Test void bankExpirationOutboxFailureRollsBackTheAccountAndBankHistory() throws Exception {
+        String id = issue("merchant-a", "BANK-EXPIRE-ROLLBACK");
+        long before = bankHistories.count();
+        doThrow(new DataIntegrityViolationException("expiration outbox failure")).when(bankOutboxes).saveAndFlush(any());
+        assertThatThrownBy(() -> expirations.expire(id, deadline.plusSeconds(1))).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
+        assertThat(bankHistories.count()).isEqualTo(before);
+        assertThat(bankOutboxes.count()).isZero();
+    }
+
+    @Test void pgExpirationHistoryFailureRollsBackPgAndBankDeliveryRetriesTheSameEvent() throws Exception {
+        String id = issue("merchant-a", "PG-EXPIRE-ROLLBACK");
+        expirations.expire(id, deadline.plusSeconds(1));
+        doThrow(new DataIntegrityViolationException("PG expiration history failure")).when(histories)
+                .saveAndFlush(argThat(history -> history.getOperationType() == GatewayPaymentOperation.EXPIRE));
+        expirationDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        assertThat(expirationRow(id).getStatus()).isEqualTo("PENDING");
+        reset(histories);
+        retryExpirationNow(id); expirationDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(expirationRow(id).getStatus()).isEqualTo("DELIVERED");
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+    }
+
+    @Test void aLostPgAcknowledgementReplaysTheFirstExpirationWithoutAnotherHistory() throws Exception {
+        String id = issue("merchant-a", "EXPIRE-LOST-ACK");
+        expirations.expire(id, deadline.plusSeconds(1));
+        java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        doAnswer(invocation -> {
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            Object response = invocation.callRealMethod();
+            if (attempts.incrementAndGet() == 1) throw new ResourceAccessException("PG committed; response lost");
+            return response;
+        }).when(expirationClient).send(any());
+        expirationDispatcher.retryPending();
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(expirationRow(id).getStatus()).isEqualTo("PENDING");
+        retryExpirationNow(id); expirationDispatcher.retryPending();
+        assertThat(expirationRow(id).getStatus()).isEqualTo("DELIVERED");
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+        BankExpirationEvent original = json.convertValue(expirationRow(id).getPayload(), BankExpirationEvent.class);
+        BankExpirationEvent changed = new BankExpirationEvent(original.eventId(), id, original.accountNumber(),
+                original.bankCompany(), original.amount(), original.expiresAt(), original.expiredAt().plusSeconds(1));
+        assertThatThrownBy(() -> expirationCommands.confirm(changed)).isInstanceOf(
+                dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException.class);
+        assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(3);
+    }
+
+    @Test void differentMerchantsWithTheSameNumberCannotReadOrExpireEachOthersPgTransactions() throws Exception {
+        String a = issue("merchant-a", "SAME-EXPIRE-NO");
+        String b = issue("merchant-b", "SAME-EXPIRE-NO");
+        expirations.expire(a, deadline.plusSeconds(1)); expirationDispatcher.retryPending();
+        assertThat(payments.findById(a).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(payments.findById(b).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        mvc.perform(get("/api/v1/payments/gateway/" + a).header("X-Service-Token", "merchant-b"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test void unsignedOrWrongOriginalExpirationCannotChangeAPgPayment() throws Exception {
+        String id = issue("merchant-a", "EXPIRE-VALIDATION");
+        BankExpirationEvent wrong = new BankExpirationEvent(id + ":EXPIRE:INITIAL", id, request(id).getAccountNumber(),
+                BankCompany.KB, new BigDecimal("101"), deadline, deadline.plusSeconds(1));
+        mvc.perform(post("/internal/financial-simulations/gateway/bank-expirations")
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(wrong)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/financial-simulations/gateway/bank-expirations")
+                .header(FinancialSimulationAuthenticationFilter.TOKEN_HEADER, financialToken.value())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(wrong)))
+                .andExpect(status().isConflict());
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
+        bank.deposit(request(id)); bankDispatcher.retryPending();
+        BankExpirationEvent impossible = new BankExpirationEvent(id + ":EXPIRE:INITIAL", id, request(id).getAccountNumber(),
+                BankCompany.KB, new BigDecimal("100"), deadline, deadline.plusSeconds(1));
+        assertThatThrownBy(() -> expirationCommands.confirm(impossible))
+                .isInstanceOf(dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException.class);
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.PAID);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void bankExpirationWaitsForAnEarlierDepositCommitOrRollback(boolean rollback) throws Exception {
+        String id = issue("merchant-a", "EXPIRY-RACE");
+        java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        try (java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            try {
+                java.util.concurrent.Future<?> deposit = workers.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+                    accounts.findLinkedByPgPaymentIdForUpdate(id).orElseThrow();
+                    bank.deposit(request(id)); held.countDown();
+                    try { assertThat(release.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+                    if (rollback) tx.setRollbackOnly();
+                }));
+                assertThat(held.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                java.util.concurrent.Future<Boolean> expired = workers.submit(() -> expirations.expire(id, deadline.plusSeconds(1)));
+                assertThatThrownBy(() -> expired.get(200, java.util.concurrent.TimeUnit.MILLISECONDS))
+                        .isInstanceOf(java.util.concurrent.TimeoutException.class);
+                release.countDown(); deposit.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                assertThat(expired.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(rollback);
+            } finally { release.countDown(); }
+        }
+        assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
+                .isEqualTo(rollback ? VirtualAccountPaymentStatus.EXPIRED : VirtualAccountPaymentStatus.DEPOSITED);
+    }
+
+    @Test void theBankSchedulerAlsoSelectsLinkedAccountsButNeverPaidAccounts() throws Exception {
+        String expired = issue("merchant-a", "SCHEDULER-EXPIRE");
+        String paid = issue("merchant-a", "SCHEDULER-PAID");
+        bank.deposit(request(paid));
+        LocalDateTime past = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")).minusMinutes(1).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        jdbc.update("update dummy_virtual_accounts set expires_at = ?", past);
+        jdbc.update("update gateway_payments set expires_at = ?", past);
+        expirationScheduler.expireWaitingAccounts(); expirationDispatcher.retryPending();
+        assertThat(accounts.findByPgPaymentId(expired).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.EXPIRED);
+        assertThat(payments.findById(expired).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
+        assertThat(accounts.findByPgPaymentId(paid).orElseThrow().getStatus()).isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
+    }
+
+    dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox expirationRow(String id) {
+        return bankOutboxes.findByFlowAndPgPaymentId(
+                dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutbox.Flow.BANK_EXPIRATION, id).orElseThrow();
+    }
+
+    void retryExpirationNow(String id) {
+        jdbc.update("update bank_transfer_outbox set next_attempt_at = ? where flow = 'BANK_EXPIRATION' and pg_payment_id = ?",
+                LocalDateTime.now().minusMinutes(1), id);
     }
 
     String issue(String token, String number) throws Exception {

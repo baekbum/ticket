@@ -66,6 +66,7 @@ import static org.mockito.Mockito.*;
 @DataJpaTest(showSql = false)
 @ContextConfiguration(classes = GatewayVirtualAccountCheckoutIntegrationTest.PersistenceConfig.class)
 @Import({GatewayVirtualAccountCheckoutService.class, GatewayVirtualAccountCheckoutCommands.class,
+        GatewayVirtualAccountExpirationScheduler.class, GatewayVirtualAccountExpirationCommands.class,
         GatewayBankNotificationService.class,
         GatewayBankCancellationNotificationService.class, PaymentService.class,
         org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class,
@@ -181,6 +182,9 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
 
 
     @Autowired GatewayVirtualAccountCheckoutService issuance;
+    @Autowired GatewayVirtualAccountExpirationScheduler expirationScheduler;
+    @Autowired GatewayVirtualAccountExpirationCommands expirationCommands;
+    @Autowired PaymentExpirationService localExpiration;
     @Autowired GatewayBankNotificationService notifications;
     @Autowired GatewayBankCancellationNotificationService results;
     @MockitoSpyBean GatewayBankCancellationReceiptJpaRepository receipts;
@@ -201,6 +205,11 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
     CountDownLatch issued, releaseIssue;
     Runnable beforeCancelResponse;
     String immediateCancellationOutcome;
+    String queryStatus = "WAITING_DEPOSIT";
+    int queryStatusCode = 200;
+    boolean wrongQueryMerchant;
+    final AtomicInteger queryCount = new AtomicInteger();
+    Runnable beforeStatusResponse;
 
     @BeforeEach void startHttp() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -225,6 +234,8 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
         lenient().when(transactionGateway.prepare(any())).thenAnswer(call -> client.prepare(call.getArgument(0)));
         lenient().when(transactionGateway.issue(anyString(), any())).thenAnswer(call -> client.issue(call.getArgument(0), call.getArgument(1)));
         lenient().when(transactionGateway.cancel(anyString(), any())).thenAnswer(call -> client.cancel(call.getArgument(0), call.getArgument(1)));
+        lenient().when(transactionGateway.findByPgPaymentId(anyString())).thenAnswer(call -> client.findByPgPaymentId(call.getArgument(0)));
+        lenient().when(transactionGateway.findByPaymentNo(anyString())).thenAnswer(call -> client.findByPaymentNo(call.getArgument(0)));
     }
 
     @AfterEach void stop() {
@@ -433,12 +444,127 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
         assertThat(receipts.count()).isEqualTo(1); assertCancelled();
     }
 
+
+    @Test void aPastLocalDeadlineDoesNotExpireWhilePgIsWaitingOrAlreadyPaidAndDelayedDepositStillCompletes() {
+        plan(); issuance.issue("PAY-1"); movePastDeadline();
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        queryStatus = "PAID";
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        assertThat(notifications.receive(depositEvent()).outcome()).isEqualTo(BankDepositNotificationResponse.Outcome.APPLIED);
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.RESERVED);
+        expirationScheduler.expirePayments();
+        assertThat(queryCount).hasValue(2);
+    }
+
+    @Test void onlyPgExpiredRunsTheExistingAtomicReservationTicketPaymentAndSeatCleanupOnce() {
+        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+        assertThat(reservations.findById(fixture.reservationId()).orElseThrow().getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.EXPIRED);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+        assertThat(counts.findAll().getFirst().getTicketCount()).isZero();
+        assertThat(outbox.count()).isZero();
+        long history = jdbc.queryForObject("select count(*) from payment_histories", Long.class);
+        expirationScheduler.expirePayments();
+        assertThat(queryCount).hasValue(1);
+        assertThat(jdbc.queryForObject("select count(*) from payment_histories", Long.class)).isEqualTo(history);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {404, 503})
+    void pgLookupFailureCannotReleaseTheReservationOrSeats(int status) {
+        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatusCode = status;
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        queryStatusCode = 200; queryStatus = "EXPIRED";
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+    }
+
+    @Test void readyLinkedPaymentsCannotBeExpiredByTheLegacyLocalClockAndMissingPgIdUsesScopedLookup() {
+        plan(); movePastDeadline();
+        localExpiration.expireIfExpired(fixture.paymentId());
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payments.findExpiredPaymentIds(List.of(PaymentStatus.READY, PaymentStatus.WAITING_DEPOSIT),
+                PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_DEPOSIT, deadline.plusDays(1), org.springframework.data.domain.PageRequest.of(0, 100))).doesNotContain(fixture.paymentId());
+        expirationScheduler.expirePayments();
+        verify(transactionGateway).findByPaymentNo("PAY-1");
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.READY);
+        queryStatus = "EXPIRED";
+        expirationScheduler.expirePayments();
+        assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+        assertThat(payment().isGatewayIssuePending()).isFalse();
+        assertThat(prepareBodies).isEmpty(); assertThat(issueBodies).isEmpty();
+    }
+
+    @Test void anotherMerchantsExpiredResultCannotExpireTheLocalTransaction() {
+        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED"; wrongQueryMerchant = true;
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void aLateExpiredLookupCannotOverrideADepositOrCancellationThatCommittedDuringHttp(boolean paid) {
+        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        beforeStatusResponse = paid ? () -> notifications.receive(depositEvent()) : this::cancel;
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(paid ? PaymentStatus.PAID : PaymentStatus.CANCELLED);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus())
+                .isEqualTo(paid ? SeatStatus.RESERVED : SeatStatus.AVAILABLE);
+    }
+
+    @Test void aLocalCleanupFailureRollsBackEverythingAndTheNextPgQueryCanRetryIt() {
+        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        doThrow(new IllegalStateException("cache sync registration failed")).when(cache)
+                .syncAvailableSeatsAfterCommit(anyList(), anyString(), anyString());
+        expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(reservations.findById(fixture.reservationId()).orElseThrow().getStatus()).isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        assertThat(counts.findAll().getFirst().getTicketCount()).isEqualTo(1);
+        reset(cache); expirationScheduler.expirePayments();
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+    }
+
+    @Test void anOldKafkaExpirationCannotBypassPgConfirmationForLinkedPayments() {
+        plan(); issuance.issue("PAY-1"); movePastDeadline();
+        assertThatThrownBy(() -> deposits.expireFromGateway(VirtualAccountExpiredEvent.builder().paymentNo("PAY-1")
+                .amount(BigDecimal.valueOf(10000)).bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
+                .accountNumber("1111-123456").expiredAt(deadline.plusSeconds(1)).build()))
+                .hasMessageContaining("PG의 확정 상태 조회");
+        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+    }
+
+    private void movePastDeadline() {
+        when(clock.instant()).thenReturn(deadline.plusMinutes(2).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+    }
+
     private void receive(HttpExchange exchange) throws IOException {
         try {
             assertThat(exchange.getRequestHeaders().getFirst("X-Service-Token")).isEqualTo("test-merchant-token");
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String path = exchange.getRequestURI().getPath();
-            if (path.equals("/api/v1/payments/gateway/prepare")) {
+            if (path.equals("/api/v1/payments/gateway/" + pgId)
+                    || path.equals("/api/v1/payments/gateway/by-payment-no/PAY-1")) {
+                queryCount.incrementAndGet();
+                if (queryStatusCode != 200) { send(exchange, queryStatusCode, Map.of()); return; }
+                GatewayPaymentPrepareResponse snapshot = new GatewayPaymentPrepareResponse(pgId,
+                        wrongQueryMerchant ? 2L : 1L, "PAY-1", "owner", PaymentMethod.BANK_TRANSFER,
+                        BankCompany.KB, BigDecimal.valueOf(10000), deadline, queryStatus);
+                if (beforeStatusResponse != null) beforeStatusResponse.run();
+                send(exchange, 200, snapshot);
+            } else if (path.equals("/api/v1/payments/gateway/prepare")) {
                 prepareBodies.add(body); first = json.readValue(body, GatewayPaymentPrepareRequest.class);
                 if (alwaysFailPrepare || (losePrepare && prepareBodies.size() == 1)) {
                     send(exchange, prepareFailureStatus, Map.of()); return;

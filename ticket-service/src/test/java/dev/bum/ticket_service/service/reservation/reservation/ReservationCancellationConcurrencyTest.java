@@ -27,6 +27,7 @@ import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepositoryImpl;
@@ -519,7 +520,7 @@ class ReservationCancellationConcurrencyTest {
             assertResult(fixture, 30000, 3);
             PaymentRefundProcess process = processes.findById(response.paymentRefundProcessId()).orElseThrow();
             assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
-            assertThat(refundHistories.existsByPaymentRefundProcess(process)).isTrue();
+            assertThat(refundHistories.existsByPaymentRefundProcess(process, PaymentRefundHistoryType.LOCAL_APPLIED)).isTrue();
             assertThat(response.cancelledTicketIds()).containsExactlyElementsOf(request.getSelectedTicketIdList());
 
             // 완료 상태를 명시적으로 저장했어도 A의 커밋이 실패하면 로컬 변경은 함께 롤백된다.
@@ -535,7 +536,7 @@ class ReservationCancellationConcurrencyTest {
         PaymentRefundProcess pending = processes.findAll().getFirst();
         Long processId = pending.getPaymentRefundProcessId();
         assertThat(pending.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
-        assertThat(refundHistories.existsByPaymentRefundProcess(pending)).isFalse();
+        assertThat(refundHistories.existsByPaymentRefundProcess(pending, PaymentRefundHistoryType.LOCAL_APPLIED)).isFalse();
 
         CancelReservationResponse retried = admin
                 ? adminCancellation.cancel(fixture.reservationId(), request)

@@ -23,7 +23,7 @@ import java.util.Map;
 public class BankTransferOutbox {
 
     // 서로 다른 전달 단계는 같은 이벤트 ID여도 별도 Outbox 행으로 관리한다.
-    public enum Flow { BANK_DEPOSIT, BANK_CANCEL_REQUEST, MERCHANT_CANCEL_RESULT }
+    public enum Flow { BANK_DEPOSIT, BANK_EXPIRATION, BANK_CANCEL_REQUEST, MERCHANT_CANCEL_RESULT }
 
     // 전달 행의 내부 식별자.
     @Id
@@ -31,7 +31,7 @@ public class BankTransferOutbox {
     @Column(name = "outbox_id")
     private Long outboxId;
 
-    // 은행 입금 통보, PG의 은행 취소 요청, PG의 가맹점 취소 통보를 구분한다.
+    // 은행 입금·만료 통보, PG의 은행 취소 요청, PG의 가맹점 취소 통보를 구분한다.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40, updatable = false)
     private Flow flow;

@@ -331,6 +331,7 @@ CREATE TABLE payments (
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
 CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
 CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, status);
+CREATE INDEX idx_payments_gateway_expiration ON payments(method, status, gateway_expires_at, payment_id);
 
 
 -- ==========================================

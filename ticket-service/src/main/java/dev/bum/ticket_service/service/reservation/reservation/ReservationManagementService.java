@@ -16,6 +16,7 @@ import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
@@ -105,7 +106,8 @@ public class ReservationManagementService {
                 .payment(paymentJpaRepository.findByReservation(reservation)
                         .map(payment -> payment.toResponse())
                         .orElse(null))
-                .refundHistories(paymentRefundHistoryJpaRepository.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation).stream()
+                .refundHistories(paymentRefundHistoryJpaRepository.findByReservationOrderByPaymentRefundHistoryIdDesc(
+                                reservation, PaymentRefundHistoryType.LOCAL_APPLIED).stream()
                         .map(PaymentRefundHistory::toResponse)
                         .toList())
                 .totalTicketAmount(totalTicketAmount)

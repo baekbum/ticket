@@ -13,6 +13,12 @@ public interface PaymentGatewayTransactionClient {
     @PostMapping("/api/v1/payments/gateway/prepare")
     GatewayPaymentPrepareResponse prepare(@RequestBody GatewayPaymentPrepareRequest request);
 
+    @GetMapping("/api/v1/payments/gateway/{pgPaymentId}")
+    GatewayPaymentPrepareResponse findByPgPaymentId(@PathVariable("pgPaymentId") String pgPaymentId);
+
+    @GetMapping("/api/v1/payments/gateway/by-payment-no/{paymentNo}")
+    GatewayPaymentPrepareResponse findByPaymentNo(@PathVariable("paymentNo") String paymentNo);
+
     @PostMapping("/api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue")
     GatewayAccountIssueResponse issue(
             @PathVariable("pgPaymentId") String pgPaymentId,

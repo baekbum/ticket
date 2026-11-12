@@ -222,7 +222,7 @@ class GatewayRefundIntegrationTest {
                 // A가 끝나기 전에도 B에서 커밋한 최초 요청은 다른 트랜잭션에서 조회된다.
                 GatewayRefund initial = refunds.findById(1L).orElseThrow();
                 assertThat(initial.getStatus()).isEqualTo(GatewayRefundStatus.REQUESTED);
-                assertThat(refunds.sumRefundAmount(initial.getPaymentNo(), initial.getMethod())).isEqualByComparingTo("0");
+                assertThat(refunds.sumRefundAmount(initial.getPaymentNo(), initial.getMethod(), GatewayRefundStatus.SUCCEEDED)).isEqualByComparingTo("0");
                 Future<?> second = pool.submit(() -> {
                     secondStarted.countDown();
                     if (bank) return accountService.refund(bankRequest(1L, "4000"));
@@ -240,7 +240,7 @@ class GatewayRefundIntegrationTest {
         assertThat(refunds.count()).isEqualTo(1);
         GatewayRefund succeeded = refunds.findById(1L).orElseThrow();
         assertThat(succeeded.getStatus()).isEqualTo(GatewayRefundStatus.SUCCEEDED);
-        assertThat(refunds.sumRefundAmount(succeeded.getPaymentNo(), succeeded.getMethod())).isEqualByComparingTo("4000");
+        assertThat(refunds.sumRefundAmount(succeeded.getPaymentNo(), succeeded.getMethod(), GatewayRefundStatus.SUCCEEDED)).isEqualByComparingTo("4000");
         if (bank) assertThat(accountHistories.count()).isEqualTo(1);
         else assertThat(cards.findAll().getFirst().getCurrentMonthUsedAmount()).isEqualByComparingTo("6000");
     }
@@ -267,7 +267,7 @@ class GatewayRefundIntegrationTest {
         failureRecorder.record(1L, "CARD-PAY", PaymentMethod.CREDIT_CARD, closedVersion, "종료 후 실패");
         assertThat(refunds.findById(1L).orElseThrow().getStatus()).isEqualTo(GatewayRefundStatus.CLOSED);
         assertThatThrownBy(() -> cardService.refund(cardRequest(1L, "4000"))).isInstanceOf(IllegalArgumentException.class);
-        assertThat(refunds.sumRefundAmount("CARD-PAY", PaymentMethod.CREDIT_CARD)).isEqualByComparingTo("0");
+        assertThat(refunds.sumRefundAmount("CARD-PAY", PaymentMethod.CREDIT_CARD, GatewayRefundStatus.SUCCEEDED)).isEqualByComparingTo("0");
 
         refundCreator.create(cardRequest(2L, "4000"));
         assertThat(resolutionService.resolve(GatewayRefundResolutionRequest.builder().paymentRefundProcessId(2L)

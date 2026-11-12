@@ -40,6 +40,21 @@ public interface DummyVirtualAccountJpaRepository extends JpaRepository<DummyVir
     @Query("select a from DummyVirtualAccount a where a.pgPaymentId = :id")
     Optional<DummyVirtualAccount> findLinkedByPgPaymentIdForUpdate(@Param("id") String id);
 
+    // 신규 은행 만료는 계좌 ID만 읽고 건별 트랜잭션에서 입금과 같은 계좌 행을 잠근다.
+    @Query("""
+            select a.pgPaymentId from DummyVirtualAccount a
+            where a.pgPaymentId is not null and a.pgPaymentId > :afterId
+              and a.status = :status
+              and a.expiresAt < :now
+            order by a.pgPaymentId
+            """)
+    List<String> findLinkedExpirationCandidates(
+            @Param("now") LocalDateTime now,
+            @Param("afterId") String afterId,
+            @Param("status") VirtualAccountPaymentStatus status,
+            org.springframework.data.domain.Pageable page
+    );
+
     // 기존 Ticksy 전용 조회에서는 가맹점 연결 거래를 찾지 않는다.
     @Query("select a from DummyVirtualAccount a where a.paymentNo = :paymentNo and a.pgPaymentId is null")
     Optional<DummyVirtualAccount> findByPaymentNo(@Param("paymentNo") String paymentNo);

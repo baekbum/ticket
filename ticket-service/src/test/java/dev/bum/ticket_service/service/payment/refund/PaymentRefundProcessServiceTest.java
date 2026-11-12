@@ -23,6 +23,7 @@ import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefund;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
@@ -498,13 +499,13 @@ class PaymentRefundProcessServiceTest {
         given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
         given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
         given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L))).willReturn(List.of(ticket));
-        given(paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)).willReturn(true);
+        given(paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process, PaymentRefundHistoryType.LOCAL_APPLIED)).willReturn(true);
 
         assertThatThrownBy(() -> paymentRefundProcessService.completeLocal(1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("이미 환불 이력이 저장된 환불 처리입니다.");
 
-        then(paymentRefundHistoryJpaRepository).should().existsByPaymentRefundProcess(process);
+        then(paymentRefundHistoryJpaRepository).should().existsByPaymentRefundProcess(process, PaymentRefundHistoryType.LOCAL_APPLIED);
         then(paymentRefundHistoryJpaRepository).shouldHaveNoMoreInteractions();
         assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_FAILED);
     }

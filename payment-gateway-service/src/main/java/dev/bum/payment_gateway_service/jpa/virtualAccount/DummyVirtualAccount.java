@@ -28,7 +28,8 @@ import java.util.Objects;
         indexes = {
                 @Index(name = "idx_dummy_virtual_accounts_payment_no", columnList = "payment_no"),
                 @Index(name = "idx_dummy_virtual_accounts_account_number", columnList = "account_number"),
-                @Index(name = "idx_dummy_virtual_accounts_status", columnList = "status")
+                @Index(name = "idx_dummy_virtual_accounts_status", columnList = "status"),
+                @Index(name = "idx_dummy_virtual_accounts_expiration", columnList = "status,expires_at,pg_payment_id")
         },
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_dummy_virtual_accounts_pg_payment", columnNames = "pg_payment_id"),

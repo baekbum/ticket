@@ -21,6 +21,7 @@ import dev.bum.ticket_service.exception.reservation.ReservationCancellationInPro
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
@@ -638,7 +639,8 @@ public class PaymentRefundProcessService {
             Payment payment
     ) {
 
-        if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)) {
+        if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process,
+                PaymentRefundHistoryType.LOCAL_APPLIED)) {
             throw new IllegalStateException("이미 환불 이력이 저장된 환불 처리입니다.");
         }
 

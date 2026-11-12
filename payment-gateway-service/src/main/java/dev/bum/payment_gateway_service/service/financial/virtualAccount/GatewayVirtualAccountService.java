@@ -12,6 +12,7 @@ import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountR
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundResponse;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefund;
 import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundJpaRepository;
+import dev.bum.payment_gateway_service.jpa.refund.GatewayRefundStatus;
 import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEvent;
 import dev.bum.payment_gateway_service.jpa.outbox.VirtualAccountOutboxEventJpaRepository;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
@@ -312,7 +313,8 @@ public class GatewayVirtualAccountService {
         if (!virtualAccount.hasDeposit()) {
             throw new IllegalArgumentException("환불할 수 없는 가상계좌 상태입니다.");
         }
-        BigDecimal refunded = refunds.sumRefundAmount(virtualAccount.getPaymentNo(), PaymentMethod.BANK_TRANSFER);
+        BigDecimal refunded = refunds.sumRefundAmount(virtualAccount.getPaymentNo(), PaymentMethod.BANK_TRANSFER,
+                GatewayRefundStatus.SUCCEEDED);
         if (refunded == null) refunded = BigDecimal.ZERO;
 
         if (request.getRefundAmount() == null || request.getRefundAmount().signum() <= 0) {

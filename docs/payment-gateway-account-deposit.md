@@ -1,5 +1,7 @@
 # PG 거래 기반 은행 입금과 독립 Outbox 전달
 
+2026-11-12 현재 Ticksy 신규 checkout은 prepare·PG ID 저장·신규 발급·취소 경로에 연결되어 있다. 만료도 [은행→PG Outbox와 Ticksy 조회](payment-gateway-account-expiration.md)로 연결했다. 아래 초기 단계의 미전환 범위 설명은 이 최신 내용으로 대체하며 신규 환불은 후속 작업이다.
+
 2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
 
 2026-11-10: 은행→PG와 PG→가맹점 전달을 각각 독립적인 Outbox로 처리한다. 은행의 최초 입금은 PG가 미리 판단하거나 동기 응답에서 확정하지 않는다. [취소 흐름](payment-gateway-account-cancellation.md)과도 분리한다.
