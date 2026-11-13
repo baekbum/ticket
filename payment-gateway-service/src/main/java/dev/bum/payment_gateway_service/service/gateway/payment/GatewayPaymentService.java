@@ -71,8 +71,7 @@ public class GatewayPaymentService {
      */
     private void requirePrincipal(AuthenticatedMerchant merchant) {
 
-        if (merchant == null || merchant.merchantId() == null || merchant.merchantId() <= 0
-                || merchant.credentialKey() == null || merchant.credentialKey().isBlank()) {
+        if (merchant == null || merchant.merchantId() == null || merchant.merchantId() <= 0) {
             throw new AccessDeniedException("가맹점 인증 정보가 필요합니다.");
         }
     }

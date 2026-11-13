@@ -37,7 +37,8 @@ sequenceDiagram
 
 ```http
 POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue
-X-Service-Token: {등록된 가맹점 자격증명}
+Merchant: {숫자 가맹점 코드}
+credentialKey: {PG가 발급한 원문 키}
 Content-Type: application/json
 ```
 

@@ -121,13 +121,12 @@ public class GatewayCardApprovalCommandService {
      */
     private Merchant merchant(AuthenticatedMerchant principal, Long bodyMerchantId) {
 
-        if (principal == null || principal.merchantId() == null || principal.credentialKey() == null
+        if (principal == null || principal.merchantId() == null
                 || (bodyMerchantId != null && !bodyMerchantId.equals(principal.merchantId()))) {
             throw new AccessDeniedException("인증된 가맹점 정보가 일치하지 않습니다.");
         }
 
         return merchants.findById(principal.merchantId())
-                .filter(found -> found.getCredentialKey().equals(principal.credentialKey()))
                 .orElseThrow(() -> new AccessDeniedException("가맹점 인증 정보가 변경되었습니다."));
     }
 

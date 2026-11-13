@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.gateway.virtualAccount;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import com.fasterxml.jackson.databind.*;
 import com.sun.net.httpserver.HttpServer;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -17,7 +19,6 @@ import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.security.*;
-import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialResolver;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.*;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
 import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
@@ -60,7 +61,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.open-in-view=false", "spring.sql.init.mode=never",
         "app.financial-simulation.base-url=", "app.financial-simulation.token=", "management.tracing.enabled=false",
-        "app.merchants.credentials.ticksy[0]=merchant-a", "app.merchants.credentials.melon[0]=merchant-b",
         "app.ticket.service-token=merchant-a", "app.payment-provider.token=bank-provider"
 })
 @AutoConfigureMockMvc
@@ -81,8 +81,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
             SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
-            MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
-            FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
+            MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
             BankVirtualAccountIssueCommandService.class, BankVirtualAccountDepositService.class,
@@ -435,7 +434,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         byte[] body = json.writeValueAsBytes(request(id));
         mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("X-Service-Token", "merchant-a")
+        mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a")
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         mvc.perform(post("/internal/financial-simulations/banks/virtual-accounts/gateway/deposit")
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
@@ -595,7 +594,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         String path = "/internal/financial-simulations/gateway/bank-deposits";
         mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(event)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post(path).header("X-Service-Token", "merchant-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post(path).header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a").contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsBytes(event))).andExpect(status().isUnauthorized());
         assertThatThrownBy(() -> bankClient.send(new BankDepositEvent("other-event", event.deposit())))
                 .isInstanceOf(RuntimeException.class);
@@ -615,7 +614,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
     }
 
     Merchant merchant(String key) {
-        Merchant merchant = Merchant.register("같은 표시 이름", key, GatewayPaymentNotification.CONTRACT, "default");
+        Merchant merchant = Merchant.register("같은 표시 이름", MerchantCredentialKey.hash("ticksy".equals(key) ? "merchant-a" : "merchant-b"), GatewayPaymentNotification.CONTRACT, "default");
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }
@@ -634,7 +633,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         assertThat(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(id,
                 GatewayPaymentOperation.EXPIRE, "INITIAL")).isPresent();
         assertThat(notifications.count()).isZero(); assertThat(received).isEmpty();
-        mvc.perform(get("/api/v1/payments/gateway/" + id).header("X-Service-Token", "merchant-a"))
+        mvc.perform(get("/api/v1/payments/gateway/" + id).header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("EXPIRED"));
     }
 
@@ -716,7 +715,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
         expirations.expire(a, deadline.plusSeconds(1)); expirationDispatcher.retryPending();
         assertThat(payments.findById(a).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.EXPIRED);
         assertThat(payments.findById(b).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
-        mvc.perform(get("/api/v1/payments/gateway/" + a).header("X-Service-Token", "merchant-b"))
+        mvc.perform(get("/api/v1/payments/gateway/" + a).header("Merchant", second.getMerchantId()).header("credentialKey", "merchant-b"))
                 .andExpect(status().isNotFound());
     }
 
@@ -792,7 +791,8 @@ class GatewayVirtualAccountDepositIntegrationTest {
 
     String issue(String token, String number) throws Exception {
         String id = prepare(token, number);
-        mvc.perform(post("/api/v1/payments/virtual-account/gateway/" + id + "/issue").header("X-Service-Token", token)
+        mvc.perform(post("/api/v1/payments/virtual-account/gateway/" + id + "/issue").header("Merchant", "merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(
                         new GatewayVirtualAccountPaymentIssueRequest(null, "buyer", new BigDecimal("100"), BankCompany.KB))))
                 .andExpect(status().isOk());
@@ -802,7 +802,8 @@ class GatewayVirtualAccountDepositIntegrationTest {
     String prepare(String token, String number) throws Exception {
         GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(null, number, "buyer", PaymentMethod.BANK_TRANSFER,
                 new BigDecimal("100"), deadline, BankCompany.KB);
-        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("X-Service-Token", token)
+        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("Merchant", "merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).get("pgPaymentId").asText();
     }

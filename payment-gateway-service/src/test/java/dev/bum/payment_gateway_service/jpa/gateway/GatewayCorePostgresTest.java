@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.jpa.gateway;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
@@ -67,6 +69,25 @@ class GatewayCorePostgresTest {
     @Autowired GatewayCardNotificationJpaRepository notifications;
     @Autowired MerchantNotificationEndpointJpaRepository endpoints;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
+    @Test
+    void aMerchantCanBeUnprovisionedAndLaterStoreOnlyTheIssuedHash() {
+        Merchant merchant = merchants.saveAndFlush(Merchant.register("미발급 가맹점", null, "TICKSY", "verify"));
+        String key = MerchantCredentialKey.generate("ticksy");
+        merchant.changeCredentialHash(MerchantCredentialKey.hash(key));
+        merchants.flush();
+        entityManager.clear();
+        assertThat(merchants.findById(merchant.getMerchantId()).orElseThrow().getCredentialHash())
+                .isEqualTo(MerchantCredentialKey.hash(key)).doesNotContain("ticksy");
+    }
+
+    @Test
+    void twoMerchantsCannotShareTheSameCredentialHashOnPostgres() {
+        String hash = MerchantCredentialKey.hash(MerchantCredentialKey.generate("ticksy"));
+        merchants.saveAndFlush(Merchant.register("중복 이름", hash, "TICKSY", "verify"));
+        assertThatThrownBy(() -> merchants.saveAndFlush(Merchant.register("중복 이름", hash, "TICKSY", "verify")))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     @Test
     void bankExpirationFlowAndPgHistoryAreAcceptedByTheActualPostgresSchema() {
         GatewayPayment payment = payment(merchant(), "VERIFY-BANK-EXPIRATION", PaymentMethod.BANK_TRANSFER);
@@ -242,7 +263,7 @@ class GatewayCorePostgresTest {
 
     @Test
     void migratedSchemaAndNonSecretTicksyRegistrationExist() {
-        assertThat(merchants.findByCredentialKey("ticksy")).isPresent();
+        assertThat(merchants.findById(1L)).isPresent();
         assertThat(jdbc.queryForObject("select count(*) from pg_constraint where conrelid = 'gateway_payments'::regclass "
                 + "and conname in ('uk_gateway_payments_merchant_no', 'fk_gateway_payments_merchant', "
                 + "'chk_gateway_payments_amount')", Long.class)).isEqualTo(3);
@@ -466,7 +487,7 @@ class GatewayCorePostgresTest {
     }
 
     Merchant merchant() {
-        Merchant merchant = Merchant.register("PG 검증용 동일 이름", "verify-" + UUID.randomUUID(), "TICKSY", "verify");
+        Merchant merchant = Merchant.register("PG 검증용 동일 이름", MerchantCredentialKey.hash("verify-" + UUID.randomUUID()), "TICKSY", "verify");
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }

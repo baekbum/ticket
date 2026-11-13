@@ -221,7 +221,8 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     return http.execute(request, options);
                 }).retryer(Retryer.NEVER_RETRY)
-                .requestInterceptor(template -> template.header("X-Service-Token", "test-merchant-token"))
+                .requestInterceptor(new dev.bum.ticket_service.config.PaymentGatewayMerchantFeignConfig()
+                        .paymentGatewayMerchantRequestInterceptor(1L, "ticksy_test-merchant-token"))
                 .encoder((value, type, template) -> {
                     try {
                         template.header("Content-Type", "application/json");
@@ -552,7 +553,9 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
 
     private void receive(HttpExchange exchange) throws IOException {
         try {
-            assertThat(exchange.getRequestHeaders().getFirst("X-Service-Token")).isEqualTo("test-merchant-token");
+            assertThat(exchange.getRequestHeaders().getFirst("Merchant")).isEqualTo("1");
+            assertThat(exchange.getRequestHeaders().getFirst("credentialKey")).isEqualTo("ticksy_test-merchant-token");
+            assertThat(exchange.getRequestHeaders().getFirst("X-Service-Token")).isNull();
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String path = exchange.getRequestURI().getPath();
             if (path.equals("/api/v1/payments/gateway/" + pgId)

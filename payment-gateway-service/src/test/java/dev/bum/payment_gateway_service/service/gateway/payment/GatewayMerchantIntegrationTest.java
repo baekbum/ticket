@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.ticket.payment.enums.*;
-import dev.bum.payment_gateway_service.config.MerchantCredentialProperties;
 import dev.bum.payment_gateway_service.controller.advice.GlobalExceptionHandler;
 import dev.bum.payment_gateway_service.controller.gateway.GatewayPaymentController;
 import dev.bum.payment_gateway_service.dto.gateway.*;
@@ -51,8 +50,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:h2:mem:gateway-merchants;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.open-in-view=false", "spring.sql.init.mode=never",
-        "app.merchants.credentials.ticksy[0]=test-merchant-a", "app.merchants.credentials.ticksy[1]=test-merchant-a-old",
-        "app.merchants.credentials.melon[0]=test-merchant-b", "app.merchants.credentials.unregistered[0]=test-unregistered",
         "app.ticket.service-token=test-merchant-a", "app.payment-provider.token=test-provider"
 })
 @AutoConfigureMockMvc
@@ -64,7 +61,6 @@ class GatewayMerchantIntegrationTest {
     @EnableJpaRepositories(basePackageClasses = {MerchantJpaRepository.class, GatewayPaymentJpaRepository.class})
     @Import({SecurityConfig.class, GatewayPaymentController.class, GlobalExceptionHandler.class,
             GatewayPaymentService.class, GatewayPaymentCommandService.class, MerchantAuthenticationService.class,
-            MerchantCredentialProperties.class, MerchantCredentialResolver.class,
             InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class})
     static class Config { }
 
@@ -98,10 +94,10 @@ class GatewayMerchantIntegrationTest {
         assertThat(a.get("pgPaymentId").asText()).isNotEqualTo(b.get("pgPaymentId").asText());
         assertThat(first.getMerchantId()).isNotEqualTo(second.getMerchantId());
         mvc.perform(get("/api/v1/payments/gateway/" + a.get("pgPaymentId").asText())
-                .header("X-Service-Token", "test-merchant-b")).andExpect(status().isNotFound())
+                .header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-b")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("GATEWAY_PAYMENT_NOT_FOUND"));
         mvc.perform(get("/api/v1/payments/gateway/by-payment-no/PAY-SAME")
-                .header("X-Service-Token", "test-merchant-b")).andExpect(status().isOk())
+                .header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-b")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.pgPaymentId").value(b.get("pgPaymentId").asText()));
         assertThat(payments.count()).isEqualTo(2);
     }
@@ -118,14 +114,14 @@ class GatewayMerchantIntegrationTest {
         assertThat(UUID.fromString(paymentId.substring(8)).toString()).isEqualTo(paymentId.substring(8));
 
         mvc.perform(get("/api/v1/payments/gateway/" + paymentId.toUpperCase(Locale.ROOT))
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isOk())
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.pgPaymentId").value(paymentId));
         mvc.perform(get("/api/v1/payments/gateway/not-a-uuid")
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/payments/gateway/20260230" + UUID.randomUUID())
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/payments/gateway/20261105" + "x".repeat(36))
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -141,10 +137,10 @@ class GatewayMerchantIntegrationTest {
                 deadline, now, now);
 
         mvc.perform(get("/api/v1/payments/gateway/" + legacyId.toUpperCase(Locale.ROOT))
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isOk())
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.pgPaymentId").value(legacyId));
         mvc.perform(get("/api/v1/payments/gateway/" + legacyId)
-                .header("X-Service-Token", "test-merchant-b")).andExpect(status().isNotFound());
+                .header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-b")).andExpect(status().isNotFound());
         assertThat(payments.findById(legacyId)).isPresent();
     }
 
@@ -208,14 +204,44 @@ class GatewayMerchantIntegrationTest {
                 merchants.findById(first.getMerchantId()).orElseThrow().suspend());
         prepare("test-merchant-a", request("PAY-NEW", "4000")).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/payments/gateway/" + original.get("pgPaymentId").asText())
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isOk());
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")).andExpect(status().isOk());
     }
 
     @Test
-    void rotatedCredentialStillResolvesTheSameMerchant() throws Exception {
+    void rotatingTheDatabaseHashInvalidatesTheOldKeyWithoutRestarting() throws Exception {
         JsonNode original = prepared("test-merchant-a", request("PAY-ROTATE", "4000"));
+        new TransactionTemplate(transactionManager).executeWithoutResult(ignored ->
+                merchants.findById(first.getMerchantId()).orElseThrow()
+                        .changeCredentialHash(MerchantCredentialKey.hash("test-merchant-a-old")));
+        prepare("test-merchant-a", request("PAY-ROTATE", "4000")).andExpect(status().isUnauthorized());
         JsonNode replay = prepared("test-merchant-a-old", request("PAY-ROTATE", "4000"));
         assertThat(replay).isEqualTo(original);
+    }
+
+    @Test
+    void missingAmbiguousAndMismatchedMerchantHeadersCannotAuthenticate() throws Exception {
+        String path = "/api/v1/payments/gateway/" + UUID.randomUUID();
+        mvc.perform(get(path).header("credentialKey", "test-merchant-a")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Merchant", first.getMerchantId())).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("X-Service-Token", "test-merchant-a")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-a"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Merchant", first.getMerchantId(), second.getMerchantId())
+                .header("credentialKey", "test-merchant-a")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Merchant", first.getMerchantId())
+                .header("credentialKey", "test-merchant-a", "test-merchant-b")).andExpect(status().isUnauthorized());
+        for (String value : List.of("ticksy", "0", "-1", "01", "1,2", "9223372036854775808")) {
+            mvc.perform(get(path).header("Merchant", value).header("credentialKey", "test-merchant-a"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void anUnprovisionedOrRevokedMerchantCannotAuthenticate() throws Exception {
+        new TransactionTemplate(transactionManager).executeWithoutResult(ignored ->
+                merchants.findById(first.getMerchantId()).orElseThrow().changeCredentialHash(null));
+        prepare("test-merchant-a", request("PAY-REVOKED", "4000")).andExpect(status().isUnauthorized());
+        assertThat(payments.count()).isZero();
     }
 
     @Test
@@ -292,13 +318,13 @@ class GatewayMerchantIntegrationTest {
     }
 
     Merchant register(String name, String key) {
-        Merchant merchant = Merchant.register(name, key, "TICKSY", key);
+        Merchant merchant = Merchant.register(name, MerchantCredentialKey.hash("ticksy".equals(key) ? "test-merchant-a" : "test-merchant-b"), "TICKSY", key);
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }
 
     AuthenticatedMerchant principal() {
-        return new AuthenticatedMerchant(first.getMerchantId(), first.getCredentialKey());
+        return new AuthenticatedMerchant(first.getMerchantId());
     }
 
     GatewayPaymentPrepareRequest request(String no, String amount) {
@@ -307,7 +333,8 @@ class GatewayMerchantIntegrationTest {
     }
 
     ResultActions prepare(String token, GatewayPaymentPrepareRequest request) throws Exception {
-        return mvc.perform(post("/api/v1/payments/gateway/prepare").header("X-Service-Token", token)
+        return mvc.perform(post("/api/v1/payments/gateway/prepare").header("Merchant", "test-merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)));
     }
 

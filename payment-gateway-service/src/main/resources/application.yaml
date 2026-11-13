@@ -45,9 +45,6 @@ app:
     connect-timeout: 2s
     read-timeout: 15s
   merchants:
-    credentials:
-      ticksy:
-        - ${app.ticket.service-token}
     notifications:
       encryption-key: ${APP_MERCHANT_NOTIFICATION_ENCRYPTION_KEY:${app.ticket.service-token}}
   payment-provider:

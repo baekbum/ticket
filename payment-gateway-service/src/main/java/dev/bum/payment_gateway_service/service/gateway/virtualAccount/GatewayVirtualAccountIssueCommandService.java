@@ -104,7 +104,7 @@ public class GatewayVirtualAccountIssueCommandService {
             GatewayVirtualAccountPaymentIssueRequest request
     ) {
 
-        if (principal == null || principal.merchantId() == null || principal.credentialKey() == null || request == null) {
+        if (principal == null || principal.merchantId() == null || request == null) {
             throw new AccessDeniedException("가맹점 인증 정보가 필요합니다.");
         }
 
@@ -113,7 +113,6 @@ public class GatewayVirtualAccountIssueCommandService {
         }
 
         return merchants.findById(principal.merchantId())
-                .filter(found -> found.getCredentialKey().equals(principal.credentialKey()))
                 .orElseThrow(() -> new AccessDeniedException("가맹점 인증 정보가 변경되었습니다."));
     }
 

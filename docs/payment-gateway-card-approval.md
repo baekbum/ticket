@@ -29,7 +29,8 @@
 
 ~~~http
 POST /api/v1/payments/card/gateway/{pgPaymentId}/approve
-X-Service-Token: {등록 가맹점 자격증명}
+Merchant: {숫자 가맹점 코드}
+credentialKey: {PG가 발급한 원문 키}
 Content-Type: application/json
 ~~~
 

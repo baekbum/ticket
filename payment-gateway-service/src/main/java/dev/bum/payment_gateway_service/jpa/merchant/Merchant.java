@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "merchants", uniqueConstraints =
-        @UniqueConstraint(name = "uk_merchants_credential_key", columnNames = "credential_key"))
+        @UniqueConstraint(name = "uk_merchants_credential_hash", columnNames = "credential_hash"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Merchant {
@@ -31,9 +31,9 @@ public class Merchant {
     @Column(nullable = false, length = 30)
     private MerchantStatus status;
 
-    // 비밀값을 포함하지 않는 서버 자격증명 그룹의 설정 키.
-    @Column(name = "credential_key", nullable = false, length = 64, updatable = false)
-    private String credentialKey;
+    // 가맹점에 한 번 제공한 원문 키의 SHA-256 해시. null이면 미발급 상태로 인증을 거절한다.
+    @Column(name = "credential_hash", length = 64)
+    private String credentialHash;
 
     // 가맹점이 사용하는 통보 DTO의 필드 구성·응답 규칙을 식별하는 계약 버전 코드.
     // 공통 PAYMENT_NOTIFICATION_V1을 사용하며 기존 CARD_NOTIFICATION_V1도 호환한다. 클래스명 선택 값이 아니다.
@@ -55,11 +55,11 @@ public class Merchant {
     private LocalDateTime updatedAt;
 
     // 비밀값 없이 신규 가맹점을 등록하고 초기에는 사용을 중단한다.
-    public static Merchant register(String name, String credentialKey, String notificationContract, String targetKey) {
+    public static Merchant register(String name, String credentialHash, String notificationContract, String targetKey) {
 
         Merchant merchant = new Merchant();
         merchant.merchantName = required(name, 100);
-        merchant.credentialKey = required(credentialKey, 64);
+        merchant.changeCredentialHash(credentialHash);
         merchant.notificationContract = required(notificationContract, 40);
         merchant.notificationTargetKey = required(targetKey, 100);
         merchant.status = MerchantStatus.SUSPENDED;
@@ -77,6 +77,16 @@ public class Merchant {
     public void suspend() {
 
         status = MerchantStatus.SUSPENDED;
+    }
+
+    // 키를 교체하면 이전 키는 즉시 무효화된다. null은 발급 키를 폐기한 상태다.
+    public void changeCredentialHash(String credentialHash) {
+
+        if (credentialHash != null && !credentialHash.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("가맹점 인증 해시가 올바르지 않습니다.");
+        }
+
+        this.credentialHash = credentialHash;
     }
 
     // 공백·길이가 잘못된 등록 설정을 거절한다.

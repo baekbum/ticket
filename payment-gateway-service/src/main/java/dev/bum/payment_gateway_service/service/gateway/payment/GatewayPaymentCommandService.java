@@ -32,7 +32,6 @@ public class GatewayPaymentCommandService {
     public GatewayPaymentResponse prepare(AuthenticatedMerchant principal, GatewayPaymentTerms terms) {
 
         Merchant merchant = merchants.findById(principal.merchantId())
-                .filter(found -> found.getCredentialKey().equals(principal.credentialKey()))
                 .orElseThrow(() -> new AccessDeniedException("가맹점 인증 정보가 변경되었습니다."));
 
         if (merchant.getStatus() != MerchantStatus.ACTIVE) {
@@ -61,7 +60,6 @@ public class GatewayPaymentCommandService {
     public Optional<GatewayPaymentResponse> replayCommitted(AuthenticatedMerchant merchant, GatewayPaymentTerms terms) {
 
         Merchant current = merchants.findById(merchant.merchantId())
-                .filter(found -> found.getCredentialKey().equals(merchant.credentialKey()))
                 .orElseThrow(() -> new AccessDeniedException("가맹점 인증 정보가 변경되었습니다."));
 
         if (current.getStatus() != MerchantStatus.ACTIVE) {

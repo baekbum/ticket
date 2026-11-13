@@ -4,16 +4,16 @@ CREATE TABLE merchants (
     merchant_id BIGSERIAL PRIMARY KEY,
     merchant_name VARCHAR(100) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'SUSPENDED',
-    credential_key VARCHAR(64) NOT NULL,
+    credential_hash VARCHAR(64),
     notification_contract VARCHAR(40) NOT NULL,
     notification_target_key VARCHAR(100) NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uk_merchants_credential_key UNIQUE (credential_key),
+    CONSTRAINT uk_merchants_credential_hash UNIQUE (credential_hash),
     CONSTRAINT chk_merchants_id CHECK (merchant_id > 0),
     CONSTRAINT chk_merchants_name CHECK (btrim(merchant_name) <> ''),
-    CONSTRAINT chk_merchants_credential_key CHECK (btrim(credential_key) <> ''),
+    CONSTRAINT chk_merchants_credential_hash CHECK (credential_hash IS NULL OR credential_hash ~ '^[0-9a-f]{64}$'),
     CONSTRAINT chk_merchants_notification_config CHECK (
         btrim(notification_contract) <> '' AND btrim(notification_target_key) <> ''
     ),

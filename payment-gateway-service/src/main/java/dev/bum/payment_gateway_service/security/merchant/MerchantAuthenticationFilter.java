@@ -1,6 +1,5 @@
 package dev.bum.payment_gateway_service.security.merchant;
 
-import dev.bum.payment_gateway_service.security.InternalServiceAuthenticationFilter;
 import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,18 +8,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 @RequiredArgsConstructor
 public class MerchantAuthenticationFilter extends OncePerRequestFilter {
 
-    // 서비스 토큰을 DB에 등록된 가맹점과 연결하는 인증 서비스.
+    // Merchant·credentialKey 헤더를 DB 가맹점과 연결하는 인증 서비스.
     private final MerchantAuthenticationService authenticationService;
 
     // 가맹점 전용 API의 토큰을 검증하고 인증된 숫자 가맹점 코드를 요청에 연결한다.
@@ -34,8 +35,13 @@ public class MerchantAuthenticationFilter extends OncePerRequestFilter {
         AuthenticatedMerchant merchant;
 
         try {
+            if (Collections.list(request.getHeaders("Merchant")).size() != 1
+                    || Collections.list(request.getHeaders("credentialKey")).size() != 1) {
+                throw new BadCredentialsException("가맹점 인증 헤더가 필요합니다.");
+            }
+
             merchant = authenticationService.authenticate(
-                    request.getHeader(InternalServiceAuthenticationFilter.SERVICE_TOKEN_HEADER));
+                    request.getHeader("Merchant"), request.getHeader("credentialKey"));
         } catch (AuthenticationException exception) {
             reject(response, HttpServletResponse.SC_UNAUTHORIZED, "MERCHANT_AUTHENTICATION_REQUIRED");
             return;

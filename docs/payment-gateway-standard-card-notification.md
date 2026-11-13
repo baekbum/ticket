@@ -41,7 +41,7 @@ send의 URL은 내부 인자다. 일반 결제 요청의 notificationUrl이나 �
 
 UNIQUE(merchant_id, target_key)로 같은 키를 가맹점별로 사용할 수 있다. 조회도 두 값을 함께 사용한다. 등록·변경은 내부 MerchantNotificationEndpointService.register/update/changeActive로 처리하며 일반 결제 요청에는 노출하지 않는다. 관리 화면/API는 이번 범위에 추가하지 않았다.
 
-가맹점 추가에는 DB 등록만 필요하며 배포·재시작·가맹점별 클래스 추가가 필요 없다. 가맹점이 PG에 들어오는 요청의 인증은 별개이며 기존 MerchantCredentialProperties 설정을 유지한다.
+가맹점 추가에는 DB 등록만 필요하며 배포·재시작·가맹점별 클래스 추가가 필요 없다. 가맹점이 PG에 보내는 요청의 인증은 별개이며 [DB 가맹점 인증](payment-gateway-merchant-authentication.md)의 Merchant·credentialKey 헤더를 사용한다.
 
 가맹점마다 호스트와 경로가 달라도 같은 전송기를 사용한다. 전송기는 인자 URL 뒤에 Ticksy 경로를 덧붙이지 않는다. HTTP/HTTPS의 절대 URL만 허용하고 사용자 정보·query·fragment가 포함된 주소는 거절하며 리다이렉트를 따라가지 않는다. 복호화한 인증값은 HTTP 헤더에만 사용하고 payload·로그·toString에 노출하지 않는다. DB에는 암호문만 저장한다.
 

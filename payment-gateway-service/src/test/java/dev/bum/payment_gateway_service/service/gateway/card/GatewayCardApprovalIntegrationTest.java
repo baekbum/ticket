@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.gateway.card;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import com.fasterxml.jackson.databind.*;
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificationResponse;
@@ -18,7 +20,6 @@ import dev.bum.payment_gateway_service.jpa.card.*;
 import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.security.*;
-import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialResolver;
 import dev.bum.payment_gateway_service.service.financial.card.*;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
 import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
@@ -63,7 +64,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.open-in-view=false", "spring.sql.init.mode=never",
         "app.financial-simulation.base-url=", "app.financial-simulation.token=", "management.tracing.enabled=false",
-        "app.merchants.credentials.ticksy[0]=test-merchant-a", "app.merchants.credentials.melon[0]=test-merchant-b",
         "app.ticket.service-token=test-merchant-a", "app.payment-provider.token=test-provider"
 })
 @AutoConfigureMockMvc
@@ -74,8 +74,7 @@ class GatewayCardApprovalIntegrationTest {
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
     @Import({GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
-            MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
-            FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
+            MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayCardApprovalService.class, GatewayCardApprovalCommandService.class,
             CardApprovalService.class, CardApprovalCommandService.class, GatewayPaymentController.class,
             GatewayCardPaymentController.class, CardController.class, GlobalExceptionHandler.class,
@@ -253,10 +252,10 @@ class GatewayCardApprovalIntegrationTest {
         approve("test-merchant-a", id, request("200", pan)).andExpect(status().isConflict());
         String bank = prepare("test-merchant-a", "PAY-BANK", "100", PaymentMethod.BANK_TRANSFER);
         approve("test-merchant-a", bank, request("100", pan)).andExpect(status().isConflict());
-        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("X-Service-Token", "test-merchant-b"))
+        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-b"))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/internal/financial-simulations/cards/gateway/approve")
-                .header("X-Service-Token", "test-merchant-a").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
         assertThat(approvals.count()).isZero();
         verify(financial, never()).approveGatewayCard(any());
@@ -392,7 +391,7 @@ class GatewayCardApprovalIntegrationTest {
         com.fasterxml.jackson.databind.node.ObjectNode body = json.valueToTree(request("100", pan));
         body.put("notificationUrl", destinations.findByMerchantMerchantIdAndTargetKey(second.getMerchantId(), "b")
                 .orElseThrow().getNotificationUrl());
-        mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/approve").header("X-Service-Token", "test-merchant-a")
+        mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/approve").header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body)))
                 .andExpect(status().isOk());
         dispatcher.retryPending();
@@ -657,9 +656,9 @@ class GatewayCardApprovalIntegrationTest {
     void resultQueryIsScopedAndCredentialsAreRedactedFromStringRepresentations() throws Exception {
         String id = prepare("test-merchant-a", "PAY-QUERY", "100", PaymentMethod.CREDIT_CARD);
         approved("test-merchant-a", id);
-        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("X-Service-Token", "test-merchant-a"))
+        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.pgStatus").value("PAID"));
-        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("X-Service-Token", "test-merchant-b"))
+        mvc.perform(get("/api/v1/payments/card/gateway/" + id).header("Merchant", second.getMerchantId()).header("credentialKey", "test-merchant-b"))
                 .andExpect(status().isNotFound());
         assertThat(request("100", pan).toString()).doesNotContain(pan, "123", "12");
         assertThat(new FinancialCardApproveRequest(id, "buyer", CardCompany.SHINHAN, pan, "123", "12",
@@ -685,7 +684,8 @@ class GatewayCardApprovalIntegrationTest {
     String prepare(String token, String number, String amount, PaymentMethod method) throws Exception {
         GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(null, number, "buyer", method,
                 new BigDecimal(amount), deadline, method == PaymentMethod.BANK_TRANSFER ? BankCompany.KB : null);
-        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("X-Service-Token", token)
+        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("Merchant", "test-merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request))).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray()).get("pgPaymentId").asText();
     }
@@ -696,7 +696,8 @@ class GatewayCardApprovalIntegrationTest {
     }
 
     ResultActions approve(String token, String id, GatewayCardApprovalRequest request) throws Exception {
-        return mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/approve").header("X-Service-Token", token)
+        return mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/approve").header("Merchant", "test-merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)));
     }
 
@@ -705,7 +706,7 @@ class GatewayCardApprovalIntegrationTest {
     }
 
     Merchant merchant(String credential, String target) {
-        Merchant merchant = Merchant.register("동일한 가맹점명", credential, CardPaymentNotification.CONTRACT, target);
+        Merchant merchant = Merchant.register("동일한 가맹점명", MerchantCredentialKey.hash("ticksy".equals(credential) ? "test-merchant-a" : "test-merchant-b"), CardPaymentNotification.CONTRACT, target);
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }

@@ -35,7 +35,7 @@ sequenceDiagram
 - prepare 응답의 가맹점·결제번호·사용자·수단·금액·은행·기한을 검증한 뒤 PG ID를 저장한다. 발급 응답에서도 원거래·계좌·기한·최초 은행 상태를 검증한다.
 - 외부 HTTP가 성공한 뒤 Ticksy 저장이 실패하면 PG 원거래를 롤백했다고 주장하지 않는다. 저장된 결제번호·조건과 PG의 멱등 응답으로 재개한다.
 
-신규 Feign 클라이언트는 기존 PaymentGatewayFeignConfig의 X-Service-Token을 재사용한다. PG는 이 자격증명에 연결된 merchant를 결정하며, 본문의 merchantId는 Ticksy 서버 설정 app.payment-gateway.merchant-id와 교차 검증하는 값이다. 일반 사용자 입력으로 가맹점이나 통보 주소를 선택하지 않는다.
+신규 Feign 클라이언트는 PaymentGatewayMerchantFeignConfig로 Merchant·credentialKey 헤더를 보낸다. PG는 숫자 코드에 연결된 DB 해시로 인증하며, 본문의 merchantId는 Ticksy 서버 설정 app.payment-gateway.merchant-id와 교차 검증하는 값이다. 일반 사용자 입력으로 가맹점이나 통보 주소를 선택하지 않는다. 원문 키 설정·발급 방법은 [DB 가맹점 인증](payment-gateway-merchant-authentication.md)을 따른다.
 
 ## 요청 안에서 추가 3회 재시도와 사용자 재요청
 

@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.gateway.virtualAccount;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import com.fasterxml.jackson.databind.*;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
@@ -49,7 +51,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.open-in-view=false", "spring.sql.init.mode=never",
         "app.financial-simulation.base-url=", "app.financial-simulation.token=", "management.tracing.enabled=false",
-        "app.merchants.credentials.ticksy[0]=merchant-a", "app.merchants.credentials.melon[0]=merchant-b",
         "app.ticket.service-token=merchant-a", "app.payment-provider.token=bank-provider"
 })
 @AutoConfigureMockMvc
@@ -163,7 +164,7 @@ class GatewayVirtualAccountCancellationIntegrationTest {
         String id = issue("merchant-a", "OWNER");
         cancel("merchant-b", id, request(id)).andExpect(status().isNotFound());
         cancel("merchant-b", UUID.randomUUID().toString(), request(id)).andExpect(status().isNotFound());
-        mvc.perform(get(statusPath(id)).header("X-Service-Token", "merchant-b")).andExpect(status().isNotFound());
+        mvc.perform(get(statusPath(id)).header("Merchant", second.getMerchantId()).header("credentialKey", "merchant-b")).andExpect(status().isNotFound());
         assertThat(outboxes.count()).isZero();
     }
 
@@ -202,7 +203,7 @@ class GatewayVirtualAccountCancellationIntegrationTest {
         String card = prepare("merchant-a", "CARD", PaymentMethod.CREDIT_CARD);
         cancel("merchant-a", card, request(id)).andExpect(status().isConflict());
         mvc.perform(post("/internal/financial-simulations/banks/virtual-accounts/gateway/cancel")
-                .header("X-Service-Token", "merchant-a").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(bankRequest(id))))
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(bankRequest(id))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -435,12 +436,12 @@ class GatewayVirtualAccountCancellationIntegrationTest {
     void statusQueryIsMerchantScopedAndReturnsTheDurableResult() throws Exception {
         String id=issue("merchant-a","QUERY");
         cancel("merchant-a",id,request(id)).andExpect(status().isAccepted());
-        mvc.perform(get(statusPath(id)).header("X-Service-Token","merchant-a")).andExpect(status().isOk())
+        mvc.perform(get(statusPath(id)).header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PROCESSING"));
         cancelDispatcher.retryPending();
-        mvc.perform(get(statusPath(id)).header("X-Service-Token","merchant-a")).andExpect(status().isOk())
+        mvc.perform(get(statusPath(id)).header("Merchant", first.getMerchantId()).header("credentialKey", "merchant-a")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
-        mvc.perform(get(statusPath(id)).header("X-Service-Token","merchant-b")).andExpect(status().isNotFound());
+        mvc.perform(get(statusPath(id)).header("Merchant", second.getMerchantId()).header("credentialKey", "merchant-b")).andExpect(status().isNotFound());
     }
 
     @Test
@@ -504,21 +505,23 @@ class GatewayVirtualAccountCancellationIntegrationTest {
     }
 
     ResultActions cancel(String token, String id, GatewayVirtualAccountPaymentCancelRequest request) throws Exception {
-        return mvc.perform(post(path(id)).header("X-Service-Token", token).contentType(MediaType.APPLICATION_JSON)
+        return mvc.perform(post(path(id)).header("Merchant", "merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsBytes(request)));
     }
 
     String path(String id) { return "/api/v1/payments/virtual-account/gateway/" + id + "/cancel"; }
 
     Merchant merchant(String key) {
-        Merchant merchant = Merchant.register("동일한 가맹점명", key, GatewayPaymentNotification.CONTRACT, "default");
+        Merchant merchant = Merchant.register("동일한 가맹점명", MerchantCredentialKey.hash("ticksy".equals(key) ? "merchant-a" : "merchant-b"), GatewayPaymentNotification.CONTRACT, "default");
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }
 
     String issue(String token, String number) throws Exception {
         String id = prepare(token, number, PaymentMethod.BANK_TRANSFER);
-        mvc.perform(post("/api/v1/payments/virtual-account/gateway/" + id + "/issue").header("X-Service-Token", token)
+        mvc.perform(post("/api/v1/payments/virtual-account/gateway/" + id + "/issue").header("Merchant", "merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(
                         new GatewayVirtualAccountPaymentIssueRequest(null, "buyer", new BigDecimal("100"), BankCompany.KB))))
                 .andExpect(status().isOk());
@@ -528,7 +531,8 @@ class GatewayVirtualAccountCancellationIntegrationTest {
     String prepare(String token, String number, PaymentMethod method) throws Exception {
         var request = new GatewayPaymentPrepareRequest(null, number, "buyer", method, new BigDecimal("100"), deadline,
                 method == PaymentMethod.BANK_TRANSFER ? BankCompany.KB : null);
-        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("X-Service-Token", token)
+        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("Merchant", "merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).get("pgPaymentId").asText();
     }

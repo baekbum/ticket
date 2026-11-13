@@ -133,12 +133,12 @@ public class GatewayVirtualAccountCancelCommands {
      */
     private void requireMerchant(AuthenticatedMerchant principal, Long merchantId) {
 
-        if (principal == null || principal.merchantId() == null || principal.credentialKey() == null
+        if (principal == null || principal.merchantId() == null
                 || (merchantId != null && !merchantId.equals(principal.merchantId()))) {
             throw new AccessDeniedException("인증된 가맹점과 요청 가맹점이 일치하지 않습니다.");
         }
 
-        merchants.findById(principal.merchantId()).filter(merchant -> merchant.getCredentialKey().equals(principal.credentialKey()))
+        merchants.findById(principal.merchantId())
                 .orElseThrow(() -> new AccessDeniedException("가맹점 인증 정보가 변경되었습니다."));
     }
 

@@ -1,13 +1,13 @@
 package dev.bum.ticket_service.feign.paymentgateway;
 
-import dev.bum.ticket_service.config.PaymentGatewayFeignConfig;
+import dev.bum.ticket_service.config.PaymentGatewayMerchantFeignConfig;
 import dev.bum.ticket_service.config.PaymentGatewayTransactionFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @FeignClient(name = "payment-gateway-transaction-client", url = "${app.payment-gateway.base-url}",
-        configuration = {PaymentGatewayFeignConfig.class, PaymentGatewayTransactionFeignConfig.class})
+        configuration = {PaymentGatewayMerchantFeignConfig.class, PaymentGatewayTransactionFeignConfig.class})
 public interface PaymentGatewayTransactionClient {
 
     @PostMapping("/api/v1/payments/gateway/prepare")

@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.jpa.gateway;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.jpa.card.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
@@ -173,7 +175,7 @@ class GatewayFinancialLinkIntegrationTest {
     }
 
     Merchant merchant() {
-        Merchant merchant = Merchant.register("연결 검증 가맹점", "link-" + UUID.randomUUID(), "TICKSY", "verify");
+        Merchant merchant = Merchant.register("연결 검증 가맹점", MerchantCredentialKey.hash("link-" + UUID.randomUUID()), "TICKSY", "verify");
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }

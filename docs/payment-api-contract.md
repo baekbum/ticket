@@ -12,7 +12,7 @@
 
 2026-11-08 PG 거래 기반 카드 승인/조회 API와 가맹점 카드 통보 Outbox를 추가했다. POST /api/v1/payments/card/gateway/{pgPaymentId}/approve와 GET /api/v1/payments/card/gateway/{pgPaymentId}는 가맹점 서버 인증을 사용한다. 금융 승인 PAID와 통보 완료는 별도 상태다. 요청·응답·보상 계약은 [PG 카드 승인](payment-gateway-card-approval.md)을 따른다. 기존 사용자 JWT 카드 API와 Ticksy 호출은 유지한다.
 
-PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
+PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 2026-11-13부터 신규 PG 경로는 Merchant·credentialKey 헤더와 DB 해시로 인증한다. [인증 및 키 발급 계약](payment-gateway-merchant-authentication.md)을 따른다. 경로·요청·상태 코드와 현재 적용 범위는 [PG 기반 구현](payment-gateway-core-implementation.md)을 따른다. 기존 금융 API와 신규 공통 PG API는 단계적으로 연결한다.
 
 2026-11-08 가맹점 인증 기반 `POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/issue`를 추가했다. 준비된 PG 거래를 은행 계좌에 연결하고 PG 상태/발급 이력을 저장한다. 요청·응답·복구 계약은 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)을 따른다. 현재 Ticksy 신규 발급·입금·입금 전 취소는 이 경로로 전환했다. 새 연결 거래의 환불은 후속 단계이며 만료는 은행 확정 상태와 Ticksy 조회로 처리한다.
 
@@ -27,7 +27,7 @@ PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 경�
 - 사용자는 `ticket-service`의 `CheckoutController.prepare`로 결제 화면 진입 가능 여부를 검증한다.
 - `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
 - 카드 승인과 승인 상태 조회는 사용자 access token으로 `payment-gateway-service`에 직접 요청한다.
-- 가상계좌 발급과 카드/가상계좌 환불은 `ticket-service`가 `X-Service-Token`으로 `payment-gateway-service`에 요청한다.
+- 신규 PG 가상계좌 준비·조회·발급·취소는 `ticket-service`가 `Merchant`·`credentialKey`로 요청한다. 레거시 발급·조회·환불은 기존 `X-Service-Token` 계약을 유지한다.
 - 가상계좌 테스트 입금 발생은 입금 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
 - `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
 - 서비스 간 내부 API는 `X-Service-Token` 헤더로 보호한다.

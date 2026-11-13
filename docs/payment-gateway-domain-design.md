@@ -121,7 +121,7 @@ JSON의 기존 `paymentNo`, `transactionId`, `paymentRefundProcessId` 이름은 
 | `merchant_id` | BIGSERIAL PK, 양수 | 숫자 가맹점 코드. 등록 후 변경·재사용하지 않음 |
 | `merchant_name` | VARCHAR(100), NOT NULL, 중복 허용 | 가맹점 표시 이름. 식별·인증 기준으로 사용하지 않음 |
 | `status` | ACTIVE / SUSPENDED | 신규 처리 허용 정책 |
-| `credential_key` | VARCHAR(64), NOT NULL, UNIQUE | 서버 설정의 인증 자격증명 그룹 참조 |
+| `credential_hash` | VARCHAR(64), nullable, UNIQUE | 발급 키의 SHA-256 해시. NULL은 미발급·폐기 |
 | `notification_contract` | VARCHAR(40), NOT NULL | 통보 DTO 필드 구성·응답 규칙의 계약 버전 코드. 현재 CARD_NOTIFICATION_V1 지원 |
 | `notification_target_key` | VARCHAR(100), NOT NULL | merchant_id와 함께 merchant_notification_endpoints의 등록 대상 참조 |
 | `created_at`, `updated_at` | TIMESTAMP(6) | 생성·수정 시각 |
@@ -136,7 +136,7 @@ JSON의 기존 `paymentNo`, `transactionId`, `paymentRefundProcessId` 이름은 
 
 1번과 3번은 이름이 같아도 서로 다른 가맹점이다. 이름을 변경해도 코드는 유지한다. JSON과 인증 컨텍스트는 `merchantId` 하나로 이 숫자를 표현한다. 예시 번호를 서비스 분기 조건으로 하드코딩하지 않고, 실제 등록된 행과 자격증명·통보 설정으로 연결한다. 기존 초안의 merchant_name에도 유니크 제약은 없었으며, 이번 변경은 숫자 PK를 가맹점 코드로 통일하는 결정이다.
 
-비밀 토큰·사용자 JWT·카드 원문은 저장하지 않는다. 등록 SQL에도 비밀값을 넣지 않는다. `credential_key`는 환경변수/보안 설정으로 주입한 토큰 그룹에 연결한다. 현재 `APP_INTERNAL_SERVICE_TOKEN`은 최초 Ticksy credential 그룹의 토큰으로 재사용한다. 가맹점 추가 시 토큰 그룹도 분리한다. 동일 그룹에서 현재/이전 토큰을 허용해 회전할 수 있다.
+가맹점 원문 인증 키·사용자 JWT·카드 원문은 저장하지 않는다. Merchant에는 SHA-256 credential_hash만 저장하며 미발급·폐기는 NULL로 표현한다. Merchant 숫자 코드와 credentialKey 헤더로 인증하고, 가맹점별 YAML 토큰 목록은 사용하지 않는다. 한 가맹점은 현재 키 하나만 사용하며 교체 시 이전 키는 무효화된다. 상세 발급·전환 절차는 [DB 가맹점 인증](payment-gateway-merchant-authentication.md)을 따른다.
 
 SUSPENDED는 준비·승인·발급·수단 전환을 차단한다. 기존 거래 조회·취소·환불은 같은 가맹점 인증과 소유 검증 후 허용한다. 이미 발급된 계좌의 입금 사실 수신, 기한 만료, 통보 재시도도 계속 처리한다. 가맹점을 일시 중단했다고 기존 금융 사실을 누락시키지 않는다. 가맹점과 거래는 물리 삭제하지 않는다.
 
@@ -237,7 +237,7 @@ erDiagram
 
 ### 서버 요청
 
-`X-Service-Token` 검증 결과를 `AuthenticatedMerchant(merchantId, credentialKey)`에 연결한다. 등록/상태 검사 후 서비스로 전달한다. 요청의 `merchantId`(숫자 가맹점 코드)가 있다면 인증 결과와 일치하는지만 검사한다. 가맹점명으로 조회·인증하거나 요청 코드만으로 권한을 부여하지 않는다.
+`Merchant`·`credentialKey` 헤더를 DB 해시로 검증하고 `AuthenticatedMerchant(merchantId)`에 연결한다. 등록/상태 검사 후 서비스로 전달한다. 요청의 `merchantId`(숫자 가맹점 코드)가 있다면 인증 결과와 일치하는지만 검사한다. 가맹점명으로 조회·인증하거나 요청 코드만으로 권한을 부여하지 않는다.
 
 모든 조회·취소·환불은 `pgPaymentId + authenticatedMerchantId` 또는 `authenticatedMerchantId + paymentNo`로 시작한다. 다른 가맹점 거래는 존재 여부를 노출하지 않는 404를 반환한다. 금융수단과 금융사는 이 조회로 얻은 저장값을 사용한다. 요청의 method/company 필드는 일치 검증에만 쓴다.
 

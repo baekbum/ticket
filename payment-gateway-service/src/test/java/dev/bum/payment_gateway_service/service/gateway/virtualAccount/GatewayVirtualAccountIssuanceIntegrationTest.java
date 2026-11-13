@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.gateway.virtualAccount;
 
+import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -20,7 +22,6 @@ import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.jpa.outbox.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.security.*;
-import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialResolver;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayVirtualAccountService;
@@ -64,7 +65,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.open-in-view=false", "spring.sql.init.mode=never",
         "app.financial-simulation.base-url=", "app.financial-simulation.token=", "management.tracing.enabled=false",
-        "app.merchants.credentials.ticksy[0]=test-merchant-a", "app.merchants.credentials.melon[0]=test-merchant-b",
         "app.ticket.service-token=test-merchant-a", "app.payment-provider.token=test-provider"
 })
 @AutoConfigureMockMvc
@@ -80,8 +80,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
             SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
-            MerchantAuthenticationService.class, MerchantCredentialResolver.class, MerchantCredentialProperties.class,
-            FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
+            MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
             BankVirtualAccountIssueCommandService.class, GatewayPaymentController.class,
@@ -383,7 +382,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     String prepare(String token, String paymentNo, PaymentMethod method) throws Exception {
         GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(null, paymentNo, "buyer", method,
                 new BigDecimal("100"), deadline, method == PaymentMethod.BANK_TRANSFER ? BankCompany.KB : null);
-        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("X-Service-Token", token)
+        return json.readTree(mvc.perform(post("/api/v1/payments/gateway/prepare").header("Merchant", "test-merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).get("pgPaymentId").asText();
     }
@@ -394,7 +394,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     }
 
     ResultActions issue(String token, String id, GatewayVirtualAccountPaymentIssueRequest request) throws Exception {
-        return mvc.perform(post(path(id)).header("X-Service-Token", token).contentType(MediaType.APPLICATION_JSON)
+        return mvc.perform(post(path(id)).header("Merchant", "test-merchant-b".equals(token) ? second.getMerchantId() : first.getMerchantId())
+                .header("credentialKey", token).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsBytes(request)));
     }
 
@@ -407,7 +408,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     }
 
     Merchant register(String key) {
-        Merchant merchant = Merchant.register("동일한 가맹점명", key, "TICKSY", key);
+        Merchant merchant = Merchant.register("동일한 가맹점명", MerchantCredentialKey.hash("ticksy".equals(key) ? "test-merchant-a" : "test-merchant-b"), "TICKSY", key);
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }

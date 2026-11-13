@@ -1,9 +1,6 @@
 package dev.bum.payment_gateway_service.security.merchant;
 
 public record AuthenticatedMerchant(
-        // DB에서 자격증명에 연결된 숫자 가맹점 코드.
-        Long merchantId,
-
-        // 인증에 사용한 설정 그룹. 토큰 원문은 보관하지 않는다.
-        String credentialKey
+        // DB 해시 검증을 통과한 숫자 가맹점 코드. 원문 키와 해시는 인증 주체에 보관하지 않는다.
+        Long merchantId
 ) { }

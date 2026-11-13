@@ -46,7 +46,7 @@
 | --- | --- |
 | 준비/동일 요청/본인 merchant 거래 조회 | 200 |
 | 입력·수단·기한·유효 금액 오류 | 400 |
-| 토큰 누락·불일치·DB에 미등록된 자격증명 그룹 | 401 |
+| 인증 헤더 누락·불일치·미등록 가맹점 | 401 |
 | 본문 merchantId 위변조 또는 중단 merchant의 신규 준비 | 403 |
 | 다른 merchant 거래 또는 없는 거래 | 404 |
 | 동일 번호의 다른 준비 내용 | 409 |
@@ -56,19 +56,7 @@ SUSPENDED merchant는 새 준비를 할 수 없고 기존 거래는 조회할 �
 
 ## 인증 설정과 기존 API 호환성
 
-기본 `app.merchants.credentials.ticksy` 그룹은 기존 `app.ticket.service-token`을 재사용한다. 운영에서는 기존과 같이 `APP_INTERNAL_SERVICE_TOKEN`을 주입한다. 원문 토큰은 DB에 넣지 않고 `credential_key = ticksy`로 merchant를 등록한다.
-
-PG 요청 인증을 위한 가맹점 추가 시 서버 자격증명 설정과 DB 등록을 둘 다 수행한다. 발신 통보 URL·토큰은 별도로 merchant_notification_endpoints에서 관리하며 YAML 대상 목록을 사용하지 않는다. 예를 들어 별도 환경 설정에서 다음과 같이 주입할 수 있다. 실제 비밀값을 커밋하지 않는다.
-
-```yaml
-app:
-  merchants:
-    credentials:
-      melon:
-        - ${APP_MELON_SERVICE_TOKEN}
-```
-
-같은 그룹의 리스트에 이전 토큰을 추가하면 기존 요청을 위한 회전 기간을 둘 수 있다. 그룹 사이 동일 토큰 등록은 시작 시 거절한다. credential_key는 유니크이며 merchant_name과 무관하다. 숫자 코드가 1이라는 이유로 Ticksy로 분기하지 않는다.
+2026-11-13부터 가맹점 인증은 `Merchant: {숫자 코드}`, `credentialKey: {발급 원문 키}` 헤더와 merchants.credential_hash를 사용한다. PG YAML 토큰 목록은 제거했다. 원문 키는 PG 운영자가 발급하고 DB에는 SHA-256 해시만 저장한다. 키 교체 시 이전 키는 즉시 무효화된다. 발급 명령·로컬 설정·배포 환경·DB 전환은 [DB 가맹점 인증](payment-gateway-merchant-authentication.md)을 따른다.
 
 **기존 금융 API는 아직 다중 가맹점으로 전환하지 않았다.** 기존 카드 사용자 JWT 경로와 Ticksy 내부 서비스 토큰 경로는 기존 계약을 유지한다. 다른 merchant의 새 토큰은 기존 발급·취소·환불·resolve API에 접근할 수 없다. 신규 ROLE_MERCHANT를 기존 ROLE_INTERNAL_SERVICE와 혼용하지 않는다. 기존 카드·계좌·환불 행에 merchant를 추정해 연결하지 않았다.
 
@@ -97,7 +85,7 @@ app:
 | 확인 항목 | 결과 |
 | --- | --- |
 | public 테이블 수 | 기존 52개 → 55개 |
-| 가맹점 등록 | merchant_id=1, Ticksy, ACTIVE, credential_key=ticksy |
+| 가맹점 등록 | merchant_id=1, Ticksy, ACTIVE (현재 인증은 credential_hash로 전환) |
 | PG 거래 / PG 이력 | 각 0건. PostgreSQL 검증용 데이터가 남지 않음 |
 | 기존 payments·카드 원장/승인·계좌/은행 이력·환불 | 적용 전후 각 0건으로 동일 |
 | 신규 테이블 PK·FK·유니크 제약 | 9개 확인. 금액·상태 등의 CHECK도 마이그레이션으로 생성 |
@@ -106,7 +94,7 @@ app:
 
 ## 검증 방법
 
-`GatewayMerchantIntegrationTest`는 격리된 H2에서 실제 Spring Security 필터·MVC·서비스·JPA를 실행한다. 중복 이름/번호, 교차 조회, 본문 위변조, 인증 종류, 토큰 회전, 가맹점 중단, 동시 요청과 금액 충돌, 등록 이력 실패의 전체 롤백을 확인한다. `MerchantCredentialResolverTest`는 설정 중복과 유효하지 않은 토큰을 확인한다.
+`GatewayMerchantIntegrationTest`는 격리된 H2에서 실제 Spring Security 필터·MVC·서비스·JPA를 실행한다. 중복 이름/번호, 교차 조회, 본문 위변조, 인증 종류, 토큰 회전, 가맹점 중단, 동시 요청과 금액 충돌, 등록 이력 실패의 전체 롤백을 확인한다. `MerchantAuthenticationServiceTest`와 `MerchantCredentialKeyTest`는 코드·DB 해시 검증과 무작위 키 발급·교체·폐기를 확인한다.
 
 `GatewayCorePostgresTest`는 아래 환경 변수가 있을 때만 실제 PostgreSQL에 연결한다. `ddl-auto=validate`, `spring.sql.init.mode=never`를 사용하고 테스트마다 트랜잭션을 롤백한다. 임의 DDL 생성·삭제나 원데이터 초기화를 수행하지 않는다. 숫자 시퀀스는 롤백되어도 증가할 수 있다.
 
