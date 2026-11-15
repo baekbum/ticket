@@ -8,9 +8,9 @@ import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.config.FinancialSimulationHttpConfig;
 import dev.bum.payment_gateway_service.controller.advice.*;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayCardPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayCardPaymentController;
 import dev.bum.payment_gateway_service.controller.financial.*;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayVirtualAccountController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayVirtualAccountController;
 import dev.bum.payment_gateway_service.dto.card.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.exception.CardPaymentPendingException;
@@ -92,7 +92,7 @@ class FinancialSimulationHttpIntegrationTest {
             dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class,
             GatewayCardPaymentController.class, GatewayVirtualAccountController.class,
-            CardController.class, BankController.class, GlobalExceptionHandler.class,
+            CardController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,

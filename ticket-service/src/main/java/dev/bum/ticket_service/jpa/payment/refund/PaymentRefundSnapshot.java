@@ -68,6 +68,10 @@ public class PaymentRefundSnapshot {
     @Column(length = 50, updatable = false)
     private String refundAccountHolder;
 
+    // 새 PG 신청의 계좌 원문 복원용 AES-GCM 암호문. 외부 응답에는 포함하지 않는다.
+    @Column(name = "refund_account_ciphertext", columnDefinition = "text", updatable = false)
+    private String refundAccountCiphertext;
+
     // 스냅샷 생성 시각.
     @Column(nullable = false, updatable = false)
     private LocalDateTime capturedAt;
@@ -149,6 +153,15 @@ public class PaymentRefundSnapshot {
         refundBankCompany = bank;
         refundAccountNumberMasked = masked;
         refundAccountHolder = holder;
+    }
+
+    // 최초 접수 트랜잭션에서만 암호문을 함께 저장한다.
+    public void captureAccountCiphertext(String ciphertext) {
+
+        if (refundAccountCiphertext != null || ciphertext == null || ciphertext.isBlank()) {
+            throw new IllegalStateException("환불 계좌 암호문을 변경할 수 없습니다.");
+        }
+        refundAccountCiphertext = ciphertext;
     }
 
     // 요청에 대응하는 처리 대상 티켓을 결정한다.

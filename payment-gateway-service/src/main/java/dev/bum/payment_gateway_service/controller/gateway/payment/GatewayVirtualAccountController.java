@@ -1,4 +1,4 @@
-package dev.bum.payment_gateway_service.controller.gateway;
+package dev.bum.payment_gateway_service.controller.gateway.payment;
 
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountIssueRequest;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountRefundRequest;

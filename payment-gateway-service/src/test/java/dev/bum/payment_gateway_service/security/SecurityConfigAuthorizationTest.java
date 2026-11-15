@@ -2,9 +2,9 @@ package dev.bum.payment_gateway_service.security;
 
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayCardPaymentController;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayRefundController;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayVirtualAccountController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayCardPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.refund.GatewayRefundController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayVirtualAccountController;
 import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayVirtualAccountService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountCancellationService;
@@ -29,6 +29,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Import(SecurityConfig.class)
 class SecurityConfigAuthorizationTest {
+
+    @MockitoBean
+    private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService bankRefunds;
 
     @MockitoBean
     private dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService bankIssuance;

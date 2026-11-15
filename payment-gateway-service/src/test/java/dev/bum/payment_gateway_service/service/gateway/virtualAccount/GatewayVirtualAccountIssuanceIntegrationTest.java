@@ -10,9 +10,9 @@ import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequ
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.config.*;
 import dev.bum.payment_gateway_service.controller.advice.*;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayPaymentController;
 import dev.bum.payment_gateway_service.controller.financial.BankController;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayVirtualAccountController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayVirtualAccountController;
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
@@ -84,7 +84,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
             BankVirtualAccountIssueCommandService.class, GatewayPaymentController.class,
-            GatewayVirtualAccountController.class, BankController.class, GlobalExceptionHandler.class,
+            GatewayVirtualAccountController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,

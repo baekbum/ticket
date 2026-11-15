@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.controller.financial;
 
+import dev.bum.common.service.paymentgateway.refund.BankRefundCommand;
+import dev.bum.common.service.paymentgateway.refund.BankRefundResult;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.dto.bank.*;
@@ -10,6 +12,7 @@ import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayV
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountCancellationService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService;
+import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,25 @@ public class BankController {
     private final BankVirtualAccountIssueCommandService issuedAccounts;
     private final BankVirtualAccountDepositService deposits;
     private final BankVirtualAccountCancellationService pgCancellation;
+
+    // 은행 금융 사실을 동기적으로 확정하는 환불 서비스.
+    private final BankVirtualAccountRefundService refunds;
+
+    @PostMapping(INTERNAL_PATH + "/gateway/refunds/execute")
+    public BankRefundResult refundGateway(
+            @Valid @RequestBody BankRefundCommand request
+    ) {
+
+        return refunds.refund(request);
+    }
+
+    @PostMapping(INTERNAL_PATH + "/gateway/refunds/withdraw")
+    public BankRefundResult withdrawGatewayRefund(
+            @Valid @RequestBody BankRefundCommand request
+    ) {
+
+        return refunds.withdraw(request);
+    }
 
     @PostMapping(INTERNAL_PATH + "/issue")
     public ResponseEntity<FinancialVirtualAccountIssueResponse> issue(

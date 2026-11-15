@@ -11,7 +11,10 @@ import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.config.*;
 import dev.bum.payment_gateway_service.controller.advice.*;
 import dev.bum.payment_gateway_service.controller.financial.BankController;
-import dev.bum.payment_gateway_service.controller.gateway.*;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayVirtualAccountController;
+import dev.bum.payment_gateway_service.controller.gateway.deposit.GatewayBankEventController;
+import dev.bum.payment_gateway_service.controller.gateway.expiration.GatewayBankExpirationEventController;
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.GatewayVirtualAccountDepositRequest;
@@ -86,7 +89,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
             BankVirtualAccountIssueCommandService.class, BankVirtualAccountDepositService.class,
             GatewayVirtualAccountDepositCommands.class,
-            GatewayPaymentController.class, GatewayVirtualAccountController.class, BankController.class,
+            GatewayPaymentController.class, GatewayVirtualAccountController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class,
             GlobalExceptionHandler.class, FinancialSimulationExceptionHandler.class,
             MerchantNotificationTargetResolver.class, MerchantNotificationTokenCipher.class,
             MerchantNotificationEndpointService.class, GatewayBankNotificationCommands.class,

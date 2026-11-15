@@ -1,4 +1,4 @@
-package dev.bum.payment_gateway_service.controller.gateway;
+package dev.bum.payment_gateway_service.controller.gateway.deposit;
 
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands;

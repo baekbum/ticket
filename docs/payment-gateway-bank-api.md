@@ -51,7 +51,7 @@ GatewayVirtualAccountDepositCommands도 클래스에 @Transactional을 두고 co
 
 PG의 발급·조회·취소·환불·취소 예매 계좌 정리는 기존 /internal/financial-simulations/banks/virtual-accounts 하위 URL과 금융 전용 토큰을 유지한다. 같은 BankController에서 처리하되 입금 제공자용 은행 진입점과 URL/권한을 구분한다. 클래스에 공통 경로를 두지 않고 두 경로 상수를 각 매핑에 명시해 내부 계약을 변경하지 않는다.
 
-은행→PG 통보 수신 POST /internal/financial-simulations/gateway/bank-deposits는 GatewayBankEventController에서 유지한다. 카드 승인·취소·환불·조회도 기존 CardController와 PG 경로를 유지한다.
+은행→PG 통보 수신 POST /internal/financial-simulations/gateway/bank-deposits는 controller.gateway.deposit.GatewayBankEventController에서 유지한다. 카드 승인·취소·환불·조회도 기존 CardController와 PG 경로를 유지한다.
 
 ## 제거와 호환성
 

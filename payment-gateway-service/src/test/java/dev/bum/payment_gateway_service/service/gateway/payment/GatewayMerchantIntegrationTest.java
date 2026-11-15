@@ -6,7 +6,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.controller.advice.GlobalExceptionHandler;
-import dev.bum.payment_gateway_service.controller.gateway.GatewayPaymentController;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayPaymentController;
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
 import dev.bum.payment_gateway_service.jpa.gateway.*;

@@ -6,24 +6,35 @@
 
 ## 컨트롤러 패키지
 
-2026-11-08 결제수단별 분류 대신 HTTP 요청을 받는 주체의 책임으로 패키지를 정리했다.
+2026-11-14 PG 컨트롤러 7개를 payment·refund·deposit·expiration 업무별 하위 패키지로 분류했다. 카드·은행 공통 환불 방향에 맞춰 gateway 아래에 card·virtualAccount 패키지를 추가하지 않는다.
 
 ```text
 controller
-├─ gateway                         # PG 외부 진입점
-│  ├─ GatewayPaymentController
-│  ├─ GatewayCardPaymentController
-│  ├─ GatewayVirtualAccountController
-│  └─ GatewayRefundController
+├─ gateway                         # PG 요청과 금융 이벤트 수신
+│  ├─ payment                      # 결제 준비·승인·계좌 발급·조회
+│  │  ├─ GatewayPaymentController
+│  │  ├─ GatewayCardPaymentController
+│  │  └─ GatewayVirtualAccountController
+│  ├─ refund                       # 공통 환불로 확장할 진입점과 기존 결과 확인
+│  │  ├─ GatewayBankRefundController
+│  │  └─ GatewayRefundController
+│  ├─ deposit                      # 은행 입금 이벤트 수신
+│  │  └─ GatewayBankEventController
+│  └─ expiration                   # 은행 만료 이벤트 수신
+│     └─ GatewayBankExpirationEventController
 ├─ financial                       # PG가 HTTP로 호출하는 은행·카드 진입점
 │  ├─ BankController
 │  └─ CardController
 └─ advice                          # 예외 응답 처리
 ```
 
+현재 GatewayBankRefundController는 신규 PG 가상계좌 환불·철회를, GatewayRefundController는 기존 카드·구계좌의 resolve를 처리한다. 같은 refund 패키지로 모았으며 카드 환불의 새 계약 전환과 컨트롤러 통합은 별도 작업이다. 결제수단별 기존 컨트롤러의 호환 환불·취소 메서드는 현재 API 계약을 유지한다. 이번 변경은 package와 import만 바꾸며 클래스명·URL·요청/응답·인증·트랜잭션·DB 정의는 그대로다.
+
 기존 `controller.card`, `controller.virtualAccount`, `controller.refund`의 PG 컨트롤러를 `controller.gateway`로 모으고 `controller.simulation`의 금융 컨트롤러를 `controller.financial`로 이동했다. 클래스명, API URL, 인증 필터 경로와 금융 HTTP 설정은 유지한다. 따라서 금융 내부 URL의 `/internal/financial-simulations` 접두사도 변경하지 않는다. 자바 import와 예외 처리 대상, 테스트의 컨트롤러 참조만 새 패키지에 맞췄다.
 
-이동 후 전체 PG 테스트 소스 컴파일과 관련 4개 클래스의 테스트 52개를 실행해 실패·오류·건너뜀 없이 통과했다. `SecurityConfigAuthorizationTest` 22개, `FinancialSimulationHttpIntegrationTest` 13개, `GatewayVirtualAccountIssuanceIntegrationTest` 16개, `GatewayCardHttpContractTest` 1개다. 격리 H2를 사용했으며 실제 DB 변경은 없다. 이전 패키지 참조가 소스에 남지 않고 빌드 출력도 새 패키지에만 생성됐음을 확인했다.
+2026-11-08 이동 당시 전체 PG 테스트 소스 컴파일과 관련 4개 클래스의 테스트 52개를 실행해 실패·오류·건너뜀 없이 통과했다. `SecurityConfigAuthorizationTest` 22개, `FinancialSimulationHttpIntegrationTest` 13개, `GatewayVirtualAccountIssuanceIntegrationTest` 16개, `GatewayCardHttpContractTest` 1개다. 격리 H2를 사용했으며 실제 DB 변경은 없다. 이전 패키지 참조가 소스에 남지 않고 빌드 출력도 새 패키지에만 생성됐음을 확인했다.
+
+2026-11-14 업무별 패키지 이동 후 보안·금융 HTTP·가맹점 준비/조회·카드 승인·계좌 발급·입금/만료·취소·환불 관련 9개 테스트 클래스, 200개 테스트가 실패·오류·건너뜀 없이 통과했다. 이동한 컨트롤러 7개의 package 선언 외 내용이 동일하고 이전 패키지의 컴파일 출력이 남지 않았음을 확인했다. 실제 DB 변경은 없다.
 
 ## 서비스 패키지
 

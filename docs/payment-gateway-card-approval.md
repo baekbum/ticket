@@ -12,7 +12,7 @@
 
 | 책임 | 구현 |
 | --- | --- |
-| PG 승인·조회 진입점 | controller.gateway.GatewayCardPaymentController |
+| PG 승인·조회 진입점 | controller.gateway.payment.GatewayCardPaymentController |
 | PG 승인 조정/확정 | service.gateway.card.GatewayCardApprovalService, GatewayCardApprovalCommandService |
 | 금융 HTTP 중계 | service.gateway.client.FinancialSimulationGatewayService |
 | 카드사 진입점 | controller.financial.CardController |

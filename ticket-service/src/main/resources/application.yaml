@@ -48,6 +48,9 @@ spring:
     openfeign:
       client:
         config:
+          payment-gateway-bank-refund-client:
+            connectTimeout: 2000
+            readTimeout: 80000
           default:
             connectTimeout: 3000
             readTimeout: 9000
@@ -102,6 +105,8 @@ app:
   checkout:
     reservation-fee-per-ticket: 4000
     delivery-fee: 3200
+  payment-refund:
+    account-encryption-key: ${APP_REFUND_ACCOUNT_ENCRYPTION_KEY:}
   payment-gateway:
     credential-key: ${APP_PG_CREDENTIAL_KEY:}
     merchant-id: ${APP_PG_MERCHANT_ID:1}

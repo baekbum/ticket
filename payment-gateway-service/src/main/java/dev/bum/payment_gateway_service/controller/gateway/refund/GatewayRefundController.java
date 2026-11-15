@@ -1,4 +1,4 @@
-package dev.bum.payment_gateway_service.controller.gateway;
+package dev.bum.payment_gateway_service.controller.gateway.refund;
 
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
 import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;

@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.jpa.gateway;
 
+import dev.bum.common.service.paymentgateway.refund.BankRefundResult;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -243,6 +245,27 @@ public class GatewayPaymentHistory {
                 "bankCompany", event.bankCompany().name(), "expiresAt", event.expiresAt().toString(),
                 "expiredAt", event.expiredAt().toString());
         history.occurredAt = event.expiredAt();
+
+        return history;
+    }
+
+    // 개별 환불 성공 또는 미실행 철회 사실을 PG 결과와 함께 한 번 기록한다.
+    public static GatewayPaymentHistory bankRefund(
+            GatewayPayment payment,
+            BankRefundResult result,
+            GatewayPaymentStatus before
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.REFUND;
+        history.operationKey = ("WITHDRAWN".equals(result.outcome()) ? "WITHDRAW:" : "") + result.refundRequestId();
+        history.beforeStatus = before;
+        history.afterStatus = payment.getStatus();
+        history.amount = result.amount();
+        history.requestHash = result.requestHash();
+        history.details = Map.of("refundRequestId", result.refundRequestId(), "outcome", result.outcome());
+        history.occurredAt = result.completedAt();
 
         return history;
     }

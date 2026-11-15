@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.jpa.virtualAccount;
 
+import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
+
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -78,6 +80,11 @@ public class DummyVirtualAccount {
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
+    // 신규 PG 환불의 누적 금융 실행 금액. 최초 입금 금액·시각은 변경하지 않는다.
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+
     // 가상계좌 입금 처리 상태.
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
@@ -155,6 +162,17 @@ public class DummyVirtualAccount {
     public boolean hasDeposit() {
 
         return status == VirtualAccountPaymentStatus.DEPOSITED;
+    }
+
+    // 계좌 잠금 아래 확정한 환불만 누적한다. 취소 계좌의 늦은 입금 반환은 지원하지 않는다.
+    public void refundGateway(BigDecimal value) {
+
+        if (!hasDeposit() || value == null || value.signum() <= 0
+                || refundedAmount.add(value).compareTo(amount) > 0) {
+            throw new GatewayPaymentConflictException("은행 환불 가능 금액을 초과했거나 환불할 수 없는 계좌입니다.");
+        }
+
+        refundedAmount = refundedAmount.add(value);
     }
 
     // 가상계좌를 만료 상태로 변경한다.

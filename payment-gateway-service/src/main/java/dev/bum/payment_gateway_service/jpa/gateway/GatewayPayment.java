@@ -244,6 +244,19 @@ public class GatewayPayment {
         }
     }
 
+    // 은행의 최초 성공 영수증을 반영한다. PG 결과 저장 실패는 은행 환불을 되돌리지 않는다.
+    public void refundBank(BigDecimal value) {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || paidAt == null || value == null || value.signum() <= 0
+                || (status != GatewayPaymentStatus.PAID && status != GatewayPaymentStatus.PARTIALLY_REFUNDED)
+                || refundedAmount.add(value).compareTo(amount) > 0) {
+            throw new IllegalStateException("PG 환불 결과를 반영할 수 없습니다.");
+        }
+
+        refundedAmount = refundedAmount.add(value);
+        status = refundedAmount.compareTo(amount) == 0 ? GatewayPaymentStatus.REFUNDED : GatewayPaymentStatus.PARTIALLY_REFUNDED;
+    }
+
     // 같은 키의 다른 요청을 기존 거래 성공으로 잘못 재응답하지 않는다.
     public boolean matches(GatewayPaymentTerms terms) {
 

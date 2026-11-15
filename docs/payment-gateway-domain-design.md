@@ -1,12 +1,14 @@
 # PG 가맹점·거래·식별자 설계
 
+2026-11-13 신규 PG 연결 가상계좌의 입금 후 전액·부분 환불과 명시적 신청 철회를 구현했다. Ticksy→PG는 1회, PG→은행은 최대 4회이며 신청 스냅샷과 같은 키로 재요청한다. 새 API·NOWAIT 잠금·스키마·기존 경로의 호환성 범위는 [환불·신청 철회 계약](payment-gateway-bank-refund.md)을 우선한다. 아래 초기 설계의 환불 후속 작업 설명은 이 문서의 현재 구현으로 대체한다.
+
 2026-11-10 최신 변경: 은행 입금은 은행→PG와 PG→가맹점의 독립 Outbox, PG ID 취소는 비동기 접수→은행 요청 Outbox→가맹점 결과 Outbox로 변경했다. 취소 경로의 입금 복구 호출과 PG의 은행 원장 직접 대사를 제거했다. 아래 초기 단계 설명보다 [입금 문서](payment-gateway-account-deposit.md)와 [취소 문서](payment-gateway-account-cancellation.md)의 현재 계약을 우선한다.
 
 작성일: 2026-11-04. 현재 구현 분석은 [사전 분석](payment-gateway-refactoring-analysis.md)을 따른다.
 
 이 문서는 전체 구현의 기준 설계다. [핵심 테이블 DDL 초안](design/payment-gateway-core-schema.sql)은 설계 기록으로 유지한다. 가맹점·PG 거래 모델과 서버 인증·준비/조회 API는 구현했으며, 실제 적용 범위와 SQL은 [기반 구현 문서](payment-gateway-core-implementation.md)를 따른다. 금융 연결·카드 세션·통보 책임 분리는 아래 설계에 따른 후속 작업이다.
 
-2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)과 [PG 카드 승인](payment-gateway-card-approval.md)을 구현했다. 2026-11-09 신규 은행 연결 거래의 [입금·가맹점 통보·응답 유실 복구](payment-gateway-account-deposit.md)도 연결했다. 2026-11-10 [PG 거래 기반 입금 전 취소](payment-gateway-account-cancellation.md)도 연결했다. 만료·환불은 후속 단계다.
+2026-11-06 사용자 요청으로 은행·카드의 호출 경계를 내부 메서드에서 RestClient HTTP로 변경했다. 같은 앱/DB는 유지한다. 현재 외부 금융 API의 실제 경로와 응답·트랜잭션 계약은 [모의 금융 HTTP 구현](payment-gateway-financial-http.md)을 따른다. HTTP 전후를 하나의 로컬 트랜잭션으로 묶지 않는다. 2026-11-08 [PG 거래 기반 계좌 발급](payment-gateway-account-issuance.md)과 [PG 카드 승인](payment-gateway-card-approval.md)을 구현했다. 2026-11-09 신규 은행 연결 거래의 [입금·가맹점 통보·응답 유실 복구](payment-gateway-account-deposit.md)도 연결했다. 2026-11-10 [PG 거래 기반 입금 전 취소](payment-gateway-account-cancellation.md)도 연결했다. 만료·가상계좌 환불은 각각의 후속 구현 문서를 따른다.
 
 ## 1. 결정한 구조
 
@@ -39,6 +41,8 @@ flowchart TD
 - 은행/카드 처리 후 PG 상태와 통보 Outbox를 갱신하는 책임은 PG 계층에 둔다. HTTP 결과 확정은 별도 PG 트랜잭션으로 처리하고 응답 유실은 같은 식별자로 조회/복구한다. 초기 HTTP 변경에서는 은행↔PG Outbox를 추가하지 않았으나, 현재 은행 입금과 PG 취소 요청은 명시적 Outbox를 사용한다. 카드 HTTP 경계는 기존대로 유지한다.
 
 ### 패키지와 클래스
+
+2026-11-14 실제 컨트롤러는 controller.gateway.payment·refund·deposit·expiration과 controller.financial로 분류한다. 아래 목록은 초기 설계이며 현재 경로는 [컨트롤러 패키지 문서](payment-gateway-financial-http.md#컨트롤러-패키지)를 따른다.
 
 기존 `controller`, `service`, `jpa`, `dto` 규칙을 유지한다. 아래는 도입할 클래스의 위치이며 현재 존재하는 클래스 목록이 아니다.
 

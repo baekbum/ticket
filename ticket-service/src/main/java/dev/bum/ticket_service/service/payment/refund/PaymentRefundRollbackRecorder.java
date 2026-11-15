@@ -33,7 +33,8 @@ public class PaymentRefundRollbackRecorder {
         if (reservations.findByIdForUpdate(record.reservationId()).isEmpty()) return;
         PaymentRefundProcess process = processes.findById(record.processId()).orElse(null);
         if (process == null || process.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
-                || process.getStatus() == PaymentRefundProcessStatus.SUPERSEDED) return;
+                || process.getStatus() == PaymentRefundProcessStatus.SUPERSEDED
+                || process.getStatus() == PaymentRefundProcessStatus.WITHDRAWN) return;
 
         PaymentRefundProcessStatus observed = record.observedStatus();
         if (observed == PaymentRefundProcessStatus.SUPERSEDED) {

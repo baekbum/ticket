@@ -31,7 +31,8 @@ CREATE TABLE merchant_notification_endpoints (
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_merchant_notification_endpoints_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(merchant_id),
+    CONSTRAINT fk_merchant_notification_endpoints_merchant FOREIGN KEY (merchant_id)
+        REFERENCES merchants(merchant_id),
     CONSTRAINT uk_merchant_notification_endpoints_target UNIQUE (merchant_id, target_key),
     CONSTRAINT chk_merchant_notification_endpoints_key CHECK (btrim(target_key) <> '' AND target_key = btrim(target_key)),
     CONSTRAINT chk_merchant_notification_endpoints_url CHECK (btrim(notification_url) <> ''),
@@ -187,7 +188,8 @@ CREATE TABLE dummy_card_payment_histories (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_dummy_card_payment_histories_dummy_card_id FOREIGN KEY (dummy_card_id) REFERENCES dummy_cards(dummy_card_id),
+    CONSTRAINT fk_dummy_card_payment_histories_dummy_card_id FOREIGN KEY (dummy_card_id)
+        REFERENCES dummy_cards(dummy_card_id),
     CONSTRAINT fk_dummy_card_payment_histories_pg_payment FOREIGN KEY (pg_payment_id)
         REFERENCES gateway_payments(pg_payment_id),
     CONSTRAINT uk_dummy_card_payment_histories_pg_payment UNIQUE (pg_payment_id),
@@ -213,6 +215,7 @@ CREATE TABLE dummy_virtual_accounts (
     account_number VARCHAR(30) NOT NULL,
     depositor_name VARCHAR(50),
     amount NUMERIC(15, 2) NOT NULL,
+    refunded_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
     status VARCHAR(40) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     deposited_at TIMESTAMP,
@@ -220,6 +223,7 @@ CREATE TABLE dummy_virtual_accounts (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT chk_dummy_virtual_accounts_refund_balance CHECK (refunded_amount >= 0 AND refunded_amount <= amount),
     CONSTRAINT fk_dummy_virtual_accounts_pg_payment FOREIGN KEY (pg_payment_id)
         REFERENCES gateway_payments(pg_payment_id),
     CONSTRAINT uk_dummy_virtual_accounts_pg_payment UNIQUE (pg_payment_id),
@@ -244,7 +248,8 @@ CREATE TABLE dummy_virtual_account_payment_histories (
     message VARCHAR(500),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_dummy_virtual_account_histories_virtual_account_id FOREIGN KEY (virtual_account_id) REFERENCES dummy_virtual_accounts(virtual_account_id)
+    CONSTRAINT fk_dummy_virtual_account_histories_virtual_account_id FOREIGN KEY (virtual_account_id)
+        REFERENCES dummy_virtual_accounts(virtual_account_id)
 );
 
 CREATE INDEX idx_dummy_virtual_account_histories_payment_no ON dummy_virtual_account_payment_histories(payment_no);
@@ -293,11 +298,13 @@ CREATE TABLE virtual_account_deposit_outbox (
     delivered_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT uk_va_deposit_outbox_payment_no UNIQUE (payment_no),
     CONSTRAINT chk_va_deposit_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
     CONSTRAINT chk_va_deposit_outbox_amount CHECK (amount > 0),
     CONSTRAINT chk_va_deposit_outbox_retry_count CHECK (retry_count >= 0)
 );
+
 CREATE INDEX idx_va_deposit_outbox_ready ON virtual_account_deposit_outbox(status, next_attempt_at, outbox_id);
 
 -- 환불 프로세스별 최초 요청을 보존하고 성공·실패·미실행 종료 상태를 기록한다.
@@ -317,10 +324,12 @@ CREATE TABLE gateway_refunds (
     message VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT chk_gateway_refunds_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'FAILED', 'CLOSED')),
     CONSTRAINT chk_gateway_refunds_process_id CHECK (payment_refund_process_id > 0),
     CONSTRAINT chk_gateway_refunds_amount CHECK (refund_amount > 0)
 );
+
 CREATE INDEX idx_gateway_refunds_payment_no ON gateway_refunds(payment_no);
 
 -- 기존 DB에 한 번만 적용한다. 기존 테이블/행은 변경하거나 삭제하지 않는다.
@@ -348,6 +357,7 @@ CREATE TABLE gateway_card_notification_outbox (
     delivered_at TIMESTAMP(6),
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT uk_gateway_card_notification_event UNIQUE (event_id),
     CONSTRAINT uk_gateway_card_notification_payment UNIQUE (pg_payment_id),
     CONSTRAINT fk_gateway_card_notification_payment FOREIGN KEY (pg_payment_id)
@@ -363,6 +373,7 @@ CREATE TABLE gateway_card_notification_outbox (
         OR (status <> 'DELIVERED' AND outcome IS NULL AND delivered_at IS NULL)
     )
 );
+
 CREATE INDEX idx_gateway_card_notification_ready
     ON gateway_card_notification_outbox(status, next_attempt_at, notification_id);
 CREATE INDEX idx_gateway_card_notification_lease
@@ -392,6 +403,7 @@ CREATE TABLE gateway_bank_notification_outbox (
     delivered_at TIMESTAMP(6),
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT uk_gateway_bank_notification_event UNIQUE (event_id),
     CONSTRAINT uk_gateway_bank_notification_payment UNIQUE (pg_payment_id),
     CONSTRAINT fk_gateway_bank_notification_payment FOREIGN KEY (pg_payment_id)
@@ -407,6 +419,7 @@ CREATE TABLE gateway_bank_notification_outbox (
         OR (status <> 'DELIVERED' AND outcome IS NULL AND delivered_at IS NULL)
     )
 );
+
 CREATE INDEX idx_gateway_bank_notification_ready
     ON gateway_bank_notification_outbox(status, next_attempt_at, notification_id);
 CREATE INDEX idx_gateway_bank_notification_lease
@@ -428,9 +441,11 @@ CREATE TABLE bank_transfer_outbox (
     delivered_at TIMESTAMP(6),
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT uk_bank_transfer_event UNIQUE (flow, event_id),
     CONSTRAINT uk_bank_transfer_operation UNIQUE (flow, pg_payment_id),
-    CONSTRAINT fk_bank_transfer_payment FOREIGN KEY (pg_payment_id) REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT fk_bank_transfer_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
     CONSTRAINT chk_bank_transfer_flow CHECK (flow IN ('BANK_DEPOSIT', 'BANK_EXPIRATION', 'BANK_CANCEL_REQUEST', 'MERCHANT_CANCEL_RESULT')),
     CONSTRAINT chk_bank_transfer_status CHECK (status IN ('PENDING', 'SENDING', 'DELIVERED')),
     CONSTRAINT chk_bank_transfer_attempt CHECK (attempt >= 0),
@@ -440,6 +455,7 @@ CREATE TABLE bank_transfer_outbox (
         OR (status <> 'DELIVERED' AND result IS NULL AND delivered_at IS NULL)
     )
 );
+
 CREATE INDEX idx_bank_transfer_ready ON bank_transfer_outbox(flow, status, next_attempt_at, outbox_id);
 CREATE INDEX idx_bank_transfer_lease ON bank_transfer_outbox(flow, status, lease_until, outbox_id);
 
@@ -449,5 +465,44 @@ CREATE TABLE bank_virtual_account_cancellations (
     request_payload JSONB NOT NULL,
     result_payload JSONB NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_bank_cancel_payment FOREIGN KEY (pg_payment_id) REFERENCES gateway_payments(pg_payment_id)
+
+    CONSTRAINT fk_bank_cancel_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id)
+);
+
+-- 개별 PG 환불의 금융 결과와 미실행 철회 기록. 가맹점 범위는 PG 원거래로 결정한다.
+CREATE TABLE gateway_bank_refunds (
+    refund_id BIGSERIAL PRIMARY KEY,
+    pg_payment_id VARCHAR(44) NOT NULL,
+    refund_request_id VARCHAR(60) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    completed_at TIMESTAMP(6),
+
+    CONSTRAINT uk_gateway_bank_refund_request UNIQUE (pg_payment_id, refund_request_id),
+    CONSTRAINT fk_gateway_bank_refund_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT chk_gateway_bank_refund_amount CHECK (amount > 0),
+    CONSTRAINT chk_gateway_bank_refund_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'WITHDRAWN')),
+    CONSTRAINT chk_gateway_bank_refund_completion CHECK (
+        (status = 'REQUESTED' AND completed_at IS NULL)
+        OR (status <> 'REQUESTED' AND completed_at IS NOT NULL)
+    )
+);
+
+CREATE TABLE bank_virtual_account_refunds (
+    refund_id BIGSERIAL PRIMARY KEY,
+    pg_payment_id VARCHAR(44) NOT NULL,
+    refund_request_id VARCHAR(60) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    completed_at TIMESTAMP(6) NOT NULL,
+
+    CONSTRAINT uk_bank_virtual_account_refund_request UNIQUE (pg_payment_id, refund_request_id),
+    CONSTRAINT fk_bank_virtual_account_refund_account FOREIGN KEY (pg_payment_id)
+        REFERENCES dummy_virtual_accounts(pg_payment_id),
+    CONSTRAINT chk_bank_virtual_account_refund_amount CHECK (amount > 0),
+    CONSTRAINT chk_bank_virtual_account_refund_status CHECK (status IN ('SUCCEEDED', 'WITHDRAWN'))
 );

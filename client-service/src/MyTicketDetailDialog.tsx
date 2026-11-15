@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { SessionExpiredError, type createAuthenticatedRequest } from './authenticatedRequest';
+import { ApiRequestError, SessionExpiredError, type createAuthenticatedRequest } from './authenticatedRequest';
 import { CARD_COMPANIES } from './cardPayment';
 
 type Ticket = { ticketId: number; seatName: string; zone: string; seatRow: number; seatCol: number; grade: string; price: number; status: string };
@@ -11,11 +11,15 @@ type CancelReservationResponse = {
   cancelledTicketIds: number[];
   message: string;
 };
+type RefundApplication = { paymentRefundProcessId: number; selectedTicketIds: string; refundAmount: number; cancellationFeeAmount: number; status: string; refundBankCompany: string | null; refundAccountNumberMasked: string | null; createdAt: string };
+type RefundAction = { outcome: 'SUCCEEDED' | 'WITHDRAWN'; application: RefundApplication; message: string };
+const finishedRefund = (status: string) => ['LOCAL_SUCCEEDED', 'WITHDRAWN', 'SUPERSEDED'].includes(status);
+const refundStatusLabels: Record<string, string> = { REQUESTED: '결과 확인 대기', GATEWAY_FAILED: '결과 확인 필요', GATEWAY_SUCCEEDED: '환불 반영 대기', LOCAL_FAILED: '환불 반영 재시도 필요', LOCAL_SUCCEEDED: '환불 완료', WITHDRAW_REQUESTED: '철회 확인 중', WITHDRAWN: '철회 완료', SUPERSEDED: '종료' };
 type Detail = {
   reservation: { reservationId: number; userId: string; eventId: number; eventTitle: string; eventDateTime: string; venue: string; cancelDeadlineAt: string | null };
   tickets: Ticket[];
   delivery: null | { recipientName: string; recipientPhone: string; address: string; detailAddress: string; carrier: string | null; trackingNumber: string | null };
-  payment: null | { paymentNo: string; method: string; status: string; amount: number; refundedAmount: number; paidAt: string | null; expiresAt: string | null; cardCompany: string | null; maskedCardNumber: string | null; bankName: string | null; accountNumber: string | null; depositorName: string | null };
+  payment: null | { pgPaymentId?: string | null; paymentNo: string; method: string; status: string; amount: number; refundedAmount: number; paidAt: string | null; expiresAt: string | null; cardCompany: string | null; maskedCardNumber: string | null; bankName: string | null; accountNumber: string | null; depositorName: string | null };
   totalTicketAmount: number; totalDiscountAmount: number;
 };
 
@@ -47,6 +51,10 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const [bankCompany, setBankCompany] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
+  const [applications, setApplications] = useState<RefundApplication[]>([]);
+  const [applicationsError, setApplicationsError] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [refundSelection, setRefundSelection] = useState<number[]>([]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -73,9 +81,20 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const payment = detail?.payment;
   const fee = detail && payment ? payment.amount - Math.max(0, detail.totalTicketAmount - detail.totalDiscountAmount) : null;
   const isBankTransfer = payment?.method === 'BANK_TRANSFER';
+  const isGatewayBank = isBankTransfer && Boolean(payment?.pgPaymentId);
+
+  useEffect(() => {
+    if (!isGatewayBank) return;
+    const controller = new AbortController();
+    request<RefundApplication[]>(`/ticket/api/v1/reservation/${reservationId}/refunds`, { method: 'GET', signal: controller.signal })
+      .then((rows) => { if (!controller.signal.aborted) { setApplications(rows); setApplicationsError(''); } })
+      .catch(() => { if (!controller.signal.aborted) setApplicationsError('환불 신청 이력을 불러오지 못했습니다. 다시 확인해주세요.'); });
+    return () => controller.abort();
+  }, [isGatewayBank, request, reservationId, retry]);
   const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
-  function beginRefund(ticket: Ticket) {
+  function beginRefund(ticket: Ticket, ids: number[] = [ticket.ticketId]) {
+    setRefundSelection(ids);
     setRefundTicket(ticket);
     if (!isBankTransfer) setConfirmTicket(ticket);
   }
@@ -96,6 +115,21 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
     try {
+      if (isGatewayBank) {
+        const result = await request<RefundAction>(`/ticket/api/v1/reservation/${reservationId}/refunds`, {
+          method: 'POST', body: JSON.stringify({ eventId: detail.reservation.eventId,
+            selectedTicketIdList: refundSelection.length ? refundSelection : [ticket.ticketId],
+            refundAccount: { bankCompany, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() } }),
+        });
+        setRefundAlert({ message: result.message, kind: 'success' });
+        setRefundTicket(null);
+        setSelectedIds([]);
+        setAccountNumber('');
+        setAccountHolder('');
+        setRetry((value) => value + 1);
+        onRefunded?.();
+        return;
+      }
       const result = await request<CancelReservationResponse>(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -129,13 +163,33 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       setRefundAlert({
         message: failure instanceof SessionExpiredError
           ? failure.message
-          : '환불 처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          : failure instanceof ApiRequestError ? failure.message : '환불 처리 도중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
         kind: 'error',
       });
+      setRetry((value) => value + 1);
     } finally {
       setRefundingTicketId(null);
     }
   }
+
+  async function runApplication(application: RefundApplication, withdraw: boolean) {
+    if (refundingTicketId != null || finishedRefund(application.status)) return;
+    if (withdraw && !window.confirm('아직 실행되지 않은 환불 신청을 철회하시겠습니까? 이미 환불된 경우 완료 결과를 반영합니다.')) return;
+    setRefundingTicketId(-1);
+    try {
+      const action = withdraw || application.status === 'WITHDRAW_REQUESTED' ? 'withdraw' : 'retry';
+      const result = await request<RefundAction>(`/ticket/api/v1/reservation/${reservationId}/refunds/${application.paymentRefundProcessId}/${action}`, { method: 'POST' });
+      setRefundAlert({ message: result.message, kind: 'success' });
+      onRefunded?.();
+    } catch (failure) {
+      setRefundAlert({ message: failure instanceof Error ? failure.message : '환불 결과를 확인하지 못했습니다. 같은 신청으로 다시 시도해주세요.', kind: 'error' });
+    } finally {
+      setRefundingTicketId(null);
+      setRetry((value) => value + 1);
+    }
+  }
+
+  const selectionLabel = detail?.tickets.filter((ticket) => refundSelection.includes(ticket.ticketId)).map(seatName).join(', ');
 
   return <dialog ref={dialogRef} className="my-ticket-detail-dialog" aria-labelledby="my-ticket-detail-title"
     onCancel={(event) => {
@@ -173,14 +227,32 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
         <section><h3>좌석 정보 ({detail.tickets.length}매)</h3><div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
           <thead><tr><th>좌석 등급</th><th>좌석 번호</th><th>구매 금액</th><th>예매/취소</th><th>환불</th></tr></thead>
           <tbody>{detail.tickets.map((ticket) => <tr key={ticket.ticketId}><td>{ticket.grade}석</td><td>{seatName(ticket)}</td><td>{money(ticket.price)}</td><td>{ticketLabels[ticket.status] || ticket.status}</td><td>
+            {isGatewayBank && ticket.status === 'PAID' && paymentIsRefundable && <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)} disabled={refundingTicketId != null} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, ticket.ticketId] : ids.filter((id) => id !== ticket.ticketId))} />}
             {ticket.status === 'PAID' && paymentIsRefundable ? <button className="my-ticket-refund-button" type="button"
               disabled={refundingTicketId != null} onClick={() => beginRefund(ticket)}>
               {refundingTicketId === ticket.ticketId ? '처리 중…' : '환불 / 재시도'}
             </button> : <span className="my-ticket-refund-unavailable">-</span>}
           </td></tr>)}</tbody>
         </table></div>{!detail.tickets.length && <p>발급된 티켓이 없습니다.</p>}
+          {isGatewayBank && selectedIds.length > 0 && <button type="button" disabled={refundingTicketId != null} onClick={() => {
+            const first = detail.tickets.find((ticket) => ticket.ticketId === selectedIds[0]);
+            if (first) beginRefund(first, selectedIds);
+          }}>선택 좌석 환불 신청 ({selectedIds.length}석)</button>}
+          {isGatewayBank && <section aria-label="환불 신청 이력"><h3>환불 신청 이력</h3>
+            {applicationsError && <p role="alert">{applicationsError} <button type="button" onClick={() => setRetry((value) => value + 1)}>이력 다시 확인</button></p>}
+            {applications.length === 0 && !applicationsError && <p>환불 신청 이력이 없습니다.</p>}
+            {applications.map((application) => <div key={application.paymentRefundProcessId} className="my-ticket-refund-application">
+              <p><strong>신청 #{application.paymentRefundProcessId}</strong> · {refundStatusLabels[application.status] || application.status}</p>
+              <p>대상: {application.selectedTicketIds.split(',').map((id) => detail.tickets.find((ticket) => ticket.ticketId === Number(id))).map((ticket) => ticket ? seatName(ticket) : '-').join(', ')} · 환불 {money(application.refundAmount)} · 수수료 {money(application.cancellationFeeAmount)}</p>
+              <p>{application.refundBankCompany} {application.refundAccountNumberMasked} · {application.createdAt}</p>
+              {!finishedRefund(application.status) && <div className="my-ticket-refund-actions">
+                <button type="button" disabled={refundingTicketId != null} onClick={() => void runApplication(application, false)}>{application.status === 'WITHDRAW_REQUESTED' ? '철회 다시 확인' : '다시 시도'}</button>
+                <button type="button" disabled={refundingTicketId != null} onClick={() => void runApplication(application, true)}>환불 신청 취소</button>
+              </div>}
+            </div>)}
+          </section>}
           {refundTicket && isBankTransfer && <form className="my-ticket-refund-form" onSubmit={(event) => requestRefund(refundTicket, event)}>
-            <div><strong>환불 계좌 정보</strong><span>{seatName(refundTicket)}</span></div>
+            <div><strong>환불 계좌 정보</strong><span>{selectionLabel || seatName(refundTicket)}</span></div>
             <label>은행<select value={bankCompany} onChange={(event) => setBankCompany(event.target.value)} disabled={refundingTicketId != null}>
               <option value="">은행 선택</option>{refundBanks.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
             </select></label>
@@ -197,7 +269,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       <section className="my-ticket-refund-confirm" role="alertdialog" aria-modal="true" aria-labelledby="refund-confirm-title" aria-describedby="refund-confirm-message">
         <div className="my-ticket-refund-confirm-icon" aria-hidden="true">!</div>
         <h2 id="refund-confirm-title">환불 확인</h2>
-        <p id="refund-confirm-message"><strong>{seatName(confirmTicket)}</strong> 좌석을 환불하시겠습니까?<br />환불 후에는 되돌릴 수 없습니다.</p>
+        <p id="refund-confirm-message"><strong>{selectionLabel || seatName(confirmTicket)}</strong> 좌석을 환불하시겠습니까?<br />환불 후에는 되돌릴 수 없습니다.</p>
         <div className="my-ticket-refund-confirm-actions">
           <button type="button" onClick={() => { setConfirmTicket(null); if (!isBankTransfer) setRefundTicket(null); }}>취소</button>
           <button type="button" autoFocus onClick={() => void submitRefund(confirmTicket)}>환불하기</button>
@@ -207,7 +279,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     {refundAlert && <div className="my-ticket-refund-confirm-backdrop" role="presentation">
       <section className="my-ticket-refund-confirm" role="alertdialog" aria-modal="true" aria-labelledby="refund-alert-title" aria-describedby="refund-alert-message">
         <div className={`my-ticket-refund-confirm-icon ${refundAlert.kind}`} aria-hidden="true">{refundAlert.kind === 'success' ? '✓' : '!'}</div>
-        <h2 id="refund-alert-title">{refundAlert.kind === 'success' ? '환불 완료' : '안내'}</h2>
+        <h2 id="refund-alert-title">{refundAlert.kind === 'success' ? '처리 결과' : '안내'}</h2>
         <p id="refund-alert-message">{refundAlert.message}</p>
         <div className="my-ticket-refund-confirm-actions single">
           <button type="button" autoFocus onClick={() => setRefundAlert(null)}>확인</button>

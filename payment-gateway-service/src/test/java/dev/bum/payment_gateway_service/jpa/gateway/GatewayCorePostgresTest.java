@@ -69,6 +69,35 @@ class GatewayCorePostgresTest {
     @Autowired GatewayCardNotificationJpaRepository notifications;
     @Autowired MerchantNotificationEndpointJpaRepository endpoints;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
+    @Autowired GatewayBankRefundJpaRepository bankRefunds;
+    @Autowired BankVirtualAccountRefundJpaRepository bankReceipts;
+
+    @Test
+    void bankRefundReceiptsBalancesAndPgHistoryUseTheActualSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-REFUND", PaymentMethod.BANK_TRANSFER);
+        payment.waitForDeposit();
+        payment.receiveDeposit(LocalDateTime.of(2026,11,13,12,0));
+        DummyVirtualAccount account = DummyVirtualAccount.issue(payment.getPgPaymentId(),payment.getPgPaymentId(),
+                BankCompany.KB,"VERIFY-REFUND",payment.getAmount(),payment.getExpiresAt());
+        account.deposit("입금자",LocalDateTime.of(2026,11,13,12,0));
+        accounts.saveAndFlush(account);
+        var command = new dev.bum.common.service.paymentgateway.refund.BankRefundCommand(payment.getPgPaymentId(),"1",
+                new BigDecimal("1"),BankCompany.KB,"123456","owner");
+        var receipt = BankVirtualAccountRefund.pending(command);
+        receipt.complete("SUCCEEDED",LocalDateTime.of(2026,11,13,12,1));
+        bankReceipts.saveAndFlush(receipt);
+        account.refundGateway(command.amount());
+        var row = GatewayBankRefund.pending(payment,command);
+        row.complete("SUCCEEDED",receipt.getCompletedAt());
+        bankRefunds.saveAndFlush(row);
+        GatewayPaymentStatus before=payment.getStatus();
+        payment.refundBank(command.amount());
+        histories.saveAndFlush(GatewayPaymentHistory.bankRefund(payment,receipt.result(),before));
+        entityManager.clear();
+        assertThat(bankReceipts.findByPgPaymentIdAndRefundRequestId(payment.getPgPaymentId(),"1")).isPresent();
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getRefundedAmount()).isEqualByComparingTo("1");
+    }
+
     @Test
     void aMerchantCanBeUnprovisionedAndLaterStoreOnlyTheIssuedHash() {
         Merchant merchant = merchants.saveAndFlush(Merchant.register("미발급 가맹점", null, "TICKSY", "verify"));
