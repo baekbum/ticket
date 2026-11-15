@@ -22,7 +22,7 @@ public record GatewayCardApprovalRequest(
         @NotBlank @Size(max = 10) String cvc,
 
         // 카드 인증값. 로그·응답·DB에 저장하지 않는다.
-        @NotBlank @Size(max = 20) String cardPassword,
+        @NotBlank @Size(max = 64) String cardPassword,
 
         // 저장된 원거래와 비교할 금액.
         @NotNull @Positive BigDecimal amount

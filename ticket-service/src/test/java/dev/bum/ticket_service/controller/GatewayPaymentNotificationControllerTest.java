@@ -79,7 +79,7 @@ class GatewayPaymentNotificationControllerTest {
 
     @Test
     void theSameRegisteredEndpointAlsoAcceptsExistingCardNotificationFields() throws Exception {
-        when(payments.settleCardFromGateway(any())).thenReturn(new CardPaymentSettlementResponse(
+        when(payments.settleCardFromGateway(any(), anyString())).thenReturn(new CardPaymentSettlementResponse(
                 CardPaymentSettlementResponse.Outcome.COMPLETED, PaymentResponse.builder().paymentNo("PAY-1")
                         .method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.PAID).amount(100).cardTransactionId("CARD-1").build()));
         CardPaymentNotification card = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId, "PAY-1", "buyer",

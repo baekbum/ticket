@@ -2,6 +2,7 @@ package dev.bum.payment_gateway_service.service.gateway.card;
 
 import dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalResponse;
 import dev.bum.payment_gateway_service.dto.gateway.*;
+import dev.bum.payment_gateway_service.exception.GatewayPaymentNotFoundException;
 import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
 import dev.bum.payment_gateway_service.support.GatewayPaymentIdNormalizer;
@@ -61,6 +62,24 @@ public class GatewayCardApprovalService {
         }
 
         return commands.confirm(merchant, id, request, card);
+    }
+
+    /**
+     * 응답 유실 뒤 조회만으로 금융 성공을 복구한다. 금융 재승인이나 카드 비밀값 저장은 하지 않는다.
+     */
+    public GatewayCardApprovalResponse recoverStatus(AuthenticatedMerchant merchant, String pgPaymentId) {
+
+        String id = GatewayPaymentIdNormalizer.normalize(pgPaymentId);
+        Optional<GatewayCardApprovalResponse> existing = commands.findApproved(merchant, id);
+
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        FinancialCardApprovalResponse card = financial.gatewayCardStatus(id)
+                .orElseThrow(GatewayPaymentNotFoundException::new);
+
+        return commands.confirmRecovered(merchant, id, card);
     }
 
     /**

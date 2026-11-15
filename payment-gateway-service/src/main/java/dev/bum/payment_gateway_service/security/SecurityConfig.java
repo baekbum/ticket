@@ -88,6 +88,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/*/payments/card/checkout/*/approve").hasRole(ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/*/payments/card/checkout/*").hasRole(ROLE_USER)
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/approve").hasRole(ROLE_USER) // 카드 결제 최소 승인
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/internal/*/approval-exists").hasRole(ROLE_INTERNAL) // 승인 내용이 있는지 조회
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/*").hasRole(ROLE_USER) // 카드 상태 조회

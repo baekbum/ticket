@@ -257,6 +257,12 @@ public class CheckoutTransactionService {
         validateRequestMatchesAttempt(userId, request, attempt);
 
         Payment payment = attempt.getPayment();
+        if (payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
+                && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER
+                && (payment.getGatewayExpiresAt() != null || payment.getPgPaymentId() != null)) {
+            throw new IllegalStateException("이미 카드 결제로 준비된 예매입니다. 카드 결제를 진행하거나 새 예매에서 결제수단을 선택해주세요.");
+        }
+
         return payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
                 && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER ? payment.getPaymentNo() : null;
     }

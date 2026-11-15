@@ -2,6 +2,8 @@ server:
   port: 8099
 
 spring:
+  config:
+    import: optional:file:./pg-checkout.properties,optional:file:./payment-gateway-service/pg-checkout.properties
   data:
     redis:
       host: ${TOKEN_STATE_REDIS_HOST:localhost}
@@ -39,6 +41,8 @@ token:
   secret: ${TOKEN_SECRET:ticket-project-secret-value-is-made-by-random}
 
 app:
+  checkout:
+    signing-key: ${APP_PG_CHECKOUT_SIGNING_KEY:}
   financial-simulation:
     base-url: ${APP_FINANCIAL_SIMULATION_BASE_URL:}
     token: ${APP_FINANCIAL_SIMULATION_TOKEN:}

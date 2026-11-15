@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.feign.paymentgateway;
 
+import dev.bum.common.service.paymentgateway.card.*;
 import dev.bum.ticket_service.config.PaymentGatewayMerchantFeignConfig;
 import dev.bum.ticket_service.config.PaymentGatewayTransactionFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -12,6 +13,12 @@ public interface PaymentGatewayTransactionClient {
 
     @PostMapping("/api/v1/payments/gateway/prepare")
     GatewayPaymentPrepareResponse prepare(@RequestBody GatewayPaymentPrepareRequest request);
+
+    @PostMapping("/api/v1/payments/card/gateway/{pgPaymentId}/checkout-session")
+    GatewayCardSessionResponse cardSession(
+            @PathVariable("pgPaymentId") String pgPaymentId,
+            @RequestBody GatewayCardSessionRequest request
+    );
 
     @GetMapping("/api/v1/payments/gateway/{pgPaymentId}")
     GatewayPaymentPrepareResponse findByPgPaymentId(@PathVariable("pgPaymentId") String pgPaymentId);

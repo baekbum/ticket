@@ -1,5 +1,7 @@
 # PG 거래 기반 카드 승인
 
+2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.
+
 2026-11-09 가맹점 통보를 [공통 계약과 URL 인자 기반 전송](payment-gateway-standard-card-notification.md)으로 변경했다. PG 전송 구현체는 하나이며 Ticksy 등 가맹점 수신부가 공통 규격을 구현한다. 금융 승인/조회·Outbox 재시도·승인 보상 흐름은 유지한다.
 
 2026-11-08 준비된 PG 거래를 카드사의 실제 원승인과 연결했다. 기존 프런트의 사용자 JWT 카드 API와 Ticksy 호출은 유지하며 신규 서버 API를 별도로 제공한다.
@@ -8,7 +10,7 @@
 
 기존 프런트는 사용자 JWT로 POST /api/v1/payments/card/approve를 호출한다. PG의 HTTP 중계를 거친 기존 카드 승인 서비스가 Ticksy 검증 API를 호출하고, 승인 커밋 뒤 Ticksy settle 결과를 반영한다. 기존 원승인은 paymentNo 전역 유니크이며 금융/가맹점 통보 상태가 카드 거래 행에 섞여 있다.
 
-새 경로는 준비된 gateway_payments의 가맹점·예매자·금액·저장된 결제수단을 PG가 확인한다. 카드사는 Ticksy를 호출하지 않고 카드 인증·한도·원승인만 처리한다. PG가 PAID와 APPROVE 이력, 가맹점 통보 Outbox를 함께 저장한다. 기존 사용자 JWT API는 이 새 서버 API로 자동 전환하지 않았다.
+새 경로는 준비된 gateway_payments의 가맹점·예매자·금액·저장된 결제수단을 PG가 확인한다. 카드사는 Ticksy를 호출하지 않고 카드 인증·한도·원승인만 처리한다. PG가 PAID와 APPROVE 이력, 가맹점 통보 Outbox를 함께 저장한다. 기존 사용자 JWT API는 미연결 카드의 호환 경로다. 신규 카드 checkout은 거래 전용 세션과 별도 브라우저 승인 API를 사용한다.
 
 | 책임 | 구현 |
 | --- | --- |
@@ -128,7 +130,7 @@ merchant_notification_endpoints에서 merchant_id + target_key로 전체 API URL
 - 기존 카드 행은 pg_payment_id NULL로 유지한다. 검증된 merchant+원번호로 PG 거래를 준비하고 금융 사실을 대사한 뒤 별도의 승인된 이관 작업으로만 연결한다. 가맹점 식별 불가능한 행은 NULL로 남긴다.
 - 기존 paymentNo 조회·환불·복구 스케줄러는 pg_payment_id IS NULL인 카드 거래만 처리한다. 신규 연결 거래가 Ticksy 고정 경로에 섞이거나 다른 가맹점에 노출되지 않는다.
 - 신규 PG 카드 거래의 사용자 요청 취소·부분 환불 API는 다음 단계다. 이번 내부 cancel은 가맹점 확정 거절의 전체 원승인 보상 전용이다. 기존 카드 환불 API는 기존 NULL 연결 거래에 유지된다.
-- Ticksy의 prepare 호출·pgPaymentId 저장, 프런트의 PG 카드 세션/JWT 연계는 아직 전환하지 않았다. 기존 API를 사용하는 현재 Ticksy/프런트 동작을 유지한다.
+- Ticksy 신규 checkout은 PG prepare·pgPaymentId 저장·거래 전용 세션/JWT 승인으로 전환했다. 기존 미연결 카드만 기존 API를 사용한다.
 
 ## 검증
 

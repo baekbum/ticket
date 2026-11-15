@@ -36,6 +36,12 @@ public class PaymentService {
         return cardPaymentService.settleFromGateway(request);
     }
 
+    // 신규 PG 통보는 저장된 결제 ID를 함께 확인한다.
+    public CardPaymentSettlementResponse settleCardFromGateway(CardPaymentCompleteRequest request, String pgPaymentId) {
+
+        return cardPaymentService.settleFromGateway(request, pgPaymentId);
+    }
+
     /**
      * payment-gateway에서 카드 승인에 성공한 결제를 ticket-service 결제 완료 상태로 반영한다.
      */

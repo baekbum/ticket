@@ -62,3 +62,6 @@ output/
 
 # PG가 일회성으로 발급한 가맹점 원문 인증 키
 **/pg-merchant.properties
+
+# 로컬 PG 카드 결제 세션 서명 키
+**/pg-checkout.properties

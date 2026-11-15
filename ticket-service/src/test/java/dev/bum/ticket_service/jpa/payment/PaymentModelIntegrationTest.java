@@ -201,6 +201,8 @@ class PaymentModelIntegrationTest {
         given(ticketRepository.selectByReservation(payment.getReservation()))
                 .willReturn(tickets.findByReservation(payment.getReservation()));
         String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
+        payment.bindGatewayPayment(pgId);
+        payments.flush();
         CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
                 payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
                 new BigDecimal("12000"), "CARD-STANDARD", CardCompany.SHINHAN, "4111-****-****-1111",
@@ -457,6 +459,8 @@ class PaymentModelIntegrationTest {
         payment.cancel();
         payments.saveAndFlush(payment);
         String pgId = "20261109550e8400-e29b-41d4-a716-446655440001";
+        payment.bindGatewayPayment(pgId);
+        payments.flush();
         CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
                 payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
                 new BigDecimal("12000"), "CARD-CANCELLED", CardCompany.SHINHAN, "4111-****-****-1111",

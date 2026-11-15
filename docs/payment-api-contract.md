@@ -1,5 +1,7 @@
 # 결제 API 계약
 
+2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.
+
 2026-11-13 신규 PG 연결 가상계좌의 입금 후 전액·부분 환불과 명시적 신청 철회를 구현했다. Ticksy→PG는 1회, PG→은행은 최대 4회이며 신청 스냅샷과 같은 키로 재요청한다. 새 API·NOWAIT 잠금·스키마·기존 경로의 호환성 범위는 [환불·신청 철회 계약](payment-gateway-bank-refund.md)을 우선한다. 아래 초기 설계의 환불 후속 작업 설명은 이 문서의 현재 구현으로 대체한다.
 
 2026-11-12 신규 PG 가상계좌 만료는 은행→PG의 금융 인증 Outbox로 확정한다. Ticksy는 기존 가맹점 범위 GET 거래 조회에서 EXPIRED를 확인한 후에만 만료한다. PG→Ticksy 만료 통보 API는 추가하지 않는다. [만료 계약·입금 경합·운영 범위](payment-gateway-account-expiration.md)를 참고한다.

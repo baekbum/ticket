@@ -5,6 +5,7 @@ import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.GatewayCardCheckoutService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
@@ -16,8 +17,13 @@ public class CheckoutService {
 
     // 예매·좌석·Payment를 하나의 짧은 로컬 트랜잭션으로 저장한다.
     private final CheckoutTransactionService commands;
+
     // 커밋한 발급 의도로 PG prepare·발급을 재시도한다.
     private final GatewayVirtualAccountCheckoutService accounts;
+
+    // 카드도 로컬 저장 커밋 후 PG 거래를 준비한다.
+    private final GatewayCardCheckoutService cardCheckout;
+
     // 기존 카드 승인 이력 확인은 DB 잠금 밖에서 수행한다.
     private final PaymentGatewayCardClient cards;
 
@@ -35,7 +41,7 @@ public class CheckoutService {
             return accounts.issue(payment.getPaymentNo());
         }
 
-        return payment;
+        return cardCheckout.prepare(userId, payment.getPaymentNo());
     }
 
     /**

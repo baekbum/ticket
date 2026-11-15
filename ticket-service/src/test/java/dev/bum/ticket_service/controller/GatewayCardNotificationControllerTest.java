@@ -49,7 +49,7 @@ class GatewayCardNotificationControllerTest {
     void standardNotificationMapsToLocalCardSettlementAndReturnsOnlyTheCommonAcknowledgement() throws Exception {
         CardPaymentNotification event = event();
         doReturn(result(CardPaymentSettlementResponse.Outcome.COMPLETED, PaymentStatus.PAID))
-                .when(payments).settleCardFromGateway(any());
+                .when(payments).settleCardFromGateway(any(), anyString());
         byte[] response = send(event, "test-pg-inbound").andExpect(status().isOk())
                 .andExpect(jsonPath("$.outcome").value("ACCEPTED"))
                 .andExpect(jsonPath("$.pgPaymentId").value(pgId))
@@ -60,13 +60,13 @@ class GatewayCardNotificationControllerTest {
         assertThat(ack.matches(event)).isTrue();
         verify(payments).settleCardFromGateway(argThat(request -> request.getPaymentNo().equals("PAY-1")
                 && request.getUserId().equals("buyer") && request.getTransactionId().equals("CARD-1")
-                && request.getAmount().compareTo(new BigDecimal("100")) == 0));
+                && request.getAmount().compareTo(new BigDecimal("100")) == 0), eq(pgId));
     }
 
     @Test
     void definitiveReservationRejectionUsesTheSameCommonResponseContract() throws Exception {
         doReturn(result(CardPaymentSettlementResponse.Outcome.REJECTED, PaymentStatus.CANCELLED))
-                .when(payments).settleCardFromGateway(any());
+                .when(payments).settleCardFromGateway(any(), anyString());
         send(event(), "test-pg-inbound").andExpect(status().isOk())
                 .andExpect(jsonPath("$.outcome").value("REJECTED"))
                 .andExpect(jsonPath("$.eventId").value(event().eventId()));
@@ -75,13 +75,13 @@ class GatewayCardNotificationControllerTest {
     @Test
     void repeatedDeliveryUsesTheSameLocalTransactionIdentity() throws Exception {
         doReturn(result(CardPaymentSettlementResponse.Outcome.COMPLETED, PaymentStatus.PAID))
-                .when(payments).settleCardFromGateway(any());
+                .when(payments).settleCardFromGateway(any(), anyString());
         byte[] first = send(event(), "test-pg-inbound").andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
         byte[] second = send(event(), "test-pg-inbound").andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
         assertThat(json.readTree(first)).isEqualTo(json.readTree(second));
-        verify(payments, times(2)).settleCardFromGateway(argThat(request -> request.getTransactionId().equals("CARD-1")));
+        verify(payments, times(2)).settleCardFromGateway(argThat(request -> request.getTransactionId().equals("CARD-1")), eq(pgId));
     }
 
     @Test
@@ -129,7 +129,7 @@ class GatewayCardNotificationControllerTest {
     @Test
     void unclearLocalResultCannotBecomeAnAcceptedOrRejectedAcknowledgement() {
         doReturn(result(CardPaymentSettlementResponse.Outcome.COMPLETED, PaymentStatus.READY))
-                .when(payments).settleCardFromGateway(any());
+                .when(payments).settleCardFromGateway(any(), anyString());
         GatewayCardNotificationService receiver = new GatewayCardNotificationService(payments, 1);
         assertThatThrownBy(() -> receiver.receive(event())).isInstanceOf(IllegalStateException.class);
     }

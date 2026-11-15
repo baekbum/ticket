@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.*;
 import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.GatewayCardCheckoutService;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import static org.assertj.core.api.Assertions.*;
@@ -15,7 +16,8 @@ class CheckoutServiceOrchestrationTest {
     final CheckoutTransactionService commands = mock(CheckoutTransactionService.class);
     final GatewayVirtualAccountCheckoutService accounts = mock(GatewayVirtualAccountCheckoutService.class);
     final PaymentGatewayCardClient cards = mock(PaymentGatewayCardClient.class);
-    final CheckoutService checkout = new CheckoutService(commands, accounts, cards);
+    final GatewayCardCheckoutService cardCheckout = mock(GatewayCardCheckoutService.class);
+    final CheckoutService checkout = new CheckoutService(commands, accounts, cardCheckout, cards);
 
     @Test void bankIssuanceRunsOnlyAfterLocalConfirmReturnsAndItsResultIsReturned() {
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.BANK_TRANSFER).build();
@@ -36,7 +38,9 @@ class CheckoutServiceOrchestrationTest {
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.CREDIT_CARD).build();
         PaymentResponse card = PaymentResponse.builder().method(PaymentMethod.CREDIT_CARD).build();
         when(commands.confirm("owner", "queue", request, false)).thenReturn(card);
+        when(cardCheckout.prepare("owner", null)).thenReturn(card);
         assertThat(checkout.confirm("owner", "queue", request)).isSameAs(card);
+        verify(cardCheckout).prepare("owner", null);
         verifyNoInteractions(accounts, cards);
     }
 

@@ -72,3 +72,12 @@ test('철회 요청에서 환불 완료를 복구하면 결과를 안내하고 �
     assert.equal(button(view.document, '다시 시도'), undefined);
   } finally { await view.close(); }
 });
+
+test('신규 PG 카드는 기존 환불 API로 진입하지 않고 온라인 환불 제한을 안내한다', async () => {
+  const payload = detail(); payload.payment.method = 'CREDIT_CARD';
+  const view = await mount(async () => payload);
+  try {
+    assert.equal(button(view.document, '환불 / 재시도'), undefined);
+    assert.ok(view.document.body.textContent.includes('온라인 환불을 지원하지 않습니다'));
+  } finally { await view.close(); }
+});

@@ -12,6 +12,7 @@ import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CardPaymentService {
 
+    // 신규 PG 통보는 예매 → 결제 순서를 유지한다.
+    private final VirtualAccountPaymentLockService gatewayLocks;
+
     // 결제 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentJpaRepository paymentJpaRepository;
     // 결제 완료 업무 처리를 담당하는 서비스.
@@ -40,10 +44,32 @@ public class CardPaymentService {
      */
     public CardPaymentSettlementResponse settleFromGateway(CardPaymentCompleteRequest request) {
 
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+        return settle(request, null);
+    }
+
+    // 표준 PG 통보는 결제번호뿐 아니라 저장된 PG 거래 ID까지 대조한다.
+    public CardPaymentSettlementResponse settleFromGateway(CardPaymentCompleteRequest request, String pgPaymentId) {
+
+        if (pgPaymentId == null || pgPaymentId.isBlank()) {
+            throw new IllegalArgumentException("PG 카드 거래 식별자가 필요합니다.");
+        }
+
+        return settle(request, pgPaymentId);
+    }
+
+    private CardPaymentSettlementResponse settle(CardPaymentCompleteRequest request, String pgPaymentId) {
+
+        Payment payment = pgPaymentId == null
+                ? paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
+                        .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."))
+                : gatewayLocks.lock(request.getPaymentNo());
 
         validateOwner(payment, request.getUserId());
+
+        if ((pgPaymentId != null && !pgPaymentId.equals(payment.getPgPaymentId()))
+                || (pgPaymentId == null && payment.getPgPaymentId() != null)) {
+            throw new IllegalArgumentException("카드 통보의 PG 원거래가 일치하지 않습니다.");
+        }
 
         if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
@@ -123,6 +149,10 @@ public class CardPaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
         validateOwnerAndMethod(payment, request.userId());
+
+        if (payment.getPgPaymentId() != null || payment.getGatewayExpiresAt() != null) {
+            throw new IllegalArgumentException("신규 PG 카드는 거래 전용 결제 세션으로 승인해주세요.");
+        }
 
         if (payment.getStatus() != PaymentStatus.READY) {
             throw new IllegalArgumentException("승인 가능한 결제 상태가 아닙니다.");

@@ -117,6 +117,67 @@ public class GatewayCardApprovalCommandService {
     }
 
     /**
+     * 조회 경로에서는 승인 이력이 없다는 사실과 잘못된 소유권을 구분해 내부에서 처리한다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<GatewayCardApprovalResponse> findApproved(AuthenticatedMerchant principal, String id) {
+
+        merchant(principal, null);
+        GatewayPayment payment = payments.findByPgPaymentIdAndMerchantMerchantId(id, principal.merchantId())
+                .orElseThrow(GatewayPaymentNotFoundException::new);
+
+        if (payment.getPaymentMethod() != PaymentMethod.CREDIT_CARD) {
+            throw new GatewayPaymentConflictException("카드 거래가 아닙니다.");
+        }
+
+        return approved(id).map(history -> response(payment, history));
+    }
+
+    /**
+     * 카드 원문 없이 금융 서버의 인증된 원승인으로 PG 저장 실패를 복구한다. 새 승인은 실행하지 않는다.
+     */
+    @Transactional
+    public GatewayCardApprovalResponse confirmRecovered(
+            AuthenticatedMerchant principal,
+            String id,
+            FinancialCardApprovalResponse card
+    ) {
+
+        merchant(principal, null);
+        GatewayPayment payment = owned(principal, id);
+
+        if (card == null || payment.getPaymentMethod() != PaymentMethod.CREDIT_CARD
+                || !id.equals(card.pgPaymentId()) || !payment.getBuyerReference().equals(card.buyerReference())
+                || card.amount() == null || payment.getAmount().compareTo(card.amount()) != 0
+                || card.cardIdentity() == null || !card.cardIdentity().matches("[0-9a-f]{64}")
+                || card.cardCompany() == null || card.transactionId() == null || card.transactionId().isBlank()
+                || card.transactionId().length() > 80 || card.maskedCardNumber() == null
+                || !card.maskedCardNumber().matches("[0-9]{4}-\\*{4}-\\*{4}-[0-9]{4}")
+                || card.approvedAt() == null || card.approvedAt().isAfter(payment.getExpiresAt())
+                || card.status() != CardPaymentHistoryStatus.APPROVED) {
+            throw new FinancialProviderResponseException();
+        }
+
+        String hash = CardCredentials.hash(payment.getCreationRequestHash() + "|" + card.cardIdentity());
+        Optional<GatewayPaymentHistory> previous = approved(id);
+
+        if (previous.isPresent()) {
+            if (!hash.equals(previous.get().getRequestHash())
+                    || !card.transactionId().equals(previous.get().getDetails().get("transactionId"))) {
+                throw new FinancialProviderResponseException();
+            }
+
+            return response(payment, previous.get());
+        }
+
+        payment.approveCard(card.cardCompany(), card.approvedAt());
+        GatewayPaymentHistory history = histories.saveAndFlush(GatewayPaymentHistory.cardApproved(payment, card, hash));
+        notifications.saveAndFlush(GatewayCardNotification.pending(payment, card));
+
+        return response(payment, history);
+    }
+
+    /**
      * 본문 코드가 아닌 principal 자격증명으로 현재 가맹점을 확인한다.
      */
     private Merchant merchant(AuthenticatedMerchant principal, Long bodyMerchantId) {

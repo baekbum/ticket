@@ -44,3 +44,7 @@ test('환불 결과 미확인과 동시 처리 오류는 고정 안내만 표시
   assert.match(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_REFUND_UNCONFIRMED', message: '내부 SQL 상세' })), /같은 신청으로 다시 시도/);
   assert.equal(getApiErrorMessage(409, JSON.stringify({ code: 'RESERVATION_PROCESSING', message: '내부 잠금 상세' })), '해당 예매에 대한 처리가 진행 중입니다. 잠시 후 다시 시도해 주세요.');
 });
+
+test('카드 준비 결과 미확인은 내부 상세 대신 같은 결제 요청 재시도를 안내한다', () => {
+  assert.equal(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_CARD_PREPARATION_UNCONFIRMED', message: 'internal failure detail' })), '카드 결제 준비 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도해주세요.');
+});

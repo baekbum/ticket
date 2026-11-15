@@ -53,7 +53,7 @@ public class GatewayCardNotificationService {
                 .paymentNo(notification.merchantPaymentNo()).userId(notification.buyerReference())
                 .amount(notification.amount()).transactionId(notification.transactionId())
                 .cardCompany(notification.cardCompany()).maskedCardNumber(notification.maskedCardNumber()).build();
-        CardPaymentSettlementResponse result = payments.settleCardFromGateway(request);
+        CardPaymentSettlementResponse result = payments.settleCardFromGateway(request, notification.pgPaymentId());
         CardPaymentNotificationResponse.Outcome outcome = outcome(notification, result);
 
         return CardPaymentNotificationResponse.of(notification, outcome);

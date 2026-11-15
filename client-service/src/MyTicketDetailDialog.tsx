@@ -91,7 +91,8 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
       .catch(() => { if (!controller.signal.aborted) setApplicationsError('환불 신청 이력을 불러오지 못했습니다. 다시 확인해주세요.'); });
     return () => controller.abort();
   }, [isGatewayBank, request, reservationId, retry]);
-  const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
+  const paymentIsRefundable = (payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED')
+    && !(payment?.method === 'CREDIT_CARD' && payment.pgPaymentId);
 
   function beginRefund(ticket: Ticket, ids: number[] = [ticket.ticketId]) {
     setRefundSelection(ids);
@@ -224,7 +225,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
           <div><dt>결제 금액</dt><dd>{money(payment.amount)}</dd></div>
           <div><dt>환불 금액</dt><dd>{money(payment.refundedAmount ?? 0)}</dd></div>
         </dl>}</section>
-        <section><h3>좌석 정보 ({detail.tickets.length}매)</h3><div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
+        <section><h3>좌석 정보 ({detail.tickets.length}매)</h3>{payment?.method === 'CREDIT_CARD' && payment.pgPaymentId && <p>현재 이 카드 결제는 온라인 환불을 지원하지 않습니다.</p>}<div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
           <thead><tr><th>좌석 등급</th><th>좌석 번호</th><th>구매 금액</th><th>예매/취소</th><th>환불</th></tr></thead>
           <tbody>{detail.tickets.map((ticket) => <tr key={ticket.ticketId}><td>{ticket.grade}석</td><td>{seatName(ticket)}</td><td>{money(ticket.price)}</td><td>{ticketLabels[ticket.status] || ticket.status}</td><td>
             {isGatewayBank && ticket.status === 'PAID' && paymentIsRefundable && <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)} disabled={refundingTicketId != null} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, ticket.ticketId] : ids.filter((id) => id !== ticket.ticketId))} />}

@@ -25,7 +25,7 @@ public record FinancialCardApproveRequest(
         @NotBlank @Size(max = 10) String cvc,
 
         // 원문을 저장하거나 작업 해시에 포함하지 않는 인증값.
-        @NotBlank @Size(max = 20) String cardPassword,
+        @NotBlank @Size(max = 64) String cardPassword,
 
         // 저장된 PG 거래의 승인 금액.
         @NotNull @Positive BigDecimal amount,

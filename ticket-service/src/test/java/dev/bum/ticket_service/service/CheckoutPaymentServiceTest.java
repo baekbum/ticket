@@ -30,6 +30,7 @@ class CheckoutPaymentServiceTest {
         Payment payment = Payment.builder()
                 .method(PaymentMethod.CREDIT_CARD)
                 .status(PaymentStatus.READY)
+                .expiresAt(java.time.LocalDateTime.now().plusMinutes(10))
                 .build();
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder()
                 .paymentMethod(PaymentMethod.CREDIT_CARD)
@@ -38,6 +39,7 @@ class CheckoutPaymentServiceTest {
         checkoutPaymentService.process(request, payment);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payment.getGatewayExpiresAt()).isEqualTo(payment.getExpiresAt());
         verifyNoInteractions(virtualAccountService);
     }
 

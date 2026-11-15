@@ -74,6 +74,7 @@ public enum ErrorCode {
     REQUIRED_HEADER_MISSING("필수 헤더가 누락되었습니다."),
 
     // 기타
+    GATEWAY_CARD_PREPARATION_UNCONFIRMED("카드 결제 준비 결과를 확인하지 못했습니다."),
     INTERNAL_SERVER_ERROR("서버 오류가 발생했습니다.");
     private final String message;
 }

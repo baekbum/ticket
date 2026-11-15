@@ -122,3 +122,10 @@ test('카드 정보 오류는 일반 문구로 표시하고 승인 상태를 조
   assert.equal(shouldCheckCardApprovalStatus(Object.assign(new Error('응답 유실'), { status: 502 })), true);
   assert.equal(shouldCheckCardApprovalStatus(new Error('네트워크 오류')), true);
 });
+
+test('신규 PG 카드 승인은 가맹점 반영 완료까지 기다리고 보상 취소를 완료로 표시하지 않는다', () => {
+  const base = { paymentNo: 'PAY-1', pgPaymentId: 'pg-1', pgStatus: 'PAID', approved: true };
+  for (const notificationStatus of ['PENDING', 'SENDING', undefined]) assert.equal(cardResult({ ...base, notificationStatus }), 'PENDING');
+  assert.equal(cardResult({ ...base, notificationStatus: 'DELIVERED' }), 'COMPLETE');
+  for (const pgStatus of ['CANCELLED', 'EXPIRED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']) assert.equal(cardResult({ ...base, pgStatus, notificationStatus: 'DELIVERED' }), 'TERMINAL');
+});

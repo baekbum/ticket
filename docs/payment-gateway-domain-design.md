@@ -1,5 +1,7 @@
 # PG 가맹점·거래·식별자 설계
 
+2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.
+
 2026-11-13 신규 PG 연결 가상계좌의 입금 후 전액·부분 환불과 명시적 신청 철회를 구현했다. Ticksy→PG는 1회, PG→은행은 최대 4회이며 신청 스냅샷과 같은 키로 재요청한다. 새 API·NOWAIT 잠금·스키마·기존 경로의 호환성 범위는 [환불·신청 철회 계약](payment-gateway-bank-refund.md)을 우선한다. 아래 초기 설계의 환불 후속 작업 설명은 이 문서의 현재 구현으로 대체한다.
 
 2026-11-10 최신 변경: 은행 입금은 은행→PG와 PG→가맹점의 독립 Outbox, PG ID 취소는 비동기 접수→은행 요청 Outbox→가맹점 결과 Outbox로 변경했다. 취소 경로의 입금 복구 호출과 PG의 은행 원장 직접 대사를 제거했다. 아래 초기 단계 설명보다 [입금 문서](payment-gateway-account-deposit.md)와 [취소 문서](payment-gateway-account-cancellation.md)의 현재 계약을 우선한다.
@@ -253,13 +255,13 @@ erDiagram
 2. 브라우저가 신규 Ticksy `POST /ticket/api/v1/checkout/payments/{paymentNo}/gateway-session`을 사용자 JWT로 호출한다.
 3. Ticksy가 짧은 조회 트랜잭션에서 소유자·금액·수단·기한을 확인한다. 트랜잭션 종료 후 서버 자격증명으로 PG 준비 API를 호출한다.
 4. PG가 `(merchant, paymentNo)` 거래를 생성/재조회하고 서명한 세션을 반환한다. Ticksy는 `pgPaymentId`를 짧은 별도 트랜잭션으로 저장한 뒤 브라우저에 전달한다. PG 성공 뒤 저장/응답이 유실되면 같은 번호로 복구한다.
-5. 브라우저는 기존 `/payment-gateway/api/v1/payments/card/approve`, 카드 상태 조회 경로에 사용자 JWT와 `X-PG-Payment-Session`을 함께 전송한다. 카드 입력값은 계속 PG로 직접 보낸다.
+5. 현재 신규 브라우저는 `/payment-gateway/api/v1/payments/card/checkout/{pgPaymentId}/approve`와 해당 PG ID 조회 경로에 사용자 JWT와 `X-PG-Payment-Session`을 함께 전송한다. 기존 approve 경로는 PG 미연결 카드의 호환 경로다. 카드 입력값은 계속 PG로 직접 보낸다.
 
 세션은 `iss`, `aud`, `exp`, `merchantId`, `pgPaymentId`, `buyerReference`, `paymentMethod`, `methodRevision`, `scope`에 서명한다. 서명 키는 사용자 JWT/서비스 토큰과 분리하여 환경 설정으로 주입한다. 원문은 DB·로그·장기 브라우저 저장소에 남기지 않는다. 브라우저 메모리에 두고 새로고침 시 Ticksy에서 다시 받는다.
 
 승인 세션은 기본 최대 5분이며 거래 승인 기한을 넘기지 않는다. 조회 세션도 최대 5분으로 하되 거래 기한 이후의 결과 확인을 허용한다. 기한 후 갱신은 본인 거래의 QUERY scope만 발급한다. 세션을 갱신해도 결제/금융 작업의 멱등 키는 바뀌지 않는다. PG가 JWT subject·세션 buyer·저장된 buyer를 대조하고, 승인 직전 잠금 아래에서도 수단/revision을 재검증한다.
 
-기존 브라우저 경로와 본문 필드는 유지할 수 있지만 **신규 세션 헤더가 필수**가 되므로 프런트엔드·Ticksy·PG를 조율해 배포해야 한다. 세션 없는 구버전 요청은 금융 처리 전에 거절한다. 일반 요청이 고른 merchant 코드로 우회하는 호환 모드는 만들지 않는다.
+신규 브라우저 경로는 **세션 헤더가 필수**이므로 프런트엔드·Ticksy·PG를 조율해 배포해야 한다. 기존 PG 미연결 카드의 호환 경로는 유지한다. 세션 없는 구버전 요청은 금융 처리 전에 거절한다. 일반 요청이 고른 merchant 코드로 우회하는 호환 모드는 만들지 않는다.
 
 ### Ticksy 저장과 API 변화
 

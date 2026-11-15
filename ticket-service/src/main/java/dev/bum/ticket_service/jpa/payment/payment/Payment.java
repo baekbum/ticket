@@ -90,7 +90,7 @@ public class Payment {
     @Column(name = "gateway_bank_company", length = 30)
     private BankCompany gatewayBankCompany;
 
-    // 재시도 날짜가 바뀌어도 prepare에 같은 기한을 전달한다.
+    // PG 최초 준비 기한. 카드 승인 또는 은행 입금 기한을 재시도에서 바꾸지 않는다.
     @Column(name = "gateway_expires_at")
     private LocalDateTime gatewayExpiresAt;
 
@@ -346,6 +346,18 @@ public class Payment {
         virtualAccountInfo.issue(bankCompany.getBankName(), null);
     }
 
+    // 신규 카드의 PG 준비 의도를 최초 로컬 커밋에 고정한다. 기존 미연결 카드에는 소급하지 않는다.
+    public void planGatewayCard() {
+
+        if (method != PaymentMethod.CREDIT_CARD || expiresAt == null) {
+            throw new IllegalArgumentException("카드 결제의 승인 기한이 필요합니다.");
+        }
+
+        if (gatewayExpiresAt == null) {
+            gatewayExpiresAt = expiresAt;
+        }
+    }
+
     // 동일 가맹점 결제번호로 준비한 PG 거래만 한 번 연결한다.
     public void bindGatewayPayment(String id) {
 
@@ -386,6 +398,10 @@ public class Payment {
         if (this.method != PaymentMethod.CREDIT_CARD || this.status != PaymentStatus.READY) {
             throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
         }
+        if (gatewayExpiresAt != null || pgPaymentId != null) {
+            throw new IllegalStateException("이미 카드 결제로 준비된 예매입니다. 카드 결제를 진행하거나 새 예매에서 결제수단을 선택해주세요.");
+        }
+
         this.method = PaymentMethod.BANK_TRANSFER;
         record(PaymentHistoryType.METHOD_CHANGED, status, null);
     }

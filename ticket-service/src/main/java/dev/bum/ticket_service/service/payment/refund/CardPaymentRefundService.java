@@ -68,6 +68,10 @@ public class CardPaymentRefundService {
             throw new IllegalArgumentException("결제 정보를 찾을 수 없습니다.");
         }
 
+        if (payment.getPgPaymentId() != null) {
+            throw new IllegalStateException("신규 PG 카드 거래의 환불 연동이 필요합니다.");
+        }
+
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
             throw new IllegalArgumentException("카드 결제가 아닙니다.");
         }

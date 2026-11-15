@@ -3,6 +3,7 @@ package dev.bum.ticket_service.controller.advice;
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
 import dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException;
+import dev.bum.ticket_service.exception.payment.GatewayCardPreparationUnconfirmedException;
 import dev.bum.ticket_service.exception.area.AreaLayoutAlreadyExistsException;
 import dev.bum.ticket_service.exception.area.AreaDuplicateException;
 import dev.bum.ticket_service.exception.area.AreaNotExistException;
@@ -32,6 +33,15 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(GatewayCardPreparationUnconfirmedException.class)
+    public ResponseEntity<ErrorResponse> handleCardPreparationUnconfirmed(
+            GatewayCardPreparationUnconfirmedException exception
+    ) {
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(ErrorCode.GATEWAY_CARD_PREPARATION_UNCONFIRMED, exception.getMessage()));
+    }
 
     @ExceptionHandler(GatewayAccountIssueUnconfirmedException.class)
     public ResponseEntity<ErrorResponse> handleGatewayAccountIssueUnconfirmed(GatewayAccountIssueUnconfirmedException ex) {

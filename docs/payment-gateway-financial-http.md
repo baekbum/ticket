@@ -13,6 +13,7 @@ controller
 ├─ gateway                         # PG 요청과 금융 이벤트 수신
 │  ├─ payment                      # 결제 준비·승인·계좌 발급·조회
 │  │  ├─ GatewayPaymentController
+│  │  ├─ GatewayCardCheckoutController
 │  │  ├─ GatewayCardPaymentController
 │  │  └─ GatewayVirtualAccountController
 │  ├─ refund                       # 공통 환불로 확장할 진입점과 기존 결과 확인

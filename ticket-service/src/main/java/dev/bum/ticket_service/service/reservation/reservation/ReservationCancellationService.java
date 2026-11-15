@@ -118,6 +118,10 @@ public class ReservationCancellationService {
             );
         }
 
+        if (payment.getMethod() == PaymentMethod.CREDIT_CARD && payment.getPgPaymentId() != null) {
+            throw new IllegalStateException("신규 PG 카드 거래의 환불 연동이 필요합니다.");
+        }
+
         if (payment.getGatewayBankCompany() != null) {
             throw new IllegalStateException("입금 완료된 신규 PG 원거래 환불은 아직 지원하지 않습니다.");
         }

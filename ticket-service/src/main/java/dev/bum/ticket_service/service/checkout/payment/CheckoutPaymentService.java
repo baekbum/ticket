@@ -23,7 +23,8 @@ public class CheckoutPaymentService {
 
         switch (request.getPaymentMethod()) {
             case CREDIT_CARD -> {
-                // 카드 승인은 이후 승인 요청에서 처리한다.
+                // 최초 카드 준비 기한을 저장한다. PG HTTP는 로컬 커밋 이후 실행한다.
+                payment.planGatewayCard();
             }
             case BANK_TRANSFER -> virtualAccountService.issue(request, payment);
             default -> throw new IllegalArgumentException("지원하지 않는 결제 수단입니다.");

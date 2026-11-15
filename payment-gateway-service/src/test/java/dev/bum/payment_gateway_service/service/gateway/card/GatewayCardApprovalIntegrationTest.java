@@ -1,6 +1,8 @@
 package dev.bum.payment_gateway_service.service.gateway.card;
 
 import dev.bum.payment_gateway_service.security.merchant.MerchantCredentialKey;
+import dev.bum.payment_gateway_service.security.card.GatewayCardSessionToken;
+import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayCardCheckoutController;
 
 import com.fasterxml.jackson.databind.*;
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
@@ -74,7 +76,7 @@ class GatewayCardApprovalIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+    @Import({GatewayCardCheckoutController.class, GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class, GatewayCardSessionToken.class, GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayCardApprovalService.class, GatewayCardApprovalCommandService.class,
             CardApprovalService.class, CardApprovalCommandService.class, GatewayPaymentController.class,
@@ -664,6 +666,103 @@ class GatewayCardApprovalIntegrationTest {
         assertThat(request("100", pan).toString()).doesNotContain(pan, "123", "12");
         assertThat(new FinancialCardApproveRequest(id, "buyer", CardCompany.SHINHAN, pan, "123", "12",
                 new BigDecimal("100"), deadline).toString()).doesNotContain(pan, "123", "12");
+    }
+
+
+    @Test
+    void browserSessionApprovesOnlyItsPgTransactionAndWaitsForMerchantDelivery() throws Exception {
+        String id = prepare("test-merchant-a", "PAY-BROWSER", "100", PaymentMethod.CREDIT_CARD);
+        String session = session(id, true);
+        browserApprove(id, "PAY-BROWSER", session).andExpect(status().isOk())
+                .andExpect(jsonPath("$.notificationStatus").value("PENDING"));
+        browserApprove(id, "PAY-BROWSER", session).andExpect(status().isOk());
+        assertThat(used()).isEqualByComparingTo("100");
+        assertThat(notifications.count()).isEqualTo(1);
+        dispatcher.retryPending();
+        mvc.perform(get("/api/v1/payments/card/checkout/" + id).with(client("buyer"))
+                        .header(GatewayCardSessionToken.HEADER, session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notificationStatus").value("DELIVERED"));
+        verifyNoInteractions(legacyCards);
+    }
+
+    @Test
+    void browserSessionsRejectOtherUsersMerchantsRevisionsAndMissingJwtBeforeFinancialExecution() throws Exception {
+        String id = prepare("test-merchant-a", "PAY-BOUND", "100", PaymentMethod.CREDIT_CARD);
+        String session = session(id, true);
+        mvc.perform(get("/api/v1/payments/card/checkout/" + id).with(client("other"))
+                .header(GatewayCardSessionToken.HEADER, session)).andExpect(status().isForbidden());
+        String otherId = prepare("test-merchant-b", "PAY-BOUND", "100", PaymentMethod.CREDIT_CARD);
+        mvc.perform(get("/api/v1/payments/card/checkout/" + otherId).with(client("buyer"))
+                .header(GatewayCardSessionToken.HEADER, session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payments/card/checkout/" + id)
+                .header(GatewayCardSessionToken.HEADER, session)).andExpect(status().isForbidden());
+        jdbc.update("update gateway_payments set method_revision = method_revision + 1 where pg_payment_id = ?", id);
+        browserApprove(id, "PAY-BOUND", session).andExpect(status().isForbidden());
+        assertThat(used()).isZero();
+        assertThat(approvals.count()).isZero();
+    }
+
+    @Test
+    void queryOnlySessionsCannotApproveAndTheSessionIssuerRequiresMerchantCredentials() throws Exception {
+        String id = prepare("test-merchant-a", "PAY-QUERY-ONLY", "100", PaymentMethod.CREDIT_CARD);
+        String session = session(id, false);
+        browserApprove(id, "PAY-QUERY-ONLY", session).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/checkout-session")
+                .with(client("buyer")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"buyerReference\":\"buyer\",\"approvalAllowed\":true}"))
+                .andExpect(status().isUnauthorized());
+        assertThat(used()).isZero();
+    }
+
+    @Test
+    void browserStatusRepairsCommittedFinancialApprovalWithoutStoringOrResendingCardCredentials() throws Exception {
+        String id = prepare("test-merchant-a", "PAY-RECOVER-GET", "100", PaymentMethod.CREDIT_CARD);
+        String session = session(id, true);
+        doThrow(new DataIntegrityViolationException("simulated PG storage failure")).when(histories)
+                .saveAndFlush(argThat(history -> history.getOperationType() == GatewayPaymentOperation.APPROVE));
+        browserApprove(id, "PAY-RECOVER-GET", session).andExpect(status().isServiceUnavailable());
+        assertThat(used()).isEqualByComparingTo("100");
+        assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.READY);
+        reset(histories);
+        mvc.perform(get("/api/v1/payments/card/checkout/" + id).with(client("buyer"))
+                .header(GatewayCardSessionToken.HEADER, session)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pgStatus").value("PAID"));
+        verify(financial, times(1)).approveGatewayCard(any());
+        assertThat(notifications.count()).isEqualTo(1);
+        assertThat(used()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void expiredPaymentsIssueOnlyQueryScopeAndChangedBodyPaymentNumbersAreRejected() throws Exception {
+        String expired = historical(false);
+        String query = session(expired, true);
+        browserApprove(expired, "HISTORICAL", query).andExpect(status().isForbidden());
+        String id = prepare("test-merchant-a", "PAY-NUMBER", "100", PaymentMethod.CREDIT_CARD);
+        browserApprove(id, "DIFFERENT", session(id, true)).andExpect(status().isConflict());
+        assertThat(used()).isZero();
+    }
+
+    org.springframework.test.web.servlet.request.RequestPostProcessor client(String userId) {
+        return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(userId, null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER"))));
+    }
+
+    String session(String id, boolean approve) throws Exception {
+        return json.readTree(mvc.perform(post("/api/v1/payments/card/gateway/" + id + "/checkout-session")
+                .header("Merchant", first.getMerchantId()).header("credentialKey", "test-merchant-a")
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(
+                        new dev.bum.common.service.paymentgateway.card.GatewayCardSessionRequest("buyer", approve))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray())
+                .get("paymentSession").asText();
+    }
+
+    ResultActions browserApprove(String id, String number, String session) throws Exception {
+        Map<String,Object> body = Map.of("paymentNo", number, "amount", 100, "cardCompany", "SHINHAN",
+                "cardNumber", pan, "cvc", "123", "cardPassword", "12");
+        return mvc.perform(post("/api/v1/payments/card/checkout/" + id + "/approve")
+                .with(client("buyer")).header(GatewayCardSessionToken.HEADER, session)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body)));
     }
 
     String historical(boolean financiallyApproved) {
