@@ -16,7 +16,8 @@ class GatewayCardHttpContractTest {
     void pendingIs202WithPaymentNumberAndIsNotApprovalSuccess() throws Exception {
         GatewayCardPaymentService payments = mock(GatewayCardPaymentService.class);
         when(payments.approve(any(), any())).thenThrow(new CardPaymentPendingException("PAY-1", new RuntimeException()));
-        MockMvcBuilders.standaloneSetup(new CardController(payments, mock(CardApprovalService.class)))
+        MockMvcBuilders.standaloneSetup(new CardController(payments, mock(CardApprovalService.class),
+                        mock(CardPaymentRefundService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler()).build()
                 .perform(post("/internal/financial-simulations/cards/approve").header("X-PG-User-Id", "buyer")
                         .contentType(MediaType.APPLICATION_JSON).content("""

@@ -81,18 +81,17 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   const payment = detail?.payment;
   const fee = detail && payment ? payment.amount - Math.max(0, detail.totalTicketAmount - detail.totalDiscountAmount) : null;
   const isBankTransfer = payment?.method === 'BANK_TRANSFER';
-  const isGatewayBank = isBankTransfer && Boolean(payment?.pgPaymentId);
+  const isGatewayPayment = (isBankTransfer || payment?.method === 'CREDIT_CARD') && Boolean(payment?.pgPaymentId);
 
   useEffect(() => {
-    if (!isGatewayBank) return;
+    if (!isGatewayPayment) return;
     const controller = new AbortController();
     request<RefundApplication[]>(`/ticket/api/v1/reservation/${reservationId}/refunds`, { method: 'GET', signal: controller.signal })
       .then((rows) => { if (!controller.signal.aborted) { setApplications(rows); setApplicationsError(''); } })
       .catch(() => { if (!controller.signal.aborted) setApplicationsError('환불 신청 이력을 불러오지 못했습니다. 다시 확인해주세요.'); });
     return () => controller.abort();
-  }, [isGatewayBank, request, reservationId, retry]);
-  const paymentIsRefundable = (payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED')
-    && !(payment?.method === 'CREDIT_CARD' && payment.pgPaymentId);
+  }, [isGatewayPayment, request, reservationId, retry]);
+  const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
   function beginRefund(ticket: Ticket, ids: number[] = [ticket.ticketId]) {
     setRefundSelection(ids);
@@ -116,11 +115,11 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
     try {
-      if (isGatewayBank) {
+      if (isGatewayPayment) {
         const result = await request<RefundAction>(`/ticket/api/v1/reservation/${reservationId}/refunds`, {
           method: 'POST', body: JSON.stringify({ eventId: detail.reservation.eventId,
             selectedTicketIdList: refundSelection.length ? refundSelection : [ticket.ticketId],
-            refundAccount: { bankCompany, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() } }),
+            refundAccount: isBankTransfer ? { bankCompany, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() } : null }),
         });
         setRefundAlert({ message: result.message, kind: 'success' });
         setRefundTicket(null);
@@ -225,27 +224,27 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
           <div><dt>결제 금액</dt><dd>{money(payment.amount)}</dd></div>
           <div><dt>환불 금액</dt><dd>{money(payment.refundedAmount ?? 0)}</dd></div>
         </dl>}</section>
-        <section><h3>좌석 정보 ({detail.tickets.length}매)</h3>{payment?.method === 'CREDIT_CARD' && payment.pgPaymentId && <p>현재 이 카드 결제는 온라인 환불을 지원하지 않습니다.</p>}<div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
+        <section><h3>좌석 정보 ({detail.tickets.length}매)</h3><div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
           <thead><tr><th>좌석 등급</th><th>좌석 번호</th><th>구매 금액</th><th>예매/취소</th><th>환불</th></tr></thead>
           <tbody>{detail.tickets.map((ticket) => <tr key={ticket.ticketId}><td>{ticket.grade}석</td><td>{seatName(ticket)}</td><td>{money(ticket.price)}</td><td>{ticketLabels[ticket.status] || ticket.status}</td><td>
-            {isGatewayBank && ticket.status === 'PAID' && paymentIsRefundable && <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)} disabled={refundingTicketId != null} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, ticket.ticketId] : ids.filter((id) => id !== ticket.ticketId))} />}
+            {isGatewayPayment && ticket.status === 'PAID' && paymentIsRefundable && <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)} disabled={refundingTicketId != null} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, ticket.ticketId] : ids.filter((id) => id !== ticket.ticketId))} />}
             {ticket.status === 'PAID' && paymentIsRefundable ? <button className="my-ticket-refund-button" type="button"
               disabled={refundingTicketId != null} onClick={() => beginRefund(ticket)}>
               {refundingTicketId === ticket.ticketId ? '처리 중…' : '환불 / 재시도'}
             </button> : <span className="my-ticket-refund-unavailable">-</span>}
           </td></tr>)}</tbody>
         </table></div>{!detail.tickets.length && <p>발급된 티켓이 없습니다.</p>}
-          {isGatewayBank && selectedIds.length > 0 && <button type="button" disabled={refundingTicketId != null} onClick={() => {
+          {isGatewayPayment && selectedIds.length > 0 && <button type="button" disabled={refundingTicketId != null} onClick={() => {
             const first = detail.tickets.find((ticket) => ticket.ticketId === selectedIds[0]);
             if (first) beginRefund(first, selectedIds);
           }}>선택 좌석 환불 신청 ({selectedIds.length}석)</button>}
-          {isGatewayBank && <section aria-label="환불 신청 이력"><h3>환불 신청 이력</h3>
+          {isGatewayPayment && <section aria-label="환불 신청 이력"><h3>환불 신청 이력</h3>
             {applicationsError && <p role="alert">{applicationsError} <button type="button" onClick={() => setRetry((value) => value + 1)}>이력 다시 확인</button></p>}
             {applications.length === 0 && !applicationsError && <p>환불 신청 이력이 없습니다.</p>}
             {applications.map((application) => <div key={application.paymentRefundProcessId} className="my-ticket-refund-application">
               <p><strong>신청 #{application.paymentRefundProcessId}</strong> · {refundStatusLabels[application.status] || application.status}</p>
               <p>대상: {application.selectedTicketIds.split(',').map((id) => detail.tickets.find((ticket) => ticket.ticketId === Number(id))).map((ticket) => ticket ? seatName(ticket) : '-').join(', ')} · 환불 {money(application.refundAmount)} · 수수료 {money(application.cancellationFeeAmount)}</p>
-              <p>{application.refundBankCompany} {application.refundAccountNumberMasked} · {application.createdAt}</p>
+              <p>{isBankTransfer ? [application.refundBankCompany, application.refundAccountNumberMasked].filter(Boolean).join(' ') : '결제한 카드로 취소·환불'} · {application.createdAt}</p>
               {!finishedRefund(application.status) && <div className="my-ticket-refund-actions">
                 <button type="button" disabled={refundingTicketId != null} onClick={() => void runApplication(application, false)}>{application.status === 'WITHDRAW_REQUESTED' ? '철회 다시 확인' : '다시 시도'}</button>
                 <button type="button" disabled={refundingTicketId != null} onClick={() => void runApplication(application, true)}>환불 신청 취소</button>

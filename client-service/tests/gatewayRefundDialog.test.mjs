@@ -73,11 +73,35 @@ test('철회 요청에서 환불 완료를 복구하면 결과를 안내하고 �
   } finally { await view.close(); }
 });
 
-test('신규 PG 카드는 기존 환불 API로 진입하지 않고 온라인 환불 제한을 안내한다', async () => {
+test('신규 PG 카드는 계좌 입력 없이 공통 신청 API로 환불한다', async () => {
   const payload = detail(); payload.payment.method = 'CREDIT_CARD';
-  const view = await mount(async () => payload);
+  const calls = [];
+  const view = await mount(async (url, options) => {
+    if (options.method === 'POST') {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return { outcome: 'SUCCEEDED', application: application('LOCAL_SUCCEEDED'), message: '환불이 완료되었습니다.' };
+    }
+    return url.endsWith('/refunds') ? [] : payload;
+  });
   try {
-    assert.equal(button(view.document, '환불 / 재시도'), undefined);
-    assert.ok(view.document.body.textContent.includes('온라인 환불을 지원하지 않습니다'));
+    assert.ok(button(view.document, '환불 / 재시도'));
+    await act(async () => { button(view.document, '환불 / 재시도').click(); });
+    assert.ok(!view.document.body.textContent.includes('환불 계좌 정보'));
+    await act(async () => { button(view.document, '환불하기').click(); });
+    assert.deepEqual(calls, [{ url: '/ticket/api/v1/reservation/1/refunds',
+      body: { eventId: 1, selectedTicketIdList: [1], refundAccount: null } }]);
+    assert.ok(view.document.body.textContent.includes('환불이 완료되었습니다.'));
+  } finally { await view.close(); }
+});
+
+test('신규 PG 카드도 미완료 신청의 재시도와 철회 버튼을 표시한다', async () => {
+  const payload = detail(); payload.payment.method = 'CREDIT_CARD';
+  const view = await mount(async (url) => url.endsWith('/refunds')
+    ? [application(), application('LOCAL_SUCCEEDED', 100)] : payload);
+  try {
+    assert.equal([...view.document.querySelectorAll('button')].filter((item) => item.textContent === '다시 시도').length, 1);
+    assert.equal([...view.document.querySelectorAll('button')].filter((item) => item.textContent === '환불 신청 취소').length, 1);
+    assert.ok(view.document.body.textContent.includes('결제한 카드로 취소·환불'));
+    assert.ok(!view.document.body.textContent.includes('******7890'));
   } finally { await view.close(); }
 });

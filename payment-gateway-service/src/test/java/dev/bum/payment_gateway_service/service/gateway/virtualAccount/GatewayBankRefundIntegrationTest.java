@@ -4,7 +4,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.common.service.paymentgateway.refund.*;
 import dev.bum.common.service.ticket.payment.enums.*;
-import dev.bum.payment_gateway_service.controller.gateway.refund.GatewayBankRefundController;
+import dev.bum.payment_gateway_service.controller.gateway.refund.GatewayPaymentRefundController;
 import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
@@ -51,8 +51,8 @@ class GatewayBankRefundIntegrationTest {
     }
 
     @Configuration
-    @Import({GatewayVirtualAccountDepositIntegrationTest.Config.class, GatewayBankRefundController.class,
-            GatewayBankRefundService.class, GatewayBankRefundCommands.class, GatewayBankRefundClient.class})
+    @Import({GatewayVirtualAccountDepositIntegrationTest.Config.class, GatewayPaymentRefundController.class,
+            GatewayBankRefundService.class, GatewayBankRefundCommands.class, GatewayBankRefundClient.class, GatewayPaymentRefundService.class, GatewayCardRefundService.class, GatewayCardRefundCommands.class, GatewayCardRefundClient.class})
     static class Config {
         @Bean Faults faults() { return new Faults(); }
         @Bean @Primary RestClient refundTestRestClient(FinancialSimulationToken token, Faults faults) {

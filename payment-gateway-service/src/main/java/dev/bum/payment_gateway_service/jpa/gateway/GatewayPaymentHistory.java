@@ -1,6 +1,7 @@
 package dev.bum.payment_gateway_service.jpa.gateway;
 
 import dev.bum.common.service.paymentgateway.refund.BankRefundResult;
+import dev.bum.common.service.paymentgateway.refund.PaymentRefundResult;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -256,6 +257,15 @@ public class GatewayPaymentHistory {
             GatewayPaymentStatus before
     ) {
 
+        return refund(payment, PaymentRefundResult.from(result), before);
+    }
+
+    private static GatewayPaymentHistory refund(
+            GatewayPayment payment,
+            PaymentRefundResult result,
+            GatewayPaymentStatus before
+    ) {
+
         GatewayPaymentHistory history = new GatewayPaymentHistory();
         history.payment = payment;
         history.operationType = GatewayPaymentOperation.REFUND;
@@ -268,6 +278,16 @@ public class GatewayPaymentHistory {
         history.occurredAt = result.completedAt();
 
         return history;
+    }
+
+    // 카드 개별 환불 또는 미실행 철회를 원승인 보상 취소와 구분해 기록한다.
+    public static GatewayPaymentHistory cardRefund(
+            GatewayPayment payment,
+            PaymentRefundResult result,
+            GatewayPaymentStatus before
+    ) {
+
+        return refund(payment, result, before);
     }
 
     // 금융 응답과 PG 상태가 확정된 트랜잭션에서 최초 발급 결과를 한 번 기록한다.

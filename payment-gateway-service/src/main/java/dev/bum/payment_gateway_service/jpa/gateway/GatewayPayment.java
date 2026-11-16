@@ -247,7 +247,18 @@ public class GatewayPayment {
     // 은행의 최초 성공 영수증을 반영한다. PG 결과 저장 실패는 은행 환불을 되돌리지 않는다.
     public void refundBank(BigDecimal value) {
 
-        if (paymentMethod != PaymentMethod.BANK_TRANSFER || paidAt == null || value == null || value.signum() <= 0
+        refund(PaymentMethod.BANK_TRANSFER, value);
+    }
+
+    // 카드사의 개별 취소·환불 성공 금액만 PG 누적 환불액에 반영한다.
+    public void refundCard(BigDecimal value) {
+
+        refund(PaymentMethod.CREDIT_CARD, value);
+    }
+
+    private void refund(PaymentMethod expectedMethod, BigDecimal value) {
+
+        if (paymentMethod != expectedMethod || paidAt == null || value == null || value.signum() <= 0
                 || (status != GatewayPaymentStatus.PAID && status != GatewayPaymentStatus.PARTIALLY_REFUNDED)
                 || refundedAmount.add(value).compareTo(amount) > 0) {
             throw new IllegalStateException("PG 환불 결과를 반영할 수 없습니다.");

@@ -1,5 +1,7 @@
 # PG 연결 가상계좌 환불·신청 철회
 
+2026-11-15 PG 진입점을 GatewayPaymentRefundController로 공통화했다. 저장된 원거래 수단으로 은행·카드를 선택하며 은행의 URL·요청·응답·멱등 해시는 유지한다. [카드 확장과 공통 계약](payment-gateway-card-refund.md)을 참고한다.
+
 2026-11-14 컨트롤러는 업무별 패키지로 분류했다. 신규 GatewayBankRefundController와 기존 resolve의 GatewayRefundController는 controller.gateway.refund에 둔다. 패키지 분류 단계이며 카드 환불까지 공통 구현으로 전환한 것은 아니다. API 경로와 인증 계약은 유지한다.
 
 2026-11-13 구현. 신규 PG ID가 연결된 Ticksy 무통장 결제의 입금 후 전액·부분 환불을 처리한다. 기존 카드·PG 미연결 계좌의 환불과 입금 전 취소 Outbox는 유지한다.

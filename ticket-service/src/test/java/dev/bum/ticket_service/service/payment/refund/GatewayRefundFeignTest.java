@@ -6,7 +6,7 @@ import dev.bum.common.service.paymentgateway.refund.*;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.ticket_service.config.PaymentGatewayMerchantFeignConfig;
 import dev.bum.ticket_service.config.PaymentGatewayRefundFeignConfig;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayBankRefundClient;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundApplicationClient;
 import feign.Feign;
 import feign.FeignException;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class GatewayRefundFeignTest {
             PaymentGatewayRefundFeignConfig config = new PaymentGatewayRefundFeignConfig();
             assertThat(config.refundRequestOptions().connectTimeoutMillis()).isEqualTo(2000);
             assertThat(config.refundRequestOptions().readTimeoutMillis()).isEqualTo(80000);
-            PaymentGatewayBankRefundClient client = Feign.builder().contract(new SpringMvcContract())
+            PaymentGatewayRefundApplicationClient client = Feign.builder().contract(new SpringMvcContract())
                     .retryer(config.refundRetryer()).options(config.refundRequestOptions())
                     .requestInterceptor(new PaymentGatewayMerchantFeignConfig()
                             .paymentGatewayMerchantRequestInterceptor(1L, "ticksy_test-refund-credential"))
@@ -56,8 +56,8 @@ class GatewayRefundFeignTest {
                             throw new IllegalStateException(failure);
                         }
                     })
-                    .target(PaymentGatewayBankRefundClient.class, "http://127.0.0.1:" + server.getAddress().getPort());
-            GatewayBankRefundRequest request = new GatewayBankRefundRequest(1L, "owner", BigDecimal.TEN,
+                    .target(PaymentGatewayRefundApplicationClient.class, "http://127.0.0.1:" + server.getAddress().getPort());
+            GatewayPaymentRefundRequest request = new GatewayPaymentRefundRequest(1L, "owner", BigDecimal.TEN,
                     BankCompany.KB, "1234567890", "환불자");
 
             assertThatThrownBy(() -> client.refund("pg", "7", request)).isInstanceOf(FeignException.class);

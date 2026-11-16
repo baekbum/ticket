@@ -92,7 +92,7 @@ class FinancialSimulationHttpIntegrationTest {
             dev.bum.payment_gateway_service.service.gateway.card.GatewayCardApiService.class,
             FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class,
             GatewayCardPaymentController.class, GatewayVirtualAccountController.class,
-            CardController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
+            CardController.class, dev.bum.payment_gateway_service.service.financial.card.CardPaymentRefundService.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,

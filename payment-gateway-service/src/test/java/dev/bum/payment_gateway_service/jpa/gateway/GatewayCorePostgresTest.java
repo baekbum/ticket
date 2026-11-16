@@ -72,6 +72,36 @@ class GatewayCorePostgresTest {
     @Autowired GatewayBankRefundJpaRepository bankRefunds;
     @Autowired BankVirtualAccountRefundJpaRepository bankReceipts;
 
+    @Autowired GatewayCardRefundJpaRepository cardRefunds;
+
+    @Autowired CardPaymentRefundJpaRepository cardReceipts;
+
+    @Test
+    void cardRefundReceiptsBalancesAndPgHistoryUseTheActualSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-CARD-REFUND", PaymentMethod.CREDIT_CARD);
+        DummyCard ledger = card();
+        ledger.approve(payment.getAmount());
+        DummyCardPaymentHistory approval = approvals.saveAndFlush(approval(payment.getPgPaymentId(), ledger, payment.getPgPaymentId()));
+        payment.approveCard(CardCompany.SHINHAN, approval.getApprovedAt());
+        dev.bum.common.service.paymentgateway.refund.CardRefundCommand command =
+                new dev.bum.common.service.paymentgateway.refund.CardRefundCommand(payment.getPgPaymentId(), "verify-one", new BigDecimal("40"));
+        GatewayCardRefund pending = cardRefunds.saveAndFlush(GatewayCardRefund.pending(payment, command));
+        CardPaymentRefund receipt = CardPaymentRefund.pending(command);
+        receipt.complete("SUCCEEDED", LocalDateTime.of(2026,11,15,12,0));
+        cardReceipts.saveAndFlush(receipt);
+        approval.refund(command.amount());
+        ledger.cancelApproval(command.amount());
+        payment.refundCard(command.amount());
+        pending.complete(receipt.result().outcome(), receipt.result().completedAt());
+        GatewayPaymentHistory history = histories.saveAndFlush(GatewayPaymentHistory.cardRefund(payment, receipt.result(), GatewayPaymentStatus.PAID));
+        entityManager.clear();
+        assertThat(cardRefunds.findById(pending.getRefundId()).orElseThrow().getStatus()).isEqualTo("SUCCEEDED");
+        assertThat(cardReceipts.findByPgPaymentIdAndRefundRequestId(payment.getPgPaymentId(), "verify-one").orElseThrow().result())
+                .isEqualTo(receipt.result());
+        assertThat(payments.findById(payment.getPgPaymentId()).orElseThrow().getRefundedAmount()).isEqualByComparingTo("40");
+        assertThat(histories.findById(history.getHistoryId()).orElseThrow().getOperationType()).isEqualTo(GatewayPaymentOperation.REFUND);
+    }
+
     @Test
     void bankRefundReceiptsBalancesAndPgHistoryUseTheActualSchema() {
         GatewayPayment payment = payment(merchant(), "VERIFY-REFUND", PaymentMethod.BANK_TRANSFER);

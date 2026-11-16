@@ -37,7 +37,7 @@ public class GatewayReservationRefundService {
     }
 
     /**
-     * 철회 의도를 커밋한 후 은행의 종료 또는 기존 환불 성공을 확인한다.
+     * 철회 의도를 커밋한 후 금융사의 종료 또는 기존 환불 성공을 확인한다.
      */
     public GatewayRefundActionResponse withdraw(String userId, long reservationId, long processId) {
 

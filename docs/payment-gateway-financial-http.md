@@ -17,7 +17,7 @@ controller
 │  │  ├─ GatewayCardPaymentController
 │  │  └─ GatewayVirtualAccountController
 │  ├─ refund                       # 공통 환불로 확장할 진입점과 기존 결과 확인
-│  │  ├─ GatewayBankRefundController
+│  │  ├─ GatewayPaymentRefundController
 │  │  └─ GatewayRefundController
 │  ├─ deposit                      # 은행 입금 이벤트 수신
 │  │  └─ GatewayBankEventController
@@ -29,7 +29,7 @@ controller
 └─ advice                          # 예외 응답 처리
 ```
 
-현재 GatewayBankRefundController는 신규 PG 가상계좌 환불·철회를, GatewayRefundController는 기존 카드·구계좌의 resolve를 처리한다. 같은 refund 패키지로 모았으며 카드 환불의 새 계약 전환과 컨트롤러 통합은 별도 작업이다. 결제수단별 기존 컨트롤러의 호환 환불·취소 메서드는 현재 API 계약을 유지한다. 이번 변경은 package와 import만 바꾸며 클래스명·URL·요청/응답·인증·트랜잭션·DB 정의는 그대로다.
+GatewayPaymentRefundController는 신규 PG 카드·가상계좌의 환불·철회를 공통 처리하며 저장된 원거래 수단으로 분기한다. GatewayRefundController는 기존 카드·구계좌의 resolve를 유지한다. 카드 금융 처리는 CardController의 gateway/refunds/execute·withdraw를 HTTP로 호출한다. [카드 환불·재시도·철회 계약](payment-gateway-card-refund.md)을 따른다. 결제수단별 기존 컨트롤러의 호환 환불·취소 메서드는 기존 API 계약을 유지한다.
 
 기존 `controller.card`, `controller.virtualAccount`, `controller.refund`의 PG 컨트롤러를 `controller.gateway`로 모으고 `controller.simulation`의 금융 컨트롤러를 `controller.financial`로 이동했다. 클래스명, API URL, 인증 필터 경로와 금융 HTTP 설정은 유지한다. 따라서 금융 내부 URL의 `/internal/financial-simulations` 접두사도 변경하지 않는다. 자바 import와 예외 처리 대상, 테스트의 컨트롤러 참조만 새 패키지에 맞췄다.
 

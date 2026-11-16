@@ -1,6 +1,8 @@
 package dev.bum.payment_gateway_service.controller.financial;
 
 import dev.bum.payment_gateway_service.dto.card.*;
+import dev.bum.common.service.paymentgateway.refund.*;
+import dev.bum.payment_gateway_service.service.financial.card.CardPaymentRefundService;
 import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.security.FinancialSimulationAuthenticationFilter;
 import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
@@ -18,6 +20,8 @@ public class CardController {
 
     private final GatewayCardPaymentService cards;
     private final CardApprovalService pgApprovals;
+
+    private final CardPaymentRefundService refunds;
 
     @PostMapping("/approve")
     public ResponseEntity<FinancialCardPaymentApproveResponse> approve(
@@ -61,6 +65,18 @@ public class CardController {
     public ResponseEntity<FinancialCardApprovalResponse> cancelGateway(@PathVariable String pgPaymentId) {
 
         return ResponseEntity.ok(pgApprovals.cancel(pgPaymentId));
+    }
+
+    @PostMapping("/gateway/refunds/execute")
+    public PaymentRefundResult refundGateway(@Valid @RequestBody CardRefundCommand request) {
+
+        return refunds.refund(request);
+    }
+
+    @PostMapping("/gateway/refunds/withdraw")
+    public PaymentRefundResult withdrawGatewayRefund(@Valid @RequestBody CardRefundCommand request) {
+
+        return refunds.withdraw(request);
     }
 
     @PostMapping("/refund")

@@ -8,7 +8,7 @@ import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.reservation.policy.ReservationCancellationPolicy;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.exception.reservation.GatewayRefundRequestException;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayBankRefundClient;
+import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundApplicationClient;
 import dev.bum.ticket_service.jpa.payment.payment.*;
 import dev.bum.ticket_service.jpa.payment.refund.*;
 import dev.bum.ticket_service.jpa.reservation.reservation.*;
@@ -55,7 +55,7 @@ public class GatewayReservationRefundCommands {
     private final RefundAccountCipher cipher;
 
     // Ticksy 자체 재시도가 없는 PG 클라이언트.
-    private final PaymentGatewayBankRefundClient gateway;
+    private final PaymentGatewayRefundApplicationClient gateway;
 
     // 최초 수수료 계산 시각을 고정한다.
     private final Clock clock;
@@ -84,7 +84,8 @@ public class GatewayReservationRefundCommands {
             throw new IllegalArgumentException("환불 예매의 공연이 일치하지 않습니다.");
         }
 
-        RefundAccountRequest account = account(request.getRefundAccount());
+        RefundAccountRequest account = payment.getMethod() == PaymentMethod.BANK_TRANSFER
+                ? account(request.getRefundAccount()) : cardAccount(request.getRefundAccount());
         List<PaymentRefundProcess> previous = processes.findByRefundPaymentReservationOrderByPaymentRefundProcessIdDesc(reservation);
 
         for (PaymentRefundProcess process : previous) {
@@ -129,7 +130,9 @@ public class GatewayReservationRefundCommands {
                 reservation, payment, available, selected, discounts.findByReservation(reservation), full, capturedAt);
         PaymentRefundProcess process = PaymentRefundProcess.create(payment, selected, calculation.refundAmount(),
                 calculation.cancellationFeeAmount(), full, account, capturedAt, calculation.restoreCoupon());
-        process.getRefund().getSnapshot().captureAccountCiphertext(cipher.encrypt(account.getAccountNumber()));
+        if (account != null) {
+            process.getRefund().getSnapshot().captureAccountCiphertext(cipher.encrypt(account.getAccountNumber()));
+        }
 
         return processes.saveAndFlush(process).getPaymentRefundProcessId();
     }
@@ -193,14 +196,19 @@ public class GatewayReservationRefundCommands {
         }
 
         PaymentRefundSnapshot snapshot = process.getRefund().getSnapshot();
-        GatewayBankRefundRequest request = new GatewayBankRefundRequest(merchantId, reservation.getUserId(),
+        GatewayPaymentRefundRequest request = new GatewayPaymentRefundRequest(merchantId, reservation.getUserId(),
                 BigDecimal.valueOf(snapshot.getRefundAmount()), snapshot.getRefundBankCompany(),
-                cipher.decrypt(snapshot.getRefundAccountCiphertext()), snapshot.getRefundAccountHolder());
+                payment.getMethod() == PaymentMethod.BANK_TRANSFER
+                        ? cipher.decrypt(snapshot.getRefundAccountCiphertext()) : null, snapshot.getRefundAccountHolder());
         String key = Long.toString(processId);
-        BankRefundResult result = withdraw ? gateway.withdraw(payment.getPgPaymentId(), key, request)
+        PaymentRefundResult result = withdraw ? gateway.withdraw(payment.getPgPaymentId(), key, request)
                 : gateway.refund(payment.getPgPaymentId(), key, request);
 
-        if (result == null || !result.matches(request.toBank(payment.getPgPaymentId(), key))) {
+        boolean matches = result != null && (payment.getMethod() == PaymentMethod.CREDIT_CARD
+                ? result.matches(request.toCard(payment.getPgPaymentId(), key))
+                : result.matches(request.toBank(payment.getPgPaymentId(), key)));
+
+        if (!matches) {
             throw new GatewayRefundRequestException("GATEWAY_REFUND_UNCONFIRMED", 503,
                     "환불 결과를 확인하지 못했습니다. 같은 신청으로 다시 시도해주세요.", null);
         }
@@ -249,14 +257,19 @@ public class GatewayReservationRefundCommands {
     }
 
     /**
-     * 신규 PG 무통장 거래만 이 흐름에서 처리한다.
+     * 저장된 결제수단과 PG 연결로 신규 카드·무통장 거래를 확인한다.
      */
     private Payment payment(Reservation reservation) {
 
         Payment payment = payments.findByReservation(reservation).orElseThrow();
 
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getGatewayBankCompany() == null
-                || payment.getPgPaymentId() == null) throw new IllegalArgumentException("신규 PG 무통장 거래가 아닙니다.");
+        boolean supported = payment.getMethod() == PaymentMethod.CREDIT_CARD
+                || (payment.getMethod() == PaymentMethod.BANK_TRANSFER && payment.getGatewayBankCompany() != null);
+
+        if (!supported || payment.getPgPaymentId() == null) {
+            throw new IllegalArgumentException("신규 PG 카드·무통장 거래가 아닙니다.");
+        }
+
         return payment;
     }
 
@@ -294,6 +307,16 @@ public class GatewayReservationRefundCommands {
         } catch (IllegalArgumentException conflict) {
             return false;
         }
+    }
+
+    // 카드 환불은 원승인 카드로 처리한다. 브라우저가 다른 환불 계좌를 지정하지 못하게 한다.
+    private RefundAccountRequest cardAccount(RefundAccountRequest input) {
+
+        if (input != null) {
+            throw new IllegalArgumentException("카드 환불에는 환불 계좌를 전달할 수 없습니다.");
+        }
+
+        return null;
     }
 
     /**

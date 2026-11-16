@@ -84,7 +84,7 @@ class GatewayReservationRefundIntegrationTest {
     @Autowired PaymentRefundProcessJpaRepository processes;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean PaymentRefundHistoryJpaRepository histories;
-    @MockitoBean PaymentGatewayBankRefundClient gateway;
+    @MockitoBean PaymentGatewayRefundApplicationClient gateway;
     @MockitoBean PaymentGatewayRefundClient legacyGateway;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean SeatCacheService cache;
@@ -93,7 +93,10 @@ class GatewayReservationRefundIntegrationTest {
     Long eventId;
     List<Long> ticketIds;
 
+    boolean cardPayment;
+
     @BeforeEach void setup() {
+        cardPayment = false;
         reset(gateway, histories, counts);
         new TransactionTemplate(transactions).executeWithoutResult(tx -> {
             histories.deleteAll(); processes.deleteAll(); payments.deleteAll(); tickets.deleteAll();
@@ -126,15 +129,102 @@ class GatewayReservationRefundIntegrationTest {
         when(gateway.withdraw(anyString(), anyString(), any())).thenAnswer(inv -> result(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), "WITHDRAWN"));
     }
 
-    BankRefundResult result(String paymentId, String key, GatewayBankRefundRequest request, String outcome) {
+    PaymentRefundResult result(String paymentId, String key, GatewayPaymentRefundRequest request, String outcome) {
         if (request == null) return null;
+        if (request.refundBankCompany() == null) {
+            CardRefundCommand command = request.toCard(paymentId, key);
+            return new PaymentRefundResult(paymentId, key, command.amount(), outcome,
+                    LocalDateTime.of(2026,11,13,12,0), command.fingerprint());
+        }
         BankRefundCommand command = request.toBank(paymentId, key);
-        return new BankRefundResult(paymentId, key, command.amount(), outcome, LocalDateTime.of(2026,11,13,12,0), command.fingerprint());
+        return new PaymentRefundResult(paymentId, key, command.amount(), outcome, LocalDateTime.of(2026,11,13,12,0), command.fingerprint());
     }
 
     CancelReservationRequest request(List<Long> ids) {
         return CancelReservationRequest.builder().eventId(eventId).selectedTicketIdList(ids)
+                .refundAccount(cardPayment ? null : new RefundAccountRequest(BankCompany.KB,"1234567890","환불자")).build();
+    }
+
+    void useCardPayment() {
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            payments.deleteAll();
+            payments.flush();
+            Payment payment = Payment.builder().reservation(reservations.findById(reservationId).orElseThrow())
+                    .paymentNo("CARD-" + UUID.randomUUID()).method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.PAID)
+                    .amount(40000).idempotencyKey(UUID.randomUUID().toString()).requestedAt(LocalDateTime.of(2026,11,13,10,0))
+                    .expiresAt(LocalDateTime.of(2026,11,14,12,0)).build();
+            payment.planGatewayCard();
+            payment.bindGatewayPayment("20261113" + UUID.randomUUID());
+            payments.saveAndFlush(payment);
+        });
+        cardPayment = true;
+    }
+
+    @Test void cardPartialAndRemainingRefundsReleaseOnlySelectedSeatsAndReplayCompletedRequests() {
+        useCardPayment();
+        GatewayRefundActionResponse partial = service.request("owner",reservationId,request(ticketIds.subList(1,3)));
+        long id = partial.application().getPaymentRefundProcessId();
+        assertThat(partial.outcome()).isEqualTo("SUCCEEDED");
+        assertThat(service.request("owner",reservationId,request(List.of(ticketIds.get(2),ticketIds.get(1))))
+                .application().getPaymentRefundProcessId()).isEqualTo(id);
+        assertThat(payments.findAll().getFirst().getStatus()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            PaymentRefundSnapshot snapshot = processes.findById(id).orElseThrow().getRefund().getSnapshot();
+            assertThat(snapshot.getRefundAccountCiphertext()).isNull();
+            assertThat(snapshot.getRefundBankCompany()).isNull();
+            assertThat(tickets.findById(ticketIds.get(1)).orElseThrow().getSeat().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+            assertThat(tickets.findById(ticketIds.get(0)).orElseThrow().getSeat().getStatus()).isEqualTo(SeatStatus.RESERVED);
+        });
+        assertThat(service.request("owner",reservationId,request(List.of(ticketIds.get(0),ticketIds.get(3)))).outcome())
+                .isEqualTo("SUCCEEDED");
+        assertThat(payments.findAll().getFirst().getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        verify(gateway,times(2)).refund(anyString(),anyString(),any());
+        verifyNoInteractions(legacyGateway);
+    }
+
+    @Test void cardLostResponseKeepsTheSnapshotAndWithdrawalRecoversAnAlreadySuccessfulRefund() {
+        useCardPayment();
+        doThrow(unavailable()).when(gateway).refund(anyString(),anyString(),any());
+        assertThatThrownBy(() -> service.request("owner",reservationId,request(ticketIds.subList(1,3)))).isInstanceOf(FeignException.class);
+        long id = processes.findAll().getFirst().getPaymentRefundProcessId();
+        assertThatThrownBy(() -> service.request("owner",reservationId,request(ticketIds.subList(0,2))))
+                .isInstanceOf(GatewayRefundRequestException.class);
+        doAnswer(inv -> result(inv.getArgument(0),inv.getArgument(1),inv.getArgument(2),"SUCCEEDED"))
+                .when(gateway).withdraw(anyString(),anyString(),any());
+        assertThat(service.withdraw("owner",reservationId,id).application().getStatus()).isEqualTo("LOCAL_SUCCEEDED");
+        verify(gateway).withdraw(anyString(),eq(Long.toString(id)),any());
+        verify(gateway,times(1)).refund(anyString(),anyString(),any());
+    }
+
+    @Test void cardWithdrawalAllowsAReplacementApplicationWithANewKeyAndKeepsOriginalSeatsPaid() {
+        useCardPayment();
+        long original = commands.prepare("owner",reservationId,request(ticketIds.subList(1,3)));
+        assertThat(service.withdraw("owner",reservationId,original).outcome()).isEqualTo("WITHDRAWN");
+        assertThat(service.request("owner",reservationId,request(ticketIds.subList(0,2)))
+                .application().getPaymentRefundProcessId()).isNotEqualTo(original);
+        assertThat(tickets.findById(ticketIds.get(2)).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
+    }
+
+    @Test void cardRefundRejectsCallerSelectedBankAccountBeforeCreatingAnApplication() {
+        useCardPayment();
+        CancelReservationRequest input = CancelReservationRequest.builder().eventId(eventId).selectedTicketIdList(ticketIds)
                 .refundAccount(new RefundAccountRequest(BankCompany.KB,"1234567890","환불자")).build();
+        assertThatThrownBy(() -> service.request("owner",reservationId,input)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(processes.count()).isZero();
+        verifyNoInteractions(gateway);
+    }
+
+    @Test void cardLocalFailureRollsBackSeatsAndRetryCompletesTheOriginalProcessWithoutAnotherFinancialRequest() {
+        useCardPayment();
+        doAnswer(inv -> { PaymentRefundHistory history=inv.getArgument(0); if(history.getEventType()==PaymentRefundHistoryType.LOCAL_APPLIED)throw new DataIntegrityViolationException("simulated card local failure");return inv.callRealMethod(); })
+                .when(histories).save(any(PaymentRefundHistory.class));
+        assertThatThrownBy(() -> service.request("owner",reservationId,request(ticketIds.subList(1,3)))).isInstanceOf(RuntimeException.class);
+        long id = processes.findAll().getFirst().getPaymentRefundProcessId();
+        assertThat(tickets.findById(ticketIds.get(1)).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
+        reset(histories);
+        assertThat(service.retry("owner",reservationId,id).outcome()).isEqualTo("SUCCEEDED");
+        verify(gateway,times(1)).refund(anyString(),eq(Long.toString(id)),any());
+        assertThat(processes.findById(id).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
     }
 
     FeignException unavailable() {
@@ -236,9 +326,11 @@ class GatewayReservationRefundIntegrationTest {
         assertThat(service.retry("owner",reservationId,id).outcome()).isEqualTo("SUCCEEDED");
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
     @EnabledIfEnvironmentVariable(named="REFUND_TEST_POSTGRES_URL",matches="jdbc:postgresql:.*")
-    void nowaitRejectsConcurrentWithdrawalWhileTheRefundTransactionWaitsForPg() throws Exception {
+    void nowaitRejectsConcurrentWithdrawalWhileTheRefundTransactionWaitsForPg(PaymentMethod method) throws Exception {
+        if (method == PaymentMethod.CREDIT_CARD) useCardPayment();
         long id=commands.prepare("owner",reservationId,request(ticketIds.subList(1,3)));
         CountDownLatch entered=new CountDownLatch(1);CountDownLatch release=new CountDownLatch(1);
         when(gateway.refund(anyString(),anyString(),any())).thenAnswer(inv->{entered.countDown();assertThat(release.await(10,TimeUnit.SECONDS)).isTrue();return result(inv.getArgument(0),inv.getArgument(1),inv.getArgument(2),"SUCCEEDED");});
