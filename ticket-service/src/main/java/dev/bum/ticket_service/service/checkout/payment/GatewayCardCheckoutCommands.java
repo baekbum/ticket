@@ -104,7 +104,7 @@ public class GatewayCardCheckoutCommands {
         }
 
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-            throw new IllegalArgumentException("카드 결제가 아닙니다.");
+            throw new dev.bum.ticket_service.exception.payment.GatewayPaymentMethodChangedException();
         }
 
         return payment;

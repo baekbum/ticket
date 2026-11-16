@@ -147,6 +147,20 @@ public class GatewayPayment {
         status = GatewayPaymentStatus.WAITING_DEPOSIT;
     }
 
+    // 카드사가 미승인·향후 승인 차단을 확정한 뒤에만 같은 PG 거래의 수단을 바꾼다.
+    public void switchToBank(BankCompany bank, LocalDateTime deadline) {
+
+        if (paymentMethod != PaymentMethod.CREDIT_CARD || status != GatewayPaymentStatus.READY
+                || paidAt != null || bank == null || deadline == null) {
+            throw new IllegalStateException("무통장으로 전환할 수 없는 PG 원거래입니다.");
+        }
+
+        paymentMethod = PaymentMethod.BANK_TRANSFER;
+        bankCompany = bank;
+        expiresAt = deadline.truncatedTo(ChronoUnit.MICROS);
+        methodRevision++;
+    }
+
     // 카드사의 원승인 성공을 확인한 뒤 금융 완료 상태로 전환한다.
     public void approveCard(CardCompany company, LocalDateTime approvedAt) {
 

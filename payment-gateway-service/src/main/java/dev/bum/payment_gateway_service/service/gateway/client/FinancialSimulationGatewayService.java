@@ -39,6 +39,29 @@ public class FinancialSimulationGatewayService {
     @Value("${app.financial-simulation.base-url:}")
     private String configuredBaseUrl;
 
+    // 단순 404 조회가 아닌, 이후 승인까지 차단된 금융 확정 결과만 전환 근거로 수용한다.
+    public FinancialCardApprovalGateResponse closeGatewayCardApproval(FinancialCardApprovalGateRequest request) {
+
+        try {
+            return financialSimulationRestClient.post().uri(uri("cards", "gateway", "close-approval"))
+                    .contentType(MediaType.APPLICATION_JSON).body(request).exchange((sent, response) -> {
+                        if (response.getStatusCode().value() != 200) {
+                            throw new FinancialProviderResponseException();
+                        }
+
+                        FinancialCardApprovalGateResponse result = response.bodyTo(FinancialCardApprovalGateResponse.class);
+
+                        if (result == null || !request.equals(result.request()) || result.closed() == (result.approval() != null)) {
+                            throw new FinancialProviderResponseException();
+                        }
+
+                        return result;
+                    });
+        } catch (RestClientException failure) {
+            throw new FinancialProviderResponseException(failure);
+        }
+    }
+
     /**
      * 인증된 사용자 ID를 내부 헤더로 전달해 모의 카드 승인 컨트롤러를 호출한다.
      */

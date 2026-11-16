@@ -27,13 +27,23 @@ public class CardApprovalCommandService {
     // 기존 카드 인증과 같은 BCrypt 검증기를 사용한다.
     private final PasswordEncoder encoder;
 
+    // 승인 이력이 생기기 전부터 승인·수단 전환을 같은 금융 잠금으로 직렬화한다.
+    private final CardApprovalGateAccess gates;
+
     /**
      * Ticksy 호출 없이 카드 인증·한도 반영·원승인을 한 금융 트랜잭션으로 커밋한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FinancialCardApprovalResponse approve(FinancialCardApproveRequest request) {
 
+        CardApprovalGate gate = gates.lock(new FinancialCardApprovalGateRequest(request.pgPaymentId(),
+                request.buyerReference(), request.amount(), request.expiresAt()));
+
         Optional<DummyCardPaymentHistory> existing = approvals.findByPgPaymentId(request.pgPaymentId());
+
+        if (gate.isClosed() && (existing.isEmpty() || existing.get().getStatus() == CardPaymentHistoryStatus.APPROVAL_FAILED)) {
+            throw new GatewayPaymentConflictException("결제수단 전환으로 카드 승인이 차단된 거래입니다.");
+        }
 
         if (existing.isPresent()) {
             return replay(existing.get(), request);
@@ -62,6 +72,30 @@ public class CardApprovalCommandService {
                 CardCredentials.mask(number), request.amount()));
 
         return FinancialCardApprovalResponse.from(history);
+    }
+
+    // 승인보다 먼저 커밋되면 이후 승인도 막는다. 승인이 먼저면 그 사실을 반환한다.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public FinancialCardApprovalGateResponse close(FinancialCardApprovalGateRequest request) {
+
+        CardApprovalGate gate = gates.lock(request);
+        Optional<DummyCardPaymentHistory> existing = approvals.findByPgPaymentId(request.pgPaymentId());
+
+        if (existing.isPresent()) {
+            DummyCardPaymentHistory history = existing.get();
+
+            if (!history.getUserId().equals(request.buyerReference()) || history.getAmount().compareTo(request.amount()) != 0) {
+                throw new GatewayPaymentConflictException("카드 원승인의 구매자 또는 금액이 일치하지 않습니다.");
+            }
+
+            if (history.getStatus() != CardPaymentHistoryStatus.APPROVAL_FAILED) {
+                return new FinancialCardApprovalGateResponse(request, false, FinancialCardApprovalResponse.from(history));
+            }
+        }
+
+        gate.close();
+
+        return new FinancialCardApprovalGateResponse(request, true, null);
     }
 
     /**

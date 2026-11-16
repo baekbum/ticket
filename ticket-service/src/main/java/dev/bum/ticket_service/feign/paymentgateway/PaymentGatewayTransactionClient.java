@@ -14,6 +14,12 @@ public interface PaymentGatewayTransactionClient {
     @PostMapping("/api/v1/payments/gateway/prepare")
     GatewayPaymentPrepareResponse prepare(@RequestBody GatewayPaymentPrepareRequest request);
 
+    @PostMapping("/api/v1/payments/gateway/{pgPaymentId}/method/bank-transfer")
+    GatewayCardMethodChangeResponse changeCardToBank(
+            @PathVariable("pgPaymentId") String pgPaymentId,
+            @RequestBody GatewayCardMethodChangeRequest request
+    );
+
     @PostMapping("/api/v1/payments/card/gateway/{pgPaymentId}/checkout-session")
     GatewayCardSessionResponse cardSession(
             @PathVariable("pgPaymentId") String pgPaymentId,

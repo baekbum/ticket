@@ -20,6 +20,8 @@ public class GatewayCardCheckoutCommands {
 
     private final GatewayCardSessionToken tokens;
 
+    private final GatewayPaymentHistoryJpaRepository histories;
+
     // 인증된 가맹점이 소유한 카드 거래의 세션만 발급한다. 이 메서드는 금융 HTTP를 호출하지 않는다.
     public GatewayCardSessionResponse issue(
             AuthenticatedMerchant merchant,
@@ -39,7 +41,10 @@ public class GatewayCardCheckoutCommands {
             throw new GatewayPaymentConflictException("카드 결제 세션의 원거래가 일치하지 않습니다.");
         }
 
-        return tokens.issue(payment, request.approvalAllowed());
+        boolean switching = histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(id,
+                GatewayPaymentOperation.CHANGE_METHOD, "REQUESTED").isPresent();
+
+        return tokens.issue(payment, request.approvalAllowed() && !switching);
     }
 
     // 서명된 merchant·buyer·수단·revision을 현재 원거래와 대조한다.

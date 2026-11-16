@@ -1,5 +1,7 @@
 # 결제 API 계약
 
+2026-11-16 신규 카드→무통장 전환은 카드사의 승인 차단과 기존 성공 복구를 거친다. [전환 API·세션 무효화·경합 계약](payment-gateway-card-method-change.md)을 따른다.
+
 2026-11-15 신규 PG 카드의 전액·부분 환불과 신청 철회를 공통 가맹점 환불 API에 연결했다. [카드 환불·재시도·철회 계약](payment-gateway-card-refund.md)을 우선한다.
 
 2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.

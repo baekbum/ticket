@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
+import { ApiRequestError } from '../src/authenticatedRequest.ts';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' });
 globalThis.window = dom.window; globalThis.document = dom.window.document;
@@ -20,6 +21,33 @@ for (const name of ['authenticatedRequest', 'cardPayment']) source = source.repl
 const Dialog = (await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)).default;
 const payment = { paymentNo: 'PAY-1', pgPaymentId: 'pg-1', amount: 10000, expiresAt: '2099-01-01', status: 'READY' };
 const session = () => ({ pgPaymentId: 'pg-1', paymentNo: 'PAY-1', amount: 10000, paymentSession: 'opaque-session', expiresAt: new Date(Date.now()+300000).toISOString(), canApprove: true });
+
+test('다른 창에서 무통장으로 바뀌면 카드 조회를 중단하고 현재 결제 확인을 안내한다', async () => {
+  let completed = 0;
+  const close = await mount(async () => { throw new ApiRequestError(409, '결제수단이 변경되었습니다. 예매 내역을 확인해주세요.', 'GATEWAY_PAYMENT_METHOD_CHANGED'); }, () => { completed++; });
+  try {
+    assert.equal(completed, 0);
+    assert.ok(document.body.textContent.includes('결제수단이 변경되었습니다'));
+    assert.ok([...document.querySelectorAll('button')].some(button => button.textContent === '창 닫기'));
+    assert.equal(document.querySelector('form'), null);
+  } finally { await close(); }
+});
+
+test('전환 진행 중 충돌은 승인 없음으로 처리하지 않고 기존 거래 조회를 유지한다', async () => {
+  let approved = 0;
+  const original = window.setTimeout;
+  window.setTimeout = (callback, delay) => delay === 3000 ? 123456 : original(callback, delay);
+  const close = await mount(async (url, options) => {
+    if (url.startsWith('/ticket/')) return { ...session(), canApprove: false };
+    if (options.method === 'POST') approved++;
+    throw new ApiRequestError(409, '결제수단 전환을 확인 중입니다. 최초 무통장 전환 요청으로 다시 확인해주세요.');
+  }, () => {});
+  try {
+    assert.equal(approved, 0);
+    assert.ok(document.body.textContent.includes('최초 무통장 전환 요청'));
+    assert.equal(document.querySelector('form'), null);
+  } finally { await close(); window.setTimeout = original; }
+});
 
 async function mount(request, onComplete, pending = true) {
   sessionStorage.clear();

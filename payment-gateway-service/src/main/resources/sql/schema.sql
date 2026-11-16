@@ -545,3 +545,17 @@ CREATE TABLE card_payment_refunds (
     CONSTRAINT chk_card_payment_refund_amount CHECK (amount > 0),
     CONSTRAINT chk_card_payment_refund_status CHECK (status IN ('SUCCEEDED', 'WITHDRAWN'))
 );
+
+CREATE TABLE card_approval_gates (
+    pg_payment_id VARCHAR(44) PRIMARY KEY,
+    buyer_reference VARCHAR(50) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    expires_at TIMESTAMP(6) NOT NULL,
+    closed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_card_approval_gate_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT chk_card_approval_gate_amount CHECK (amount > 0)
+);

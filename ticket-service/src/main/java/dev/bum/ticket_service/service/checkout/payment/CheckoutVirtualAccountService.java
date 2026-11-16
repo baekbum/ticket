@@ -35,6 +35,12 @@ public class CheckoutVirtualAccountService {
             return;
         }
 
+        payment.planGatewayAccount(bankCompany, calculateDeadline(payment));
+    }
+
+    // 은행 도메인에 공연일을 보내지 않고 Ticksy에서 일반 입금기한으로 계산한다.
+    public LocalDateTime calculateDeadline(Payment payment) {
+
         LocalDate today = LocalDate.now(clock);
         LocalDate eventDate = payment.getReservation().getEvent().getEventDateTime().toLocalDate();
 
@@ -43,13 +49,13 @@ public class CheckoutVirtualAccountService {
         }
 
         LocalDate expirationDate = today.plusDays(1).isBefore(eventDate) ? today.plusDays(1) : today;
-        payment.planGatewayAccount(bankCompany, LocalDateTime.of(expirationDate, LocalTime.of(23, 59, 59)));
+        return LocalDateTime.of(expirationDate, LocalTime.of(23, 59, 59));
     }
 
     /**
      * 최초 발급 요청의 은행 코드를 확인한다.
      */
-    private BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
+    public BankCompany resolveBankCompany(CheckoutConfirmRequest request) {
 
         if (!StringUtils.hasText(request.getBankCode())) {
             throw new IllegalArgumentException("은행 코드가 필요합니다.");

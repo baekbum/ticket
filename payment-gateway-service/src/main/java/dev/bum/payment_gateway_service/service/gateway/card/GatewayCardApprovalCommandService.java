@@ -56,6 +56,11 @@ public class GatewayCardApprovalCommandService {
                     merchant.getNotificationContract(), merchant.getNotificationTargetKey());
         }
 
+        if (histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(pgPaymentId,
+                GatewayPaymentOperation.CHANGE_METHOD, "REQUESTED").isPresent()) {
+            throw new GatewayPaymentConflictException("결제수단 전환을 확인 중입니다. 같은 전환 요청으로 결과를 확인해주세요.");
+        }
+
         if (payment.getStatus() != GatewayPaymentStatus.READY) {
             throw new GatewayPaymentConflictException("새 카드 승인을 실행할 수 없는 PG 상태입니다.");
         }
@@ -131,6 +136,18 @@ public class GatewayCardApprovalCommandService {
         }
 
         return approved(id).map(history -> response(payment, history));
+    }
+
+    // 승인 조회의 404를 전환 중 거래의 재승인 허가로 해석하지 않게 한다.
+    @Transactional(readOnly = true)
+    public void requireNoPendingMethodChange(AuthenticatedMerchant principal, String id) {
+
+        merchant(principal, null);
+        payments.findByPgPaymentIdAndMerchantMerchantId(id, principal.merchantId()).orElseThrow(GatewayPaymentNotFoundException::new);
+
+        if (histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(id, GatewayPaymentOperation.CHANGE_METHOD, "REQUESTED").isPresent()) {
+            throw new GatewayPaymentConflictException("결제수단 전환을 확인 중입니다. 최초 무통장 전환 요청으로 다시 확인해주세요.");
+        }
     }
 
     /**

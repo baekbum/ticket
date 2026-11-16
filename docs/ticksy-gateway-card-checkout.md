@@ -66,7 +66,7 @@ PG 세션 서명 키 APP_PG_CHECKOUT_SIGNING_KEY는 사용자 JWT·가맹점 cre
 - 신규 checkout에서 카드 준비 기한을 저장한 결제만 새 PG 준비 흐름을 사용한다. 기존 CARD의 gateway_expires_at·pg_payment_id가 NULL이면 기존 사용자 JWT 승인·조회 경로를 유지한다. 기존 데이터를 임의로 신규 금융 거래에 연결하지 않는다.
 - 신규 PG 거래는 브라우저의 새 /card/checkout 경로를 사용한다. 기존 /card/gateway 경로의 가맹점 서버 승인·조회 API도 유지한다.
 - 신규 PG 카드를 기존 카드 승인 validate/settle 경로로 처리하지 않도록 차단한다. 프런트·Ticksy·PG를 함께 반영해야 한다.
-- 신규 PG 카드의 준비 이후 카드 → 무통장 전환은 차단한다. 승인 경합과 이미 커밋된 PG prepare의 결제수단을 덮어쓰지 않는다. PG 미연결 기존 카드의 미승인 전환은 유지한다. 신규 거래의 안전한 수단 전환 API는 후속 작업이다.
+- 신규 PG 카드의 카드 → 무통장 전환은 카드사의 승인 차단 확정과 기존 승인 복구를 거친다. 같은 PG ID를 유지하고 수단 버전을 올려 이전 세션을 무효화한다. [전환·경합·응답 유실 계약](payment-gateway-card-method-change.md)을 따른다. PG 미연결 기존 카드의 기존 전환 경로는 유지한다.
 - 신규 PG 카드 환불·철회는 공통 신청 API로 연결했다. [카드 환불 계약](payment-gateway-card-refund.md)을 따른다. 기존 카드·구계좌 환불과 새 PG 가상계좌 환불도 유지한다.
 - 이번 작업은 기존 payments.pg_payment_id·gateway_expires_at을 사용한다. 테이블·컬럼 추가와 데이터 이전 SQL은 없으며 실제 DB 삭제·초기화는 수행하지 않는다. 세션 전용 테이블도 만들지 않는다.
 

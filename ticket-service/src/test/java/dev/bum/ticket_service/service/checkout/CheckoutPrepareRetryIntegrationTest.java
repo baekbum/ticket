@@ -94,6 +94,7 @@ class CheckoutPrepareRetryIntegrationTest {
     @MockitoBean QueueAccessService queue;
     @MockitoBean ReservationRepository reservations;
     @MockitoBean CheckoutPaymentService payments;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService virtualAccounts;
     @MockitoBean PaymentGatewayCardClient gateway;
     @MockitoBean Clock clock;
     @MockitoSpyBean EventBookingGuard bookingGuard;

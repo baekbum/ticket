@@ -347,6 +347,8 @@ CREATE TABLE checkout_attempts (
     event_id BIGINT NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     payment_id BIGINT,
+    gateway_switch_bank_company VARCHAR(30),
+    gateway_switch_expires_at TIMESTAMP(6),
     status VARCHAR(30) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

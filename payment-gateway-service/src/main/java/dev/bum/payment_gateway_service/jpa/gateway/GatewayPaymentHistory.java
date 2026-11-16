@@ -78,6 +78,28 @@ public class GatewayPaymentHistory {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private LocalDateTime occurredAt;
 
+    // 전환의 최초 조건과 결과는 별개 작업 키로 고정한다. 최초 prepare 해시는 바꾸지 않는다.
+    public static GatewayPaymentHistory methodChange(
+            GatewayPayment payment,
+            GatewayPaymentTerms target,
+            String operationKey
+    ) {
+
+        GatewayPaymentHistory history = new GatewayPaymentHistory();
+        history.payment = payment;
+        history.operationType = GatewayPaymentOperation.CHANGE_METHOD;
+        history.operationKey = operationKey;
+        history.beforeStatus = payment.getStatus();
+        history.afterStatus = payment.getStatus();
+        history.amount = payment.getAmount();
+        history.requestHash = target.fingerprint();
+        history.details = Map.of("bankCompany", target.bankCompany().name(), "expiresAt", target.expiresAt().toString(),
+                "sourceExpiresAt", payment.getExpiresAt().toString(), "methodRevision", payment.getMethodRevision());
+        history.occurredAt = LocalDateTime.now();
+
+        return history;
+    }
+
     // 이력 저장 시각.
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

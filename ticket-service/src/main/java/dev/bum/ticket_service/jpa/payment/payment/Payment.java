@@ -406,6 +406,19 @@ public class Payment {
         record(PaymentHistoryType.METHOD_CHANGED, status, null);
     }
 
+    // 카드사의 승인 차단 및 PG 전환 확정 결과를 받은 뒤에만 신규 카드 수단을 변경한다.
+    public void switchGatewayToBank(BankCompany bank, LocalDateTime deadline) {
+
+        if (method != PaymentMethod.CREDIT_CARD || status != PaymentStatus.READY || pgPaymentId == null
+                || gatewayExpiresAt == null || expiresAt == null || !expiresAt.isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("무통장으로 전환할 수 없는 예매 상태입니다.");
+        }
+
+        method = PaymentMethod.BANK_TRANSFER;
+        planGatewayAccount(bank, deadline);
+        record(PaymentHistoryType.METHOD_CHANGED, status, null);
+    }
+
     // 결제 처리에서 카드 결제 완료 결과를 반영한다.
     public void completeCard(
             String transactionId,

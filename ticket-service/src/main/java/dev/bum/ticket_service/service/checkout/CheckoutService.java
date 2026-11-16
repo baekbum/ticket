@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService;
 import dev.bum.ticket_service.service.checkout.payment.GatewayCardCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.GatewayCardMethodChangeCheckoutService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
@@ -27,12 +28,20 @@ public class CheckoutService {
     // 기존 카드 승인 이력 확인은 DB 잠금 밖에서 수행한다.
     private final PaymentGatewayCardClient cards;
 
+    private final GatewayCardMethodChangeCheckoutService methodChanges;
+
     /**
      * 로컬 예매를 먼저 커밋하고 신규 PG 거래를 준비·발급한다.
      */
     public PaymentResponse confirm(String userId, String activeToken, CheckoutConfirmRequest request) {
 
-        String cardPaymentNo = commands.findCardSwitchPaymentNo(userId, request);
+        CheckoutTransactionService.CardSwitchCandidate candidate = commands.findCardSwitch(userId, request);
+
+        if (candidate != null && candidate.gatewayManaged()) {
+            return methodChanges.change(userId, activeToken, request);
+        }
+
+        String cardPaymentNo = candidate == null ? null : candidate.paymentNo();
         boolean cardApprovalAbsent = cardPaymentNo != null
                 && Boolean.FALSE.equals(cards.hasApprovalHistory(cardPaymentNo));
         PaymentResponse payment = commands.confirm(userId, activeToken, request, cardApprovalAbsent);

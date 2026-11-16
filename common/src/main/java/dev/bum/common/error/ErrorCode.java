@@ -75,6 +75,8 @@ public enum ErrorCode {
 
     // 기타
     GATEWAY_CARD_PREPARATION_UNCONFIRMED("카드 결제 준비 결과를 확인하지 못했습니다."),
+    GATEWAY_METHOD_CHANGE_UNCONFIRMED("기존 카드 승인 또는 결제수단 변경 결과를 확인하지 못했습니다."),
+    GATEWAY_PAYMENT_METHOD_CHANGED("결제수단이 변경되었습니다. 예매 내역을 확인해주세요."),
     INTERNAL_SERVER_ERROR("서버 오류가 발생했습니다.");
     private final String message;
 }

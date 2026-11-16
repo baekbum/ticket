@@ -76,10 +76,14 @@ public class GatewayCardApprovalService {
             return existing.get();
         }
 
-        FinancialCardApprovalResponse card = financial.gatewayCardStatus(id)
-                .orElseThrow(GatewayPaymentNotFoundException::new);
+        Optional<FinancialCardApprovalResponse> card = financial.gatewayCardStatus(id);
 
-        return commands.confirmRecovered(merchant, id, card);
+        if (card.isEmpty()) {
+            commands.requireNoPendingMethodChange(merchant, id);
+            throw new GatewayPaymentNotFoundException();
+        }
+
+        return commands.confirmRecovered(merchant, id, card.get());
     }
 
     /**

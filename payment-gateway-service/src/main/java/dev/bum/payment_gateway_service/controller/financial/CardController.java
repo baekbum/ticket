@@ -23,6 +23,14 @@ public class CardController {
 
     private final CardPaymentRefundService refunds;
 
+    @PostMapping("/gateway/close-approval")
+    public FinancialCardApprovalGateResponse closeGatewayApproval(
+            @Valid @RequestBody FinancialCardApprovalGateRequest request
+    ) {
+
+        return pgApprovals.close(request);
+    }
+
     @PostMapping("/approve")
     public ResponseEntity<FinancialCardPaymentApproveResponse> approve(
             @NotBlank @RequestHeader(FinancialSimulationAuthenticationFilter.USER_HEADER) String userId,

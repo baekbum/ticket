@@ -25,6 +25,10 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
+import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
+import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
+import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -80,6 +84,8 @@ public class CheckoutTransactionService {
     private final CheckoutAttemptJpaRepository checkoutAttemptJpaRepository;
     // 결제 준비 업무 처리를 담당하는 서비스.
     private final CheckoutPaymentService checkoutPaymentService;
+
+    private final CheckoutVirtualAccountService virtualAccounts;
     // 결제 행 잠금 대기 후 카드 완료 등 동시 변경을 다시 읽는다.
     private final EntityManager entityManager;
     // 결제 준비 요청의 중복 처리를 방지하는 키 생성 도구.
@@ -90,6 +96,13 @@ public class CheckoutTransactionService {
     // 배송비.
     @Value("${app.checkout.delivery-fee:3200}")
     private int deliveryFee = 3200;
+
+    @Value("${app.payment-gateway.merchant-id:1}")
+    private long merchantId = 1;
+
+    public record CardSwitchCandidate(String paymentNo, boolean gatewayManaged) { }
+
+    public record CardSwitchPreparation(PaymentResponse payment, GatewayCardMethodChangeRequest request) { }
 
     /**
      * 배송·쿠폰·결제수단을 검증하고 예매·Payment·은행 발급 의도를 함께 커밋한다. 외부 PG는 호출하지 않는다.
@@ -249,7 +262,7 @@ public class CheckoutTransactionService {
      * 소유자와 checkout 요청을 검증한 뒤 카드 승인 조회가 필요한 결제번호만 반환한다.
      */
     @Transactional(readOnly = true)
-    public String findCardSwitchPaymentNo(String userId, CheckoutConfirmRequest request) {
+    public CardSwitchCandidate findCardSwitch(String userId, CheckoutConfirmRequest request) {
 
         CheckoutAttempt attempt = checkoutAttemptJpaRepository
                 .findById(normalizeIdempotencyKey(request.getIdempotencyKey()))
@@ -257,14 +270,61 @@ public class CheckoutTransactionService {
         validateRequestMatchesAttempt(userId, request, attempt);
 
         Payment payment = attempt.getPayment();
-        if (payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
+        return payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
                 && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER
-                && (payment.getGatewayExpiresAt() != null || payment.getPgPaymentId() != null)) {
-            throw new IllegalStateException("이미 카드 결제로 준비된 예매입니다. 카드 결제를 진행하거나 새 예매에서 결제수단을 선택해주세요.");
+                ? new CardSwitchCandidate(payment.getPaymentNo(), payment.getGatewayExpiresAt() != null || payment.getPgPaymentId() != null) : null;
+    }
+
+    // 최초 전환 조건만 커밋한다. PG 조회·카드 승인 차단·수단 변경은 이 트랜잭션 밖에서 실행한다.
+    public CardSwitchPreparation prepareGatewayCardSwitch(String userId, String activeToken, CheckoutConfirmRequest request) {
+
+        CheckoutAttempt attempt = checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate(normalizeIdempotencyKey(request.getIdempotencyKey()))
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
+        validateRequestMatchesAttempt(userId, request, attempt);
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(attempt.getPaymentNo()).orElseThrow();
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER && attempt.getGatewaySwitchBankCompany() != null
+                && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
+            if (virtualAccounts.resolveBankCompany(request) != attempt.getGatewaySwitchBankCompany()) {
+                throw new IllegalArgumentException("최초 결제수단 전환 은행과 다릅니다.");
+            }
+
+            return new CardSwitchPreparation(payment.toResponse(), null);
         }
 
-        return payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
-                && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER ? payment.getPaymentNo() : null;
+        if (payment.getMethod() != PaymentMethod.CREDIT_CARD || payment.getGatewayExpiresAt() == null
+                || request.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("신규 PG 카드의 무통장 전환 요청이 아닙니다.");
+        }
+
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return new CardSwitchPreparation(payment.toResponse(), null);
+        }
+
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new IllegalStateException("결제수단을 바꿀 수 없는 예매 상태입니다.");
+        }
+
+        BankCompany bank = virtualAccounts.resolveBankCompany(request);
+
+        if (attempt.getGatewaySwitchBankCompany() == null) {
+            if (attempt.isExpired(LocalDateTime.now()) || payment.getExpiresAt() == null
+                    || !payment.getExpiresAt().isAfter(LocalDateTime.now())) {
+                throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
+            }
+
+            queueAccessService.validate(request.getEventId(), userId, activeToken);
+            eventBookingGuard.requireBookable(request.getEventId(), true);
+            List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
+            seatCacheService.validateOccupiedSeat(request.getEventId(), userId, request.getOrderId(), seats);
+            attempt.planGatewaySwitch(bank, virtualAccounts.calculateDeadline(payment));
+        } else if (attempt.getGatewaySwitchBankCompany() != bank) {
+            throw new IllegalArgumentException("진행 중인 전환의 최초 은행과 다릅니다. 같은 요청으로 다시 시도해주세요.");
+        }
+
+        return new CardSwitchPreparation(payment.toResponse(), new GatewayCardMethodChangeRequest(merchantId, userId,
+                BigDecimal.valueOf(payment.getAmount()), bank, attempt.getGatewaySwitchExpiresAt()));
     }
 
     /**

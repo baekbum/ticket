@@ -48,3 +48,8 @@ test('환불 결과 미확인과 동시 처리 오류는 고정 안내만 표시
 test('카드 준비 결과 미확인은 내부 상세 대신 같은 결제 요청 재시도를 안내한다', () => {
   assert.equal(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_CARD_PREPARATION_UNCONFIRMED', message: 'internal failure detail' })), '카드 결제 준비 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도해주세요.');
 });
+
+test('수단 변경 결과 미확인과 이미 변경된 카드 세션은 고정 안내를 반환한다', () => {
+  assert.match(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_METHOD_CHANGE_UNCONFIRMED', message: 'SQL 내부 상세' })), /같은 요청으로 다시 시도/);
+  assert.match(getApiErrorMessage(409, JSON.stringify({ code: 'GATEWAY_PAYMENT_METHOD_CHANGED', message: 'SQL 내부 상세' })), /결제수단이 변경/);
+});

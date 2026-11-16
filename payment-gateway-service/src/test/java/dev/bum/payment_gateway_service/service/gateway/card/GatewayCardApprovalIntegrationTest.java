@@ -79,7 +79,7 @@ class GatewayCardApprovalIntegrationTest {
     @Import({GatewayCardCheckoutController.class, GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class, GatewayCardSessionToken.class, GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayCardApprovalService.class, GatewayCardApprovalCommandService.class,
-            CardApprovalService.class, CardApprovalCommandService.class, GatewayPaymentController.class,
+            CardApprovalService.class, CardApprovalCommandService.class, CardApprovalGateCreator.class, CardApprovalGateAccess.class, GatewayPaymentController.class,
             GatewayCardPaymentController.class, CardController.class, dev.bum.payment_gateway_service.service.financial.card.CardPaymentRefundService.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, MerchantNotificationTokenCipher.class,
             MerchantNotificationEndpointService.class,

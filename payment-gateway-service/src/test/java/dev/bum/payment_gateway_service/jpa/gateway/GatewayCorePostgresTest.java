@@ -555,4 +555,21 @@ class GatewayCorePostgresTest {
         return new GatewayPaymentTerms("VERIFY-SAME-NO", "verify", PaymentMethod.CREDIT_CARD,
                 new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59), null);
     }
+
+    @Test
+    void cardApprovalClosureUsesTheActualGateSchema() {
+        GatewayPayment payment = payment(merchant(), "VERIFY-CARD-GATE", PaymentMethod.CREDIT_CARD);
+        dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalGateRequest request =
+                new dev.bum.payment_gateway_service.dto.card.FinancialCardApprovalGateRequest(payment.getPgPaymentId(),
+                        payment.getBuyerReference(), payment.getAmount(), payment.getExpiresAt());
+        CardApprovalGate gate = CardApprovalGate.open(request);
+        entityManager.persistAndFlush(gate);
+        gate.close();
+        entityManager.flush();
+        entityManager.clear();
+        CardApprovalGate stored = entityManager.find(CardApprovalGate.class, payment.getPgPaymentId());
+        assertThat(stored.isClosed()).isTrue();
+        assertThat(stored.getCreatedAt()).isNotNull();
+        assertThatCode(() -> stored.validate(request)).doesNotThrowAnyException();
+    }
 }

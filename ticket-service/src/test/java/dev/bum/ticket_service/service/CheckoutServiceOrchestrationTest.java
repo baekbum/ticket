@@ -17,7 +17,7 @@ class CheckoutServiceOrchestrationTest {
     final GatewayVirtualAccountCheckoutService accounts = mock(GatewayVirtualAccountCheckoutService.class);
     final PaymentGatewayCardClient cards = mock(PaymentGatewayCardClient.class);
     final GatewayCardCheckoutService cardCheckout = mock(GatewayCardCheckoutService.class);
-    final CheckoutService checkout = new CheckoutService(commands, accounts, cardCheckout, cards);
+    final CheckoutService checkout = new CheckoutService(commands, accounts, cardCheckout, cards, mock(dev.bum.ticket_service.service.checkout.payment.GatewayCardMethodChangeCheckoutService.class));
 
     @Test void bankIssuanceRunsOnlyAfterLocalConfirmReturnsAndItsResultIsReturned() {
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.BANK_TRANSFER).build();
@@ -28,7 +28,7 @@ class CheckoutServiceOrchestrationTest {
         when(accounts.issue("PAY-1")).thenReturn(issued);
         assertThat(checkout.confirm("owner", "queue", request)).isSameAs(issued);
         InOrder order = inOrder(commands, accounts);
-        order.verify(commands).findCardSwitchPaymentNo("owner", request);
+        order.verify(commands).findCardSwitch("owner", request);
         order.verify(commands).confirm("owner", "queue", request, false);
         order.verify(accounts).issue("PAY-1");
         verifyNoInteractions(cards);
@@ -46,12 +46,12 @@ class CheckoutServiceOrchestrationTest {
 
     @Test void cardSwitchHistoryIsCheckedBeforeTheLocalTransactionAndUnknownHistoryDoesNotAuthorizeSwitch() {
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.BANK_TRANSFER).build();
-        when(commands.findCardSwitchPaymentNo("owner", request)).thenReturn("PAY-1");
+        when(commands.findCardSwitch("owner", request)).thenReturn(new CheckoutTransactionService.CardSwitchCandidate("PAY-1", false));
         when(cards.hasApprovalHistory("PAY-1")).thenReturn(false);
         when(commands.confirm("owner", "queue", request, true)).thenThrow(new IllegalStateException("local validation"));
         assertThatThrownBy(() -> checkout.confirm("owner", "queue", request)).hasMessage("local validation");
         InOrder order = inOrder(commands, cards);
-        order.verify(commands).findCardSwitchPaymentNo("owner", request);
+        order.verify(commands).findCardSwitch("owner", request);
         order.verify(cards).hasApprovalHistory("PAY-1");
         order.verify(commands).confirm("owner", "queue", request, true);
         when(cards.hasApprovalHistory("PAY-1")).thenReturn(null);

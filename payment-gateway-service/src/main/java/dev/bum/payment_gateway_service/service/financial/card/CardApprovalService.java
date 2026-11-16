@@ -15,6 +15,11 @@ public class CardApprovalService {
     // 최초 승인과 유니크 충돌 복구를 다른 금융 트랜잭션으로 분리한다.
     private final CardApprovalCommandService commands;
 
+    public FinancialCardApprovalGateResponse close(FinancialCardApprovalGateRequest request) {
+
+        return commands.close(request);
+    }
+
     /**
      * 같은 PG 식별자의 동시 승인도 하나의 원승인으로 수렴시킨다.
      */

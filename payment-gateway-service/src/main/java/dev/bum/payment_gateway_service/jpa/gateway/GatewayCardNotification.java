@@ -139,6 +139,14 @@ public class GatewayCardNotification {
         return event;
     }
 
+    // 동기 승인 복구에도 Outbox와 같은 최초 승인 사실을 사용한다.
+    public dev.bum.common.service.paymentgateway.notification.CardPaymentNotification toNotification() {
+
+        return new CardNotificationSnapshot(notificationId, eventId, payment.getPgPaymentId(), merchantId,
+                merchantPaymentNo, buyerReference, notificationContract, notificationTargetKey, transactionId,
+                cardCompany, maskedCardNumber, amount, approvedAt, attempt).toNotification();
+    }
+
     // 짧은 DB 잠금 안에서만 임대를 잡고 HTTP 전에 커밋한다.
     public CardNotificationSnapshot claim(LocalDateTime now) {
 

@@ -87,6 +87,11 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
         setError('');
       } catch (failure) {
         if (disposed) return;
+        if (failure instanceof ApiRequestError && failure.code === 'GATEWAY_PAYMENT_METHOD_CHANGED') {
+          setPhase('TERMINAL');
+          setError(failure.message);
+          return;
+        }
         if (failure instanceof ApiRequestError && ((failure.status === 400 && !payment.pgPaymentId) || (failure.status === 404 && payment.pgPaymentId))) {
           if (payment.pgPaymentId && sessionRef.current?.canApprove === false) {
             setPhase('TERMINAL');
@@ -100,8 +105,12 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
           return;
         }
         if (failure instanceof ApiRequestError && failure.status === 403) sessionRef.current = null;
-        setError(failure instanceof SessionExpiredError ? failure.message
-          : '결제 결과를 확인하지 못했습니다. 연결이 복구되면 자동으로 다시 확인합니다.');
+        if (failure instanceof ApiRequestError && failure.status === 409) {
+          setError(failure.message);
+        } else {
+          setError(failure instanceof SessionExpiredError ? failure.message
+            : '결제 결과를 확인하지 못했습니다. 연결이 복구되면 자동으로 다시 확인합니다.');
+        }
       } finally {
         window.clearTimeout(timeout);
       }
