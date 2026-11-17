@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
-public class GatewayBankCancellationNotificationService {
+public class BankCancellationNotificationService {
 
     // 예매 취소 때 이미 처리한 Payment와 소유자·계좌를 검증한다. 좌석·티켓을 다시 변경하지 않는다.
     private final PaymentJpaRepository payments;
@@ -32,7 +32,7 @@ public class GatewayBankCancellationNotificationService {
     /**
      * 로컬 결제 저장소와 서버 가맹점 설정을 연결한다.
      */
-    public GatewayBankCancellationNotificationService(
+    public BankCancellationNotificationService(
             PaymentJpaRepository payments,
             GatewayBankCancellationReceiptJpaRepository receipts,
             ObjectMapper json,

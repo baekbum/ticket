@@ -76,7 +76,7 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @Autowired VirtualAccountCancelOutboxPublisher publisher;
     @MockitoSpyBean VirtualAccountCancelOutboxCommands deliveryCommands;
     @MockitoBean dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayTransactionClient transactionGateway;
-    @MockitoBean dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService issuance;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutService issuance;
     @Autowired VirtualAccountCancelOutboxDispatcher dispatcher;
     @Autowired VirtualAccountCancelOutboxService enqueue;
     @MockitoSpyBean VirtualAccountCancelOutboxJpaRepository outbox;

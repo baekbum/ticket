@@ -10,7 +10,7 @@ import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.controller.payment.GatewayCardNotificationController;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
-import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 import dev.bum.ticket_service.service.payment.payment.PaymentService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = GatewayCardNotificationController.class, properties = {
         "app.internal.service-token=test-pg-inbound", "app.payment-gateway.merchant-id=1"
 })
-@Import({SecurityConfig.class, InternalServiceTokenValidator.class, GatewayCardNotificationService.class})
+@Import({SecurityConfig.class, InternalServiceTokenValidator.class, CardPaymentNotificationService.class})
 class GatewayCardNotificationControllerTest {
 
     @Autowired MockMvc mvc;
@@ -130,7 +130,7 @@ class GatewayCardNotificationControllerTest {
     void unclearLocalResultCannotBecomeAnAcceptedOrRejectedAcknowledgement() {
         doReturn(result(CardPaymentSettlementResponse.Outcome.COMPLETED, PaymentStatus.READY))
                 .when(payments).settleCardFromGateway(any(), anyString());
-        GatewayCardNotificationService receiver = new GatewayCardNotificationService(payments, 1);
+        CardPaymentNotificationService receiver = new CardPaymentNotificationService(payments, 1);
         assertThatThrownBy(() -> receiver.receive(event())).isInstanceOf(IllegalStateException.class);
     }
 

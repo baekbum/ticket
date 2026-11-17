@@ -52,7 +52,7 @@ GatewayVirtualAccountExpirationCommands는 PG 거래를 잠그고 수단·은행
 
 ## Ticksy의 조회와 로컬 만료
 
-GatewayVirtualAccountExpirationScheduler는 기본 60초마다 최초 gatewayExpiresAt이 지난 신규 BANK_TRANSFER의 READY·WAITING_DEPOSIT 결제를 조회한다. ID 커서로 순회하여 한 거래의 조회 실패가 다른 거래를 막지 않는다.
+VirtualAccountExpirationScheduler는 기본 60초마다 최초 gatewayExpiresAt이 지난 신규 BANK_TRANSFER의 READY·WAITING_DEPOSIT 결제를 조회한다. ID 커서로 순회하여 한 거래의 조회 실패가 다른 거래를 막지 않는다.
 
 PG ID가 있으면 GET /api/v1/payments/gateway/{pgPaymentId}, 준비 응답 저장 전 중단돼 PG ID가 없으면 GET /api/v1/payments/gateway/by-payment-no/{paymentNo}를 사용한다. PG가 인증된 merchant 범위로 조회하며 Ticksy도 서버 merchant ID·결제번호·예매자·수단·은행·금액·최초 기한·PG ID를 검증한다. 같은 결제번호를 쓰는 다른 가맹점의 결과는 수락하지 않는다.
 

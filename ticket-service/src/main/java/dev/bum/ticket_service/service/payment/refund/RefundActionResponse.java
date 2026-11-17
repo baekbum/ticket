@@ -2,7 +2,7 @@ package dev.bum.ticket_service.service.payment.refund;
 
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
 
-public record GatewayRefundActionResponse(
+public record RefundActionResponse(
         // SUCCEEDED 또는 WITHDRAWN. 이미 성공한 요청의 철회도 SUCCEEDED다.
         String outcome,
 

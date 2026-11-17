@@ -12,16 +12,16 @@ import org.springframework.transaction.annotation.*;
 @Service
 @RequiredArgsConstructor
 @Transactional(propagation = Propagation.NEVER)
-public class GatewayCardCheckoutService {
+public class CardCheckoutService {
 
-    private final GatewayCardCheckoutCommands commands;
+    private final CardCheckoutCommandService commands;
 
     private final PaymentGatewayTransactionClient gateway;
 
     // 최초 조건으로 PG 준비를 재요청한다. 서버/브라우저 응답 유실에도 새 결제번호를 만들지 않는다.
     public PaymentResponse prepare(String userId, String paymentNo) {
 
-        GatewayCardCheckoutPreparation preparation = commands.findPreparation(userId, paymentNo);
+        CardCheckoutPreparation preparation = commands.findPreparation(userId, paymentNo);
 
         if (preparation.request() == null || preparation.pgPaymentId() != null) {
             return preparation.payment();

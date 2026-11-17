@@ -10,15 +10,15 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional(propagation = Propagation.NEVER)
-public class GatewayReservationRefundService {
+public class ReservationRefundService {
 
     // 최초 접수 커밋과 실행 트랜잭션을 분리하는 프록시 경계.
-    private final GatewayReservationRefundCommands commands;
+    private final ReservationRefundCommandService commands;
 
     /**
      * 신청 기록을 먼저 커밋하고 같은 요청 ID로 한 번만 PG를 호출한다.
      */
-    public GatewayRefundActionResponse request(
+    public RefundActionResponse request(
             String userId,
             long reservationId,
             CancelReservationRequest request
@@ -31,7 +31,7 @@ public class GatewayReservationRefundService {
     /**
      * 브라우저가 보내는 새 금액 없이 최초 스냅샷 그대로 재시도한다.
      */
-    public GatewayRefundActionResponse retry(String userId, long reservationId, long processId) {
+    public RefundActionResponse retry(String userId, long reservationId, long processId) {
 
         return commands.execute(userId, reservationId, processId, false);
     }
@@ -39,7 +39,7 @@ public class GatewayReservationRefundService {
     /**
      * 철회 의도를 커밋한 후 금융사의 종료 또는 기존 환불 성공을 확인한다.
      */
-    public GatewayRefundActionResponse withdraw(String userId, long reservationId, long processId) {
+    public RefundActionResponse withdraw(String userId, long reservationId, long processId) {
 
         commands.prepareWithdrawal(userId, reservationId, processId);
         return commands.execute(userId, reservationId, processId, true);

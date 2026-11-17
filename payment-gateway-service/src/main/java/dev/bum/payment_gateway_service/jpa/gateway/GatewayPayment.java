@@ -161,6 +161,20 @@ public class GatewayPayment {
         methodRevision++;
     }
 
+    // 은행의 미발급·향후 발급 차단이 확정된 뒤에만 카드로 바꾼다.
+    public void switchToCard(LocalDateTime deadline) {
+
+        if (paymentMethod != PaymentMethod.BANK_TRANSFER || status != GatewayPaymentStatus.READY
+                || paidAt != null || methodRevision != 0 || deadline == null) {
+            throw new IllegalStateException("카드로 전환할 수 없는 PG 원거래입니다.");
+        }
+
+        paymentMethod = PaymentMethod.CREDIT_CARD;
+        bankCompany = null;
+        expiresAt = deadline.truncatedTo(ChronoUnit.MICROS);
+        methodRevision++;
+    }
+
     // 카드사의 원승인 성공을 확인한 뒤 금융 완료 상태로 전환한다.
     public void approveCard(CardCompany company, LocalDateTime approvedAt) {
 

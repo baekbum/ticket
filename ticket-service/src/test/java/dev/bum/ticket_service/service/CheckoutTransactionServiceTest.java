@@ -152,7 +152,7 @@ class CheckoutTransactionServiceTest {
         given(eventBookingGuard.requireBookable(1L, true))
                 .willThrow(new IllegalArgumentException("판매가 종료된 공연입니다."));
         assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token",
-                confirmRequest(PaymentMethod.CREDIT_CARD), false)).hasMessage("판매가 종료된 공연입니다.");
+                confirmRequest(PaymentMethod.CREDIT_CARD))).hasMessage("판매가 종료된 공연입니다.");
         then(reservationRepository).shouldHaveNoInteractions();
         then(checkoutPaymentService).shouldHaveNoInteractions();
         then(paymentJpaRepository).shouldHaveNoInteractions();
@@ -226,7 +226,7 @@ class CheckoutTransactionServiceTest {
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
         request.getSeats().getFirst().setId(2L);
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("prepare 요청과 결제 확정 좌석이 일치하지 않습니다.");
 
@@ -252,7 +252,7 @@ class CheckoutTransactionServiceTest {
             case "COL" -> info.setCol(2);
         }
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("좌석 ID와 공연 또는 좌표 정보가 일치하지 않습니다.");
 
@@ -270,7 +270,7 @@ class CheckoutTransactionServiceTest {
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.CREDIT_CARD);
         request.setSeats(seats);
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalArgumentException.class);
 
         then(seatJpaRepository).shouldHaveNoInteractions();
@@ -289,7 +289,7 @@ class CheckoutTransactionServiceTest {
         given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
                 .willThrow(new SeatOccupationFailedException("선점 소유권이 없습니다."));
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(SeatOccupationFailedException.class);
 
         then(reservationRepository).shouldHaveNoInteractions();
@@ -305,7 +305,7 @@ class CheckoutTransactionServiceTest {
                 .willReturn(Optional.of(attempt));
 
         assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token",
-                confirmRequest(PaymentMethod.CREDIT_CARD), false))
+                confirmRequest(PaymentMethod.CREDIT_CARD)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("좌석 준비 정보가 없습니다. 좌석 선택부터 다시 진행해주세요.");
 
@@ -334,7 +334,7 @@ class CheckoutTransactionServiceTest {
         given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, false);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         then(seatCacheService).should().validateOccupiedSeat(
@@ -594,7 +594,7 @@ class CheckoutTransactionServiceTest {
         given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, false);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
@@ -656,7 +656,7 @@ class CheckoutTransactionServiceTest {
         given(paymentJpaRepository.save(ArgumentMatchers.any(Payment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, false);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(response.getAmount()).isEqualTo(184000);
@@ -680,7 +680,7 @@ class CheckoutTransactionServiceTest {
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
 
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, false);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
         then(queueAccessService).shouldHaveNoInteractions();
 
         assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
@@ -690,63 +690,22 @@ class CheckoutTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("카드 READY 결제에 승인 이력이 없으면 같은 결제번호로 무통장 전환한다")
-    void confirm_switches_card_to_bank_transfer_before_approval() {
-        givenValidSeats();
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = Payment.builder()
-                .paymentId(1L)
-                .reservation(reservation)
-                .paymentNo("PAY-1")
-                .method(PaymentMethod.CREDIT_CARD)
-                .status(PaymentStatus.READY)
-                .amount(180000)
-                .idempotencyKey("idem-1")
-                .requestedAt(LocalDateTime.now().minusMinutes(1))
-                .expiresAt(LocalDateTime.now().plusMinutes(8))
-                .build();
-        CheckoutAttempt checkoutAttempt = confirmedAttempt(payment);
-        CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
-        given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
-                .willReturn(Optional.of(checkoutAttempt));
-        given(paymentJpaRepository.findByPaymentNoForUpdate("PAY-1")).willReturn(Optional.of(payment));
-        doAnswer(invocation -> {
-            Payment switchingPayment = invocation.getArgument(1);
-            switchingPayment.planGatewayAccount(dev.bum.common.service.ticket.payment.enums.BankCompany.KB,
-                    LocalDateTime.now().plusDays(1));
-            return null;
-        }).when(checkoutPaymentService).process(request, payment);
-
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, true);
-
-        assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
-        assertThat(response.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
-        assertThat(response.getStatus()).isEqualTo(PaymentStatus.READY);
-        assertThat(response.getAccountNumber()).isNull();
-        assertThat(checkoutAttempt.getPayment().isGatewayIssuePending()).isTrue();
-        then(queueAccessService).should().validate(1L, "user01", "queue-token");
-        then(reservationRepository).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("PG에 카드 승인 이력이 있으면 READY 결제도 무통장으로 바꾸지 않는다")
-    void confirm_rejects_card_to_bank_transfer_after_approval() {
-        givenValidSeats();
+    @DisplayName("일반 confirm은 PG 전환 서비스를 우회해 카드 결제를 무통장으로 바꾸지 않는다")
+    void confirm_rejects_method_change_without_gateway_transition() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = Payment.builder()
                 .paymentId(1L).reservation(reservation).paymentNo("PAY-1")
                 .method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.READY)
                 .amount(180000).idempotencyKey("idem-1")
                 .expiresAt(LocalDateTime.now().plusMinutes(8)).build();
-        CheckoutAttempt checkoutAttempt = confirmedAttempt(payment);
+        CheckoutAttempt attempt = confirmedAttempt(payment);
         CheckoutConfirmRequest request = confirmRequest(PaymentMethod.BANK_TRANSFER);
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
-                .willReturn(Optional.of(checkoutAttempt));
-        given(paymentJpaRepository.findByPaymentNoForUpdate("PAY-1")).willReturn(Optional.of(payment));
+                .willReturn(Optional.of(attempt));
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("카드 승인 이력이 있어 결제 수단을 변경할 수 없습니다.");
+                .hasMessage("결제수단 변경은 PG 전환 서비스를 통해 처리해야 합니다.");
         assertThat(payment.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
         then(checkoutPaymentService).shouldHaveNoInteractions();
     }
@@ -764,9 +723,9 @@ class CheckoutTransactionServiceTest {
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("변경할 수 없는 결제 수단입니다.");
+                .hasMessage("결제수단 변경은 PG 전환 서비스를 통해 처리해야 합니다.");
     }
 
     @Test
@@ -782,7 +741,7 @@ class CheckoutTransactionServiceTest {
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
 
-        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request, false);
+        PaymentResponse response = checkoutService.confirm("user01", "queue-token", request);
 
         assertThat(response.getPaymentNo()).isEqualTo("PAY-1");
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
@@ -812,7 +771,7 @@ class CheckoutTransactionServiceTest {
         Mockito.doThrow(new ActiveTokenExpiredException())
                 .when(queueAccessService).validate(1L, "user01", "expired");
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "expired", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "expired", request))
                 .isInstanceOf(ActiveTokenExpiredException.class);
         then(reservationRepository).shouldHaveNoInteractions();
         then(seatCacheService).shouldHaveNoInteractions();
@@ -835,7 +794,7 @@ class CheckoutTransactionServiceTest {
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(checkoutAttempt));
 
-        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("user01", "queue-token", request))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("좌석 선점 시간이 만료되었습니다.");
 
@@ -851,7 +810,7 @@ class CheckoutTransactionServiceTest {
         given(checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate("idem-1"))
                 .willReturn(Optional.of(preparedAttempt()));
 
-        assertThatThrownBy(() -> checkoutService.confirm("other-user", "queue-token", request, false))
+        assertThatThrownBy(() -> checkoutService.confirm("other-user", "queue-token", request))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("다른 사용자의 결제 요청 키입니다.");
 

@@ -559,3 +559,18 @@ CREATE TABLE card_approval_gates (
         REFERENCES gateway_payments(pg_payment_id),
     CONSTRAINT chk_card_approval_gate_amount CHECK (amount > 0)
 );
+
+-- 미발급 거래의 발급과 결제수단 전환을 직렬화한다. CLOSED 행은 다시 열지 않는다.
+CREATE TABLE bank_account_issue_gates (
+    pg_payment_id VARCHAR(44) PRIMARY KEY,
+    bank_company VARCHAR(30) NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    expires_at TIMESTAMP(6) NOT NULL,
+    closed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_bank_account_issue_gate_payment FOREIGN KEY (pg_payment_id)
+        REFERENCES gateway_payments(pg_payment_id),
+    CONSTRAINT chk_bank_account_issue_gate_amount CHECK (amount > 0)
+);

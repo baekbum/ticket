@@ -23,10 +23,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class GatewayVirtualAccountCheckoutRetryTest {
-    @Mock GatewayVirtualAccountCheckoutCommands commands;
+class VirtualAccountIssuanceCheckoutRetryTest {
+    @Mock VirtualAccountIssuanceCheckoutCommandService commands;
     @Mock PaymentGatewayTransactionClient gateway;
-    @InjectMocks GatewayVirtualAccountCheckoutService issuance;
+    @InjectMocks VirtualAccountIssuanceCheckoutService issuance;
     final String id = "20261112550e8400-e29b-41d4-a716-446655440000";
     final GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(1L, "PAY-1", "owner",
             PaymentMethod.BANK_TRANSFER, BigDecimal.valueOf(100), LocalDateTime.of(2026, 11, 13, 23, 59, 59), BankCompany.KB);
@@ -102,8 +102,8 @@ class GatewayVirtualAccountCheckoutRetryTest {
         } finally { Thread.interrupted(); }
     }
 
-    GatewayAccountIssuePreparation preparation(String pgId, boolean pending) {
-        return new GatewayAccountIssuePreparation(request, pgId, pending, local);
+    VirtualAccountIssuePreparation preparation(String pgId, boolean pending) {
+        return new VirtualAccountIssuePreparation(request, pgId, pending, local);
     }
 
     FeignException httpFailure(int code) {

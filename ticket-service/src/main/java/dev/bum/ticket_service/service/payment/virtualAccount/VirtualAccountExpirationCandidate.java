@@ -1,6 +1,6 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
-public record GatewayVirtualAccountExpirationCandidate(
+public record VirtualAccountExpirationCandidate(
         // Ticksy에서 기한이 지난 미완료 결제.
         Long paymentId,
 

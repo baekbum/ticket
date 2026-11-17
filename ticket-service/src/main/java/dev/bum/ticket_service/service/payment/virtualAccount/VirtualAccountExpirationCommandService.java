@@ -13,7 +13,7 @@ import java.util.Objects;
 
 @Service
 @Transactional
-public class GatewayVirtualAccountExpirationCommands {
+public class VirtualAccountExpirationCommandService {
 
     // 조회 후보를 짧은 로컬 트랜잭션으로 읽는다.
     private final PaymentJpaRepository payments;
@@ -27,7 +27,7 @@ public class GatewayVirtualAccountExpirationCommands {
     /**
      * 서버에 등록된 가맹점과 기존 만료 처리 경계를 연결한다.
      */
-    public GatewayVirtualAccountExpirationCommands(
+    public VirtualAccountExpirationCommandService(
             PaymentJpaRepository payments,
             VirtualAccountPaymentLockService locks,
             PaymentExpirationService expirations,
@@ -48,7 +48,7 @@ public class GatewayVirtualAccountExpirationCommands {
      * 시간은 후보 선정에만 사용하고 금융 상태를 독자적으로 만료시키지 않는다.
      */
     @Transactional(readOnly = true)
-    public GatewayVirtualAccountExpirationCandidate findCandidate(Long paymentId, LocalDateTime now) {
+    public VirtualAccountExpirationCandidate findCandidate(Long paymentId, LocalDateTime now) {
 
         Payment payment = payments.findById(paymentId).orElse(null);
 
@@ -57,14 +57,14 @@ public class GatewayVirtualAccountExpirationCommands {
             return null;
         }
 
-        return new GatewayVirtualAccountExpirationCandidate(paymentId, payment.getPaymentNo(), payment.getPgPaymentId());
+        return new VirtualAccountExpirationCandidate(paymentId, payment.getPaymentNo(), payment.getPgPaymentId());
     }
 
     /**
      * PG가 은행 만료를 확정한 거래만 로컬에서 만료한다. 늦은 조회 결과가 입금·취소를 덮어쓰지 않는다.
      */
     public boolean expireIfConfirmed(
-            GatewayVirtualAccountExpirationCandidate candidate,
+            VirtualAccountExpirationCandidate candidate,
             GatewayPaymentPrepareResponse response
     ) {
 

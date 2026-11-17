@@ -1,5 +1,9 @@
 package dev.bum.ticket_service.service.checkout;
 
+import dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeRequest;
+
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
+
 import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
@@ -27,7 +31,6 @@ import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
 import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
-import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -100,9 +103,32 @@ public class CheckoutTransactionService {
     @Value("${app.payment-gateway.merchant-id:1}")
     private long merchantId = 1;
 
-    public record CardSwitchCandidate(String paymentNo, boolean gatewayManaged) { }
+    // 한 번 조회한 원거래로 두 전환 방향을 동일하게 판단한다.
+    public record MethodChangeCandidate(
+            PaymentMethod sourceMethod,
+            PaymentMethod targetMethod
+    ) {
 
-    public record CardSwitchPreparation(PaymentResponse payment, GatewayCardMethodChangeRequest request) { }
+        public boolean isCardToBank() {
+
+            return sourceMethod == PaymentMethod.CREDIT_CARD && targetMethod == PaymentMethod.BANK_TRANSFER;
+        }
+
+        public boolean isBankToCard() {
+
+            return sourceMethod == PaymentMethod.BANK_TRANSFER && targetMethod == PaymentMethod.CREDIT_CARD;
+        }
+    }
+
+    public record CardToBankPreparation(
+            PaymentResponse payment,
+            GatewayCardMethodChangeRequest request
+    ) { }
+
+    public record BankToCardPreparation(
+            PaymentResponse payment,
+            GatewayBankMethodChangeRequest request
+    ) { }
 
     /**
      * 배송·쿠폰·결제수단을 검증하고 예매·Payment·은행 발급 의도를 함께 커밋한다. 외부 PG는 호출하지 않는다.
@@ -111,8 +137,7 @@ public class CheckoutTransactionService {
     public PaymentResponse confirm(
             String currentUserId,
             String activeToken,
-            CheckoutConfirmRequest request,
-            boolean cardApprovalAbsent
+            CheckoutConfirmRequest request
     ) {
 
         String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
@@ -126,7 +151,7 @@ public class CheckoutTransactionService {
         Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
 
         if (checkoutAttempt.isConfirmed()) {
-            return handleConfirmedPayment(currentUserId, activeToken, request, checkoutAttempt, cardApprovalAbsent);
+            return handleConfirmedPayment(request, checkoutAttempt);
         }
 
         if (!checkoutAttempt.isPrepared()) {
@@ -259,10 +284,10 @@ public class CheckoutTransactionService {
     }
 
     /**
-     * 소유자와 checkout 요청을 검증한 뒤 카드 승인 조회가 필요한 결제번호만 반환한다.
+     * 소유자와 주문·좌석을 검증하고 저장된 수단과 요청 수단의 전환 후보를 반환한다.
      */
     @Transactional(readOnly = true)
-    public CardSwitchCandidate findCardSwitch(String userId, CheckoutConfirmRequest request) {
+    public MethodChangeCandidate findMethodChangeCandidate(String userId, CheckoutConfirmRequest request) {
 
         CheckoutAttempt attempt = checkoutAttemptJpaRepository
                 .findById(normalizeIdempotencyKey(request.getIdempotencyKey()))
@@ -270,13 +295,55 @@ public class CheckoutTransactionService {
         validateRequestMatchesAttempt(userId, request, attempt);
 
         Payment payment = attempt.getPayment();
-        return payment != null && payment.getMethod() == PaymentMethod.CREDIT_CARD
-                && request.getPaymentMethod() == PaymentMethod.BANK_TRANSFER
-                ? new CardSwitchCandidate(payment.getPaymentNo(), payment.getGatewayExpiresAt() != null || payment.getPgPaymentId() != null) : null;
+
+        if (payment == null || payment.getMethod() == request.getPaymentMethod()) {
+            return null;
+        }
+
+        MethodChangeCandidate candidate = new MethodChangeCandidate(payment.getMethod(), request.getPaymentMethod());
+
+        return candidate.isCardToBank() || candidate.isBankToCard() ? candidate : null;
+    }
+
+    // 로컬 최초 전환 조건만 저장한다. 은행 HTTP와 PG 수단 변경은 커밋 이후 실행한다.
+    public BankToCardPreparation prepareBankToCardChange(String userId, String activeToken, CheckoutConfirmRequest request) {
+
+        CheckoutAttempt attempt = checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate(normalizeIdempotencyKey(request.getIdempotencyKey()))
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
+        validateRequestMatchesAttempt(userId, request, attempt);
+        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(attempt.getPaymentNo()).orElseThrow();
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+
+        if (payment.getMethod() == PaymentMethod.CREDIT_CARD && attempt.getGatewaySwitchExpiresAt() != null
+                && attempt.getGatewaySwitchBankCompany() == null && request.getPaymentMethod() == PaymentMethod.CREDIT_CARD) {
+            return new BankToCardPreparation(payment.toResponse(), null);
+        }
+
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || request.getPaymentMethod() != PaymentMethod.CREDIT_CARD
+                || payment.getGatewayBankCompany() == null || payment.getStatus() != PaymentStatus.READY
+                || payment.getAccountNumber() != null || attempt.getGatewaySwitchBankCompany() != null) {
+            throw new IllegalStateException("이미 계좌가 발급되었거나 카드로 변경할 수 없는 예매입니다.");
+        }
+
+        if (attempt.getGatewaySwitchExpiresAt() == null) {
+            if (attempt.isExpired(LocalDateTime.now())) {
+                throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
+            }
+
+            queueAccessService.validate(request.getEventId(), userId, activeToken);
+            eventBookingGuard.requireBookable(request.getEventId(), true);
+            List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
+            seatCacheService.validateOccupiedSeat(request.getEventId(), userId, request.getOrderId(), seats);
+            attempt.planGatewayCardSwitch(attempt.getExpiresAt());
+        }
+
+        return new BankToCardPreparation(payment.toResponse(),
+                new GatewayBankMethodChangeRequest(merchantId, userId,
+                        BigDecimal.valueOf(payment.getAmount()), attempt.getGatewaySwitchExpiresAt()));
     }
 
     // 최초 전환 조건만 커밋한다. PG 조회·카드 승인 차단·수단 변경은 이 트랜잭션 밖에서 실행한다.
-    public CardSwitchPreparation prepareGatewayCardSwitch(String userId, String activeToken, CheckoutConfirmRequest request) {
+    public CardToBankPreparation prepareCardToBankChange(String userId, String activeToken, CheckoutConfirmRequest request) {
 
         CheckoutAttempt attempt = checkoutAttemptJpaRepository.findByIdempotencyKeyForUpdate(normalizeIdempotencyKey(request.getIdempotencyKey()))
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 멱등 키입니다."));
@@ -290,7 +357,7 @@ public class CheckoutTransactionService {
                 throw new IllegalArgumentException("최초 결제수단 전환 은행과 다릅니다.");
             }
 
-            return new CardSwitchPreparation(payment.toResponse(), null);
+            return new CardToBankPreparation(payment.toResponse(), null);
         }
 
         if (payment.getMethod() != PaymentMethod.CREDIT_CARD || payment.getGatewayExpiresAt() == null
@@ -299,7 +366,7 @@ public class CheckoutTransactionService {
         }
 
         if (payment.getStatus() == PaymentStatus.PAID) {
-            return new CardSwitchPreparation(payment.toResponse(), null);
+            return new CardToBankPreparation(payment.toResponse(), null);
         }
 
         if (payment.getStatus() != PaymentStatus.READY) {
@@ -307,6 +374,10 @@ public class CheckoutTransactionService {
         }
 
         BankCompany bank = virtualAccounts.resolveBankCompany(request);
+
+        if (attempt.getGatewaySwitchBankCompany() == null && attempt.getGatewaySwitchExpiresAt() != null) {
+            throw new IllegalStateException("기존 카드 전환 요청을 반대 방향으로 변경할 수 없습니다.");
+        }
 
         if (attempt.getGatewaySwitchBankCompany() == null) {
             if (attempt.isExpired(LocalDateTime.now()) || payment.getExpiresAt() == null
@@ -323,7 +394,7 @@ public class CheckoutTransactionService {
             throw new IllegalArgumentException("진행 중인 전환의 최초 은행과 다릅니다. 같은 요청으로 다시 시도해주세요.");
         }
 
-        return new CardSwitchPreparation(payment.toResponse(), new GatewayCardMethodChangeRequest(merchantId, userId,
+        return new CardToBankPreparation(payment.toResponse(), new GatewayCardMethodChangeRequest(merchantId, userId,
                 BigDecimal.valueOf(payment.getAmount()), bank, attempt.getGatewaySwitchExpiresAt()));
     }
 
@@ -394,11 +465,8 @@ public class CheckoutTransactionService {
      * 이미 확정된 결제의 중복 요청을 처리한다.
      */
     private PaymentResponse handleConfirmedPayment(
-            String currentUserId,
-            String activeToken,
             CheckoutConfirmRequest request,
-            CheckoutAttempt checkoutAttempt,
-            boolean cardApprovalAbsent
+            CheckoutAttempt checkoutAttempt
     ) {
 
         Payment confirmedPayment = checkoutAttempt.getPayment();
@@ -407,68 +475,15 @@ public class CheckoutTransactionService {
             throw new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.");
         }
 
-        if (confirmedPayment.getMethod() == request.getPaymentMethod()) {
-            if (confirmedPayment.getGatewayBankCompany() != null) {
-                checkoutPaymentService.process(request, confirmedPayment);
-            }
-
-            return confirmedPayment.toResponse();
+        if (confirmedPayment.getMethod() != request.getPaymentMethod()) {
+            throw new IllegalStateException("결제수단 변경은 PG 전환 서비스를 통해 처리해야 합니다.");
         }
 
-        return switchCardToBankTransfer(
-                currentUserId, activeToken, request, checkoutAttempt, confirmedPayment, cardApprovalAbsent);
-    }
-
-    /**
-     * 카드 결제 요청을 가상계좌 결제 요청으로 전환한다.
-     */
-    private PaymentResponse switchCardToBankTransfer(
-            String currentUserId,
-            String activeToken,
-            CheckoutConfirmRequest request,
-            CheckoutAttempt checkoutAttempt,
-            Payment confirmedPayment,
-            boolean cardApprovalAbsent
-    ) {
-
-        if (confirmedPayment.getMethod() != PaymentMethod.CREDIT_CARD
-                || request.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalStateException("변경할 수 없는 결제 수단입니다.");
+        if (confirmedPayment.getGatewayBankCompany() != null) {
+            checkoutPaymentService.process(request, confirmedPayment);
         }
 
-        Payment payment = paymentJpaRepository
-                .findByPaymentNoForUpdate(confirmedPayment.getPaymentNo())
-                .orElseThrow(
-                        () -> new IllegalStateException("확정된 checkout의 결제 정보를 찾을 수 없습니다.")
-                );
-
-        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
-
-        if (payment.getMethod() != PaymentMethod.CREDIT_CARD
-                || payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalStateException("무통장 결제로 변경할 수 없는 결제 상태입니다.");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (checkoutAttempt.isExpired(now)
-                || payment.getExpiresAt() == null
-                || !payment.getExpiresAt().isAfter(now)) {
-            throw new IllegalStateException("좌석 선점 시간이 만료되었습니다.");
-        }
-
-        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
-        eventBookingGuard.requireBookable(request.getEventId(), true);
-        List<SeatInfo> seats = validateSeatsFromDatabase(request.getEventId(), request.getSeats());
-        seatCacheService.validateOccupiedSeat(
-                request.getEventId(), currentUserId, request.getOrderId(), seats);
-
-        if (!cardApprovalAbsent) {
-            throw new IllegalStateException("카드 승인 이력이 있어 결제 수단을 변경할 수 없습니다.");
-        }
-
-        payment.switchToBankTransfer();
-        checkoutPaymentService.process(request, payment);
-        return payment.toResponse();
+        return confirmedPayment.toResponse();
     }
 
     /**

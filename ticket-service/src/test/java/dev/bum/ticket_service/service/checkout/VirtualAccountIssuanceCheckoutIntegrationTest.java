@@ -64,11 +64,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false)
-@ContextConfiguration(classes = GatewayVirtualAccountCheckoutIntegrationTest.PersistenceConfig.class)
-@Import({GatewayVirtualAccountCheckoutService.class, GatewayVirtualAccountCheckoutCommands.class,
-        GatewayVirtualAccountExpirationScheduler.class, GatewayVirtualAccountExpirationCommands.class,
-        GatewayBankNotificationService.class,
-        GatewayBankCancellationNotificationService.class, PaymentService.class,
+@ContextConfiguration(classes = VirtualAccountIssuanceCheckoutIntegrationTest.PersistenceConfig.class)
+@Import({VirtualAccountIssuanceCheckoutService.class, VirtualAccountIssuanceCheckoutCommandService.class,
+        VirtualAccountExpirationScheduler.class, VirtualAccountExpirationCommandService.class,
+        BankDepositNotificationService.class,
+        BankCancellationNotificationService.class, PaymentService.class,
         org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class,
         ReservationCancellationService.class, TicketPurchaseCountService.class, TicketRepositoryImpl.class,
         VirtualAccountCancelOutboxService.class, VirtualAccountCancelOutboxPublisher.class,
@@ -78,7 +78,7 @@ import static org.mockito.Mockito.*;
         VirtualAccountReconciliationCompletionService.class, VirtualAccountReconciliationValidator.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class GatewayVirtualAccountCheckoutIntegrationTest {
+class VirtualAccountIssuanceCheckoutIntegrationTest {
     @Configuration @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.ticket_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.ticket_service.jpa")
@@ -181,12 +181,12 @@ class GatewayVirtualAccountCheckoutIntegrationTest {
     }
 
 
-    @Autowired GatewayVirtualAccountCheckoutService issuance;
-    @Autowired GatewayVirtualAccountExpirationScheduler expirationScheduler;
-    @Autowired GatewayVirtualAccountExpirationCommands expirationCommands;
+    @Autowired VirtualAccountIssuanceCheckoutService issuance;
+    @Autowired VirtualAccountExpirationScheduler expirationScheduler;
+    @Autowired VirtualAccountExpirationCommandService expirationCommands;
     @Autowired PaymentExpirationService localExpiration;
-    @Autowired GatewayBankNotificationService notifications;
-    @Autowired GatewayBankCancellationNotificationService results;
+    @Autowired BankDepositNotificationService notifications;
+    @Autowired BankCancellationNotificationService results;
     @MockitoSpyBean GatewayBankCancellationReceiptJpaRepository receipts;
     @MockitoBean CardPaymentService cards;
     @Autowired ObjectMapper json;

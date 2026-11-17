@@ -39,6 +39,32 @@ public class FinancialSimulationGatewayService {
     @Value("${app.financial-simulation.base-url:}")
     private String configuredBaseUrl;
 
+    public BankAccountIssueGateResponse closeGatewayAccountIssue(BankVirtualAccountIssueRequest request) {
+
+        try {
+            return financialSimulationRestClient.post().uri(uri("banks", "virtual-accounts", "gateway", "close-issue"))
+                    .contentType(MediaType.APPLICATION_JSON).body(request).exchange((sent, response) -> {
+                        BankAccountIssueGateResponse result = response.bodyTo(BankAccountIssueGateResponse.class);
+
+                        if (response.getStatusCode().value() != 200 || result == null || !request.equals(result.request())
+                                || result.closed() == (result.account() != null)) {
+                            throw new FinancialProviderResponseException();
+                        }
+
+                        if (result.account() != null && (!request.pgPaymentId().equals(result.account().pgPaymentId())
+                                || request.bankCompany() != result.account().bankCompany() || result.account().amount() == null
+                                || request.amount().compareTo(result.account().amount()) != 0
+                                || !request.expiresAt().equals(result.account().expiresAt()))) {
+                            throw new FinancialProviderResponseException();
+                        }
+
+                        return result;
+                    });
+        } catch (RestClientException failure) {
+            throw new FinancialProviderResponseException(failure);
+        }
+    }
+
     // 단순 404 조회가 아닌, 이후 승인까지 차단된 금융 확정 결과만 전환 근거로 수용한다.
     public FinancialCardApprovalGateResponse closeGatewayCardApproval(FinancialCardApprovalGateRequest request) {
 

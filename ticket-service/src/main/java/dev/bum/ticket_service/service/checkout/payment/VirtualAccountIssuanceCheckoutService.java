@@ -15,12 +15,12 @@ import org.springframework.transaction.annotation.*;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(propagation = Propagation.NEVER)
-public class GatewayVirtualAccountCheckoutService {
+public class VirtualAccountIssuanceCheckoutService {
 
     // 최초 1회와 추가 재시도 3회를 합친 최대 시도 횟수.
     private static final int MAX_ATTEMPTS = 4;
     // HTTP 호출 전후의 짧은 로컬 트랜잭션.
-    private final GatewayVirtualAccountCheckoutCommands commands;
+    private final VirtualAccountIssuanceCheckoutCommandService commands;
     // 인증된 Ticksy 가맹점 자격증명으로 신규 PG 계약을 호출한다.
     private final PaymentGatewayTransactionClient gateway;
 
@@ -52,7 +52,7 @@ public class GatewayVirtualAccountCheckoutService {
      */
     private PaymentResponse issueOnce(String paymentNo) {
 
-        GatewayAccountIssuePreparation preparation = commands.findPreparation(paymentNo);
+        VirtualAccountIssuePreparation preparation = commands.findPreparation(paymentNo);
 
         if (!preparation.pending()) {
             return preparation.payment();

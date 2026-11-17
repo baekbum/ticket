@@ -85,6 +85,7 @@ class GatewayPaymentMethodChangeIntegrationTest {
         }
     }
 
+    @MockitoBean dev.bum.payment_gateway_service.service.gateway.payment.GatewayBankMethodChangeService bankChanges;
     @Autowired GatewayPaymentMethodChangeService changes;
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired MerchantJpaRepository merchants;

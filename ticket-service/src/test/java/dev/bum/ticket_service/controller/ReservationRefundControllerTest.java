@@ -3,7 +3,7 @@ package dev.bum.ticket_service.controller;
 import dev.bum.ticket_service.controller.advice.GatewayRefundExceptionHandler;
 import dev.bum.ticket_service.controller.reservation.reservation.ReservationRefundController;
 import dev.bum.ticket_service.exception.reservation.GatewayRefundRequestException;
-import dev.bum.ticket_service.service.payment.refund.GatewayReservationRefundService;
+import dev.bum.ticket_service.service.payment.refund.ReservationRefundService;
 import org.junit.jupiter.api.*;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ReservationRefundControllerTest {
 
-    GatewayReservationRefundService service=mock(GatewayReservationRefundService.class);
+    ReservationRefundService service=mock(ReservationRefundService.class);
     MockMvc mvc;
 
     @BeforeEach void setup() {

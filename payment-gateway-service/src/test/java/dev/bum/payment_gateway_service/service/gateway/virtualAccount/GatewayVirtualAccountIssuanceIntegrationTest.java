@@ -83,6 +83,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankAccountIssueGateCreator.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankAccountIssueGateAccess.class,
             BankVirtualAccountIssueCommandService.class, GatewayPaymentController.class,
             GatewayVirtualAccountController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
             FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,

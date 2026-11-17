@@ -20,7 +20,7 @@ import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.checkout.payment.*;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 import dev.bum.ticket_service.service.payment.card.CardPaymentService;
-import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 import dev.bum.ticket_service.service.payment.payment.*;
 import dev.bum.ticket_service.service.payment.virtualAccount.*;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
@@ -48,17 +48,17 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false)
-@ContextConfiguration(classes = GatewayVirtualAccountCheckoutIntegrationTest.PersistenceConfig.class)
+@ContextConfiguration(classes = VirtualAccountIssuanceCheckoutIntegrationTest.PersistenceConfig.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({CheckoutService.class, CheckoutTransactionService.class, CheckoutPaymentService.class, CheckoutVirtualAccountService.class,
-        GatewayCardMethodChangeCheckoutService.class, GatewayCardMethodChangeCheckoutCommands.class,
-        GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class,
-        GatewayVirtualAccountCheckoutService.class, GatewayVirtualAccountCheckoutCommands.class,
-        VirtualAccountPaymentLockService.class, GatewayCardNotificationService.class, CardPaymentService.class,
+        BankToCardCheckoutService.class, CardToBankCheckoutService.class, CheckoutMethodChangeCommandService.class,
+        CardCheckoutService.class, CardCheckoutCommandService.class,
+        VirtualAccountIssuanceCheckoutService.class, VirtualAccountIssuanceCheckoutCommandService.class,
+        VirtualAccountPaymentLockService.class, CardPaymentNotificationService.class, CardPaymentService.class,
         PaymentService.class, PaymentCompletionService.class, TicketRepositoryImpl.class,
-        GatewayCardMethodChangeCheckoutIntegrationTest.Config.class})
+        CheckoutMethodChangeIntegrationTest.Config.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class GatewayCardMethodChangeCheckoutIntegrationTest {
+class CheckoutMethodChangeIntegrationTest {
 
     @Configuration static class Config { @Bean Clock clock() { return Clock.system(ZoneId.of("Asia/Seoul")); } }
 
@@ -75,9 +75,9 @@ class GatewayCardMethodChangeCheckoutIntegrationTest {
 
     @Autowired CheckoutService checkout;
     @Autowired CheckoutTransactionService commands;
-    @Autowired GatewayCardMethodChangeCheckoutService switches;
-    @Autowired GatewayCardNotificationService notifications;
-    @Autowired GatewayCardMethodChangeCheckoutCommands results;
+    @Autowired CardToBankCheckoutService switches;
+    @Autowired CardPaymentNotificationService notifications;
+    @Autowired CheckoutMethodChangeCommandService results;
     @Autowired CheckoutAttemptJpaRepository attempts;
     @Autowired PaymentJpaRepository payments;
     @Autowired ReservationJpaRepository reservations;
@@ -145,6 +145,75 @@ class GatewayCardMethodChangeCheckoutIntegrationTest {
         });
     }
 
+    void initialBank(boolean bound) {
+        reset(gateway);
+        jdbc.update("update payments set method='BANK_TRANSFER', gateway_bank_company='KB', gateway_issue_pending=true, gateway_expires_at=? where payment_no=?", deadline.plusDays(1), paymentNo);
+        if (!bound) jdbc.update("update payments set pg_payment_id=null where payment_no=?", paymentNo);
+    }
+
+    CheckoutConfirmRequest cardSwitchRequest() {
+        return CheckoutConfirmRequest.builder().idempotencyKey("same-key").orderId("ORDER-1").eventId(eventId)
+                .seats(List.of(SeatInfo.builder().id(seatId).zone("A").row(1).col(1).build())).paymentMethod(PaymentMethod.CREDIT_CARD).build();
+    }
+
+    dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeResponse cardSwitched(
+            dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeRequest request) {
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+        return new dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeResponse(pgId,1L,paymentNo,"owner",
+                PaymentMethod.CREDIT_CARD,new BigDecimal("10000"),request.expiresAt(),1);
+    }
+
+    @Test void unissuedBankSwitchesToCardAndManualRetryDoesNotIssueAnAccountOrPrepareNewPayment() {
+        initialBank(true);
+        when(gateway.changeBankToCard(eq(pgId),any())).thenAnswer(inv->cardSwitched(inv.getArgument(1)));
+        PaymentResponse result=checkout.confirm("owner","queue",cardSwitchRequest());
+        assertThat(result.getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+        assertThat(result.getPgPaymentId()).isEqualTo(pgId);
+        assertThat(checkout.confirm("owner","queue",cardSwitchRequest()).getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+        verify(gateway,times(1)).changeBankToCard(eq(pgId),any());
+        verify(gateway,never()).issue(anyString(),any());
+        verify(gateway,never()).prepare(any());
+        assertThat(payments.findByPaymentNo(paymentNo).orElseThrow().isGatewayIssuePending()).isFalse();
+    }
+
+    @Test void lostBankSwitchResponsePreservesOriginalBankAndSameTargetOnRetry() {
+        initialBank(true);
+        java.util.concurrent.atomic.AtomicReference<dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeRequest> saved=new java.util.concurrent.atomic.AtomicReference<>();
+        when(gateway.changeBankToCard(eq(pgId),any())).thenAnswer(inv->{saved.set(inv.getArgument(1));throw unavailable();});
+        assertThatThrownBy(()->checkout.confirm("owner","queue",cardSwitchRequest())).isInstanceOf(dev.bum.ticket_service.exception.payment.GatewayMethodChangeUnconfirmedException.class);
+        assertThat(payments.findByPaymentNo(paymentNo).orElseThrow().getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+        doAnswer(inv->{assertThat(inv.getArgument(1,Object.class)).isEqualTo(saved.get());return cardSwitched(inv.getArgument(1));}).when(gateway).changeBankToCard(eq(pgId),any());
+        assertThat(checkout.confirm("owner","queue",cardSwitchRequest()).getMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+    }
+
+    @Test void unboundBankPreparesWithOriginalBankTermsBeforeSwitchingToCard() {
+        initialBank(false);
+        when(gateway.prepare(any())).thenAnswer(inv->{
+            GatewayPaymentPrepareRequest request=inv.getArgument(0);
+            assertThat(request.paymentMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+            return new GatewayPaymentPrepareResponse(pgId,1L,paymentNo,"owner",PaymentMethod.BANK_TRANSFER,BankCompany.KB,new BigDecimal("10000"),request.expiresAt(),"READY");
+        });
+        when(gateway.changeBankToCard(eq(pgId),any())).thenAnswer(inv->cardSwitched(inv.getArgument(1)));
+        assertThat(checkout.confirm("owner","queue",cardSwitchRequest()).getPgPaymentId()).isEqualTo(pgId);
+        verify(gateway,never()).issue(anyString(),any());
+    }
+
+    @Test void issuedOrPaidLocalBankCannotSwitchEvenIfBrowserClaimsFailure() {
+        initialBank(true);
+        jdbc.update("update payments set status='WAITING_DEPOSIT' where payment_no=?",paymentNo);
+        assertThatThrownBy(()->checkout.confirm("owner","queue",cardSwitchRequest())).isInstanceOf(IllegalStateException.class);
+        jdbc.update("update payments set status='PAID' where payment_no=?",paymentNo);
+        assertThatThrownBy(()->checkout.confirm("owner","queue",cardSwitchRequest())).isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(gateway);
+    }
+
+    @Test void bankSwitchRejectsWrongPgResponseWithoutChangingLocalMethod() {
+        initialBank(true);
+        when(gateway.changeBankToCard(eq(pgId),any())).thenReturn(new dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeResponse(pgId,2L,paymentNo,"owner",PaymentMethod.CREDIT_CARD,new BigDecimal("10000"),deadline,1));
+        assertThatThrownBy(()->checkout.confirm("owner","queue",cardSwitchRequest())).isInstanceOf(IllegalStateException.class);
+        assertThat(payments.findByPaymentNo(paymentNo).orElseThrow().getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+    }
+
     CheckoutConfirmRequest request() {
         return CheckoutConfirmRequest.builder().idempotencyKey("same-key").orderId("ORDER-1").eventId(eventId)
                 .seats(List.of(SeatInfo.builder().id(seatId).zone("A").row(1).col(1).build()))
@@ -200,7 +269,7 @@ class GatewayCardMethodChangeCheckoutIntegrationTest {
     }
 
     @Test void differentBankOwnerOrSeatsCannotReplaceTheCommittedIntent() {
-        commands.prepareGatewayCardSwitch("owner","queue",request());
+        commands.prepareCardToBankChange("owner","queue",request());
         CheckoutConfirmRequest changed=request(); changed.setBankCode("NH");
         assertThatThrownBy(()->checkout.confirm("owner","queue",changed)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(()->checkout.confirm("other","queue",request())).isInstanceOf(AccessDeniedException.class);

@@ -68,6 +68,12 @@ public class BankController {
         return ResponseEntity.ok(issuance.issue(request));
     }
 
+    @PostMapping(INTERNAL_PATH + "/gateway/close-issue")
+    public BankAccountIssueGateResponse closeGatewayIssue(@Valid @RequestBody BankVirtualAccountIssueRequest request) {
+
+        return issuedAccounts.closeIssue(request);
+    }
+
     @GetMapping(INTERNAL_PATH + "/gateway/{pgPaymentId}")
     public ResponseEntity<BankVirtualAccountIssueResponse> findGatewayAccount(@PathVariable String pgPaymentId) {
 

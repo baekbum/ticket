@@ -13,10 +13,10 @@ import java.util.List;
 @RequestMapping("/api/v1/reservation/{reservationId}/refunds")
 public class ReservationRefundController {
 
-    private final GatewayReservationRefundService refunds;
+    private final ReservationRefundService refunds;
 
     @PostMapping
-    public GatewayRefundActionResponse request(
+    public RefundActionResponse request(
             @AuthenticationPrincipal String userId,
             @PathVariable long reservationId,
             @RequestBody CancelReservationRequest request
@@ -35,7 +35,7 @@ public class ReservationRefundController {
     }
 
     @PostMapping("/{processId}/retry")
-    public GatewayRefundActionResponse retry(
+    public RefundActionResponse retry(
             @AuthenticationPrincipal String userId,
             @PathVariable long reservationId,
             @PathVariable long processId
@@ -45,7 +45,7 @@ public class ReservationRefundController {
     }
 
     @PostMapping("/{processId}/withdraw")
-    public GatewayRefundActionResponse withdraw(
+    public RefundActionResponse withdraw(
             @AuthenticationPrincipal String userId,
             @PathVariable long reservationId,
             @PathVariable long processId

@@ -4,7 +4,7 @@ import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResp
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.ticket_service.feign.paymentgateway.*;
 import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountCancelOutbox;
-import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutService;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +30,7 @@ public class VirtualAccountCancelOutboxPublisher {
     // 신규 PG 원거래를 인증된 가맹점 범위로 취소한다.
     private final PaymentGatewayTransactionClient transactions;
     // 발급 결과를 받기 전에 취소된 원거래만 복구하여 은행 취소를 이어간다.
-    private final GatewayVirtualAccountCheckoutService issuance;
+    private final VirtualAccountIssuanceCheckoutService issuance;
     // 서버에 등록된 Ticksy 가맹점 코드.
     @Value("${app.payment-gateway.merchant-id:1}")
     private long merchantId = 1;

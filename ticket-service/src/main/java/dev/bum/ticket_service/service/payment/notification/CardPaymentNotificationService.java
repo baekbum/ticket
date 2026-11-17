@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 
 @Service
-public class GatewayCardNotificationService {
+public class CardPaymentNotificationService {
 
     // 기존 소유자 검증·결제 완료·취소/만료·멱등 처리 경로를 재사용한다.
     private final PaymentService payments;
@@ -24,7 +24,7 @@ public class GatewayCardNotificationService {
     /**
      * 가맹점 서버의 등록 코드와 기존 결제 처리 서비스를 주입한다.
      */
-    public GatewayCardNotificationService(
+    public CardPaymentNotificationService(
             PaymentService payments,
             @Value("${app.payment-gateway.merchant-id:1}") long merchantId
     ) {

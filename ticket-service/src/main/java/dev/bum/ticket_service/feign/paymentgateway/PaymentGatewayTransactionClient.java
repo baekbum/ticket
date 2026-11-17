@@ -1,5 +1,9 @@
 package dev.bum.ticket_service.feign.paymentgateway;
 
+import dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeResponse;
+
+import dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeRequest;
+
 import dev.bum.common.service.paymentgateway.card.*;
 import dev.bum.ticket_service.config.PaymentGatewayMerchantFeignConfig;
 import dev.bum.ticket_service.config.PaymentGatewayTransactionFeignConfig;
@@ -18,6 +22,12 @@ public interface PaymentGatewayTransactionClient {
     GatewayCardMethodChangeResponse changeCardToBank(
             @PathVariable("pgPaymentId") String pgPaymentId,
             @RequestBody GatewayCardMethodChangeRequest request
+    );
+
+    @PostMapping("/api/v1/payments/gateway/{pgPaymentId}/method/card")
+    GatewayBankMethodChangeResponse changeBankToCard(
+            @PathVariable("pgPaymentId") String pgPaymentId,
+            @RequestBody GatewayBankMethodChangeRequest request
     );
 
     @PostMapping("/api/v1/payments/card/gateway/{pgPaymentId}/checkout-session")

@@ -31,8 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = GatewayPaymentNotificationController.class, properties = {
         "app.internal.service-token=test-pg-inbound", "app.payment-gateway.merchant-id=1"
 })
-@Import({SecurityConfig.class, InternalServiceTokenValidator.class, GatewayPaymentNotificationService.class,
-        GatewayBankNotificationService.class, GatewayCardNotificationService.class})
+@Import({SecurityConfig.class, InternalServiceTokenValidator.class, PaymentNotificationService.class,
+        BankDepositNotificationService.class, CardPaymentNotificationService.class})
 class GatewayPaymentNotificationControllerTest {
 
     @Autowired MockMvc mvc;
@@ -40,8 +40,8 @@ class GatewayPaymentNotificationControllerTest {
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     @MockitoBean PaymentService payments;
-    @MockitoBean dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutCommands accounts;
-    @MockitoBean GatewayBankCancellationNotificationService cancellations;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutCommandService accounts;
+    @MockitoBean BankCancellationNotificationService cancellations;
     final String path = "/api/v1/payments/internal/gateway/notifications";
     final String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
 
@@ -126,7 +126,7 @@ class GatewayPaymentNotificationControllerTest {
     void anUnclearLocalResultCannotBecomeASuccessAcknowledgement() {
         when(payments.completeVirtualAccountDepositFromGateway(any(), eq("buyer")))
                 .thenReturn(payment(PaymentStatus.WAITING_DEPOSIT));
-        assertThatThrownBy(() -> new GatewayBankNotificationService(payments, accounts, 1).receive(event()))
+        assertThatThrownBy(() -> new BankDepositNotificationService(payments, accounts, 1).receive(event()))
                 .isInstanceOf(IllegalStateException.class);
     }
 

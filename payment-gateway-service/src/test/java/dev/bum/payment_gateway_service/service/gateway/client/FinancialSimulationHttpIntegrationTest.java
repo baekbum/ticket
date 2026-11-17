@@ -99,6 +99,8 @@ class FinancialSimulationHttpIntegrationTest {
             VirtualAccountCancellationService.class, GatewayVirtualAccountDepositOutboxService.class,
             GatewayVirtualAccountDepositOutboxDispatcher.class, GatewayVirtualAccountDepositOutboxPublisher.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankAccountIssueGateCreator.class,
+            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankAccountIssueGateAccess.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService.class,
             GatewayVirtualAccountIssuanceService.class, GatewayVirtualAccountIssueCommandService.class})
     static class Config { }

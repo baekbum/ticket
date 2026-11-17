@@ -2,7 +2,7 @@ package dev.bum.ticket_service.controller.payment;
 
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificationResponse;
-import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class GatewayCardNotificationController {
 
-    private final GatewayCardNotificationService notifications;
+    private final CardPaymentNotificationService notifications;
 
     @PostMapping("/notifications")
     public ResponseEntity<CardPaymentNotificationResponse> receive(

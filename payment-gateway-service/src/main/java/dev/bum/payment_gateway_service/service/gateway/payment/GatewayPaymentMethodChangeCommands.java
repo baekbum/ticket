@@ -45,7 +45,8 @@ public class GatewayPaymentMethodChangeCommands {
             return new Preparation(null, response(payment, true));
         }
 
-        if (payment.getPaymentMethod() != PaymentMethod.CREDIT_CARD || payment.getStatus() != GatewayPaymentStatus.READY) {
+        if (payment.getPaymentMethod() != PaymentMethod.CREDIT_CARD || payment.getStatus() != GatewayPaymentStatus.READY
+                || payment.getMethodRevision() != 0) {
             throw new GatewayPaymentConflictException("결제수단을 바꿀 수 없는 PG 상태입니다.");
         }
 

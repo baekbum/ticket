@@ -327,3 +327,5 @@ gateway scheduler
 - PG의 `GET /api/v1/payments/virtual-account/internal/{paymentNo}/status`는 내부 서비스 토큰으로만 호출한다.
 - 관리자 `POST /ticket/api/v1/manage/payment/virtual-account/{paymentNo}/complete`는 처리 사유를 받고 PG 상태를 다시 조회한다. Ticket이 `WAITING_DEPOSIT`이고 입금 정보와 예약·티켓·좌석 상태가 일치할 때만 전체 결제 완료 로직을 실행한다. 이미 만료·취소된 건은 자동 완료하지 않는다.
 - 배포 시 PG의 내부 상태 조회 API를 먼저 반영하고, 이후 Ticket API와 관리자 화면을 반영한다.
+
+2026-11-16: 미발급 무통장 거래의 카드 전환 계약은 [무통장→카드 전환](payment-gateway-bank-method-change.md)을 참고한다. 발급된 계좌는 상태와 무관하게 변경 불가다.

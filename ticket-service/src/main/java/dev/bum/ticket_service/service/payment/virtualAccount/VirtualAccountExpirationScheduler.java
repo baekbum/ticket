@@ -20,12 +20,12 @@ import java.util.List;
 @Slf4j
 @Transactional(propagation = Propagation.NEVER)
 @ConditionalOnProperty(name = "app.virtual-account.gateway-expiration.enabled", havingValue = "true", matchIfMissing = true)
-public class GatewayVirtualAccountExpirationScheduler {
+public class VirtualAccountExpirationScheduler {
 
     // 처리되지 않은 후보를 ID로 순회해 조회 실패 행 때문에 다른 결제가 밀리지 않게 한다.
     private final PaymentJpaRepository payments;
     // HTTP 전 후보 조회와 HTTP 후 최종 만료를 각각 짧은 트랜잭션으로 처리한다.
-    private final GatewayVirtualAccountExpirationCommands commands;
+    private final VirtualAccountExpirationCommandService commands;
     // 등록 가맹점 인증으로 PG 거래 상태만 조회한다. 은행을 직접 호출하지 않는다.
     private final PaymentGatewayTransactionClient gateway;
     // 후보 기한을 한국 시간으로 비교하는 애플리케이션 시계.
@@ -66,7 +66,7 @@ public class GatewayVirtualAccountExpirationScheduler {
      */
     private void expireIfConfirmed(Long paymentId, LocalDateTime now) {
 
-        GatewayVirtualAccountExpirationCandidate candidate = commands.findCandidate(paymentId, now);
+        VirtualAccountExpirationCandidate candidate = commands.findCandidate(paymentId, now);
 
         if (candidate == null) {
             return;

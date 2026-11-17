@@ -16,7 +16,7 @@ import java.util.Objects;
 
 @Service
 @Transactional
-public class GatewayVirtualAccountCheckoutCommands {
+public class VirtualAccountIssuanceCheckoutCommandService {
 
     // 취소·입금과 같은 예약 → 결제 순서로 잠근다.
     private final VirtualAccountPaymentLockService locks;
@@ -28,7 +28,7 @@ public class GatewayVirtualAccountCheckoutCommands {
     /**
      * 로컬 결제 처리와 등록 가맹점 설정을 연결한다.
      */
-    public GatewayVirtualAccountCheckoutCommands(
+    public VirtualAccountIssuanceCheckoutCommandService(
             VirtualAccountPaymentLockService locks,
             VirtualAccountCancelOutboxService cancellations,
             @Value("${app.payment-gateway.merchant-id:1}") long merchantId
@@ -46,19 +46,19 @@ public class GatewayVirtualAccountCheckoutCommands {
     /**
      * 최초 저장한 불변 요청과 현재 연결 상태만 짧은 트랜잭션으로 읽는다.
      */
-    public GatewayAccountIssuePreparation findPreparation(String paymentNo) {
+    public VirtualAccountIssuePreparation findPreparation(String paymentNo) {
 
         Payment payment = locks.lock(paymentNo);
 
         if (payment.getGatewayBankCompany() == null) {
-            return new GatewayAccountIssuePreparation(null, null, false, payment.toResponse());
+            return new VirtualAccountIssuePreparation(null, null, false, payment.toResponse());
         }
 
         GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(merchantId, paymentNo,
                 payment.getReservation().getUserId(), PaymentMethod.BANK_TRANSFER,
                 BigDecimal.valueOf(payment.getAmount()), payment.getGatewayExpiresAt(), payment.getGatewayBankCompany());
 
-        return new GatewayAccountIssuePreparation(request, payment.getPgPaymentId(),
+        return new VirtualAccountIssuePreparation(request, payment.getPgPaymentId(),
                 payment.isGatewayIssuePending(), payment.toResponse());
     }
 

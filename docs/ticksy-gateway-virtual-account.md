@@ -31,7 +31,7 @@ sequenceDiagram
 
 - CheckoutService는 NEVER 오케스트레이터다. CheckoutTransactionService가 예매·티켓·Payment·발급 의도를 한 로컬 트랜잭션으로 저장한다. 카드→무통장 전환의 기존 카드 승인 이력 조회도 잠금 밖에서 실행하고, 로컬 단계에서 소유자·상태·선점 기한을 다시 확인한다.
 - CheckoutVirtualAccountService는 은행 코드와 공연일 규칙으로 발급 조건만 저장한다. 공연 당일은 거절, 전날은 당일 23:59:59, 나머지는 다음날 23:59:59다. 계산한 기한을 저장하고 재시도 시 현재 날짜로 다시 계산하지 않는다.
-- GatewayVirtualAccountCheckoutService는 DB 트랜잭션 밖에서 PaymentGatewayTransactionClient의 Feign HTTP를 호출한다. 각 준비·발급 결과 반영은 GatewayVirtualAccountCheckoutCommands의 짧은 REQUIRED 트랜잭션이다. 예약 → Payment 순서로 잠근다.
+- VirtualAccountIssuanceCheckoutService는 DB 트랜잭션 밖에서 PaymentGatewayTransactionClient의 Feign HTTP를 호출한다. 각 준비·발급 결과 반영은 VirtualAccountIssuanceCheckoutCommandService의 짧은 REQUIRED 트랜잭션이다. 예약 → Payment 순서로 잠근다.
 - prepare 응답의 가맹점·결제번호·사용자·수단·금액·은행·기한을 검증한 뒤 PG ID를 저장한다. 발급 응답에서도 원거래·계좌·기한·최초 은행 상태를 검증한다.
 - 외부 HTTP가 성공한 뒤 Ticksy 저장이 실패하면 PG 원거래를 롤백했다고 주장하지 않는다. 저장된 결제번호·조건과 PG의 멱등 응답으로 재개한다.
 
@@ -41,7 +41,7 @@ sequenceDiagram
 
 2026-11-12부터 별도 발급 복구 디스패쳐를 제거했다. gateway_issue_pending은 PG 발급 결과가 Ticksy에 아직 반영되지 않았다는 표시로만 사용한다. gateway_next_attempt_at·복구 조회 인덱스·예약 재시도 쿼리도 제거했다. 일반 발급의 백그라운드 자동 재시도는 수행하지 않는다.
 
-- GatewayVirtualAccountCheckoutService.issue는 같은 브라우저 HTTP 요청 안에서 최초 1회 + 추가 3회, 최대 4회 시도한다. 네 번째 시도에서 성공해도 해당 요청에 정상 PaymentResponse를 반환한다.
+- VirtualAccountIssuanceCheckoutService.issue는 같은 브라우저 HTTP 요청 안에서 최초 1회 + 추가 3회, 최대 4회 시도한다. 네 번째 시도에서 성공해도 해당 요청에 정상 PaymentResponse를 반환한다.
 - 타임아웃·연결 실패, PG 5xx, Spring의 일시적인 DB 오류만 재시도한다. 인증·금액·은행·원거래 계약 불일치, PG 4xx, 영구 DB 오류는 즉시 반환한다. 작업 스레드가 중단되면 추가 시도를 멈추고 중단 표시를 유지한다.
 - 매 시도마다 커밋된 최초 요청과 PG ID를 다시 읽는다. prepare 응답 유실은 같은 paymentNo·은행·금액·사용자·입금기한으로 재요청한다. PG ID가 저장돼 있으면 prepare를 생략하고 기존 PG ID로 issue한다.
 - Feign 자체 Retryer는 NEVER_RETRY로 고정해 내부 재시도로 호출 횟수가 증가하지 않게 한다. 신규 거래 클라이언트에만 연결 1초·읽기 3초 타임아웃을 설정한다. DB 처리 등 checkout 전체 대기 시간은 별도로 고려해야 한다.

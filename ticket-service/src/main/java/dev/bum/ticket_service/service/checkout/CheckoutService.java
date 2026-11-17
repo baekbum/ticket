@@ -3,10 +3,10 @@ package dev.bum.ticket_service.service.checkout;
 import dev.bum.common.service.ticket.checkout.dto.*;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
-import dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutService;
-import dev.bum.ticket_service.service.checkout.payment.GatewayCardCheckoutService;
-import dev.bum.ticket_service.service.checkout.payment.GatewayCardMethodChangeCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.CardCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.CardToBankCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.BankToCardCheckoutService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
@@ -20,31 +20,34 @@ public class CheckoutService {
     private final CheckoutTransactionService commands;
 
     // 커밋한 발급 의도로 PG prepare·발급을 재시도한다.
-    private final GatewayVirtualAccountCheckoutService accounts;
+    private final VirtualAccountIssuanceCheckoutService accounts;
 
     // 카드도 로컬 저장 커밋 후 PG 거래를 준비한다.
-    private final GatewayCardCheckoutService cardCheckout;
+    private final CardCheckoutService cardCheckout;
 
-    // 기존 카드 승인 이력 확인은 DB 잠금 밖에서 수행한다.
-    private final PaymentGatewayCardClient cards;
+    private final CardToBankCheckoutService cardToBank;
 
-    private final GatewayCardMethodChangeCheckoutService methodChanges;
+    private final BankToCardCheckoutService bankToCard;
 
     /**
      * 로컬 예매를 먼저 커밋하고 신규 PG 거래를 준비·발급한다.
      */
     public PaymentResponse confirm(String userId, String activeToken, CheckoutConfirmRequest request) {
 
-        CheckoutTransactionService.CardSwitchCandidate candidate = commands.findCardSwitch(userId, request);
+        CheckoutTransactionService.MethodChangeCandidate candidate = commands.findMethodChangeCandidate(userId, request);
 
-        if (candidate != null && candidate.gatewayManaged()) {
-            return methodChanges.change(userId, activeToken, request);
+        if (candidate != null && candidate.isCardToBank()) {
+            return cardToBank.change(userId, activeToken, request);
         }
 
-        String cardPaymentNo = candidate == null ? null : candidate.paymentNo();
-        boolean cardApprovalAbsent = cardPaymentNo != null
-                && Boolean.FALSE.equals(cards.hasApprovalHistory(cardPaymentNo));
-        PaymentResponse payment = commands.confirm(userId, activeToken, request, cardApprovalAbsent);
+        if (candidate != null && candidate.isBankToCard()) {
+            return bankToCard.change(userId, activeToken, request);
+        }
+
+        return completePayment(userId, commands.confirm(userId, activeToken, request));
+    }
+
+    private PaymentResponse completePayment(String userId, PaymentResponse payment) {
 
         if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
             return accounts.issue(payment.getPaymentNo());

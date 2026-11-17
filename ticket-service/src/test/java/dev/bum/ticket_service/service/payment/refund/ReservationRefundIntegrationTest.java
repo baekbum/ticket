@@ -47,12 +47,12 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false, properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never",
         "app.payment-refund.account-encryption-key=test-refund-encryption-key"})
-@ContextConfiguration(classes = GatewayReservationRefundIntegrationTest.Config.class)
+@ContextConfiguration(classes = ReservationRefundIntegrationTest.Config.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({GatewayReservationRefundService.class, GatewayReservationRefundCommands.class, RefundAccountCipher.class,
+@Import({ReservationRefundService.class, ReservationRefundCommandService.class, RefundAccountCipher.class,
         PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class GatewayReservationRefundIntegrationTest {
+class ReservationRefundIntegrationTest {
 
     @Configuration
     @EnableAutoConfiguration
@@ -74,8 +74,8 @@ class GatewayReservationRefundIntegrationTest {
         registry.add("spring.datasource.password", () -> "");
     }
 
-    @Autowired GatewayReservationRefundService service;
-    @Autowired GatewayReservationRefundCommands commands;
+    @Autowired ReservationRefundService service;
+    @Autowired ReservationRefundCommandService commands;
     @Autowired ReservationJpaRepository reservations;
     @Autowired PaymentJpaRepository payments;
     @Autowired TicketJpaRepository tickets;
@@ -162,7 +162,7 @@ class GatewayReservationRefundIntegrationTest {
 
     @Test void cardPartialAndRemainingRefundsReleaseOnlySelectedSeatsAndReplayCompletedRequests() {
         useCardPayment();
-        GatewayRefundActionResponse partial = service.request("owner",reservationId,request(ticketIds.subList(1,3)));
+        RefundActionResponse partial = service.request("owner",reservationId,request(ticketIds.subList(1,3)));
         long id = partial.application().getPaymentRefundProcessId();
         assertThat(partial.outcome()).isEqualTo("SUCCEEDED");
         assertThat(service.request("owner",reservationId,request(List.of(ticketIds.get(2),ticketIds.get(1))))
@@ -234,9 +234,9 @@ class GatewayReservationRefundIntegrationTest {
 
     @Test void partialRefundAndCompletedReplayUseOneProcessEvenAfterTicketsAreCancelled() {
         CancelReservationRequest request = request(ticketIds.subList(1,3));
-        GatewayRefundActionResponse first = service.request("owner",reservationId,request);
+        RefundActionResponse first = service.request("owner",reservationId,request);
         request.setSelectedTicketIdList(List.of(ticketIds.get(2),ticketIds.get(1)));
-        GatewayRefundActionResponse replay = service.request("owner",reservationId,request);
+        RefundActionResponse replay = service.request("owner",reservationId,request);
         assertThat(replay.application().getPaymentRefundProcessId()).isEqualTo(first.application().getPaymentRefundProcessId());
         assertThat(replay.outcome()).isEqualTo("SUCCEEDED");
         assertThat(processes.count()).isEqualTo(1);
@@ -249,7 +249,7 @@ class GatewayReservationRefundIntegrationTest {
     }
 
     @Test void aFullRefundCancelsAllTicketsAndReplaysWithoutAnotherPgCall() {
-        GatewayRefundActionResponse first=service.request("owner",reservationId,request(ticketIds));
+        RefundActionResponse first=service.request("owner",reservationId,request(ticketIds));
         assertThat(first.outcome()).isEqualTo("SUCCEEDED");
         assertThat(first.application().getCancellationFeeAmount()).isNotNull();
         assertThat(service.retry("owner",reservationId,first.application().getPaymentRefundProcessId()).outcome()).isEqualTo("SUCCEEDED");
@@ -277,7 +277,7 @@ class GatewayReservationRefundIntegrationTest {
         long id=commands.prepare("owner",reservationId,request(ticketIds.subList(1,3)));
         assertThat(service.withdraw("owner",reservationId,id).outcome()).isEqualTo("WITHDRAWN");
         assertThat(reservations.findById(reservationId).orElseThrow().getStatus()).isEqualTo(ReservationStatus.PAID);
-        GatewayRefundActionResponse next=service.request("owner",reservationId,request(ticketIds.subList(0,2)));
+        RefundActionResponse next=service.request("owner",reservationId,request(ticketIds.subList(0,2)));
         assertThat(next.application().getPaymentRefundProcessId()).isNotEqualTo(id);
         assertThat(processes.count()).isEqualTo(2);
     }
@@ -287,7 +287,7 @@ class GatewayReservationRefundIntegrationTest {
         assertThatThrownBy(()->service.request("owner",reservationId,request(ticketIds.subList(1,3)))).isInstanceOf(FeignException.class);
         long id=processes.findAll().getFirst().getPaymentRefundProcessId();
         doAnswer(inv -> result(inv.getArgument(0),inv.getArgument(1),inv.getArgument(2),"SUCCEEDED")).when(gateway).withdraw(anyString(),anyString(),any());
-        GatewayRefundActionResponse response=service.withdraw("owner",reservationId,id);
+        RefundActionResponse response=service.withdraw("owner",reservationId,id);
         assertThat(response.outcome()).isEqualTo("SUCCEEDED");
         assertThat(response.message()).contains("이미 환불");
         assertThat(response.application().getStatus()).isEqualTo("LOCAL_SUCCEEDED");
@@ -336,7 +336,7 @@ class GatewayReservationRefundIntegrationTest {
         when(gateway.refund(anyString(),anyString(),any())).thenAnswer(inv->{entered.countDown();assertThat(release.await(10,TimeUnit.SECONDS)).isTrue();return result(inv.getArgument(0),inv.getArgument(1),inv.getArgument(2),"SUCCEEDED");});
         ExecutorService pool=Executors.newSingleThreadExecutor();
         try {
-            Future<GatewayRefundActionResponse> first=pool.submit(()->service.retry("owner",reservationId,id));
+            Future<RefundActionResponse> first=pool.submit(()->service.retry("owner",reservationId,id));
             assertThat(entered.await(5,TimeUnit.SECONDS)).isTrue();
             long start=System.nanoTime();
             assertThatThrownBy(()->service.withdraw("owner",reservationId,id)).isInstanceOf(PessimisticLockingFailureException.class);

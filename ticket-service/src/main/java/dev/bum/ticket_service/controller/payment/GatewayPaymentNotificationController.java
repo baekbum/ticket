@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class GatewayPaymentNotificationController {
 
-    private final GatewayPaymentNotificationService notifications;
-    private final GatewayBankCancellationNotificationService cancellations;
+    private final PaymentNotificationService notifications;
+    private final BankCancellationNotificationService cancellations;
 
     @PostMapping(value = "/notifications", headers = "X-PG-Event-Type=BANK_CANCELLATION")
     public ResponseEntity<BankCancellationNotificationResponse> cancellation(

@@ -28,7 +28,7 @@ PG → Ticksy 공통 카드 통보
 
 ## 서비스와 트랜잭션
 
-- Ticksy GatewayCardCheckoutService는 NEVER로 외부 트랜잭션을 거절한다. GatewayCardCheckoutCommands의 예매 → Payment 잠금은 HTTP 전후의 짧은 트랜잭션에서만 유지한다.
+- Ticksy CardCheckoutService는 NEVER로 외부 트랜잭션을 거절한다. CardCheckoutCommandService의 예매 → Payment 잠금은 HTTP 전후의 짧은 트랜잭션에서만 유지한다.
 - 신규 카드 Payment는 기존 gateway_expires_at에 최초 승인 기한을 고정한다. PG prepare의 금액·구매자·기한은 저장한 최초 값으로 구성한다.
 - prepare 응답의 merchant·번호·수단·은행 없음·금액·기한·PG ID를 검증한 뒤 바인딩을 커밋한다. ID 저장 전에는 브라우저에 세션을 전달하지 않는다.
 - 세션 발급은 userId·paymentNo로 기존 Payment를 조회하고 연결된 PG ID로 세션만 요청한다. PG prepare를 호출하지 않으며, PG ID가 없으면 결제 준비를 먼저 완료하도록 거절한다. 준비 응답 유실은 같은 checkout 요청을 다시 보내 복구한다.
@@ -66,7 +66,7 @@ PG 세션 서명 키 APP_PG_CHECKOUT_SIGNING_KEY는 사용자 JWT·가맹점 cre
 - 신규 checkout에서 카드 준비 기한을 저장한 결제만 새 PG 준비 흐름을 사용한다. 기존 CARD의 gateway_expires_at·pg_payment_id가 NULL이면 기존 사용자 JWT 승인·조회 경로를 유지한다. 기존 데이터를 임의로 신규 금융 거래에 연결하지 않는다.
 - 신규 PG 거래는 브라우저의 새 /card/checkout 경로를 사용한다. 기존 /card/gateway 경로의 가맹점 서버 승인·조회 API도 유지한다.
 - 신규 PG 카드를 기존 카드 승인 validate/settle 경로로 처리하지 않도록 차단한다. 프런트·Ticksy·PG를 함께 반영해야 한다.
-- 신규 PG 카드의 카드 → 무통장 전환은 카드사의 승인 차단 확정과 기존 승인 복구를 거친다. 같은 PG ID를 유지하고 수단 버전을 올려 이전 세션을 무효화한다. [전환·경합·응답 유실 계약](payment-gateway-card-method-change.md)을 따른다. PG 미연결 기존 카드의 기존 전환 경로는 유지한다.
+- 신규 PG 카드의 카드 → 무통장 전환은 카드사의 승인 차단 확정과 기존 승인 복구를 거친다. 같은 PG ID를 유지하고 수단 버전을 올려 이전 세션을 무효화한다. [전환·경합·응답 유실 계약](payment-gateway-card-method-change.md)을 따른다. 2026-11-17 레거시 결제가 없음을 확인해 기존 미연결 카드의 Checkout 전환 호환 경로를 제거했다.
 - 신규 PG 카드 환불·철회는 공통 신청 API로 연결했다. [카드 환불 계약](payment-gateway-card-refund.md)을 따른다. 기존 카드·구계좌 환불과 새 PG 가상계좌 환불도 유지한다.
 - 이번 작업은 기존 payments.pg_payment_id·gateway_expires_at을 사용한다. 테이블·컬럼 추가와 데이터 이전 SQL은 없으며 실제 DB 삭제·초기화는 수행하지 않는다. 세션 전용 테이블도 만들지 않는다.
 

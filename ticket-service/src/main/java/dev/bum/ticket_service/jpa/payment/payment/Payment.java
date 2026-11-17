@@ -419,6 +419,23 @@ public class Payment {
         record(PaymentHistoryType.METHOD_CHANGED, status, null);
     }
 
+    // 은행의 미발급·이후 발급 차단과 PG 변경이 확정된 후에만 호출한다.
+    public void switchGatewayToCard(LocalDateTime deadline) {
+
+        if (method != PaymentMethod.BANK_TRANSFER || status != PaymentStatus.READY || pgPaymentId == null
+                || getAccountNumber() != null || deadline == null || !deadline.isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("카드로 변경할 수 없는 예매 상태입니다.");
+        }
+
+        method = PaymentMethod.CREDIT_CARD;
+        gatewayBankCompany = null;
+        gatewayExpiresAt = deadline;
+        gatewayIssuePending = false;
+        expiresAt = deadline;
+        virtualAccountInfo = null;
+        record(PaymentHistoryType.METHOD_CHANGED, status, null);
+    }
+
     // 결제 처리에서 카드 결제 완료 결과를 반영한다.
     public void completeCard(
             String transactionId,

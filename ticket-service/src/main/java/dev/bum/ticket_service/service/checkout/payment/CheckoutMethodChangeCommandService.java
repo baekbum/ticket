@@ -1,5 +1,9 @@
 package dev.bum.ticket_service.service.checkout.payment;
 
+import dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeResponse;
+
+import dev.bum.common.service.paymentgateway.payment.GatewayBankMethodChangeRequest;
+
 import dev.bum.common.service.paymentgateway.card.*;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.*;
@@ -16,11 +20,11 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class GatewayCardMethodChangeCheckoutCommands {
+public class CheckoutMethodChangeCommandService {
 
     private final VirtualAccountPaymentLockService locks;
 
-    public PaymentResponse confirm(String userId, String paymentNo, GatewayCardMethodChangeRequest request, GatewayCardMethodChangeResponse response) {
+    public PaymentResponse confirmCardToBank(String userId, String paymentNo, GatewayCardMethodChangeRequest request, GatewayCardMethodChangeResponse response) {
 
         Payment payment = owned(userId, paymentNo);
 
@@ -57,6 +61,31 @@ public class GatewayCardMethodChangeCheckoutCommands {
                     || response.amount().compareTo(response.approval().amount()) != 0) {
                 throw new IllegalStateException("카드 승인 복구 응답을 확인할 수 없습니다.");
             }
+        }
+
+        return payment.toResponse();
+    }
+
+    public PaymentResponse confirmBankToCard(String userId, String paymentNo,
+            GatewayBankMethodChangeRequest request,
+            GatewayBankMethodChangeResponse response) {
+
+        Payment payment = owned(userId, paymentNo);
+
+        if (response == null || !Objects.equals(request.merchantId(), response.merchantId())
+                || !Objects.equals(payment.getPgPaymentId(), response.pgPaymentId())
+                || !paymentNo.equals(response.paymentNo()) || !userId.equals(response.buyerReference())
+                || response.amount() == null || BigDecimal.valueOf(payment.getAmount()).compareTo(response.amount()) != 0
+                || response.paymentMethod() != PaymentMethod.CREDIT_CARD || response.methodRevision() != 1
+                || !request.expiresAt().equals(response.expiresAt())) {
+            throw new IllegalStateException("카드 전환의 최초 요청과 PG 응답이 일치하지 않습니다.");
+        }
+
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
+            payment.switchGatewayToCard(response.expiresAt());
+        } else if (payment.getMethod() != PaymentMethod.CREDIT_CARD
+                || !Objects.equals(payment.getGatewayExpiresAt(), response.expiresAt())) {
+            throw new IllegalStateException("이미 반영된 카드 전환 조건과 다릅니다.");
         }
 
         return payment.toResponse();

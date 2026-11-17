@@ -1,5 +1,7 @@
 package dev.bum.payment_gateway_service.service.financial.virtualAccount;
 
+import dev.bum.payment_gateway_service.exception.GatewayPaymentConflictException;
+
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,8 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class BankVirtualAccountIssueCommandService {
 
+    private final BankAccountIssueGateAccess gates;
+
     // PG 식별자별 한 계좌를 저장하며 계좌번호는 기존 계좌와도 전역 중복을 허용하지 않는다.
     private final DummyVirtualAccountJpaRepository accounts;
     // 계좌와 발급 이력을 같은 금융 트랜잭션으로 저장한다.
@@ -25,6 +29,12 @@ public class BankVirtualAccountIssueCommandService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BankVirtualAccountIssueResponse issue(BankVirtualAccountIssueRequest request) {
+
+        BankAccountIssueGate gate = gates.lock(request);
+
+        if (gate.isClosed()) {
+            throw new GatewayPaymentConflictException("결제수단 변경으로 계좌 발급이 차단된 거래입니다.");
+        }
 
         Optional<DummyVirtualAccount> existing = accounts.findByPgPaymentId(request.pgPaymentId());
 
@@ -42,6 +52,22 @@ public class BankVirtualAccountIssueCommandService {
         histories.saveAndFlush(DummyVirtualAccountPaymentHistory.issued(account));
 
         return BankVirtualAccountIssueResponse.from(account);
+    }
+
+    // 계좌의 현재 상태와 무관하게 최초 발급 사실이 있으면 차단·전환을 거절한다.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public BankAccountIssueGateResponse closeIssue(BankVirtualAccountIssueRequest request) {
+
+        BankAccountIssueGate gate = gates.lock(request);
+        Optional<DummyVirtualAccount> existing = accounts.findByPgPaymentId(request.pgPaymentId());
+
+        if (existing.isPresent()) {
+            return new BankAccountIssueGateResponse(request, false, replay(existing.get(), request));
+        }
+
+        gate.close();
+
+        return new BankAccountIssueGateResponse(request, true, null);
     }
 
     /**

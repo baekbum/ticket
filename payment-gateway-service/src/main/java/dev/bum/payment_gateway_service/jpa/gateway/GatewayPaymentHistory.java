@@ -93,7 +93,7 @@ public class GatewayPaymentHistory {
         history.afterStatus = payment.getStatus();
         history.amount = payment.getAmount();
         history.requestHash = target.fingerprint();
-        history.details = Map.of("bankCompany", target.bankCompany().name(), "expiresAt", target.expiresAt().toString(),
+        history.details = Map.of("bankCompany", target.bankCompany() == null ? "" : target.bankCompany().name(), "expiresAt", target.expiresAt().toString(),
                 "sourceExpiresAt", payment.getExpiresAt().toString(), "methodRevision", payment.getMethodRevision());
         history.occurredAt = LocalDateTime.now();
 

@@ -28,16 +28,16 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false, properties = {"spring.sql.init.mode=never", "app.payment-gateway.merchant-id=1"})
-@ContextConfiguration(classes = GatewayBankCancellationNotificationIntegrationTest.Config.class)
-@Import({GatewayBankCancellationNotificationService.class, org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class})
+@ContextConfiguration(classes = BankCancellationNotificationIntegrationTest.Config.class)
+@Import({BankCancellationNotificationService.class, org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class GatewayBankCancellationNotificationIntegrationTest {
+class BankCancellationNotificationIntegrationTest {
     @Configuration @EnableAutoConfiguration
     @EntityScan(basePackageClasses = GatewayBankCancellationReceipt.class)
     @EnableJpaRepositories(basePackageClasses = GatewayBankCancellationReceiptJpaRepository.class)
     static class Config { }
 
-    @Autowired GatewayBankCancellationNotificationService service;
+    @Autowired BankCancellationNotificationService service;
     @Autowired ObjectMapper json;
     @MockitoSpyBean GatewayBankCancellationReceiptJpaRepository receipts;
     @MockitoBean PaymentJpaRepository payments;

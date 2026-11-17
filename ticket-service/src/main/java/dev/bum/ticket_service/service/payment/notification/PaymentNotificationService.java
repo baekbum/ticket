@@ -6,12 +6,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class GatewayPaymentNotificationService {
+public class PaymentNotificationService {
 
     // 카드 승인 통보의 Ticksy 업무 규칙과 응답 변환.
-    private final GatewayCardNotificationService cards;
+    private final CardPaymentNotificationService cards;
     // 은행 입금 통보의 Ticksy 업무 규칙과 응답 변환.
-    private final GatewayBankNotificationService banks;
+    private final BankDepositNotificationService banks;
 
     /**
      * 공통 수신 API의 검증된 결제수단에 따라 로컬 처리 서비스를 선택한다.

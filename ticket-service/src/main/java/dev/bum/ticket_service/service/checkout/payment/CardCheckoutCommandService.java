@@ -17,14 +17,14 @@ import java.util.Objects;
 
 @Service
 @Transactional
-public class GatewayCardCheckoutCommands {
+public class CardCheckoutCommandService {
 
     // 입금·취소·결과 통보와 동일한 예매 → 결제 순서로 잠근다.
     private final VirtualAccountPaymentLockService locks;
 
     private final long merchantId;
 
-    public GatewayCardCheckoutCommands(
+    public CardCheckoutCommandService(
             VirtualAccountPaymentLockService locks,
             @Value("${app.payment-gateway.merchant-id:1}") long merchantId
     ) {
@@ -43,18 +43,18 @@ public class GatewayCardCheckoutCommands {
         return owned(userId, paymentNo).toResponse();
     }
 
-    public GatewayCardCheckoutPreparation findPreparation(String userId, String paymentNo) {
+    public CardCheckoutPreparation findPreparation(String userId, String paymentNo) {
 
         Payment payment = owned(userId, paymentNo);
 
         if (payment.getGatewayExpiresAt() == null) {
-            return new GatewayCardCheckoutPreparation(null, null, payment.toResponse());
+            return new CardCheckoutPreparation(null, null, payment.toResponse());
         }
 
         GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(merchantId, paymentNo, userId,
                 PaymentMethod.CREDIT_CARD, BigDecimal.valueOf(payment.getAmount()), payment.getGatewayExpiresAt(), null);
 
-        return new GatewayCardCheckoutPreparation(request, payment.getPgPaymentId(), payment.toResponse());
+        return new CardCheckoutPreparation(request, payment.getPgPaymentId(), payment.toResponse());
     }
 
     // 최초 PG 응답의 조건을 확인한 뒤 ID만 별도 커밋한다. 금융 HTTP는 잠금 밖에서 실행한다.

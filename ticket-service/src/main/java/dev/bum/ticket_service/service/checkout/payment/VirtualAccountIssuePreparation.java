@@ -3,7 +3,7 @@ package dev.bum.ticket_service.service.checkout.payment;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayPaymentPrepareRequest;
 
-public record GatewayAccountIssuePreparation(
+public record VirtualAccountIssuePreparation(
         // 최초 로컬 트랜잭션에 고정한 PG 준비 조건.
         GatewayPaymentPrepareRequest request,
 

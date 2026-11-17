@@ -82,12 +82,12 @@ public class CheckoutAttempt {
     @JoinColumn(name = "payment_id")
     private Payment payment;
 
-    // 카드→무통장 전환의 최초 은행. 기존 카드 준비 조건은 덮어쓰지 않는다.
+    // 카드→무통장 전환의 최초 은행. 카드 전환은 은행 없이 gatewaySwitchExpiresAt만 저장한다.
     @Enumerated(EnumType.STRING)
     @Column(name = "gateway_switch_bank_company", length = 30)
     private BankCompany gatewaySwitchBankCompany;
 
-    // 재요청 날짜가 달라져도 같은 PG 전환 요청을 보내는 고정 입금기한.
+    // 동일 PG 전환 요청의 고정 기한. 무통장은 입금기한, 카드는 최초 좌석 선점 기한이다.
     @Column(name = "gateway_switch_expires_at")
     private LocalDateTime gatewaySwitchExpiresAt;
 
@@ -108,6 +108,17 @@ public class CheckoutAttempt {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // 은행→카드 전환은 은행 없이 기한만 고정한다. 반대 방향 의도와 섞지 않는다.
+    public void planGatewayCardSwitch(LocalDateTime deadline) {
+
+        if (gatewaySwitchBankCompany != null || deadline == null
+                || (gatewaySwitchExpiresAt != null && !gatewaySwitchExpiresAt.equals(deadline))) {
+            throw new IllegalArgumentException("최초 카드 전환 조건과 다릅니다.");
+        }
+
+        gatewaySwitchExpiresAt = deadline.truncatedTo(ChronoUnit.MICROS);
+    }
 
     public void planGatewaySwitch(BankCompany bank, LocalDateTime expiresAt) {
 

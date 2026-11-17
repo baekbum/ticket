@@ -16,7 +16,7 @@ import dev.bum.ticket_service.jpa.seat.*;
 import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.checkout.payment.*;
 import dev.bum.ticket_service.service.payment.card.CardPaymentService;
-import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 import dev.bum.ticket_service.service.payment.payment.*;
 import dev.bum.ticket_service.service.payment.virtualAccount.*;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -40,13 +40,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false)
-@ContextConfiguration(classes = GatewayVirtualAccountCheckoutIntegrationTest.PersistenceConfig.class)
+@ContextConfiguration(classes = VirtualAccountIssuanceCheckoutIntegrationTest.PersistenceConfig.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class, VirtualAccountPaymentLockService.class,
-        GatewayCardNotificationService.class, CardPaymentService.class, PaymentService.class,
+@Import({CardCheckoutService.class, CardCheckoutCommandService.class, VirtualAccountPaymentLockService.class,
+        CardPaymentNotificationService.class, CardPaymentService.class, PaymentService.class,
         PaymentCompletionService.class, TicketRepositoryImpl.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class GatewayCardCheckoutIntegrationTest {
+class CardCheckoutIntegrationTest {
 
     @DynamicPropertySource static void database(DynamicPropertyRegistry properties) {
         String url = System.getenv("CARD_CHECKOUT_TEST_POSTGRES_URL");
@@ -59,9 +59,9 @@ class GatewayCardCheckoutIntegrationTest {
         properties.add("spring.sql.init.mode", () -> "never");
     }
 
-    @Autowired GatewayCardCheckoutService service;
-    @Autowired GatewayCardCheckoutCommands commands;
-    @Autowired GatewayCardNotificationService notifications;
+    @Autowired CardCheckoutService service;
+    @Autowired CardCheckoutCommandService commands;
+    @Autowired CardPaymentNotificationService notifications;
     @Autowired CardPaymentService cardPayments;
     @Autowired PaymentJpaRepository payments;
     @Autowired ReservationJpaRepository reservations;

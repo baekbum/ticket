@@ -45,7 +45,7 @@ import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificatio
 import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificationResponse;
 import dev.bum.ticket_service.service.payment.card.CardPaymentService;
 import dev.bum.ticket_service.service.payment.payment.PaymentService;
-import dev.bum.ticket_service.service.payment.notification.GatewayCardNotificationService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 
 import jakarta.persistence.EntityManager;
 
@@ -80,13 +80,13 @@ import static org.mockito.Mockito.times;
 @DataJpaTest
 @ActiveProfiles("test")
 @Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
-        dev.bum.ticket_service.service.checkout.payment.GatewayVirtualAccountCheckoutCommands.class,
+        dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutCommandService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService.class,
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
         PaymentCompletionService.class, PaymentExpirationService.class,
-        CardPaymentService.class, PaymentService.class, GatewayCardNotificationService.class,
-        dev.bum.ticket_service.service.payment.notification.GatewayBankNotificationService.class})
+        CardPaymentService.class, PaymentService.class, CardPaymentNotificationService.class,
+        dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
     @MockitoBean PaymentGatewayRefundClient refundResolution;
@@ -124,9 +124,9 @@ class PaymentModelIntegrationTest {
     @Autowired EntityManager entityManager;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired VirtualAccountPaymentService virtualAccountPayments;
-    @Autowired GatewayCardNotificationService cardNotifications;
+    @Autowired CardPaymentNotificationService cardNotifications;
     @MockitoBean TicketRepository ticketRepository;
-    @Autowired dev.bum.ticket_service.service.payment.notification.GatewayBankNotificationService bankNotifications;
+    @Autowired dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService bankNotifications;
 
     @Test
     void standardBankNotificationUpdatesTheRealPaymentAndReplaysWithoutNewHistory() {

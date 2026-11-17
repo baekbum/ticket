@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class GatewayReservationRefundCommands {
+public class ReservationRefundCommandService {
 
     // 사용자 환불·철회의 공통 NOWAIT 잠금 대상.
     private final ReservationJpaRepository reservations;
@@ -151,7 +151,7 @@ public class GatewayReservationRefundCommands {
      * 합의한 대로 HTTP 동안 예매 NOWAIT 락을 유지한다. 최초 신청은 이미 별도 커밋돼 있다.
      */
     @Transactional(timeout = 95)
-    public GatewayRefundActionResponse execute(
+    public RefundActionResponse execute(
             String userId,
             long reservationId,
             long processId,
@@ -355,10 +355,10 @@ public class GatewayReservationRefundCommands {
     /**
      * 트랜잭션이 커밋된 후 반환할 업무 결과를 구성한다. 이미 성공한 철회는 오류로 던지지 않는다.
      */
-    private GatewayRefundActionResponse response(PaymentRefundProcess process, boolean recovery) {
+    private RefundActionResponse response(PaymentRefundProcess process, boolean recovery) {
 
         boolean success = process.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED;
-        return new GatewayRefundActionResponse(success ? "SUCCEEDED" : "WITHDRAWN", process.toResponse(), success
+        return new RefundActionResponse(success ? "SUCCEEDED" : "WITHDRAWN", process.toResponse(), success
                 ? (recovery ? "이미 환불이 완료된 신청입니다. 환불 결과를 반영했습니다." : "환불이 완료되었습니다.")
                 : "환불 신청을 철회했습니다. 다른 좌석으로 새로 신청할 수 있습니다.");
     }
