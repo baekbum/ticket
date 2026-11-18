@@ -1,6 +1,8 @@
 # 입금 전 예매 취소와 PG 계좌 취소
 
-2026-11-11 신규 Ticksy 거래는 PG ID 취소 API의 202 접수와 최종 통보를 구분한다. 발급 중 취소도 복구하며 Outbox와 receipt를 연결한다. [신규 호출 계약](ticksy-gateway-virtual-account.md)을 우선한다. 아래 paymentNo 기반 동기 응답 설명은 기존 계좌에 적용한다.
+> 2026-11-18: 아래 구형 동기 취소 API와 PG 미연결 계좌 호환 분기는 제거했다. 취소 Outbox는 신규 PG ID·등록 가맹점 계약만 사용한다. 발급 전 신규 거래는 최초 은행 조건으로 prepare → issue를 복구한 뒤 취소하며, 상세 범위는 [추가 정리 기록](payment-legacy-retirement.md)을 따른다.
+
+2026-11-11 신규 Ticksy 거래는 PG ID 취소 API의 202 접수와 최종 통보를 구분한다. 발급 중 취소도 복구하며 Outbox와 receipt를 연결한다. [신규 호출 계약](ticksy-gateway-virtual-account.md)을 우선한다. 아래 paymentNo 기반 동기 응답 설명은 폐쇄 전 구조의 기록이다.
 
 입금 전 무통장 예매는 전체 취소만 허용한다. 티켓 서비스는 예약을 먼저 잠그고 결제, 구매 매수, 티켓, 좌석 순서로 잠금을 획득한다. 예약·티켓·결제를 `CANCELLED`, 좌석을 `AVAILABLE`로 변경하고 `virtual_account_cancel_outbox`의 `PENDING` 작업을 같은 트랜잭션에 저장한다. 원래 트랜잭션이 롤백되거나 Outbox 저장이 실패하면 모두 롤백된다. 기존 입금 전 취소의 쿠폰 정책은 유지한다.
 

@@ -1,6 +1,5 @@
 package dev.bum.payment_gateway_service.jpa.outbox;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.DummyVirtualAccount;
 import jakarta.persistence.Column;
@@ -115,19 +114,6 @@ public class VirtualAccountOutboxEvent {
                 .accountNumber(virtualAccount.getAccountNumber())
                 .amount(virtualAccount.getAmount())
                 .occurredAt(expiredAt)
-                .build();
-    }
-
-    // 가상계좌 정보를 만료 알림 이벤트로 변환한다.
-    public VirtualAccountExpiredEvent toVirtualAccountExpiredEvent() {
-
-        return VirtualAccountExpiredEvent.builder()
-                .paymentNo(this.paymentNo)
-                .bankCompany(this.bankCompany)
-                .bankName(this.bankName)
-                .accountNumber(this.accountNumber)
-                .amount(this.amount)
-                .expiredAt(this.occurredAt)
                 .build();
     }
 

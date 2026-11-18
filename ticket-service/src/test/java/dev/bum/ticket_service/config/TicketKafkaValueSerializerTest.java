@@ -1,14 +1,11 @@
 package dev.bum.ticket_service.config;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
-
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 import java.nio.charset.StandardCharsets;
 
@@ -36,17 +33,8 @@ class TicketKafkaValueSerializerTest {
     @Test
     void deserializationFailureDltPreservesRawBytes() {
         byte[] payload = new byte[] {'{', (byte) 0xff, 'x'};
-        assertThat(serializer.serialize("virtual-account-expired.DLT", new RecordHeaders(), payload))
+        assertThat(serializer.serialize("payment-completed.DLT", new RecordHeaders(), payload))
                 .isEqualTo(payload);
     }
 
-    @Test
-    void businessFailureDltSerializesEventAsJson() {
-        var event = VirtualAccountExpiredEvent.builder().paymentNo("PAY-test").build();
-        var headers = new RecordHeaders();
-        byte[] payload = serializer.serialize("virtual-account-expired.DLT", headers, event);
-        assertThat(new JsonDeserializer<>(VirtualAccountExpiredEvent.class, false)
-                .deserialize("virtual-account-expired.DLT", payload)).isEqualTo(event);
-        assertThat(headers.lastHeader("__TypeId__")).isNull();
-    }
 }

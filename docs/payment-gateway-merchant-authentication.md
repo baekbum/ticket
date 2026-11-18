@@ -55,7 +55,7 @@ PG_CREDENTIAL_DB_PASSWORD
 
 - `PaymentGatewayTransactionClient`는 `PaymentGatewayMerchantFeignConfig`로 두 헤더를 설정한다. prepare·조회·발급·취소의 URL과 DTO는 유지한다.
 - PG 거래 API의 기존 `X-Service-Token` 단독 인증은 제거했다. 호출자는 새 헤더로 전환해야 한다.
-- 레거시 카드·은행·환불 Feign은 기존 `PaymentGatewayFeignConfig`와 `X-Service-Token` 계약을 유지한다. PG→Ticksy 통보도 등록된 통보 대상의 별도 인증값을 계속 사용한다.
+- 구형 카드·은행·환불 Feign과 전용 `PaymentGatewayFeignConfig`는 제거했다. Ticksy→PG 신규 금융 요청은 가맹점 인증을 사용한다. PG→Ticksy 통보는 등록된 통보 대상의 별도 인증값을 계속 사용하므로 Ticksy의 통보 수신 인증은 유지한다.
 - PG의 `app.merchants.credentials` YAML 목록과 `MerchantCredentialProperties`, `MerchantCredentialResolver`는 제거했다. `app.ticket.service-token`은 다른 내부 호출과 기존 통보 암호화 설정에 쓰이므로 유지한다.
 - `initData.sql`은 비밀값 없이 숫자 코드 1의 Ticksy를 미발급 상태로 등록한다. 이미 존재하는 가맹점의 해시를 덮어쓰지 않는다. 가맹점 이름은 중복을 허용한다.
 

@@ -226,19 +226,19 @@ class PaymentModelIntegrationTest {
                 .accountNumber("1111-123456").depositorName("입금자").amount(BigDecimal.valueOf(12000))
                 .depositedAt(expiresAt.minusMinutes(1)).build();
 
-        virtualAccountPayments.completeDepositFromGateway(request);
+        virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId());
         if (refundAmount > 0) payment.partialRefund(refundAmount);
         payments.flush();
         int historiesBeforeReplay = payment.getHistories().size();
         PaymentStatus statusBeforeReplay = payment.getStatus();
 
-        var replay = virtualAccountPayments.completeDepositFromGateway(request);
+        var replay = virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId());
         assertThat(replay.getStatus()).isEqualTo(statusBeforeReplay);
         assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
         verify(seatCacheService, times(1)).syncReservedSeatsAfterCommit(any(), any(), any());
 
         request.setDepositorName("다른 입금자");
-        assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request))
+        assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId()))
                 .hasMessage("이미 처리된 입금 정보와 요청이 일치하지 않습니다.");
         assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
     }

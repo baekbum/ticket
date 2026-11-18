@@ -33,18 +33,15 @@ public class VirtualAccountCancelOutboxCommands {
             return null;
         }
 
-        if (candidate.getBankCompany() != null) {
-            Payment payment = locks.lock(candidate.getPaymentNo());
-            VirtualAccountCancelOutbox locked = repository.findByIdForUpdate(id).orElseThrow();
-            entityManager.refresh(locked, LockModeType.PESSIMISTIC_WRITE);
-            locked.bindGateway(payment);
-            candidate = locked;
+        if (candidate.getBankCompany() == null) {
+            throw new IllegalStateException("PG 거래 정보가 없는 구형 계좌 취소 작업은 처리할 수 없습니다.");
         }
 
-        if (candidate.getBankCompany() == null) {
-            candidate = repository.findByIdForUpdate(id).orElseThrow();
-            entityManager.refresh(candidate, LockModeType.PESSIMISTIC_WRITE);
-        }
+        Payment payment = locks.lock(candidate.getPaymentNo());
+        VirtualAccountCancelOutbox locked = repository.findByIdForUpdate(id).orElseThrow();
+        entityManager.refresh(locked, LockModeType.PESSIMISTIC_WRITE);
+        locked.bindGateway(payment);
+        candidate = locked;
 
         if (!candidate.claim(LocalDateTime.now())) {
             return null;

@@ -1,7 +1,5 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
-import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResponse;
-import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.ticket_service.feign.paymentgateway.*;
 import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountCancelOutbox;
 import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
@@ -25,8 +23,6 @@ public class VirtualAccountCancelOutboxPublisher {
 
     // HTTP 전후의 상태 저장을 짧은 트랜잭션으로 분리한다.
     private final VirtualAccountCancelOutboxCommands commands;
-    // PG 식별자가 없는 기존 계좌만 기존 계약으로 취소한다.
-    private final PaymentGatewayVirtualAccountClient gateway;
     // 신규 PG 원거래를 인증된 가맹점 범위로 취소한다.
     private final PaymentGatewayTransactionClient transactions;
     // 발급 결과를 받기 전에 취소된 원거래만 복구하여 은행 취소를 이어간다.
@@ -54,12 +50,6 @@ public class VirtualAccountCancelOutboxPublisher {
 
             attempt = outbox.getDeliveryAttempt();
 
-            if (outbox.getBankCompany() == null) {
-                validateLegacyResponse(outbox, gateway.cancel(outbox.toRequest()));
-                commands.delivered(outboxId, attempt, null, null);
-                return;
-            }
-
             if (outbox.getPgPaymentId() == null || outbox.getAccountNumber() == null) {
                 issuance.prepare(outbox.getPaymentNo());
                 issuance.issue(outbox.getPaymentNo());
@@ -79,20 +69,6 @@ public class VirtualAccountCancelOutboxPublisher {
                     : failure.getClass().getSimpleName();
             commands.failed(outboxId, attempt, errorType, LocalDateTime.now().plus(Duration.ofMillis(retryDelayMs)));
             log.warn("가상계좌 취소 전달 실패: outboxId={}, errorType={}", outboxId, errorType);
-        }
-    }
-
-    /**
-     * 기존 거래의 동기 취소 응답은 계좌·금액까지 비교한다.
-     */
-    private void validateLegacyResponse(VirtualAccountCancelOutbox outbox, GatewayVirtualAccountCancelResponse response) {
-
-        if (response == null || response.status() != GatewayVirtualAccountStatus.CANCELLED
-                || !Objects.equals(outbox.getPaymentNo(), response.paymentNo())
-                || !Objects.equals(outbox.getBankName(), response.bankName())
-                || !Objects.equals(outbox.getAccountNumber(), response.accountNumber())
-                || response.amount() == null || outbox.toRequest().amount().compareTo(response.amount()) != 0) {
-            throw new IllegalStateException("PG 계좌 취소 응답이 요청과 일치하지 않습니다.");
         }
     }
 

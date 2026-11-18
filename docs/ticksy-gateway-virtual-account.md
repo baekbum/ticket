@@ -1,6 +1,6 @@
 # Ticksy의 PG 거래 기반 가상계좌 호출
 
-2026-11-11부터 새 무통장 checkout은 기존 paymentNo 단독 발급 대신 가맹점 인증 기반 PG prepare·발급·비동기 취소 API를 호출한다. 기존 계좌는 기존 계약을 유지한다. 카드 프런트엔드의 기존 JWT 승인 호출은 이번 변경 대상에 포함하지 않는다.
+2026-11-11부터 새 무통장 checkout은 기존 paymentNo 단독 발급 대신 가맹점 인증 기반 PG prepare·발급·비동기 취소 API를 호출한다. 2026-11-18 잔여 정리로 구형 계좌의 취소·관리자 정합성 API 및 Kafka 만료 수신 경로를 제거했다. 카드 브라우저 호출은 [신규 세션 승인 흐름](ticksy-gateway-card-checkout.md)을 사용한다.
 
 ## 실제 요청 경로
 
@@ -90,15 +90,15 @@ return accounts.issue(prepared.getPaymentNo());
 | payments | nullable pg_payment_id VARCHAR(44), PG ID UNIQUE, gateway_bank_company, gateway_expires_at, gateway_issue_pending DEFAULT FALSE |
 | virtual_account_cancel_outbox | nullable pg_payment_id·buyer_reference·bank_company, nullable account_number, gateway_result·gateway_reason, delivery_attempt DEFAULT 0·lease_until |
 
-기존 Payment는 PG ID·발급 은행 조건을 null, pending을 false로 유지한다. 이전 Outbox의 bank_company도 null이므로 기존 동기 취소 계약을 사용한다. 결제번호가 같다는 이유만으로 새 PG 거래를 자동 생성하거나 기존 계좌에 연결하지 않는다.
+기존 Payment는 PG ID·발급 은행 조건을 null, pending을 false로 유지한다. bank_company가 없는 이전 Outbox는 외부 호출 없이 오류 상태를 기록하며 구형 동기 취소로 우회하지 않는다. 결제번호가 같다는 이유만으로 새 PG 거래를 자동 생성하거나 기존 계좌에 연결하지 않는다.
 
-기존 데이터를 신규 흐름에 옮기려면 서버에 등록된 merchant와 PG 원거래를 확인하고 merchant_payment_no·금액·사용자·은행·계좌가 일치하는지 검증한 뒤 PG ID·고정 조건을 함께 설정해야 한다. 가맹점을 입증할 수 없는 데이터는 기존 경로에 격리하고 수동 확인한다. 이름만으로 가맹점을 추론하지 않는다. 비밀값은 데이터 이전 SQL에 넣지 않는다.
+기존 데이터를 신규 흐름에 옮기려면 서버에 등록된 merchant와 PG 원거래를 확인하고 merchant_payment_no·금액·사용자·은행·계좌가 일치하는지 검증한 뒤 PG ID·고정 조건을 함께 설정해야 한다. 가맹점을 입증할 수 없는 데이터는 자동 처리하지 않고 별도로 보관하여 수동으로 원거래를 대조한다. 이름만으로 가맹점을 추론하지 않는다. 비밀값은 데이터 이전 SQL에 넣지 않는다.
 
 ## 현재 제한과 다음 단계
 
 2026-11-12 신규 PG 연결 계좌의 만료는 [은행→PG Outbox와 Ticksy 상태 조회](payment-gateway-account-expiration.md)로 연결했다. Ticksy는 시간이 지났다는 이유만으로 만료하지 않으며 PG EXPIRED 확인 후 기존 좌석·예매 정리를 실행한다. 기한 내 입금이 확정된 거래는 지연 통보되어도 만료하지 않는다.
 
-2026-11-13 신규 PG 원거래의 입금 후 전액·부분 환불은 [환불·신청 철회 계약](payment-gateway-bank-refund.md)으로 연결했다. 기존 관리자 paymentNo 정산 전환은 후속 작업이다. 기존 계좌는 종전 환불·만료·관리자 정산을 계속 사용한다. PG 미등록·발급 전 READY의 만료가 확인되지 않는 경우에는 자동 정리를 보류한다.
+2026-11-13 신규 PG 원거래의 입금 후 전액·부분 환불은 [환불·신청 철회 계약](payment-gateway-bank-refund.md)으로 연결했다. 기존 관리자 paymentNo 정산 및 Kafka 만료 경로는 제거했다. 신규 원거래의 입금 통보와 PG 상태 확인으로만 처리한다. PG 미등록·발급 전 READY의 만료가 확인되지 않는 경우에는 자동 정리를 보류한다.
 
 기한이 지난 미완료 발급이나 영구적인 인증·등록 URL·데이터 불일치는 제한 재시도나 같은 키 재요청만으로 해결되지 않는다. pending 정보와 로그를 보존하며 관리자 확인이 필요하다. 신규 결제수단을 운영에 활성화하기 전에 등록 merchant·통보 endpoint·암호화된 통보 자격증명이 준비돼 있어야 한다.
 

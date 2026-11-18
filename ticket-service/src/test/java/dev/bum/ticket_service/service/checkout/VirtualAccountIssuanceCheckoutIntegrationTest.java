@@ -21,7 +21,6 @@ import feign.FeignException;
 import feign.Retryer;
 import org.springframework.cloud.openfeign.support.*;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.*;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
@@ -29,7 +28,6 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.*;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.event.event.*;
 import dev.bum.ticket_service.jpa.payment.payment.*;
@@ -77,8 +75,7 @@ import static org.mockito.Mockito.*;
         VirtualAccountCancelOutboxService.class, VirtualAccountCancelOutboxPublisher.class,
         VirtualAccountCancelOutboxCommands.class,
         VirtualAccountCancelOutboxDispatcher.class, VirtualAccountPaymentLockService.class,
-        VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class,
-        VirtualAccountReconciliationCompletionService.class, VirtualAccountReconciliationValidator.class})
+        VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class VirtualAccountIssuanceCheckoutIntegrationTest {
@@ -98,7 +95,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Autowired ReservationCancellationService cancellation;
     @Autowired VirtualAccountPaymentService deposits;
-    @Autowired VirtualAccountReconciliationCompletionService reconciliation;
     @Autowired VirtualAccountCancelOutboxPublisher publisher;
     @MockitoSpyBean VirtualAccountCancelOutboxCommands deliveryCommands;
     @MockitoBean dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayTransactionClient transactionGateway;
@@ -118,7 +114,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @MockitoBean SeatCacheService cache;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean PaymentRefundProcessService refunds;
-    @MockitoBean PaymentGatewayVirtualAccountClient gateway;
     Fixture fixture;
 
     record Fixture(Long reservationId, Long paymentId, Long ticketId, Long seatId) { }
@@ -126,11 +121,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @BeforeEach void setup() {
         when(clock.instant()).thenReturn(Instant.parse("2026-10-27T03:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-        doAnswer(invocation -> {
-            var request = invocation.getArgument(0, GatewayVirtualAccountCancelRequest.class);
-            return new GatewayVirtualAccountCancelResponse(request.paymentNo(), request.bankName(),
-                    request.accountNumber(), request.amount(), GatewayVirtualAccountStatus.CANCELLED);
-        }).when(gateway).cancel(any());
         tx().executeWithoutResult(status -> {
             receipts.deleteAll();
             outbox.deleteAll();
@@ -257,7 +247,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         return issuance.issue(prepared.getPaymentNo());
     }
 
-    @Test void realHttpUsesPrepareThenIssueAndReplayDoesNotCreateAnotherAccountOrHistory() {
+    @Test
+    void realHttpUsesPrepareThenIssueAndReplayDoesNotCreateAnotherAccountOrHistory() {
         plan();
 
         PaymentResponse prepared = issuance.prepare("PAY-1");
@@ -278,10 +269,10 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(prepareAndIssue()).isEqualTo(response);
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).hasSize(1);
         assertThat(jdbc.queryForObject("select count(*) from payment_histories", Long.class)).isEqualTo(history);
-        verifyNoInteractions(gateway);
     }
 
-    @Test void issueWithoutPrepareCannotCreateAPgPaymentOrBankAccount() {
+    @Test
+    void issueWithoutPrepareCannotCreateAPgPaymentOrBankAccount() {
         plan();
 
         assertThatThrownBy(() -> issuance.issue("PAY-1"))
@@ -294,7 +285,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(issueBodies).isEmpty();
     }
 
-    @Test void lostPrepareResponseIsRetriedWithinTheSameRequestWithExactlyTheSameTerms() {
+    @Test
+    void lostPrepareResponseIsRetriedWithinTheSameRequestWithExactlyTheSameTerms() {
         plan(); losePrepare = true;
         prepareAndIssue();
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
@@ -303,7 +295,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(first.paymentNo()).isEqualTo("PAY-1");
     }
 
-    @Test void lostIssueResponseKeepsPgIdAndRetriesTheSameIssueWithoutAnotherPrepare() {
+    @Test
+    void lostIssueResponseKeepsPgIdAndRetriesTheSameIssueWithoutAnotherPrepare() {
         plan(); loseIssue = true;
         assertThat(prepareAndIssue().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
@@ -312,7 +305,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(issueBodies.get(0)).isEqualTo(issueBodies.get(1));
     }
 
-    @Test void allFourPrepareAttemptsFailBeforeBrowserRetryReusesTheSamePaymentAndTerms() {
+    @Test
+    void allFourPrepareAttemptsFailBeforeBrowserRetryReusesTheSamePaymentAndTerms() {
         plan(); alwaysFailPrepare = true;
         assertThatThrownBy(() -> prepareAndIssue())
                 .isInstanceOf(dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException.class);
@@ -329,7 +323,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(payments.count()).isEqualTo(1);
     }
 
-    @Test void allFourIssueAttemptsKeepTheCommittedPgIdForTheNextBrowserRequest() {
+    @Test
+    void allFourIssueAttemptsKeepTheCommittedPgIdForTheNextBrowserRequest() {
         plan(); alwaysFailIssue = true;
         assertThatThrownBy(() -> prepareAndIssue())
                 .isInstanceOf(dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException.class);
@@ -350,7 +345,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).isEmpty();
     }
 
-    @Test void changedAmountFromPrepareOrIssueCannotBindAnotherTransaction() {
+    @Test
+    void changedAmountFromPrepareOrIssueCannotBindAnotherTransaction() {
         plan(); wrongAmount = true;
         assertThatThrownBy(() -> prepareAndIssue()).hasMessageContaining("PG 준비 결과");
         assertThat(payment().getPgPaymentId()).isNull(); assertThat(issueBodies).isEmpty();
@@ -361,7 +357,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(prepareAndIssue().getAccountNumber()).isEqualTo("1111-123456");
     }
 
-    @Test void cancellationBeforePrepareIsCommittedAndIssuanceRecoveryConnectsTheCleanupOutbox() {
+    @Test
+    void cancellationBeforePrepareIsCommittedAndIssuanceRecoveryConnectsTheCleanupOutbox() {
         plan(); cancel(); assertCancelled(); assertThat(record().getAccountNumber()).isNull();
         alwaysFailPrepare = true;
         publisher.deliver(record().getOutboxId());
@@ -377,7 +374,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getGatewayResult()).isEqualTo("CANCELLED"); assertCancelled();
     }
 
-    @Test void cancellationCanCommitWhileIssueHttpIsWaitingAndLateResponseCannotReviveTheReservation() throws Exception {
+    @Test
+    void cancellationCanCommitWhileIssueHttpIsWaitingAndLateResponseCannotReviveTheReservation() throws Exception {
         plan(); issued = new CountDownLatch(1); releaseIssue = new CountDownLatch(1);
         try (ExecutorService workers = Executors.newSingleThreadExecutor()) {
             Future<PaymentResponse> result = workers.submit(() -> prepareAndIssue());
@@ -387,7 +385,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getAccountNumber()).isEqualTo("1111-123456"); assertCancelled();
     }
 
-    @Test void depositNotificationBeforeIssueResponseBindsTheAccountAndDoesNotDowngradePaid() throws Exception {
+    @Test
+    void depositNotificationBeforeIssueResponseBindsTheAccountAndDoesNotDowngradePaid() throws Exception {
         plan(); issued = new CountDownLatch(1); releaseIssue = new CountDownLatch(1);
         try (ExecutorService workers = Executors.newSingleThreadExecutor()) {
             Future<PaymentResponse> result = workers.submit(() -> prepareAndIssue());
@@ -401,7 +400,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
     }
 
-    @Test void finalCallbackBefore202AndLostCallbackAcknowledgementKeepTheFirstFinancialResult() {
+    @Test
+    void finalCallbackBefore202AndLostCallbackAcknowledgementKeepTheFirstFinancialResult() {
         plan(); prepareAndIssue(); cancel(); BankCancellationNotification event = cancellationEvent("CANCELLED");
         beforeCancelResponse = () -> results.receive(event); publisher.deliver(record().getOutboxId());
         assertThat(record().getGatewayResult()).isEqualTo("CANCELLED");
@@ -411,7 +411,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getGatewayResult()).isEqualTo("CANCELLED"); assertCancelled();
     }
 
-    @Test void lostCancellationResponseRetriesTheSameRequestAndRejectionDoesNotReopenSeats() {
+    @Test
+    void lostCancellationResponseRetriesTheSameRequestAndRejectionDoesNotReopenSeats() {
         plan(); prepareAndIssue(); cancel(); loseCancel = true; publisher.deliver(record().getOutboxId());
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
         makeReady(); publisher.deliver(record().getOutboxId());
@@ -421,7 +422,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getGatewayResult()).isEqualTo("REJECTED"); assertCancelled();
     }
 
-    @Test void receiptFailureRollsBackTheOutboxResultAndTheSameNotificationCanBeRetried() {
+    @Test
+    void receiptFailureRollsBackTheOutboxResultAndTheSameNotificationCanBeRetried() {
         plan(); prepareAndIssue(); cancel(); publisher.deliver(record().getOutboxId());
         doThrow(new IllegalStateException("receipt failure")).when(receipts).saveAndFlush(any());
         assertThatThrownBy(() -> results.receive(cancellationEvent("CANCELLED"))).hasMessage("receipt failure");
@@ -429,7 +431,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         reset(receipts); assertThat(results.receive(cancellationEvent("CANCELLED")).outcome()).isEqualTo("CANCELLED");
     }
 
-    @Test void cancellationOutboxFailureRollsBackLateAccountBindingAndRetryCompletesIt() {
+    @Test
+    void cancellationOutboxFailureRollsBackLateAccountBindingAndRetryCompletesIt() {
         plan(); cancel(); doThrow(new IllegalStateException("outbox failure")).when(outbox).findIdByPaymentNo("PAY-1");
         assertThatThrownBy(() -> prepareAndIssue()).hasMessage("outbox failure");
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
@@ -438,7 +441,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getAccountNumber()).isEqualTo("1111-123456"); assertCancelled();
     }
 
-    @Test void anotherPgIdCannotCompleteTheLocalPaymentAndAmbientTransactionsAreRejected() {
+    @Test
+    void anotherPgIdCannotCompleteTheLocalPaymentAndAmbientTransactionsAreRejected() {
         plan(); prepareAndIssue(); BankDepositNotification a = depositEvent();
         String other = "20261111550e8400-e29b-41d4-a716-446655440001";
         BankDepositNotification event = new BankDepositNotification(1, other + ":DEPOSIT:INITIAL", 1L, other,
@@ -452,7 +456,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
                 .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
     }
 
-    @Test void paidLinkedPaymentCannotUseLegacyReservationRefundAndRetainsItsTickets() {
+    @Test
+    void paidLinkedPaymentCannotUseLegacyReservationRefundAndRetainsItsTickets() {
         plan(); prepareAndIssue(); notifications.receive(depositEvent());
         assertThatThrownBy(this::cancel)
                 .hasMessage("결제 완료된 예매의 환불은 환불 신청 API를 이용해주세요.");
@@ -476,7 +481,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(receipts.count()).isEqualTo(1); assertCancelled();
     }
 
-    @Test void aPastLocalDeadlineDoesNotExpireWhilePgIsWaitingOrAlreadyPaidAndDelayedDepositStillCompletes() {
+    @Test
+    void aPastLocalDeadlineDoesNotExpireWhilePgIsWaitingOrAlreadyPaidAndDelayedDepositStillCompletes() {
         plan(); prepareAndIssue(); movePastDeadline();
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
@@ -492,7 +498,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(queryCount).hasValue(2);
     }
 
-    @Test void onlyPgExpiredRunsTheExistingAtomicReservationTicketPaymentAndSeatCleanupOnce() {
+    @Test
+    void onlyPgExpiredRunsTheExistingAtomicReservationTicketPaymentAndSeatCleanupOnce() {
         plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED";
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
@@ -519,7 +526,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
     }
 
-    @Test void readyLinkedPaymentsCannotBeExpiredByTheLegacyLocalClockAndMissingPgIdUsesScopedLookup() {
+    @Test
+    void readyLinkedPaymentsCannotBeExpiredByTheLegacyLocalClockAndMissingPgIdUsesScopedLookup() {
         plan(); movePastDeadline();
         localExpiration.expireIfExpired(fixture.paymentId());
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.READY);
@@ -536,7 +544,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(prepareBodies).isEmpty(); assertThat(issueBodies).isEmpty();
     }
 
-    @Test void anotherMerchantsExpiredResultCannotExpireTheLocalTransaction() {
+    @Test
+    void anotherMerchantsExpiredResultCannotExpireTheLocalTransaction() {
         plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED"; wrongQueryMerchant = true;
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
@@ -554,7 +563,8 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
                 .isEqualTo(paid ? SeatStatus.RESERVED : SeatStatus.AVAILABLE);
     }
 
-    @Test void aLocalCleanupFailureRollsBackEverythingAndTheNextPgQueryCanRetryIt() {
+    @Test
+    void aLocalCleanupFailureRollsBackEverythingAndTheNextPgQueryCanRetryIt() {
         plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED";
         doThrow(new IllegalStateException("cache sync registration failed")).when(cache)
                 .syncAvailableSeatsAfterCommit(anyList(), anyString(), anyString());
@@ -566,15 +576,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(counts.findAll().getFirst().getTicketCount()).isEqualTo(1);
         reset(cache); expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
-    }
-
-    @Test void anOldKafkaExpirationCannotBypassPgConfirmationForLinkedPayments() {
-        plan(); prepareAndIssue(); movePastDeadline();
-        assertThatThrownBy(() -> deposits.expireFromGateway(VirtualAccountExpiredEvent.builder().paymentNo("PAY-1")
-                .amount(BigDecimal.valueOf(10000)).bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
-                .accountNumber("1111-123456").expiredAt(deadline.plusSeconds(1)).build()))
-                .hasMessageContaining("PG의 확정 상태 조회");
-        assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
     }
 
     private void movePastDeadline() {

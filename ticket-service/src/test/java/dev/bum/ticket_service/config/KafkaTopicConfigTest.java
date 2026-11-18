@@ -18,6 +18,8 @@ class KafkaTopicConfigTest {
     @DisplayName("결제 완료 원본 topic과 DLT topic을 설정값 기준으로 생성")
     void paymentCompletedTopicsUseConfiguredTopicName() {
         contextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean("virtualAccountExpiredTopic")
+                    .doesNotHaveBean("virtualAccountExpiredDltTopic");
             NewTopic originTopic = context.getBean("paymentCompletedTopic", NewTopic.class);
             NewTopic dltTopic = context.getBean("paymentCompletedDltTopic", NewTopic.class);
 

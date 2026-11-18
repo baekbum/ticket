@@ -8,8 +8,6 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
-import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
@@ -31,7 +29,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.BDDMockito.given;
@@ -44,6 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({JwtAuthenticationFilter.class, SecurityConfig.class})
 @WebMvcTest(PaymentController.class)
 class PaymentControllerTest {
+
+
+
     @MockitoBean
     private TokenStateStore tokenStateStore;
 
@@ -221,55 +221,13 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("payment-gateway 가상계좌 입금 완료 정보를 반영한다")
-    void complete_virtual_account_deposit_from_gateway() throws Exception {
-        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .bankCompany(BankCompany.KB)
-                .bankName("KB국민은행")
-                .accountNumber("1111-1234-123456")
-                .depositorName("아이유")
-                .amount(BigDecimal.valueOf(180000))
-                .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
-                .build();
-        PaymentResponse response = PaymentResponse.builder()
-                .paymentId(1L)
-                .reservationId(1L)
-                .orderId("ORDER-1")
-                .paymentNo(request.getPaymentNo())
-                .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.PAID)
-                .amount(180000)
-                .build();
-
-        given(paymentService.completeVirtualAccountDepositFromGateway(request)).willReturn(response);
-
+    void retiredDepositCallbackCannotBypassTheMerchantNotificationContract() throws Exception {
         mockMvc.perform(post(baseUrl + "/internal/virtual-account/deposit/complete")
                         .header("X-Service-Token", serviceToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result").value("APPLIED"))
-                .andExpect(jsonPath("$.payment.paymentNo").value(request.getPaymentNo()))
-                .andExpect(jsonPath("$.payment.status").value("PAID"));
+                        .content("{}"))
+                .andExpect(status().isNotFound());
 
-        then(internalServiceTokenValidator).should().validate(serviceToken);
-        then(paymentService).should().completeVirtualAccountDepositFromGateway(request);
-    }
-
-    @Test
-    void cancelledReservationIsReturnedAsBusinessResultToGateway() throws Exception {
-        VirtualAccountDepositCompleteRequest request = VirtualAccountDepositCompleteRequest.builder()
-                .paymentNo("PAY-1").bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
-                .accountNumber("1111-123456").depositorName("입금자").amount(BigDecimal.valueOf(10000))
-                .depositedAt(LocalDateTime.of(2026,10,27,12,0)).build();
-        given(paymentService.completeVirtualAccountDepositFromGateway(request)).willReturn(PaymentResponse.builder()
-                .paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.CANCELLED).amount(10000).build());
-        mockMvc.perform(post(baseUrl + "/internal/virtual-account/deposit/complete")
-                        .header("X-Service-Token", serviceToken).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result").value("RESERVATION_CANCELLED"))
-                .andExpect(jsonPath("$.payment.status").value("CANCELLED"));
+        then(paymentService).shouldHaveNoInteractions();
     }
 }

@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.service.payment.payment;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
@@ -53,16 +52,7 @@ public class PaymentService {
     }
 
     /**
-     * payment-gateway에서 확인한 가상계좌 입금 완료 이벤트를 결제 완료 상태로 반영한다.
-     */
-    @AuditLog(action = "VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED_FROM_GATEWAY", targetType = "PAYMENT")
-    @Observed(name = "ticket.payment.complete-virtual-account-deposit-from-gateway", contextualName = "ticket payment complete virtual account deposit from gateway")
-    public PaymentResponse completeVirtualAccountDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
-
-        return virtualAccountPaymentService.completeDepositFromGateway(request);
-    }
-    /**
-     * 공통 PG 통보의 예매 소유자까지 확인하고 기존 입금 멱등 처리와 취소 예매 규칙을 적용한다.
+     * 공통 PG 통보의 예매 소유자를 확인하고 입금 멱등 처리와 취소 예매 규칙을 적용한다.
      */
     public PaymentResponse completeVirtualAccountDepositFromGateway(
             VirtualAccountDepositCompleteRequest request,
@@ -70,16 +60,6 @@ public class PaymentService {
     ) {
 
         return virtualAccountPaymentService.completeDepositFromGateway(request, buyerReference);
-    }
-
-    /**
-     * payment-gateway 만료 스케줄러가 발행한 가상계좌 만료 이벤트를 결제 만료 상태로 반영한다.
-     */
-    @AuditLog(action = "VIRTUAL_ACCOUNT_EXPIRED_FROM_GATEWAY", targetType = "PAYMENT")
-    @Observed(name = "ticket.payment.expire-virtual-account-from-gateway", contextualName = "ticket payment expire virtual account from gateway")
-    public PaymentResponse expireVirtualAccountFromGateway(VirtualAccountExpiredEvent event) {
-
-        return virtualAccountPaymentService.expireFromGateway(event);
     }
 
     /**

@@ -5,8 +5,6 @@ import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteResponse;
-import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.ticket_service.service.payment.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,15 +35,6 @@ public class PaymentController {
     ) {
 
         return ResponseEntity.ok(paymentService.completeCardFromGateway(request));
-    }
-
-    @PostMapping("/internal/virtual-account/deposit/complete")
-    public ResponseEntity<VirtualAccountDepositCompleteResponse> completeVirtualAccountDepositFromGateway(
-            @Valid @RequestBody VirtualAccountDepositCompleteRequest request
-    ) {
-
-        return ResponseEntity.ok(VirtualAccountDepositCompleteResponse.of(
-                paymentService.completeVirtualAccountDepositFromGateway(request)));
     }
 
     @PostMapping("/internal/card/validate")

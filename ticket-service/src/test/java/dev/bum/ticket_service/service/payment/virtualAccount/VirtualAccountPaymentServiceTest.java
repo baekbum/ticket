@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
@@ -14,7 +13,6 @@ import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountPaymentInfo;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
-import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +29,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class VirtualAccountPaymentServiceTest {
@@ -51,9 +48,6 @@ class VirtualAccountPaymentServiceTest {
     @Mock
     private PaymentCompletionService paymentCompletionService;
 
-    @Mock
-    private PaymentExpirationService paymentExpirationService;
-
     @InjectMocks
     private VirtualAccountPaymentService virtualAccountPaymentService;
 
@@ -69,7 +63,7 @@ class VirtualAccountPaymentServiceTest {
         given(paymentCompletionService.completeDeposit(payment, depositRequest.getDepositedAt(), depositRequest.getDepositorName()))
                 .willReturn(paymentResponse);
 
-        PaymentResponse response = virtualAccountPaymentService.completeDepositFromGateway(depositRequest);
+        PaymentResponse response = virtualAccountPaymentService.completeDepositFromGateway(depositRequest, "user01");
 
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
         then(paymentCompletionService).should().completeDeposit(payment, depositRequest.getDepositedAt(), depositRequest.getDepositorName());
@@ -84,7 +78,7 @@ class VirtualAccountPaymentServiceTest {
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(depositRequest.getPaymentNo())).willReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest))
+        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest, "user01"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("입금 금액이 일치하지 않습니다.");
 
@@ -93,8 +87,8 @@ class VirtualAccountPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("입금 완료 시각이 결제 기한 이후면 공통 만료 처리로 예매와 좌석까지 정리한다")
-    void expire_virtual_account_deposit_after_payment_expires_at() {
+    @DisplayName("입금 기한 이후의 통보는 거절하며 로컬 결제를 독자적으로 만료하지 않는다")
+    void reject_late_deposit_without_local_expiration() {
         Reservation reservation = reservation(event(), "user01");
         Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
         VirtualAccountDepositCompleteRequest depositRequest = VirtualAccountDepositCompleteRequest.builder()
@@ -109,56 +103,29 @@ class VirtualAccountPaymentServiceTest {
 
         given(paymentJpaRepository.findByPaymentNoForUpdate(depositRequest.getPaymentNo())).willReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest))
+        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(depositRequest, "user01"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("입금 기한이 만료되었습니다.");
 
-        then(paymentExpirationService).should().expire(payment);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
-    @Test
-    @DisplayName("payment-gateway 가상계좌 만료 이벤트 수신 시 결제 만료를 처리한다")
-    void expire_virtual_account_from_gateway_success() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = "another-owner")
+    void depositRequiresThePreparedReservationOwner(String buyerReference) {
         Reservation reservation = reservation(event(), "user01");
-        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
-        VirtualAccountExpiredEvent event = virtualAccountExpiredEvent(BigDecimal.valueOf(180000));
+        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT,
+                LocalDateTime.of(2099, 7, 27, 23, 59, 59));
+        VirtualAccountDepositCompleteRequest request = virtualAccountDepositCompleteRequest(BigDecimal.valueOf(180000));
+        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
 
-        given(paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())).willReturn(Optional.of(payment));
-        doAnswer(invocation -> {
-            Payment target = invocation.getArgument(0);
-            target.expire();
-            return null;
-        }).when(paymentExpirationService).expire(payment);
-
-        PaymentResponse response = virtualAccountPaymentService.expireFromGateway(event);
-
-        assertThat(response.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
-        then(paymentExpirationService).should().expire(payment);
-    }
-
-    @Test
-    @DisplayName("payment-gateway 가상계좌 만료 이벤트 계좌가 다르면 결제 상태를 유지한다")
-    void expire_virtual_account_from_gateway_account_mismatch() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = virtualAccountPayment(reservation, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.of(2026, 8, 20, 23, 59, 59));
-        VirtualAccountExpiredEvent event = VirtualAccountExpiredEvent.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .bankCompany(BankCompany.KB)
-                .bankName("KB국민은행")
-                .accountNumber("9999-2222-3333-4444")
-                .amount(BigDecimal.valueOf(180000))
-                .expiredAt(LocalDateTime.of(2026, 8, 20, 23, 59, 59))
-                .build();
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(event.getPaymentNo())).willReturn(Optional.of(payment));
-
-        assertThatThrownBy(() -> virtualAccountPaymentService.expireFromGateway(event))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("입금 계좌번호가 일치하지 않습니다.");
+        assertThatThrownBy(() -> virtualAccountPaymentService.completeDepositFromGateway(request, buyerReference))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-        then(paymentExpirationService).shouldHaveNoInteractions();
+        then(paymentCompletionService).shouldHaveNoInteractions();
     }
 
     private VirtualAccountDepositCompleteRequest virtualAccountDepositCompleteRequest(BigDecimal amount) {
@@ -170,17 +137,6 @@ class VirtualAccountPaymentServiceTest {
                 .depositorName("아이유")
                 .amount(amount)
                 .depositedAt(LocalDateTime.of(2026, 8, 19, 12, 0))
-                .build();
-    }
-
-    private VirtualAccountExpiredEvent virtualAccountExpiredEvent(BigDecimal amount) {
-        return VirtualAccountExpiredEvent.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .bankCompany(BankCompany.KB)
-                .bankName("KB국민은행")
-                .accountNumber("1111-2222-3333-4444")
-                .amount(amount)
-                .expiredAt(LocalDateTime.of(2026, 8, 20, 23, 59, 59))
                 .build();
     }
 

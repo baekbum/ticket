@@ -68,15 +68,6 @@ app:
     expiration:
       enabled: true
       cron: "0 0 0 * * *"
-    expired-outbox-publisher:
-      enabled: true
-      fixed-delay-ms: 30000
-
-topic:
-  payment:
-    virtual-account:
-      expired:
-        name: virtual-account-expired
 
 management:
   tracing:

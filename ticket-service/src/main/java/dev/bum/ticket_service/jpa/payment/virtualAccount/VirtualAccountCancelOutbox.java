@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.jpa.payment.virtualAccount;
 
-import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.ticket_service.feign.paymentgateway.GatewayAccountCancelRequest;
@@ -100,11 +99,15 @@ public class VirtualAccountCancelOutbox {
     // 가상계좌 취소 Outbox 이벤트 처리에서 처리 대기 상태로 구성한다.
     public static VirtualAccountCancelOutbox pending(Payment payment) {
 
+        if (payment.getGatewayBankCompany() == null) {
+            throw new IllegalArgumentException("신규 PG 가상계좌의 취소 작업만 등록할 수 있습니다.");
+        }
+
         VirtualAccountCancelOutbox outbox = new VirtualAccountCancelOutbox();
         outbox.paymentNo = payment.getPaymentNo();
         outbox.pgPaymentId = payment.getPgPaymentId();
         outbox.bankCompany = payment.getGatewayBankCompany();
-        outbox.buyerReference = payment.getGatewayBankCompany() == null ? null : payment.getReservation().getUserId();
+        outbox.buyerReference = payment.getReservation().getUserId();
         outbox.bankName = payment.getBankName();
         outbox.accountNumber = payment.getAccountNumber();
         outbox.amount = payment.getAmount();
@@ -168,12 +171,6 @@ public class VirtualAccountCancelOutbox {
 
         gatewayResult = result;
         gatewayReason = reason;
-    }
-
-    // 후속 처리에 사용할 요청 객체로 변환한다.
-    public GatewayVirtualAccountCancelRequest toRequest() {
-
-        return new GatewayVirtualAccountCancelRequest(paymentNo, bankName, accountNumber, BigDecimal.valueOf(amount));
     }
 
     // 가상계좌 취소 Outbox 이벤트 처리에서 전달 완료 상태를 반영한다.

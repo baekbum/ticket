@@ -75,10 +75,6 @@ topic:
   payment:
     completed:
       name: payment-completed
-    virtual-account:
-      expired:
-        name: virtual-account-expired
-        group-id: ticket-virtual-account-expire-group
   audit:
     log:
       name: audit-log

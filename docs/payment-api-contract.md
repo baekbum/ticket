@@ -37,7 +37,7 @@ PG의 가맹점 인증 기반 거래 준비·조회 API가 추가되었다. 2026
 - 사용자는 `ticket-service`의 `CheckoutController.prepare`로 결제 화면 진입 가능 여부를 검증한다.
 - `CheckoutController.confirm`은 예약, 배송, 결제 row를 생성하고 `paymentNo`를 반환한다.
 - 카드 승인과 승인 상태 조회는 사용자 access token으로 `payment-gateway-service`에 직접 요청한다.
-- 신규 PG 가상계좌 준비·조회·발급·취소는 `ticket-service`가 `Merchant`·`credentialKey`로 요청한다. 레거시 발급·조회·환불은 기존 `X-Service-Token` 계약을 유지한다.
+- 신규 PG 가상계좌 준비·조회·발급·취소는 `ticket-service`가 `Merchant`·`credentialKey`로 요청한다. 구형 발급·조회·취소·환불 계약과 Ticksy의 구형 입금 완료·관리자 정합성 API는 폐쇄했다.
 - 가상계좌 테스트 입금 발생은 입금 제공자가 `X-Payment-Provider-Token`으로 `payment-gateway-service`에 요청한다.
 - `payment-gateway-service`는 성공/실패 결과를 `ticket-service` 내부 API로 반영한다.
 - 서비스 간 내부 API는 `X-Service-Token` 헤더로 보호한다.

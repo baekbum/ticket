@@ -69,7 +69,7 @@ HTTP 조회는 DB 트랜잭션 밖에서 수행한다. 최종 반영은 예약 �
 
 확정 EXPIRED이면 PaymentExpirationService.expire를 재사용해 Payment·Reservation·Ticket 만료, 좌석 AVAILABLE, 구매 매수 반환, 배송 취소, 쿠폰 복원, 좌석 캐시 동기화를 함께 처리한다. 로컬 반영 실패 시 모두 롤백하며 다음 조회로 재시도한다. 이미 만료된 결제는 다시 처리하지 않는다.
 
-기존 시간 기준 PaymentExpirationScheduler는 신규 PG 무통장을 READY 상태부터 제외한다. 기존 Kafka 만료 수신도 신규 PG 연결 거래를 직접 만료시킬 수 없다. PG ID가 없는 레거시 계좌의 기존 은행 스케줄러·Kafka 통보·Ticksy 처리는 유지한다.
+기존 시간 기준 PaymentExpirationScheduler는 신규 PG 무통장을 READY 상태부터 제외한다. 2026-11-18 구형 Kafka 만료 리스너·생산자와 Ticksy 직접 만료 진입점을 제거했다. 신규 계좌는 PG의 확정 상태 조회로만 만료하며, 기존 Kafka 브로커 토픽 자체는 삭제하지 않았다.
 
 ## 스키마와 배포
 

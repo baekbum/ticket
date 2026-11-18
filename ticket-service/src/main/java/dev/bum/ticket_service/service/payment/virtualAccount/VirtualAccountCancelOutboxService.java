@@ -26,7 +26,7 @@ public class VirtualAccountCancelOutboxService {
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getStatus() != PaymentStatus.CANCELLED
                 || payment.getReservation() == null || payment.getReservation().getStatus() != ReservationStatus.CANCELLED
                 || !StringUtils.hasText(payment.getPaymentNo())
-                || (payment.getGatewayBankCompany() == null && !StringUtils.hasText(payment.getAccountNumber()))
+                || payment.getGatewayBankCompany() == null
                 || !StringUtils.hasText(payment.getBankName()) || payment.getAmount() == null) {
             throw new IllegalStateException("취소된 무통장 결제와 계좌 정보가 필요합니다.");
         }
@@ -36,10 +36,8 @@ public class VirtualAccountCancelOutboxService {
         VirtualAccountCancelOutbox pending = VirtualAccountCancelOutbox.pending(payment);
         if (existing == null) {
             repository.save(pending);
-        } else if (payment.getGatewayBankCompany() != null) {
+        } else {
             existing.bindGateway(payment);
-        } else if (!existing.toRequest().equals(pending.toRequest())) {
-            throw new IllegalStateException("같은 결제의 계좌 취소 정보가 일치하지 않습니다.");
         }
     }
 }
