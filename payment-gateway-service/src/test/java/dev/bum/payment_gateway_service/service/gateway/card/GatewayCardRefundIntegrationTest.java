@@ -11,7 +11,6 @@ import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.security.*;
 import dev.bum.payment_gateway_service.security.merchant.*;
-import dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService;
 import dev.bum.payment_gateway_service.service.financial.card.CardPaymentRefundService;
 import dev.bum.payment_gateway_service.service.gateway.refund.*;
 import dev.bum.payment_gateway_service.support.CardCredentials;
@@ -116,7 +115,6 @@ class GatewayCardRefundIntegrationTest {
     @Autowired PlatformTransactionManager transactions;
     @Autowired Faults faults;
     @Autowired MockMvc mvc;
-    @MockitoBean GatewayCardPaymentService legacyCards;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     Merchant first;

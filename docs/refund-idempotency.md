@@ -1,5 +1,7 @@
 # 환불 요청 멱등성
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 ticket-service의 `paymentRefundProcessId`를 카드/가상계좌 PG 환불 요청에 전달한다. 신규 환불 프로세스는 PG 호출 전에 `REQUIRES_NEW` 트랜잭션으로 커밋하며, 실패 재시도는 기존 프로세스 ID를 재사용한다.
 
 PG의 `gateway_refunds`는 최초 요청과 처리 상태(`REQUESTED`, `SUCCEEDED`, `FAILED`, `CLOSED`), 성공 응답과 실패 이유를 저장한다. 프로세스 ID가 기본 키이며, 같은 ID로 결제번호·결제 수단·금액·카드 거래번호 또는 환불 계좌 정보가 달라지면 거부한다. 이미 성공한 요청의 재전달에는 원래 성공 응답을 반환하고, 미완료·실패 요청은 같은 ID와 최초 조건으로 재시도한다. 금액의 소수점 표현 차이(4000과 4000.00)는 같은 금액으로 취급한다.

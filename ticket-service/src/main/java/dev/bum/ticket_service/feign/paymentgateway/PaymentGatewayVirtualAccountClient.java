@@ -23,9 +23,4 @@ public interface PaymentGatewayVirtualAccountClient {
     @GetMapping("/api/v1/payments/virtual-account/internal/{paymentNo}/status")
     GatewayVirtualAccountStatusResponse status(@PathVariable("paymentNo") String paymentNo);
 
-    @PostMapping("/api/v1/payments/virtual-account/issue")
-    GatewayVirtualAccountIssueResponse issue(@RequestBody GatewayVirtualAccountIssueRequest request);
-
-    @PostMapping("/api/v1/payments/virtual-account/refund")
-    GatewayVirtualAccountRefundResponse refund(@RequestBody GatewayVirtualAccountRefundRequest request);
 }

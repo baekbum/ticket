@@ -4,13 +4,6 @@ import { ApiRequestError, SessionExpiredError, type createAuthenticatedRequest }
 import { CARD_COMPANIES } from './cardPayment';
 
 type Ticket = { ticketId: number; seatName: string; zone: string; seatRow: number; seatCol: number; grade: string; price: number; status: string };
-type CancelReservationResponse = {
-  reservationId: number;
-  paymentRefundProcessId: number | null;
-  previousRequestRecovered: boolean;
-  cancelledTicketIds: number[];
-  message: string;
-};
 type RefundApplication = { paymentRefundProcessId: number; selectedTicketIds: string; refundAmount: number; cancellationFeeAmount: number; status: string; refundBankCompany: string | null; refundAccountNumberMasked: string | null; createdAt: string };
 type RefundAction = { outcome: 'SUCCEEDED' | 'WITHDRAWN'; application: RefundApplication; message: string };
 const finishedRefund = (status: string) => ['LOCAL_SUCCEEDED', 'WITHDRAWN', 'SUPERSEDED'].includes(status);
@@ -111,52 +104,25 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
 
   async function submitRefund(ticket: Ticket) {
     if (!detail || refundingTicketId != null) return;
+    if (!isGatewayPayment) {
+      setConfirmTicket(null);
+      setRefundAlert({ message: 'PG 결제 정보가 없어 환불을 요청할 수 없습니다. 예매 내역을 확인해주세요.', kind: 'error' });
+      return;
+    }
 
     setConfirmTicket(null);
     setRefundingTicketId(ticket.ticketId);
     try {
-      if (isGatewayPayment) {
-        const result = await request<RefundAction>(`/ticket/api/v1/reservation/${reservationId}/refunds`, {
-          method: 'POST', body: JSON.stringify({ eventId: detail.reservation.eventId,
-            selectedTicketIdList: refundSelection.length ? refundSelection : [ticket.ticketId],
-            refundAccount: isBankTransfer ? { bankCompany, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() } : null }),
-        });
-        setRefundAlert({ message: result.message, kind: 'success' });
-        setRefundTicket(null);
-        setSelectedIds([]);
-        setAccountNumber('');
-        setAccountHolder('');
-        setRetry((value) => value + 1);
-        onRefunded?.();
-        return;
-      }
-      const result = await request<CancelReservationResponse>(`/ticket/api/v1/reservation/cancel/id/${reservationId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          userId: detail.reservation.userId,
-          selectedTicketIdList: [ticket.ticketId],
-          eventId: detail.reservation.eventId,
-          refundAccount: isBankTransfer ? {
-            bankCompany,
-            accountNumber: accountNumber.trim(),
-            accountHolder: accountHolder.trim(),
-          } : null,
-        }),
+      const result = await request<RefundAction>(`/ticket/api/v1/reservation/${reservationId}/refunds`, {
+        method: 'POST', body: JSON.stringify({ eventId: detail.reservation.eventId,
+          selectedTicketIdList: refundSelection.length ? refundSelection : [ticket.ticketId],
+          refundAccount: isBankTransfer ? { bankCompany, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() } : null }),
       });
+      setRefundAlert({ message: result.message, kind: 'success' });
       setRefundTicket(null);
-      setBankCompany('');
+      setSelectedIds([]);
       setAccountNumber('');
       setAccountHolder('');
-      const cancelledSeats = result.cancelledTicketIds.map((id) => {
-        const cancelledTicket = detail.tickets.find((item) => item.ticketId === id);
-        return cancelledTicket ? seatName(cancelledTicket) : `티켓 #${id}`;
-      }).join(', ');
-      setRefundAlert({
-        message: result.previousRequestRecovered
-          ? `${result.message} 처리된 좌석: ${cancelledSeats}`
-          : result.message,
-        kind: 'success',
-      });
       setRetry((value) => value + 1);
       onRefunded?.();
     } catch (failure) {

@@ -4,7 +4,7 @@ import dev.bum.common.service.paymentgateway.notification.*;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.service.payment.payment.PaymentService;
-import dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutCommandService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;

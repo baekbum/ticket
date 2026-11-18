@@ -1,5 +1,7 @@
 # 결제 API 계약
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 2026-11-16 신규 카드→무통장 전환은 카드사의 승인 차단과 기존 성공 복구를 거친다. [전환 API·세션 무효화·경합 계약](payment-gateway-card-method-change.md)을 따른다.
 
 2026-11-15 신규 PG 카드의 전액·부분 환불과 신청 철회를 공통 가맹점 환불 API에 연결했다. [카드 환불·재시도·철회 계약](payment-gateway-card-refund.md)을 우선한다.
@@ -14,7 +16,7 @@
 
 2026-11-11 Ticksy 신규 무통장 checkout은 가맹점 인증 PG prepare → pgPaymentId 저장 → 계좌 발급으로 전환했다. 취소 Outbox는 신규 PG ID 경로의 202 접수와 최종 통보를 구분한다. 기존 checkout URL은 유지하고 PaymentResponse에 nullable pgPaymentId를 추가한다. [Ticksy 호출·스키마·현재 제한](ticksy-gateway-virtual-account.md)을 우선한다. 신규 PG 가상계좌 환불은 별도 신청·철회 API로 연결했으며 만료는 PG 상태 조회로 연결했다.
 
-2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌는 POST /api/v1/banks/virtual-accounts/legacy/deposit를 사용한다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
+2026-11-11 최신 구조: 입금은 BankController의 은행 업무 API다. POST /api/v1/banks/virtual-accounts/deposit에서 은행 상태·입금 이력·은행→PG Outbox를 함께 저장하고, PG는 수신 후 Ticksy에 별도 Outbox로 통보한다. Postman·Bruno도 같은 은행 API를 호출한다. 별도 테스트 컨트롤러와 support 입금 URL은 제거했다. 기존 PG 미연결 계좌의 legacy/deposit 경로는 폐쇄했다. 인증은 기존 X-Payment-Provider-Token을 유지하며 PG→은행의 기존 내부 업무 URL과 금융 인증도 유지한다. [은행 API 상세](payment-gateway-bank-api.md)를 참고한다.
 
 2026-11-09 신규 PG 카드 결과 통보는 [공통 요청/응답 계약](payment-gateway-standard-card-notification.md)을 사용한다. PG는 등록된 전체 URL을 공통 send 인자로 전달하고, Ticksy는 POST /api/v1/payments/internal/gateway/card/notifications에서 수신한다. 기존 settle 엔드포인트는 유지한다.
 

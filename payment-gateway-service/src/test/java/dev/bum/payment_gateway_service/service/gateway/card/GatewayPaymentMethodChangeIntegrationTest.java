@@ -103,7 +103,6 @@ class GatewayPaymentMethodChangeIntegrationTest {
     @Autowired PlatformTransactionManager transactions;
     @Autowired Faults faults;
     @Autowired MockMvc mvc;
-    @MockitoBean dev.bum.payment_gateway_service.service.financial.card.GatewayCardPaymentService legacy;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore jwtStates;
     @MockitoBean MerchantNotificationTargetResolver destinations;

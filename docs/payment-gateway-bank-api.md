@@ -1,5 +1,7 @@
 # 은행 입금 API와 PG 통보
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 입금은 은행 업무이므로 BankController에서 처리한다. Postman·Bruno는 입금망에서 발생하는 요청을 재현할 때 같은 API를 호출하며, 별도 테스트 컨트롤러나 support API를 두지 않는다.
 
 ## 호출 방향

@@ -1,17 +1,15 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.jpa.event.event.*;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentHistory;
@@ -33,7 +31,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.*;
 import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
-import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
 import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentService;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
@@ -79,8 +76,8 @@ import static org.mockito.Mockito.times;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
-        dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutCommandService.class,
+@Import({PaymentRefundProcessService.class, PaymentRefundRollbackRecorder.class,
+        dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService.class,
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
@@ -89,20 +86,11 @@ import static org.mockito.Mockito.times;
         dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
-    @MockitoBean PaymentGatewayRefundClient refundResolution;
 
     @BeforeEach
-    void configureTimeAndGatewayResolution() {
+    void configureTime() {
         given(clock.instant()).willReturn(Instant.parse("2026-10-15T03:00:00Z"));
         given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
-        given(refundResolution.resolve(any())).willAnswer(invocation -> {
-            GatewayRefundResolutionRequest request = invocation.getArgument(0);
-            return GatewayRefundResolutionResponse.builder()
-                    .paymentRefundProcessId(request.paymentRefundProcessId())
-                    .paymentNo(request.paymentNo())
-                    .outcome(Outcome.NOT_FOUND)
-                    .build();
-        });
     }
 
     @Autowired PaymentRefundProcessService processService;
@@ -381,9 +369,8 @@ class PaymentModelIntegrationTest {
         process.gatewayRetryRequested();
         process.gatewaySucceeded();
         payment.applyCancellation(5000, 1000);
-        processService.completeCancellation(
-                process.getPaymentRefundProcessId(),
-                payment);
+        refundHistories.save(PaymentRefundHistory.create(process, payment));
+        process.localSucceeded();
         processes.flush();
         Long id = process.getPaymentRefundProcessId();
         Reservation reservation = process.getReservation();

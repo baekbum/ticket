@@ -20,6 +20,7 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
 
   // 세션은 메모리에만 두고 만료/새로고침 시 Ticksy에서 본인 거래의 세션을 다시 받는다.
   async function paymentSession() {
+    if (!payment.pgPaymentId) throw new Error('PG 결제 준비 정보가 없습니다. 같은 결제 요청으로 다시 시도해주세요.');
     const saved = sessionRef.current;
     if (saved && saved.pgPaymentId === payment.pgPaymentId && Date.parse(saved.expiresAt) > Date.now() + 5000) return saved;
     const received = await request<NonNullable<typeof saved>>(`/ticket/api/v1/checkout/payments/${encodeURIComponent(payment.paymentNo)}/gateway-session`, { method: 'POST' });
@@ -55,20 +56,23 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
   // 응답을 잃어도 같은 결제번호의 결과만 조회한다. 카드 정보는 저장하지 않는다.
   useEffect(() => {
     if (phase !== 'PENDING') return;
+    if (!payment.pgPaymentId) {
+      setPhase('TERMINAL');
+      setError('PG 결제 준비 정보가 없습니다. 같은 결제 요청으로 다시 시도해주세요.');
+      return;
+    }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 8000);
     let next: number | undefined;
     let disposed = false;
     async function check() {
       try {
-        const session = payment.pgPaymentId ? await paymentSession() : null;
-        const url = payment.pgPaymentId
-          ? `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(payment.pgPaymentId)}`
-          : `/payment-gateway/api/v1/payments/card/${encodeURIComponent(payment.paymentNo)}`;
+        const session = await paymentSession();
+        const url = `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(session.pgPaymentId)}`;
         const result = await request<CardApprovalResponse>(url,
-          { method: 'GET', signal: controller.signal, headers: session ? { 'X-PG-Payment-Session': session.paymentSession } : undefined });
+          { method: 'GET', signal: controller.signal, headers: { 'X-PG-Payment-Session': session.paymentSession } });
         if (disposed) return;
-        if (result.paymentNo !== payment.paymentNo || (payment.pgPaymentId && result.pgPaymentId !== payment.pgPaymentId)) throw new Error('결제 번호를 확인하지 못했습니다.');
+        if (result.paymentNo !== payment.paymentNo || result.pgPaymentId !== payment.pgPaymentId) throw new Error('결제 번호를 확인하지 못했습니다.');
         const outcome = cardResult(result);
         if (outcome === 'COMPLETE') {
           sessionStorage.removeItem(attemptKey);
@@ -92,7 +96,7 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
           setError(failure.message);
           return;
         }
-        if (failure instanceof ApiRequestError && ((failure.status === 400 && !payment.pgPaymentId) || (failure.status === 404 && payment.pgPaymentId))) {
+        if (failure instanceof ApiRequestError && failure.status === 404) {
           if (payment.pgPaymentId && sessionRef.current?.canApprove === false) {
             setPhase('TERMINAL');
             setError('카드 승인 기한이 만료되었습니다. 예매 내역을 확인해주세요.');
@@ -173,20 +177,18 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     let approvalRequested = false;
     try {
-      const session = payment.pgPaymentId ? await paymentSession() : null;
-      if (session && !session.canApprove) {
+      const session = await paymentSession();
+      if (!session.canApprove) {
         setPhase('PENDING');
         return;
       }
       const body = JSON.stringify(buildCardApprovalRequest(form, payment));
       sessionStorage.setItem(attemptKey, 'PENDING');
       approvalRequested = true;
-      const url = payment.pgPaymentId
-        ? `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(payment.pgPaymentId)}/approve`
-        : '/payment-gateway/api/v1/payments/card/approve';
+      const url = `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(session.pgPaymentId)}/approve`;
       const result = await request<CardApprovalResponse>(url,
-        { method: 'POST', body, signal: controller.signal, headers: session ? { 'X-PG-Payment-Session': session.paymentSession } : undefined });
-      if (result.paymentNo === payment.paymentNo && (!payment.pgPaymentId || result.pgPaymentId === payment.pgPaymentId) && cardResult(result) === 'COMPLETE') {
+        { method: 'POST', body, signal: controller.signal, headers: { 'X-PG-Payment-Session': session.paymentSession } });
+      if (result.paymentNo === payment.paymentNo && result.pgPaymentId === payment.pgPaymentId && cardResult(result) === 'COMPLETE') {
         sessionStorage.removeItem(attemptKey);
         resetInputs();
         onComplete(result);

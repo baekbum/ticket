@@ -76,7 +76,7 @@ class GatewayCardApprovalIntegrationTest {
     @EnableAutoConfiguration
     @EntityScan(basePackages = "dev.bum.payment_gateway_service.jpa")
     @EnableJpaRepositories(basePackages = "dev.bum.payment_gateway_service.jpa")
-    @Import({GatewayCardCheckoutController.class, GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class, GatewayCardSessionToken.class, GatewayCardApiService.class, SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+    @Import({GatewayCardCheckoutController.class, GatewayCardCheckoutService.class, GatewayCardCheckoutCommands.class, GatewayCardSessionToken.class, SecurityConfig.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayCardApprovalService.class, GatewayCardApprovalCommandService.class,
             CardApprovalService.class, CardApprovalCommandService.class, CardApprovalGateCreator.class, CardApprovalGateAccess.class, GatewayPaymentController.class,
@@ -109,7 +109,6 @@ class GatewayCardApprovalIntegrationTest {
     @MockitoSpyBean GatewayCardNotificationJpaRepository notifications;
     @MockitoSpyBean FinancialSimulationGatewayService financial;
     @MockitoSpyBean StandardCardNotificationAdapter adapter;
-    @MockitoBean GatewayCardPaymentService legacyCards;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokenStateStore;
 
@@ -202,7 +201,6 @@ class GatewayCardApprovalIntegrationTest {
         assertThat(json.writeValueAsString(histories.findByPaymentPgPaymentIdAndOperationTypeAndOperationKey(
                 id, GatewayPaymentOperation.APPROVE, "INITIAL").orElseThrow().getDetails())).doesNotContain(pan, "cvc", "cardPassword");
         assertThat(callbacks).isEmpty();
-        verifyNoInteractions(legacyCards);
     }
 
     @Test
@@ -542,7 +540,6 @@ class GatewayCardApprovalIntegrationTest {
         });
         assertThat(approvals.findPendingPaymentNos(List.of(CardPaymentHistoryStatus.APPROVED),
                 org.springframework.data.domain.PageRequest.of(0, 100))).isEmpty();
-        verifyNoInteractions(legacyCards);
     }
 
     @Test
@@ -668,7 +665,6 @@ class GatewayCardApprovalIntegrationTest {
                 new BigDecimal("100"), deadline).toString()).doesNotContain(pan, "123", "12");
     }
 
-
     @Test
     void browserSessionApprovesOnlyItsPgTransactionAndWaitsForMerchantDelivery() throws Exception {
         String id = prepare("test-merchant-a", "PAY-BROWSER", "100", PaymentMethod.CREDIT_CARD);
@@ -682,7 +678,6 @@ class GatewayCardApprovalIntegrationTest {
         mvc.perform(get("/api/v1/payments/card/checkout/" + id).with(client("buyer"))
                         .header(GatewayCardSessionToken.HEADER, session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.notificationStatus").value("DELIVERED"));
-        verifyNoInteractions(legacyCards);
     }
 
     @Test

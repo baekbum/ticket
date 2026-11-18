@@ -29,7 +29,7 @@ import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
-import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
 import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
 import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;

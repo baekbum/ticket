@@ -4,7 +4,7 @@ import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelResp
 import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
 import dev.bum.ticket_service.feign.paymentgateway.*;
 import dev.bum.ticket_service.jpa.payment.virtualAccount.VirtualAccountCancelOutbox;
-import dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

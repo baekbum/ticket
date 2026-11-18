@@ -85,3 +85,8 @@ Ticksy 통합 테스트는 로컬 준비 커밋 → 실제 가맹점 인증 HTTP
 - 프런트엔드 테스트 37개, TypeScript/Vite 빌드, PG·Ticksy bootJar 빌드가 통과했다.
 - 세션 조회를 PG prepare와 분리한 뒤 GatewayCardCheckoutIntegrationTest 8개를 H2에서 재실행해 통과했다. PG ID가 없는 세션 요청은 PG 준비·세션 HTTP를 모두 실행하지 않는 것도 확인했다.
 - 실행 중인 전체 서비스와 실제 브라우저를 연결한 수동 결제는 이번 검증에 포함하지 않았다. HTTP 연동은 통합 테스트의 금융/가맹점 서버와 실제 Feign·RestClient를 사용해 확인했다.
+## 체크아웃 결제 서비스 패키지
+
+`service.checkout.payment`의 공통 진입점은 `CheckoutPaymentService`다. 하위 `card`는 카드 PG 준비·세션 발급과 로컬 명령, `virtualAccount`는 입금기한 계산·발급 준비·PG 계좌 발급과 결과 반영을 담당한다. `translate`에는 `CardToBankCheckoutService`, `BankToCardCheckoutService`, `CheckoutMethodChangeCommandService`를 두어 양방향 결제수단 전환을 모았다. 패키지 분리는 API·트랜잭션·멱등 처리 동작을 변경하지 않는다.
+
+패키지 분리 후 체크아웃 회귀 테스트 140개가 실패·건너뜀 없이 통과했고 Ticksy bootJar 빌드도 통과했다.

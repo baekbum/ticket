@@ -1,5 +1,7 @@
 # PG 거래 기반 가상계좌 만료
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 2026-11-12 신규 PG 연결 계좌는 은행→PG 만료 Outbox와 Ticksy의 PG 상태 조회를 사용한다. 만료 시각은 Ticksy가 조회 후보를 고르는 기준이며, 실제 예매·좌석 만료는 PG가 은행 만료를 확정한 EXPIRED 상태로만 처리한다.
 
 ## 상태의 근거

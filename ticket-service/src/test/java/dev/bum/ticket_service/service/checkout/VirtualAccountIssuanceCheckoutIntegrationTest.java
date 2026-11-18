@@ -1,5 +1,8 @@
 package dev.bum.ticket_service.service.checkout;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
+
 import dev.bum.ticket_service.service.payment.virtualAccount.*;
 import dev.bum.ticket_service.service.checkout.payment.*;
 import dev.bum.ticket_service.service.payment.notification.*;
@@ -115,8 +118,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @MockitoBean SeatCacheService cache;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean PaymentRefundProcessService refunds;
-    @MockitoBean CardPaymentRefundService cardRefunds;
-    @MockitoBean VirtualAccountPaymentRefundService bankRefunds;
     @MockitoBean PaymentGatewayVirtualAccountClient gateway;
     Fixture fixture;
 
@@ -125,8 +126,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @BeforeEach void setup() {
         when(clock.instant()).thenReturn(Instant.parse("2026-10-27T03:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-        when(refunds.inspectRequest(any(), anyList(), anyBoolean(), any()))
-                .thenReturn(new PaymentRefundRequestContext(null, false));
         doAnswer(invocation -> {
             var request = invocation.getArgument(0, GatewayVirtualAccountCancelRequest.class);
             return new GatewayVirtualAccountCancelResponse(request.paymentNo(), request.bankName(),
@@ -179,7 +178,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
             assertThat(counts.findAll().getFirst().getTicketCount()).isZero();
         });
     }
-
 
     @Autowired VirtualAccountIssuanceCheckoutService issuance;
     @Autowired VirtualAccountExpirationScheduler expirationScheduler;
@@ -423,12 +421,12 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Test void paidLinkedPaymentCannotUseLegacyReservationRefundAndRetainsItsTickets() {
         plan(); issuance.issue("PAY-1"); notifications.receive(depositEvent());
-        assertThatThrownBy(this::cancel).hasMessageContaining("신규 PG 원거래 환불");
+        assertThatThrownBy(this::cancel)
+                .hasMessage("결제 완료된 예매의 환불은 환불 신청 API를 이용해주세요.");
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(outbox.count()).isZero();
         assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.RESERVED);
-        verifyNoInteractions(bankRefunds);
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -444,7 +442,6 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         assertThat(record().getGatewayResult()).isEqualTo(outcome);
         assertThat(receipts.count()).isEqualTo(1); assertCancelled();
     }
-
 
     @Test void aPastLocalDeadlineDoesNotExpireWhilePgIsWaitingOrAlreadyPaidAndDelayedDepositStillCompletes() {
         plan(); issuance.issue("PAY-1"); movePastDeadline();

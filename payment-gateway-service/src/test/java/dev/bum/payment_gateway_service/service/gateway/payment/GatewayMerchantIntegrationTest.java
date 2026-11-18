@@ -61,7 +61,7 @@ class GatewayMerchantIntegrationTest {
     @EnableJpaRepositories(basePackageClasses = {MerchantJpaRepository.class, GatewayPaymentJpaRepository.class})
     @Import({SecurityConfig.class, GatewayPaymentController.class, GlobalExceptionHandler.class,
             GatewayPaymentService.class, GatewayPaymentCommandService.class, MerchantAuthenticationService.class,
-            InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class})
+            PaymentProviderTokenValidator.class})
     static class Config { }
 
     @Autowired MockMvc mvc;

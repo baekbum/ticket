@@ -1,5 +1,7 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
+
 import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.event.event.enums.*;
 import dev.bum.common.service.ticket.payment.dto.*;
@@ -76,7 +78,7 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @Autowired VirtualAccountCancelOutboxPublisher publisher;
     @MockitoSpyBean VirtualAccountCancelOutboxCommands deliveryCommands;
     @MockitoBean dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayTransactionClient transactionGateway;
-    @MockitoBean dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutService issuance;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService issuance;
     @Autowired VirtualAccountCancelOutboxDispatcher dispatcher;
     @Autowired VirtualAccountCancelOutboxService enqueue;
     @MockitoSpyBean VirtualAccountCancelOutboxJpaRepository outbox;
@@ -93,8 +95,6 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @MockitoBean SeatCacheService cache;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean PaymentRefundProcessService refunds;
-    @MockitoBean CardPaymentRefundService cardRefunds;
-    @MockitoBean VirtualAccountPaymentRefundService bankRefunds;
     @MockitoBean PaymentGatewayVirtualAccountClient gateway;
     Fixture fixture;
 
@@ -103,8 +103,6 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @BeforeEach void setup() {
         when(clock.instant()).thenReturn(Instant.parse("2026-10-27T03:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-        when(refunds.inspectRequest(any(), anyList(), anyBoolean(), any()))
-                .thenReturn(new PaymentRefundRequestContext(null, false));
         doAnswer(invocation -> {
             var request = invocation.getArgument(0, GatewayVirtualAccountCancelRequest.class);
             return new GatewayVirtualAccountCancelResponse(request.paymentNo(), request.bankName(),
@@ -185,6 +183,22 @@ class VirtualAccountCancelOutboxIntegrationTest {
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
         assertThat(counts.findAll().getFirst().getTicketCount()).isEqualTo(1);
         verifyNoInteractions(gateway);
+    }
+
+    @Test void unfinishedRefundPreventsUnpaidCancellationFromOverwritingTheRequest() {
+        when(refunds.hasUnfinishedRequest(any(Payment.class))).thenReturn(true);
+
+        assertThatThrownBy(this::cancel)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("입금 대기 예매에 진행 중인 환불 요청이 존재합니다.");
+
+        assertThat(outbox.count()).isZero();
+        assertThat(payments.findById(fixture.paymentId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(reservations.findById(fixture.reservationId()).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        verifyNoInteractions(gateway, transactionGateway);
     }
 
     @Test void lostPgResponseRetriesTheSameRequestAndCompletes() {

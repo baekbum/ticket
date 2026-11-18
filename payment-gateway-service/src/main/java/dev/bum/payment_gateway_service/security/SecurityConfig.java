@@ -31,10 +31,8 @@ public class SecurityConfig {
     private final Optional<LocalCorsConfig> localCorsConfig;
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenStateStore tokenStateStore;
-    private final InternalServiceTokenValidator internalServiceTokenValidator;
     private final PaymentProviderTokenValidator paymentProviderTokenValidator;
     private static final String ROLE_USER = "USER";
-    private static final String ROLE_INTERNAL = "INTERNAL_SERVICE";
     private static final String ROLE_PAYMENT_PROVIDER = "PAYMENT_PROVIDER";
 
     @Bean
@@ -90,21 +88,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/*/payments/card/checkout/*/approve").hasRole(ROLE_USER)
                         .requestMatchers(HttpMethod.GET, "/api/*/payments/card/checkout/*").hasRole(ROLE_USER)
-                        .requestMatchers(HttpMethod.POST, "/api/*/payments/card/approve").hasRole(ROLE_USER) // 카드 결제 최소 승인
-                        .requestMatchers(HttpMethod.GET, "/api/*/payments/card/internal/*/approval-exists").hasRole(ROLE_INTERNAL) // 승인 내용이 있는지 조회
-                        .requestMatchers(HttpMethod.GET, "/api/*/payments/card/*").hasRole(ROLE_USER) // 카드 상태 조회
-                        .requestMatchers(HttpMethod.GET, "/api/*/payments/virtual-account/internal/*/status").hasRole(ROLE_INTERNAL)
-                        .requestMatchers(HttpMethod.POST, "/api/*/payments/card/refund").hasRole(ROLE_INTERNAL) // 환불의 경우 ticket 서비스에서 요청
-                        .requestMatchers(HttpMethod.POST, "/api/*/payments/refunds/internal/resolve").hasRole(ROLE_INTERNAL)
-                        .requestMatchers(HttpMethod.POST, "/api/*/payments/virtual-account/cancel").hasRole(ROLE_INTERNAL)
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/*/payments/virtual-account/issue",
-                                "/api/*/payments/virtual-account/refund"
-                        ).hasRole(ROLE_INTERNAL) // 가상 계좌 발급 또는 결제 금액 환불의 경우 ticket 서비스를 통해 이루어짐
                         .requestMatchers(HttpMethod.POST,
-                                "/api/*/banks/virtual-accounts/deposit",
-                                "/api/*/banks/virtual-accounts/legacy/deposit"
+                                "/api/*/banks/virtual-accounts/deposit"
                         ).hasRole(ROLE_PAYMENT_PROVIDER) // 은행 입금 제공자의 업무 진입점
                         .anyRequest().denyAll()
                 );
@@ -118,15 +103,11 @@ public class SecurityConfig {
 
         JwtAuthenticationFilter clientAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenProvider, tokenStateStore);
 
-        // 일반 인증 필터를 기준점으로 등록한 뒤 내부 서비스 필터가 먼저 실행되도록 순서를 고정한다.
+        // 사용자 JWT와 은행 입금 제공자 인증만 등록한다. 가맹점·금융 인증은 별도 체인이다.
         http.addFilterBefore(clientAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(
-                new InternalServiceAuthenticationFilter(internalServiceTokenValidator),
-                clientAuthenticationFilter.getClass()
-        );
-        http.addFilterBefore(
                 new PaymentProviderAuthenticationFilter(paymentProviderTokenValidator),
-                InternalServiceAuthenticationFilter.class
+                clientAuthenticationFilter.getClass()
         );
     }
 

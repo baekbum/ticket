@@ -1,5 +1,7 @@
 # PG 거래 기반 카드 승인
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.
 
 2026-11-09 가맹점 통보를 [공통 계약과 URL 인자 기반 전송](payment-gateway-standard-card-notification.md)으로 변경했다. PG 전송 구현체는 하나이며 Ticksy 등 가맹점 수신부가 공통 규격을 구현한다. 금융 승인/조회·Outbox 재시도·승인 보상 흐름은 유지한다.

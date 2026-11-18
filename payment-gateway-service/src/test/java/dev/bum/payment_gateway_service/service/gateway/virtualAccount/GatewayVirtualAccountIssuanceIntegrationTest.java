@@ -16,7 +16,6 @@ import dev.bum.payment_gateway_service.controller.gateway.payment.GatewayVirtual
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.gateway.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
-import dev.bum.payment_gateway_service.feign.ticket.TicketPaymentClient;
 import dev.bum.payment_gateway_service.jpa.gateway.*;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.jpa.outbox.*;
@@ -24,14 +23,10 @@ import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
 import dev.bum.payment_gateway_service.security.*;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService;
-import dev.bum.payment_gateway_service.service.financial.virtualAccount.GatewayVirtualAccountService;
-import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountCancellationService;
-import dev.bum.payment_gateway_service.service.financial.virtualAccount.VirtualAccountExpirationScheduler;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
 import dev.bum.payment_gateway_service.service.gateway.merchant.MerchantAuthenticationService;
 import dev.bum.payment_gateway_service.service.gateway.payment.GatewayPaymentCommandService;
 import dev.bum.payment_gateway_service.service.gateway.payment.GatewayPaymentService;
-import dev.bum.payment_gateway_service.service.gateway.refund.GatewayRefundProcessService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -78,8 +73,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
-            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
-            SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+            SecurityConfig.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
@@ -87,12 +81,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankAccountIssueGateAccess.class,
             BankVirtualAccountIssueCommandService.class, GatewayPaymentController.class,
             GatewayVirtualAccountController.class, BankController.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountRefundService.class, GlobalExceptionHandler.class,
-            FinancialSimulationExceptionHandler.class, GatewayVirtualAccountService.class,
-            dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
-            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class,
-            VirtualAccountCancellationService.class, GatewayVirtualAccountDepositOutboxService.class,
-            GatewayVirtualAccountDepositOutboxDispatcher.class, GatewayVirtualAccountDepositOutboxPublisher.class,
-            VirtualAccountExpirationScheduler.class})
+            FinancialSimulationExceptionHandler.class, dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService.class,
+            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountDepositCommands.class})
     static class Config { }
 
     @Autowired MockMvc mvc;
@@ -106,13 +96,10 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @Autowired VirtualAccountOutboxEventJpaRepository expiryOutbox;
     @Autowired GatewayVirtualAccountIssuanceService issuance;
     @Autowired PlatformTransactionManager transactions;
-    @Autowired VirtualAccountExpirationScheduler expiration;
     @Autowired FinancialSimulationToken internalToken;
     @MockitoSpyBean GatewayPaymentHistoryJpaRepository histories;
     @MockitoSpyBean DummyVirtualAccountPaymentHistoryJpaRepository bankHistories;
     @MockitoSpyBean FinancialSimulationGatewayService financial;
-    @MockitoBean GatewayRefundProcessService refunds;
-    @MockitoBean TicketPaymentClient ticket;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     Merchant first;
@@ -149,7 +136,6 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
         assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(2);
         assertThat(bankHistories.count()).isEqualTo(1);
         assertThat(depositOutbox.count()).isZero();
-        verifyNoInteractions(ticket);
     }
 
     @Test
@@ -251,11 +237,10 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     }
 
     @Test
-    void anExistingBankIssueCanBeRecoveredAfterItsDeadlineAndIsExcludedFromLegacyExpiry() throws Exception {
+    void anExistingBankIssueCanBeRecoveredAfterItsDeadline() throws Exception {
         String id = historicalReady(true);
         issue("test-merchant-a", id, request()).andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountNumber").value("1111-9999-999999"));
-        expiration.expireWaitingAccounts();
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
                 .isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
         assertThat(expiryOutbox.count()).isZero();
@@ -340,16 +325,16 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     }
 
     @Test
-    void legacyReadAndCancelStayIsolatedWhileProviderDepositsUseTheLinkedPgFlow() throws Exception {
+    void retiredReadAndCancelAreDeniedWhileProviderDepositsUseTheLinkedPgFlow() throws Exception {
         String id = prepare("test-merchant-b", "PAY-ISOLATED", PaymentMethod.BANK_TRANSFER);
         JsonNode issued = issued("test-merchant-b", id);
         mvc.perform(get("/api/v1/payments/virtual-account/internal/" + id + "/status")
-                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isBadRequest());
+                .header("X-Service-Token", "test-merchant-a")).andExpect(status().isForbidden());
         GatewayVirtualAccountCancelRequest cancel = new GatewayVirtualAccountCancelRequest(id,
                 issued.get("bankName").asText(), issued.get("accountNumber").asText(), new BigDecimal("100"));
         mvc.perform(post("/api/v1/payments/virtual-account/cancel").header("X-Service-Token", "test-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(cancel)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
         GatewayVirtualAccountDepositRequest deposit = new GatewayVirtualAccountDepositRequest(
                 issued.get("accountNumber").asText(), "입금자", new BigDecimal("100"), LocalDateTime.now());
         mvc.perform(post("/api/v1/banks/virtual-accounts/deposit").header("X-Payment-Provider-Token", "test-provider")
@@ -362,7 +347,6 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
         assertThat(bankNotifications.count()).isZero();
         assertThat(bankOutboxes.count()).isEqualTo(1);
         assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
-        verifyNoInteractions(ticket);
     }
 
     @Test
@@ -371,7 +355,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
             mvc.perform(post("/internal/financial-simulations/banks/virtual-accounts" + suffix)
                     .header(FinancialSimulationAuthenticationFilter.TOKEN_HEADER, internalToken.value())
                     .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                    .andExpect(status().isMethodNotAllowed());
+                    .andExpect(status().is("/deposit".equals(suffix) ? 404 : 405));
         }
     }
 

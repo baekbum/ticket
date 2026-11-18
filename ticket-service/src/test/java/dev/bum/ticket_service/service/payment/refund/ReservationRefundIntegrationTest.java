@@ -36,7 +36,6 @@ import org.springframework.test.context.bean.override.mockito.*;
 import org.springframework.transaction.*;
 import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.support.TransactionTemplate;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
@@ -50,7 +49,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = ReservationRefundIntegrationTest.Config.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ReservationRefundService.class, ReservationRefundCommandService.class, RefundAccountCipher.class,
-        PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class})
+        PaymentRefundProcessService.class, PaymentRefundRollbackRecorder.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ReservationRefundIntegrationTest {
 
@@ -85,7 +84,6 @@ class ReservationRefundIntegrationTest {
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean PaymentRefundHistoryJpaRepository histories;
     @MockitoBean PaymentGatewayRefundApplicationClient gateway;
-    @MockitoBean PaymentGatewayRefundClient legacyGateway;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean SeatCacheService cache;
     @MockitoBean TicketPurchaseCountService counts;
@@ -179,7 +177,6 @@ class ReservationRefundIntegrationTest {
                 .isEqualTo("SUCCEEDED");
         assertThat(payments.findAll().getFirst().getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         verify(gateway,times(2)).refund(anyString(),anyString(),any());
-        verifyNoInteractions(legacyGateway);
     }
 
     @Test void cardLostResponseKeepsTheSnapshotAndWithdrawalRecoversAnAlreadySuccessfulRefund() {

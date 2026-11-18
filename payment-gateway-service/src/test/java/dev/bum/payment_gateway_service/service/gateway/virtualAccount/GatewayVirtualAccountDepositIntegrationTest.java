@@ -82,8 +82,7 @@ class GatewayVirtualAccountDepositIntegrationTest {
             GatewayBankCancellationDispatcher.class,dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancellationService.class,
             dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountCancelCommands.class,
             dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountCancellationService.class,
-            dev.bum.payment_gateway_service.service.gateway.virtualAccount.GatewayVirtualAccountApiService.class,
-            SecurityConfig.class, InternalServiceTokenValidator.class, PaymentProviderTokenValidator.class,
+            SecurityConfig.class, PaymentProviderTokenValidator.class,
             MerchantAuthenticationService.class, FinancialSimulationHttpConfig.class, FinancialSimulationGatewayService.class, GatewayPaymentService.class,
             GatewayPaymentCommandService.class, GatewayVirtualAccountIssuanceService.class,
             GatewayVirtualAccountIssueCommandService.class, BankVirtualAccountIssuanceService.class,
@@ -127,8 +126,6 @@ class GatewayVirtualAccountDepositIntegrationTest {
     @MockitoSpyBean GatewayBankNotificationJpaRepository notifications;
     @MockitoSpyBean FinancialSimulationGatewayService financial;
     @MockitoSpyBean StandardBankNotificationAdapter adapter;
-    @MockitoBean GatewayVirtualAccountService legacy;
-    @MockitoBean VirtualAccountCancellationService legacyCancellation;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
 
@@ -205,7 +202,6 @@ class GatewayVirtualAccountDepositIntegrationTest {
         dispatcher.retryPending();
         assertThat(event(id).getStatus()).isEqualTo("DELIVERED");
         assertThat(received.peek().merchantId()).isEqualTo(first.getMerchantId());
-        verifyNoInteractions(legacy, legacyCancellation);
     }
 
     @Test
@@ -623,7 +619,6 @@ class GatewayVirtualAccountDepositIntegrationTest {
         merchant.activate();
         return merchants.saveAndFlush(merchant);
     }
-
 
     @Test void bankExpirationAndPgCommitAreIndependentAndDoNotNotifyTheMerchant() throws Exception {
         String id = issue("merchant-a", "EXPIRATION");

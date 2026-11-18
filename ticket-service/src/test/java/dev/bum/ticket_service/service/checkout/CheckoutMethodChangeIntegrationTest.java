@@ -1,5 +1,14 @@
 package dev.bum.ticket_service.service.checkout;
 
+import dev.bum.ticket_service.service.checkout.payment.card.CardCheckoutCommandService;
+import dev.bum.ticket_service.service.checkout.payment.card.CardCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.translate.BankToCardCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.translate.CardToBankCheckoutService;
+import dev.bum.ticket_service.service.checkout.payment.translate.CheckoutMethodChangeCommandService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
+
 import dev.bum.common.service.paymentgateway.card.*;
 import dev.bum.common.service.paymentgateway.notification.*;
 import dev.bum.common.service.ticket.checkout.dto.*;
@@ -87,7 +96,6 @@ class CheckoutMethodChangeIntegrationTest {
     @Autowired PlatformTransactionManager transactions;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean PaymentGatewayTransactionClient gateway;
-    @MockitoBean PaymentGatewayCardClient legacy;
     @MockitoBean ReservationRepository reservationRepository;
     @MockitoBean QueueAccessService queue;
     @MockitoBean EventBookingGuard guard;
@@ -105,7 +113,7 @@ class CheckoutMethodChangeIntegrationTest {
     final AtomicReference<GatewayCardMethodChangeRequest> original=new AtomicReference<>();
 
     @BeforeEach void setup() {
-        reset(gateway,legacy);
+        reset(gateway);
         original.set(null); pgId="20261116"+UUID.randomUUID(); paymentNo="PAY-SWITCH";
         deadline=LocalDateTime.now().plusMinutes(10).truncatedTo(ChronoUnit.MICROS);
         new TransactionTemplate(transactions).executeWithoutResult(tx->{
@@ -240,7 +248,6 @@ class CheckoutMethodChangeIntegrationTest {
         assertThat(checkout.confirm("owner","queue",request()).getPgPaymentId()).isEqualTo(pgId);
         verify(gateway,times(1)).changeCardToBank(anyString(),any());
         verify(gateway,never()).prepare(any());
-        verifyNoInteractions(legacy);
     }
 
     @Test void unknownPgResultKeepsTheOriginalCardAndTargetForTheSameManualRetry() {

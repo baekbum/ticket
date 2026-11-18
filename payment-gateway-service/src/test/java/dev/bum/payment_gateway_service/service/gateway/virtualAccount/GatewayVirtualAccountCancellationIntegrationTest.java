@@ -16,7 +16,6 @@ import dev.bum.payment_gateway_service.service.outbox.BankTransferOutboxCommands
 import org.springframework.jdbc.core.JdbcTemplate;
 import dev.bum.payment_gateway_service.jpa.merchant.*;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.*;
-import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.*;
 import dev.bum.payment_gateway_service.service.gateway.client.FinancialSimulationGatewayService;
 import dev.bum.payment_gateway_service.service.gateway.notification.*;
@@ -26,7 +25,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.*;
 import org.springframework.test.web.servlet.*;
 import org.springframework.transaction.*;
@@ -76,8 +74,6 @@ class GatewayVirtualAccountCancellationIntegrationTest {
     @MockitoSpyBean FinancialSimulationGatewayService financial;
     @MockitoSpyBean GatewayPaymentHistoryJpaRepository histories;
     @MockitoSpyBean DummyVirtualAccountPaymentHistoryJpaRepository bankHistories;
-    @MockitoBean GatewayVirtualAccountService legacy;
-    @MockitoBean VirtualAccountCancellationService legacyCancellation;
     @MockitoBean MerchantNotificationTargetResolver targets;
     @MockitoBean StandardBankNotificationAdapter adapter;
     @MockitoBean JwtTokenProvider jwt;

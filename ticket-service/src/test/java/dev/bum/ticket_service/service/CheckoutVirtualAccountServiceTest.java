@@ -5,7 +5,7 @@ import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
 import org.junit.jupiter.api.Test;
 
 import java.time.*;

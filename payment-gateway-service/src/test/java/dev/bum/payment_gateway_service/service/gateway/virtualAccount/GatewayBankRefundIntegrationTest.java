@@ -17,7 +17,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.*;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.test.context.bean.override.mockito.*;
@@ -88,8 +87,6 @@ class GatewayBankRefundIntegrationTest {
     @Autowired MockMvc mvc;
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
-    @MockitoBean GatewayVirtualAccountService legacy;
-    @MockitoBean VirtualAccountCancellationService legacyCancel;
     @MockitoBean MerchantNotificationTargetResolver targets;
     @MockitoBean StandardBankNotificationAdapter notifications;
     Merchant first;
@@ -131,7 +128,6 @@ class GatewayBankRefundIntegrationTest {
     BankRefundResult call(String key, String amount, boolean withdraw) {
         return service.execute(new AuthenticatedMerchant(first.getMerchantId()), paymentId, key, request(amount), withdraw);
     }
-
 
     @Test void anUnreadableBankResponseIsRetriedUsingTheSameReceipt() {
         faults.unreadable.set(3);

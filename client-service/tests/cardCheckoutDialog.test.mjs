@@ -49,14 +49,25 @@ test('전환 진행 중 충돌은 승인 없음으로 처리하지 않고 기존
   } finally { await close(); window.setTimeout = original; }
 });
 
-async function mount(request, onComplete, pending = true) {
+async function mount(request, onComplete, pending = true, selectedPayment = payment) {
   sessionStorage.clear();
   if (pending) sessionStorage.setItem('ticksy.card-attempt:PAY-1', 'PENDING');
   document.body.innerHTML = '<div id="root"></div>';
   const root = createRoot(document.getElementById('root'));
-  await act(async () => { root.render(React.createElement(Dialog, { payment, request, onComplete, onClose() {} })); });
+  await act(async () => { root.render(React.createElement(Dialog, { payment: selectedPayment, request, onComplete, onClose() {} })); });
   return async () => { await act(async () => root.unmount()); };
 }
+
+test('PG ID가 없는 저장된 시도는 구형 승인·조회 API를 호출하지 않는다', async () => {
+  let calls = 0;
+  const close = await mount(async () => { calls++; }, () => assert.fail('완료 처리하면 안 됨'), true,
+    { ...payment, pgPaymentId: null });
+  try {
+    assert.equal(calls, 0);
+    assert.ok(document.body.textContent.includes('PG 결제 준비 정보가 없습니다'));
+    assert.equal(document.querySelector('form'), null);
+  } finally { await close(); }
+});
 
 test('새로고침 후 세션을 메모리에서 다시 받아 PG 거래를 조회하고 통보 완료 후에만 화면을 완료한다', async () => {
   const calls = []; let completed = 0; let delivered = false; let poll;

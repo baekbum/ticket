@@ -1,5 +1,7 @@
 package dev.bum.ticket_service.controller;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.bum.common.jwt.JwtTokenProvider;
@@ -40,7 +42,7 @@ class GatewayPaymentNotificationControllerTest {
     @MockitoBean JwtTokenProvider jwt;
     @MockitoBean TokenStateStore tokens;
     @MockitoBean PaymentService payments;
-    @MockitoBean dev.bum.ticket_service.service.checkout.payment.VirtualAccountIssuanceCheckoutCommandService accounts;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService accounts;
     @MockitoBean BankCancellationNotificationService cancellations;
     final String path = "/api/v1/payments/internal/gateway/notifications";
     final String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
