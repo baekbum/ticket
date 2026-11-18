@@ -65,7 +65,7 @@ public class VirtualAccountIssuanceCheckoutCommandService {
     /**
      * PG 준비 응답이 최초 조건과 일치할 때만 식별자를 저장한다. 이후 발급은 이 저장이 커밋된 뒤 실행한다.
      */
-    public String prepared(String paymentNo, GatewayPaymentPrepareResponse response) {
+    public PaymentResponse prepared(String paymentNo, GatewayPaymentPrepareResponse response) {
 
         Payment payment = locks.lock(paymentNo);
 
@@ -81,7 +81,7 @@ public class VirtualAccountIssuanceCheckoutCommandService {
 
         payment.bindGatewayPayment(response.pgPaymentId());
 
-        return payment.getPgPaymentId();
+        return payment.toResponse();
     }
 
     /**

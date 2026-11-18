@@ -53,11 +53,14 @@ class CheckoutServiceOrchestrationTest {
                 .paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.READY).build());
         PaymentResponse issued = PaymentResponse.builder().paymentNo("PAY-1").pgPaymentId("pg-id")
                 .method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.WAITING_DEPOSIT).build();
+        when(accounts.prepare("PAY-1")).thenReturn(PaymentResponse.builder().paymentNo("PAY-1")
+                .pgPaymentId("pg-id").method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.READY).build());
         when(accounts.issue("PAY-1")).thenReturn(issued);
         assertThat(checkout.confirm("owner", "queue", request)).isSameAs(issued);
         InOrder order = inOrder(commands, accounts);
         order.verify(commands).findMethodChangeCandidate("owner", request);
         order.verify(commands).confirm("owner", "queue", request);
+        order.verify(accounts).prepare("PAY-1");
         order.verify(accounts).issue("PAY-1");
         verifyNoInteractions(cardToBank, bankToCard);
     }
@@ -70,6 +73,18 @@ class CheckoutServiceOrchestrationTest {
         assertThat(checkout.confirm("owner", "queue", request)).isSameAs(card);
         verify(cardCheckout).prepare("owner", null);
         verifyNoInteractions(accounts, cardToBank, bankToCard);
+    }
+
+    @Test void aFailedPgPreparationDoesNotContinueToAccountIssuance() {
+        CheckoutConfirmRequest request = CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.BANK_TRANSFER).build();
+        when(commands.confirm("owner", "queue", request)).thenReturn(PaymentResponse.builder()
+                .paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.READY).build());
+        IllegalStateException failure = new IllegalStateException("PG 준비 실패");
+        when(accounts.prepare("PAY-1")).thenThrow(failure);
+
+        assertThatThrownBy(() -> checkout.confirm("owner", "queue", request)).isSameAs(failure);
+
+        verify(accounts, never()).issue(anyString());
     }
 
 }

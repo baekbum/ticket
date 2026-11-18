@@ -61,6 +61,7 @@ public class VirtualAccountCancelOutboxPublisher {
             }
 
             if (outbox.getPgPaymentId() == null || outbox.getAccountNumber() == null) {
+                issuance.prepare(outbox.getPaymentNo());
                 issuance.issue(outbox.getPaymentNo());
                 outbox = commands.findClaimedDelivery(outboxId, attempt);
 

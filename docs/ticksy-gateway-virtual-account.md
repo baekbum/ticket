@@ -29,6 +29,16 @@ sequenceDiagram
 
 ## 책임과 트랜잭션
 
+2026-11-18부터 PG 원거래 준비와 계좌 발급을 명시적인 두 단계로 호출한다.
+
+```java
+PaymentResponse prepared = accounts.prepare(payment.getPaymentNo());
+
+return accounts.issue(prepared.getPaymentNo());
+```
+
+`prepare()`는 저장된 PG ID가 있으면 기존 결과를 반환하고, 없으면 PG prepare 응답을 검증한 뒤 PG ID를 Ticksy에 커밋한다. 계좌 발급 HTTP는 실행하지 않는다. `issue()`는 이미 저장한 PG ID로 계좌를 발급하며, PG ID가 없으면 외부 HTTP 없이 준비 필요 오류를 반환한다. 체크아웃뿐 아니라 카드→무통장 전환·재요청과 취소 Outbox의 발급 복구도 같은 순서로 호출한다.
+
 - CheckoutService는 NEVER 오케스트레이터다. CheckoutTransactionService가 예매·티켓·Payment·발급 의도를 한 로컬 트랜잭션으로 저장한다. 카드→무통장 전환의 기존 카드 승인 이력 조회도 잠금 밖에서 실행하고, 로컬 단계에서 소유자·상태·선점 기한을 다시 확인한다.
 - CheckoutVirtualAccountService는 은행 코드와 공연일 규칙으로 발급 조건만 저장한다. 공연 당일은 거절, 전날은 당일 23:59:59, 나머지는 다음날 23:59:59다. 계산한 기한을 저장하고 재시도 시 현재 날짜로 다시 계산하지 않는다.
 - VirtualAccountIssuanceCheckoutService는 DB 트랜잭션 밖에서 PaymentGatewayTransactionClient의 Feign HTTP를 호출한다. 각 준비·발급 결과 반영은 VirtualAccountIssuanceCheckoutCommandService의 짧은 REQUIRED 트랜잭션이다. 예약 → Payment 순서로 잠근다.
@@ -41,9 +51,9 @@ sequenceDiagram
 
 2026-11-12부터 별도 발급 복구 디스패쳐를 제거했다. gateway_issue_pending은 PG 발급 결과가 Ticksy에 아직 반영되지 않았다는 표시로만 사용한다. gateway_next_attempt_at·복구 조회 인덱스·예약 재시도 쿼리도 제거했다. 일반 발급의 백그라운드 자동 재시도는 수행하지 않는다.
 
-- VirtualAccountIssuanceCheckoutService.issue는 같은 브라우저 HTTP 요청 안에서 최초 1회 + 추가 3회, 최대 4회 시도한다. 네 번째 시도에서 성공해도 해당 요청에 정상 PaymentResponse를 반환한다.
+- VirtualAccountIssuanceCheckoutService의 prepare와 issue는 각 단계에서 최초 1회 + 추가 3회, 최대 4회 시도한다. 준비 단계가 실패하면 발급 단계는 실행하지 않는다. 네 번째 시도에서 성공해도 해당 요청에 정상 PaymentResponse를 반환한다. 두 단계는 별도 한도를 사용하며 하나의 중첩 재시도 루프로 실행하지 않는다.
 - 타임아웃·연결 실패, PG 5xx, Spring의 일시적인 DB 오류만 재시도한다. 인증·금액·은행·원거래 계약 불일치, PG 4xx, 영구 DB 오류는 즉시 반환한다. 작업 스레드가 중단되면 추가 시도를 멈추고 중단 표시를 유지한다.
-- 매 시도마다 커밋된 최초 요청과 PG ID를 다시 읽는다. prepare 응답 유실은 같은 paymentNo·은행·금액·사용자·입금기한으로 재요청한다. PG ID가 저장돼 있으면 prepare를 생략하고 기존 PG ID로 issue한다.
+- 두 단계 모두 매 시도마다 커밋된 최초 요청과 PG ID를 다시 읽는다. prepare 응답 유실은 같은 paymentNo·은행·금액·사용자·입금기한으로 재요청한다. PG ID가 저장돼 있으면 prepare 단계는 PG HTTP를 생략한다. issue 단계의 실패·재시도에서 prepare를 다시 호출하지 않는다.
 - Feign 자체 Retryer는 NEVER_RETRY로 고정해 내부 재시도로 호출 횟수가 증가하지 않게 한다. 신규 거래 클라이언트에만 연결 1초·읽기 3초 타임아웃을 설정한다. DB 처리 등 checkout 전체 대기 시간은 별도로 고려해야 한다.
 - 네 번 모두 일시적인 오류로 끝나면 HTTP 503과 GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED를 반환한다. 프런트는 서버 원문 대신 고정 안내문으로 같은 결제 요청 재시도·예매 내역 확인을 안내한다. 기존 checkout 멱등키는 초기화하지 않는다.
 - PG에는 이미 계좌가 발급됐을 수 있으므로 한도 소진만으로 Payment·예매·PG 거래를 취소하거나 새로 생성하지 않는다. 사용자가 같은 checkout 멱등키로 재요청하면 저장한 최초 조건과 PG ID로 기존 결과를 복구한다. 프로세스가 중단된 경우에도 사용자 재요청으로 재개하며 자동 발급 복구는 하지 않는다.
@@ -53,7 +63,8 @@ sequenceDiagram
 ~~~text
 브라우저 checkout 요청
 → Ticksy 로컬 예매·Payment·최초 조건 커밋
-→ PG 요청 최초 1회 + 추가 3회
+→ prepare 단계: PG 원거래 준비·ID 저장, 최대 4회 시도
+→ issue 단계: 저장된 PG ID로 계좌 발급·결과 반영, 최대 4회 시도
 → 성공하면 같은 HTTP 요청에 정상 응답
 → 한도 소진이면 결과 미확인 503 응답
 → 사용자가 같은 checkout 멱등키로 다시 요청
@@ -92,6 +103,8 @@ sequenceDiagram
 기한이 지난 미완료 발급이나 영구적인 인증·등록 URL·데이터 불일치는 제한 재시도나 같은 키 재요청만으로 해결되지 않는다. pending 정보와 로그를 보존하며 관리자 확인이 필요하다. 신규 결제수단을 운영에 활성화하기 전에 등록 merchant·통보 endpoint·암호화된 통보 자격증명이 준비돼 있어야 한다.
 
 ## 검증
+
+2026-11-18 준비·발급 분리 검증: 체크아웃·취소 Outbox·결제 모델 테스트 171개가 실패·건너뜀 없이 통과했고 Ticksy bootJar 빌드도 통과했다. 준비 단계만 실행한 시점의 PG ID 커밋·계좌 미발급, 준비 없는 발급 차단, 각 단계의 응답 유실·재시도, 준비 실패 시 발급 중단, 취소·입금 통보 경합과 롤백을 포함한다. 기존 HTTP API와 DB 스키마는 변경하지 않았다.
 
 GatewayVirtualAccountCheckoutIntegrationTest는 별도 H2 DB와 실제 HTTP 서버·Feign 호출로 준비/발급/취소 응답 유실, 최초 요청 재사용, 잘못된 금액·PG ID, 발급 중 취소, 먼저 도착한 입금 통보, 먼저 도착한 최종 취소 통보, 수신 receipt 실패·Outbox 실패의 로컬 롤백을 검증한다. HTTP 전송 시 로컬 트랜잭션이 없다는 것도 확인한다. 기존 checkout·입금·취소·환불·카드 회귀 테스트를 함께 실행한다.
 

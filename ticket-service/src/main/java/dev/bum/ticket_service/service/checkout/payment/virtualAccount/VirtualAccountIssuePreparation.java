@@ -10,7 +10,7 @@ public record VirtualAccountIssuePreparation(
         // 준비 응답을 반영한 이후에만 값이 존재한다.
         String pgPaymentId,
 
-        // 발급 응답 반영까지 완료했으면 HTTP 없이 이 결과를 반환한다.
+        // 계좌 발급 결과의 로컬 반영이 아직 필요한지 나타낸다.
         boolean pending,
 
         // 트랜잭션 밖으로 엔티티를 노출하지 않는 로컬 결제 결과.

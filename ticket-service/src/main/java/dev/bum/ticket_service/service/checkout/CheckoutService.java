@@ -19,7 +19,7 @@ public class CheckoutService {
     // 예매·좌석·Payment를 하나의 짧은 로컬 트랜잭션으로 저장한다.
     private final CheckoutTransactionService commands;
 
-    // 커밋한 발급 의도로 PG prepare·발급을 재시도한다.
+    // 커밋한 발급 의도로 PG 거래 준비와 계좌 발급을 순서대로 실행한다.
     private final VirtualAccountIssuanceCheckoutService accounts;
 
     // 카드도 로컬 저장 커밋 후 PG 거래를 준비한다.
@@ -50,7 +50,9 @@ public class CheckoutService {
     private PaymentResponse completePayment(String userId, PaymentResponse payment) {
 
         if (payment.getMethod() == PaymentMethod.BANK_TRANSFER) {
-            return accounts.issue(payment.getPaymentNo());
+            PaymentResponse prepared = accounts.prepare(payment.getPaymentNo());
+
+            return accounts.issue(prepared.getPaymentNo());
         }
 
         return cardCheckout.prepare(userId, payment.getPaymentNo());

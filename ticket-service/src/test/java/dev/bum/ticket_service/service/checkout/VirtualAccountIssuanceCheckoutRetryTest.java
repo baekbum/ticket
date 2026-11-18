@@ -34,19 +34,19 @@ class VirtualAccountIssuanceCheckoutRetryTest {
     final String id = "20261112550e8400-e29b-41d4-a716-446655440000";
     final GatewayPaymentPrepareRequest request = new GatewayPaymentPrepareRequest(1L, "PAY-1", "owner",
             PaymentMethod.BANK_TRANSFER, BigDecimal.valueOf(100), LocalDateTime.of(2026, 11, 13, 23, 59, 59), BankCompany.KB);
-    final PaymentResponse local = PaymentResponse.builder().paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER).build();
+    final PaymentResponse local = PaymentResponse.builder().paymentNo("PAY-1").pgPaymentId(id)
+            .method(PaymentMethod.BANK_TRANSFER).build();
 
-    @Test void theFourthAttemptMaySucceedWithoutReturningAnEarlierFailureToTheBrowser() {
+    @Test void theFourthPrepareAttemptMaySucceedWithoutIssuingAnAccount() {
         GatewayPaymentPrepareResponse prepared = mock(GatewayPaymentPrepareResponse.class);
-        GatewayAccountIssueResponse issued = mock(GatewayAccountIssueResponse.class);
         when(commands.findPreparation("PAY-1")).thenReturn(preparation(null, true));
         when(gateway.prepare(request)).thenThrow(httpFailure(503), httpFailure(502), httpFailure(504)).thenReturn(prepared);
-        when(commands.prepared("PAY-1", prepared)).thenReturn(id);
-        when(gateway.issue(eq(id), any())).thenReturn(issued);
-        when(commands.issued("PAY-1", issued)).thenReturn(local);
-        assertThat(issuance.issue("PAY-1")).isSameAs(local);
+        when(commands.prepared("PAY-1", prepared)).thenReturn(local);
+
+        assertThat(issuance.prepare("PAY-1")).isSameAs(local);
+
         verify(gateway, times(4)).prepare(request);
-        verify(gateway).issue(eq(id), any());
+        verify(gateway, never()).issue(anyString(), any());
         verify(commands, times(4)).findPreparation("PAY-1");
     }
 
@@ -65,17 +65,48 @@ class VirtualAccountIssuanceCheckoutRetryTest {
     }
 
     @Test void aTransientLocalCommitFailureReloadsThePgIdBeforeRetrying() {
-        GatewayPaymentPrepareResponse prepared = mock(GatewayPaymentPrepareResponse.class);
         GatewayAccountIssueResponse issued = mock(GatewayAccountIssueResponse.class);
-        when(commands.findPreparation("PAY-1")).thenReturn(preparation(null, true), preparation(id, true));
-        when(gateway.prepare(request)).thenReturn(prepared);
-        when(commands.prepared("PAY-1", prepared)).thenReturn(id);
+        when(commands.findPreparation("PAY-1")).thenReturn(preparation(id, true));
         when(gateway.issue(eq(id), any())).thenReturn(issued);
         when(commands.issued("PAY-1", issued)).thenThrow(new CannotAcquireLockException("temporary lock"))
                 .thenReturn(local);
         assertThat(issuance.issue("PAY-1")).isSameAs(local);
-        verify(gateway).prepare(request);
+        verify(gateway, never()).prepare(any());
         verify(gateway, times(2)).issue(eq(id), any());
+        verify(commands, times(2)).findPreparation("PAY-1");
+    }
+
+    @Test void issueRequiresAnExplicitlyPreparedPaymentAndDoesNotPrepareImplicitly() {
+        when(commands.findPreparation("PAY-1")).thenReturn(preparation(null, true));
+
+        assertThatThrownBy(() -> issuance.issue("PAY-1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("가상계좌 발급 전에 PG 거래 준비가 필요합니다.");
+
+        verify(commands).findPreparation("PAY-1");
+        verifyNoInteractions(gateway);
+    }
+
+    @Test void prepareReplaysTheCommittedPgIdEvenWhileAccountIssuanceIsPending() {
+        when(commands.findPreparation("PAY-1")).thenReturn(preparation(id, true));
+
+        assertThat(issuance.prepare("PAY-1")).isSameAs(local);
+
+        verifyNoInteractions(gateway);
+    }
+
+    @Test void transientPrepareCommitFailureRetriesTheSameOriginalTerms() {
+        GatewayPaymentPrepareResponse prepared = mock(GatewayPaymentPrepareResponse.class);
+        when(commands.findPreparation("PAY-1")).thenReturn(preparation(null, true));
+        when(gateway.prepare(request)).thenReturn(prepared);
+        when(commands.prepared("PAY-1", prepared)).thenThrow(new CannotAcquireLockException("temporary lock"))
+                .thenReturn(local);
+
+        assertThat(issuance.prepare("PAY-1")).isSameAs(local);
+
+        verify(gateway, times(2)).prepare(request);
+        verify(gateway, never()).issue(anyString(), any());
+        verify(commands, times(2)).findPreparation("PAY-1");
     }
 
     @Test void aPermanentLocalWriteFailureIsNotRetried() {

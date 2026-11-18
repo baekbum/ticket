@@ -251,21 +251,52 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
         jdbc.update("update payments set status = 'READY'");
     }
 
+    private PaymentResponse prepareAndIssue() {
+        PaymentResponse prepared = issuance.prepare("PAY-1");
+
+        return issuance.issue(prepared.getPaymentNo());
+    }
+
     @Test void realHttpUsesPrepareThenIssueAndReplayDoesNotCreateAnotherAccountOrHistory() {
-        plan(); PaymentResponse response = issuance.issue("PAY-1");
+        plan();
+
+        PaymentResponse prepared = issuance.prepare("PAY-1");
+
+        assertThat(prepared.getPgPaymentId()).isEqualTo(pgId);
+        assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
+        assertThat(prepared.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(prepared.getAccountNumber()).isNull();
+        assertThat(issueBodies).isEmpty();
+        assertThat(issuance.prepare("PAY-1")).isEqualTo(prepared);
+        assertThat(prepareBodies).hasSize(1);
+
+        PaymentResponse response = issuance.issue(prepared.getPaymentNo());
         assertThat(response.getPgPaymentId()).isEqualTo(pgId);
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(response.getAccountNumber()).isEqualTo("1111-123456");
         long history = jdbc.queryForObject("select count(*) from payment_histories", Long.class);
-        assertThat(issuance.issue("PAY-1")).isEqualTo(response);
+        assertThat(prepareAndIssue()).isEqualTo(response);
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).hasSize(1);
         assertThat(jdbc.queryForObject("select count(*) from payment_histories", Long.class)).isEqualTo(history);
         verifyNoInteractions(gateway);
     }
 
+    @Test void issueWithoutPrepareCannotCreateAPgPaymentOrBankAccount() {
+        plan();
+
+        assertThatThrownBy(() -> issuance.issue("PAY-1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("가상계좌 발급 전에 PG 거래 준비가 필요합니다.");
+
+        assertThat(payment().getPgPaymentId()).isNull();
+        assertThat(payment().getAccountNumber()).isNull();
+        assertThat(prepareBodies).isEmpty();
+        assertThat(issueBodies).isEmpty();
+    }
+
     @Test void lostPrepareResponseIsRetriedWithinTheSameRequestWithExactlyTheSameTerms() {
         plan(); losePrepare = true;
-        issuance.issue("PAY-1");
+        prepareAndIssue();
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(prepareBodies).hasSize(2); assertThat(prepareBodies.get(0)).isEqualTo(prepareBodies.get(1));
@@ -274,7 +305,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Test void lostIssueResponseKeepsPgIdAndRetriesTheSameIssueWithoutAnotherPrepare() {
         plan(); loseIssue = true;
-        assertThat(issuance.issue("PAY-1").getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(prepareAndIssue().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
         assertThat(payment().isGatewayIssuePending()).isFalse();
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).hasSize(2);
@@ -283,7 +314,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Test void allFourPrepareAttemptsFailBeforeBrowserRetryReusesTheSamePaymentAndTerms() {
         plan(); alwaysFailPrepare = true;
-        assertThatThrownBy(() -> issuance.issue("PAY-1"))
+        assertThatThrownBy(() -> prepareAndIssue())
                 .isInstanceOf(dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException.class);
         assertThat(prepareBodies).hasSize(4); assertThat(issueBodies).isEmpty();
         assertThat(payment().getPgPaymentId()).isNull(); assertThat(payment().isGatewayIssuePending()).isTrue();
@@ -292,7 +323,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
                 .isEqualTo(ReservationStatus.PENDING_PAYMENT);
         assertThat(payments.count()).isEqualTo(1);
         alwaysFailPrepare = false;
-        assertThat(issuance.issue("PAY-1").getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(prepareAndIssue().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(prepareBodies).hasSize(5);
         assertThat(prepareBodies.stream().distinct()).hasSize(1);
         assertThat(payments.count()).isEqualTo(1);
@@ -300,13 +331,13 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Test void allFourIssueAttemptsKeepTheCommittedPgIdForTheNextBrowserRequest() {
         plan(); alwaysFailIssue = true;
-        assertThatThrownBy(() -> issuance.issue("PAY-1"))
+        assertThatThrownBy(() -> prepareAndIssue())
                 .isInstanceOf(dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException.class);
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).hasSize(4);
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
         assertThat(payment().getAccountNumber()).isNull(); assertThat(payment().isGatewayIssuePending()).isTrue();
         alwaysFailIssue = false;
-        assertThat(issuance.issue("PAY-1").getAccountNumber()).isEqualTo("1111-123456");
+        assertThat(prepareAndIssue().getAccountNumber()).isEqualTo("1111-123456");
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).hasSize(5);
         assertThat(issueBodies.stream().distinct()).hasSize(1);
     }
@@ -315,19 +346,19 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @org.junit.jupiter.params.provider.ValueSource(ints = {400, 401, 403, 409})
     void permanentPgRejectionsAreNotRetried(int status) {
         plan(); alwaysFailPrepare = true; prepareFailureStatus = status;
-        assertThatThrownBy(() -> issuance.issue("PAY-1")).isInstanceOf(FeignException.class);
+        assertThatThrownBy(() -> prepareAndIssue()).isInstanceOf(FeignException.class);
         assertThat(prepareBodies).hasSize(1); assertThat(issueBodies).isEmpty();
     }
 
     @Test void changedAmountFromPrepareOrIssueCannotBindAnotherTransaction() {
         plan(); wrongAmount = true;
-        assertThatThrownBy(() -> issuance.issue("PAY-1")).hasMessageContaining("PG 준비 결과");
+        assertThatThrownBy(() -> prepareAndIssue()).hasMessageContaining("PG 준비 결과");
         assertThat(payment().getPgPaymentId()).isNull(); assertThat(issueBodies).isEmpty();
         wrongAmount = false; wrongIssue = true;
-        assertThatThrownBy(() -> issuance.issue("PAY-1")).hasMessageContaining("PG 발급 결과");
+        assertThatThrownBy(() -> prepareAndIssue()).hasMessageContaining("PG 발급 결과");
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId); assertThat(payment().getAccountNumber()).isNull();
         wrongIssue = false;
-        assertThat(issuance.issue("PAY-1").getAccountNumber()).isEqualTo("1111-123456");
+        assertThat(prepareAndIssue().getAccountNumber()).isEqualTo("1111-123456");
     }
 
     @Test void cancellationBeforePrepareIsCommittedAndIssuanceRecoveryConnectsTheCleanupOutbox() {
@@ -349,7 +380,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @Test void cancellationCanCommitWhileIssueHttpIsWaitingAndLateResponseCannotReviveTheReservation() throws Exception {
         plan(); issued = new CountDownLatch(1); releaseIssue = new CountDownLatch(1);
         try (ExecutorService workers = Executors.newSingleThreadExecutor()) {
-            Future<PaymentResponse> result = workers.submit(() -> issuance.issue("PAY-1"));
+            Future<PaymentResponse> result = workers.submit(() -> prepareAndIssue());
             await(issued); cancel(); assertCancelled(); releaseIssue.countDown();
             assertThat(result.get(5, TimeUnit.SECONDS).getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         }
@@ -359,7 +390,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @Test void depositNotificationBeforeIssueResponseBindsTheAccountAndDoesNotDowngradePaid() throws Exception {
         plan(); issued = new CountDownLatch(1); releaseIssue = new CountDownLatch(1);
         try (ExecutorService workers = Executors.newSingleThreadExecutor()) {
-            Future<PaymentResponse> result = workers.submit(() -> issuance.issue("PAY-1"));
+            Future<PaymentResponse> result = workers.submit(() -> prepareAndIssue());
             await(issued); BankDepositNotification event = depositEvent();
             assertThat(notifications.receive(event).outcome()).isEqualTo(BankDepositNotificationResponse.Outcome.APPLIED);
             long history = jdbc.queryForObject("select count(*) from payment_histories", Long.class);
@@ -371,7 +402,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void finalCallbackBefore202AndLostCallbackAcknowledgementKeepTheFirstFinancialResult() {
-        plan(); issuance.issue("PAY-1"); cancel(); BankCancellationNotification event = cancellationEvent("CANCELLED");
+        plan(); prepareAndIssue(); cancel(); BankCancellationNotification event = cancellationEvent("CANCELLED");
         beforeCancelResponse = () -> results.receive(event); publisher.deliver(record().getOutboxId());
         assertThat(record().getGatewayResult()).isEqualTo("CANCELLED");
         assertThat(results.receive(event).matches(event)).isTrue(); assertThat(receipts.count()).isEqualTo(1);
@@ -381,7 +412,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void lostCancellationResponseRetriesTheSameRequestAndRejectionDoesNotReopenSeats() {
-        plan(); issuance.issue("PAY-1"); cancel(); loseCancel = true; publisher.deliver(record().getOutboxId());
+        plan(); prepareAndIssue(); cancel(); loseCancel = true; publisher.deliver(record().getOutboxId());
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
         makeReady(); publisher.deliver(record().getOutboxId());
         assertThat(cancelBodies).hasSize(2); assertThat(cancelBodies.get(0)).isEqualTo(cancelBodies.get(1));
@@ -391,7 +422,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void receiptFailureRollsBackTheOutboxResultAndTheSameNotificationCanBeRetried() {
-        plan(); issuance.issue("PAY-1"); cancel(); publisher.deliver(record().getOutboxId());
+        plan(); prepareAndIssue(); cancel(); publisher.deliver(record().getOutboxId());
         doThrow(new IllegalStateException("receipt failure")).when(receipts).saveAndFlush(any());
         assertThatThrownBy(() -> results.receive(cancellationEvent("CANCELLED"))).hasMessage("receipt failure");
         assertThat(record().getGatewayResult()).isEqualTo("PROCESSING"); assertThat(receipts.count()).isZero();
@@ -400,27 +431,29 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
 
     @Test void cancellationOutboxFailureRollsBackLateAccountBindingAndRetryCompletesIt() {
         plan(); cancel(); doThrow(new IllegalStateException("outbox failure")).when(outbox).findIdByPaymentNo("PAY-1");
-        assertThatThrownBy(() -> issuance.issue("PAY-1")).hasMessage("outbox failure");
+        assertThatThrownBy(() -> prepareAndIssue()).hasMessage("outbox failure");
         assertThat(payment().getPgPaymentId()).isEqualTo(pgId);
         assertThat(payment().getAccountNumber()).isNull(); assertThat(payment().isGatewayIssuePending()).isTrue();
-        reset(outbox); issuance.issue("PAY-1");
+        reset(outbox); prepareAndIssue();
         assertThat(record().getAccountNumber()).isEqualTo("1111-123456"); assertCancelled();
     }
 
     @Test void anotherPgIdCannotCompleteTheLocalPaymentAndAmbientTransactionsAreRejected() {
-        plan(); issuance.issue("PAY-1"); BankDepositNotification a = depositEvent();
+        plan(); prepareAndIssue(); BankDepositNotification a = depositEvent();
         String other = "20261111550e8400-e29b-41d4-a716-446655440001";
         BankDepositNotification event = new BankDepositNotification(1, other + ":DEPOSIT:INITIAL", 1L, other,
                 "PAY-1", "owner", PaymentMethod.BANK_TRANSFER, PaymentStatus.PAID, a.amount(),
                 a.accountNumber(), BankCompany.KB, a.depositorName(), a.depositedAt());
         assertThatThrownBy(() -> notifications.receive(event)).isInstanceOf(IllegalArgumentException.class);
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThatThrownBy(() -> tx().execute(status -> issuance.prepare("PAY-1")))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
         assertThatThrownBy(() -> tx().execute(status -> issuance.issue("PAY-1")))
                 .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
     }
 
     @Test void paidLinkedPaymentCannotUseLegacyReservationRefundAndRetainsItsTickets() {
-        plan(); issuance.issue("PAY-1"); notifications.receive(depositEvent());
+        plan(); prepareAndIssue(); notifications.receive(depositEvent());
         assertThatThrownBy(this::cancel)
                 .hasMessage("결제 완료된 예매의 환불은 환불 신청 API를 이용해주세요.");
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.PAID);
@@ -432,7 +465,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"CANCELLED", "REJECTED"})
     void immediateFinalCancellationResponseIsStoredAndItsLaterCallbackMatches(String outcome) {
-        plan(); issuance.issue("PAY-1"); cancel(); immediateCancellationOutcome = outcome;
+        plan(); prepareAndIssue(); cancel(); immediateCancellationOutcome = outcome;
         publisher.deliver(record().getOutboxId());
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
         assertThat(record().getGatewayResult()).isEqualTo(outcome);
@@ -444,7 +477,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void aPastLocalDeadlineDoesNotExpireWhilePgIsWaitingOrAlreadyPaidAndDelayedDepositStillCompletes() {
-        plan(); issuance.issue("PAY-1"); movePastDeadline();
+        plan(); prepareAndIssue(); movePastDeadline();
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         queryStatus = "PAID";
@@ -460,7 +493,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void onlyPgExpiredRunsTheExistingAtomicReservationTicketPaymentAndSeatCleanupOnce() {
-        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED";
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         assertThat(reservations.findById(fixture.reservationId()).orElseThrow().getStatus()).isEqualTo(ReservationStatus.EXPIRED);
@@ -477,7 +510,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(ints = {404, 503})
     void pgLookupFailureCannotReleaseTheReservationOrSeats(int status) {
-        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatusCode = status;
+        plan(); prepareAndIssue(); movePastDeadline(); queryStatusCode = status;
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
@@ -504,7 +537,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void anotherMerchantsExpiredResultCannotExpireTheLocalTransaction() {
-        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED"; wrongQueryMerchant = true;
+        plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED"; wrongQueryMerchant = true;
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
@@ -513,7 +546,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void aLateExpiredLookupCannotOverrideADepositOrCancellationThatCommittedDuringHttp(boolean paid) {
-        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED";
         beforeStatusResponse = paid ? () -> notifications.receive(depositEvent()) : this::cancel;
         expirationScheduler.expirePayments();
         assertThat(payment().getStatus()).isEqualTo(paid ? PaymentStatus.PAID : PaymentStatus.CANCELLED);
@@ -522,7 +555,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void aLocalCleanupFailureRollsBackEverythingAndTheNextPgQueryCanRetryIt() {
-        plan(); issuance.issue("PAY-1"); movePastDeadline(); queryStatus = "EXPIRED";
+        plan(); prepareAndIssue(); movePastDeadline(); queryStatus = "EXPIRED";
         doThrow(new IllegalStateException("cache sync registration failed")).when(cache)
                 .syncAvailableSeatsAfterCommit(anyList(), anyString(), anyString());
         expirationScheduler.expirePayments();
@@ -536,7 +569,7 @@ class VirtualAccountIssuanceCheckoutIntegrationTest {
     }
 
     @Test void anOldKafkaExpirationCannotBypassPgConfirmationForLinkedPayments() {
-        plan(); issuance.issue("PAY-1"); movePastDeadline();
+        plan(); prepareAndIssue(); movePastDeadline();
         assertThatThrownBy(() -> deposits.expireFromGateway(VirtualAccountExpiredEvent.builder().paymentNo("PAY-1")
                 .amount(BigDecimal.valueOf(10000)).bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName())
                 .accountNumber("1111-123456").expiredAt(deadline.plusSeconds(1)).build()))

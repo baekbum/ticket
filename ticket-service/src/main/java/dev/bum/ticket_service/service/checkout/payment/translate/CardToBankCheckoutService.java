@@ -98,11 +98,19 @@ public class CardToBankCheckoutService {
             return commands.findPayment(userId, paymentNo);
         }
 
-        return accounts.issue(paymentNo);
+        PaymentResponse prepared = accounts.prepare(paymentNo);
+
+        return accounts.issue(prepared.getPaymentNo());
     }
 
     private PaymentResponse replay(PaymentResponse payment) {
 
-        return payment.getMethod() == PaymentMethod.BANK_TRANSFER ? accounts.issue(payment.getPaymentNo()) : payment;
+        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            return payment;
+        }
+
+        PaymentResponse prepared = accounts.prepare(payment.getPaymentNo());
+
+        return accounts.issue(prepared.getPaymentNo());
     }
 }
