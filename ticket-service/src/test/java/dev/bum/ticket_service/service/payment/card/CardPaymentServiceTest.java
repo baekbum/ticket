@@ -2,9 +2,7 @@ package dev.bum.ticket_service.service.payment.card;
 
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -13,26 +11,24 @@ import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.card.CardPaymentInfo;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 
-import org.junit.jupiter.api.DisplayName;
+import org.springframework.security.access.AccessDeniedException;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,8 +38,10 @@ import static org.mockito.BDDMockito.then;
 @ExtendWith(MockitoExtension.class)
 class CardPaymentServiceTest {
 
+    private static final String PG_ID = "20261118550e8400-e29b-41d4-a716-446655440000";
+
     @Mock
-    private PaymentJpaRepository paymentJpaRepository;
+    private VirtualAccountPaymentLockService gatewayLocks;
 
     @Mock
     private PaymentCompletionService paymentCompletionService;
@@ -55,45 +53,14 @@ class CardPaymentServiceTest {
     private CardPaymentService cardPaymentService;
 
     @Test
-    void preflightReturnsStoredAmountWithoutCompletingPayment() {
-        Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
-        PaymentResponse result = cardPaymentService.validateBeforeApproval(
-                new CardPaymentValidationRequest(payment.getPaymentNo(), "user01"));
-        assertThat(result.getAmount()).isEqualTo(180000);
-        assertThat(result.getStatus()).isEqualTo(PaymentStatus.READY);
-        then(paymentCompletionService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    void preflightRejectsOtherUserWrongMethodInvalidStateAndExpiration() {
-        Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
-        assertThatThrownBy(() -> cardPaymentService.validateBeforeApproval(
-                new CardPaymentValidationRequest(payment.getPaymentNo(), "other")))
-                .isInstanceOf(AccessDeniedException.class);
-        Payment expired = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD,
-                PaymentStatus.READY, LocalDateTime.now().minusSeconds(1));
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(expired));
-        assertThatThrownBy(() -> cardPaymentService.validateBeforeApproval(
-                new CardPaymentValidationRequest(payment.getPaymentNo(), "user01")))
-                .hasMessage("결제 기한이 만료되었습니다.");
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(
-                payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.CANCELLED)));
-        assertThatThrownBy(() -> cardPaymentService.validateBeforeApproval(
-                new CardPaymentValidationRequest(payment.getPaymentNo(), "user01")))
-                .hasMessage("승인 가능한 결제 상태가 아닙니다.");
-        then(paymentCompletionService).shouldHaveNoInteractions();
-    }
-
-    @Test
     void settlementExpiresAndReturnsNormallySoCleanupCanCommit() {
         Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD,
                 PaymentStatus.READY, LocalDateTime.now().minusMinutes(1));
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
+        payment.bindGatewayPayment(PG_ID);
+        given(gatewayLocks.lock(payment.getPaymentNo())).willReturn(payment);
         Mockito.doAnswer(invocation -> { payment.expire(); return null; })
                 .when(paymentExpirationService).expire(payment);
-        CardPaymentSettlementResponse result = cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000)));
+        CardPaymentSettlementResponse result = cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000)), PG_ID);
         assertThat(result.outcome()).isEqualTo(CardPaymentSettlementResponse.Outcome.REJECTED);
         assertThat(result.payment().getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         then(paymentCompletionService).shouldHaveNoInteractions();
@@ -105,12 +72,13 @@ class CardPaymentServiceTest {
                 .reservation(reservation(event(), "user01")).method(PaymentMethod.CREDIT_CARD)
                 .status(PaymentStatus.PAID).amount(180000).expiresAt(LocalDateTime.now().minusMinutes(1))
                 .cardInfo(CardPaymentInfo.builder().transactionId("CARD-transaction-1").build()).build();
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
+        payment.bindGatewayPayment(PG_ID);
+        given(gatewayLocks.lock(payment.getPaymentNo())).willReturn(payment);
         CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(180000));
-        assertThat(cardPaymentService.settleFromGateway(request).outcome())
+        assertThat(cardPaymentService.settleFromGateway(request, PG_ID).outcome())
                 .isEqualTo(CardPaymentSettlementResponse.Outcome.COMPLETED);
         request.setTransactionId("different-transaction");
-        assertThatThrownBy(() -> cardPaymentService.settleFromGateway(request))
+        assertThatThrownBy(() -> cardPaymentService.settleFromGateway(request, PG_ID))
                 .hasMessage("기존 카드 승인 거래번호와 일치하지 않습니다.");
         then(paymentCompletionService).shouldHaveNoInteractions();
         then(paymentExpirationService).shouldHaveNoInteractions();
@@ -120,8 +88,9 @@ class CardPaymentServiceTest {
     void settlementRejectsTerminalPaymentsWithoutCompletingThem() {
         for (PaymentStatus status : List.of(PaymentStatus.EXPIRED, PaymentStatus.FAILED, PaymentStatus.CANCELLED)) {
             Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, status);
-            given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
-            assertThat(cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000))).outcome())
+            payment.bindGatewayPayment(PG_ID);
+            given(gatewayLocks.lock(payment.getPaymentNo())).willReturn(payment);
+            assertThat(cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000)), PG_ID).outcome())
                     .isEqualTo(CardPaymentSettlementResponse.Outcome.REJECTED);
         }
         then(paymentCompletionService).shouldHaveNoInteractions();
@@ -132,10 +101,11 @@ class CardPaymentServiceTest {
         Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
         payment.switchToBankTransfer();
         payment.waitDeposit("KB국민은행", "1111-2222-3333-4444", LocalDateTime.now().plusDays(1));
-        given(paymentJpaRepository.findByPaymentNoForUpdate(payment.getPaymentNo())).willReturn(Optional.of(payment));
+        payment.bindGatewayPayment(PG_ID);
+        given(gatewayLocks.lock(payment.getPaymentNo())).willReturn(payment);
 
         CardPaymentSettlementResponse result = cardPaymentService.settleFromGateway(
-                cardCompleteRequest(BigDecimal.valueOf(180000)));
+                cardCompleteRequest(BigDecimal.valueOf(180000)), PG_ID);
 
         assertThat(result.outcome()).isEqualTo(CardPaymentSettlementResponse.Outcome.REJECTED);
         assertThat(result.payment().getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
@@ -144,105 +114,23 @@ class CardPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("payment-gateway 결제 완료 요청 시 카드 결제를 완료 처리한다")
-    void complete_card_payment_from_gateway_success() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(180000));
-        PaymentResponse paymentResponse = paidResponse(PaymentMethod.CREDIT_CARD);
+    void settlementRequiresTheSamePgPaymentOwnerAndAmount() {
+        Payment payment = payment(reservation(event(), "user01"), PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
+        payment.bindGatewayPayment(PG_ID);
+        given(gatewayLocks.lock(payment.getPaymentNo())).willReturn(payment);
+        CardPaymentCompleteRequest wrongOwner = cardCompleteRequest(BigDecimal.valueOf(180000));
+        wrongOwner.setUserId("another-owner");
 
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-        given(paymentCompletionService.completeCard(
-                ArgumentMatchers.eq(payment),
-                ArgumentMatchers.eq(request.getTransactionId()),
-                ArgumentMatchers.eq(request.getCardCompany()),
-                ArgumentMatchers.eq(request.getMaskedCardNumber()),
-                ArgumentMatchers.any()
-        ))
-                .willReturn(paymentResponse);
-
-        PaymentResponse response = cardPaymentService.completeFromGateway(request);
-
-        assertThat(response.getStatus()).isEqualTo(PaymentStatus.PAID);
-        then(paymentCompletionService).should().completeCard(
-                ArgumentMatchers.eq(payment),
-                ArgumentMatchers.eq(request.getTransactionId()),
-                ArgumentMatchers.eq(request.getCardCompany()),
-                ArgumentMatchers.eq(request.getMaskedCardNumber()),
-                ArgumentMatchers.any()
-        );
-    }
-
-    @Test
-    @DisplayName("payment-gateway 결제 완료 금액이 다르면 결제 상태를 유지한다")
-    void complete_card_payment_from_gateway_amount_mismatch() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(170000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        assertThatThrownBy(() -> cardPaymentService.completeFromGateway(request))
-                .isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> cardPaymentService.settleFromGateway(wrongOwner, PG_ID))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(170000)), PG_ID))
                 .hasMessage("결제 금액이 일치하지 않습니다.");
+        assertThatThrownBy(() -> cardPaymentService.settleFromGateway(cardCompleteRequest(BigDecimal.valueOf(180000)), "another-pg-id"))
+                .hasMessage("카드 통보의 PG 원거래가 일치하지 않습니다.");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
         then(paymentCompletionService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("만료된 카드 결제 완료 요청은 공통 만료 처리로 예매와 좌석까지 정리한다")
-    void complete_card_payment_from_gateway_expired_payment() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(
-                reservation,
-                PaymentMethod.CREDIT_CARD,
-                PaymentStatus.READY,
-                LocalDateTime.now().minusMinutes(1)
-        );
-        CardPaymentCompleteRequest request = cardCompleteRequest(BigDecimal.valueOf(180000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        assertThatThrownBy(() -> cardPaymentService.completeFromGateway(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("결제 기한이 만료되었습니다.");
-
-        then(paymentExpirationService).should().expire(payment);
-        then(paymentCompletionService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("payment-gateway 카드 결제 실패 요청 시 READY 결제를 FAILED 처리한다")
-    void fail_card_payment_from_gateway_success() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        CardPaymentFailRequest request = cardFailRequest(BigDecimal.valueOf(180000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        PaymentResponse response = cardPaymentService.failFromGateway(request);
-
-        assertThat(response.getStatus()).isEqualTo(PaymentStatus.FAILED);
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
-        then(paymentCompletionService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("payment-gateway 카드 결제 실패 요청 금액이 다르면 결제 상태를 유지한다")
-    void fail_card_payment_from_gateway_amount_mismatch() {
-        Reservation reservation = reservation(event(), "user01");
-        Payment payment = payment(reservation, PaymentMethod.CREDIT_CARD, PaymentStatus.READY);
-        CardPaymentFailRequest request = cardFailRequest(BigDecimal.valueOf(170000));
-
-        given(paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())).willReturn(Optional.of(payment));
-
-        assertThatThrownBy(() -> cardPaymentService.failFromGateway(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("결제 금액이 일치하지 않습니다.");
-
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
-        then(paymentCompletionService).shouldHaveNoInteractions();
+        then(paymentExpirationService).shouldHaveNoInteractions();
     }
 
     private CardPaymentCompleteRequest cardCompleteRequest(BigDecimal amount) {
@@ -253,15 +141,6 @@ class CardPaymentServiceTest {
                 .transactionId("CARD-transaction-1")
                 .cardCompany(CardCompany.SHINHAN)
                 .maskedCardNumber("4111-****-****-1111")
-                .build();
-    }
-
-    private CardPaymentFailRequest cardFailRequest(BigDecimal amount) {
-        return CardPaymentFailRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .userId("user01")
-                .amount(amount)
-                .failureReason("카드 승인 실패")
                 .build();
     }
 

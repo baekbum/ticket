@@ -28,6 +28,10 @@ public class QCheckoutAttempt extends EntityPathBase<CheckoutAttempt> {
 
     public final DateTimePath<java.time.LocalDateTime> expiresAt = createDateTime("expiresAt", java.time.LocalDateTime.class);
 
+    public final EnumPath<dev.bum.common.service.ticket.payment.enums.BankCompany> gatewaySwitchBankCompany = createEnum("gatewaySwitchBankCompany", dev.bum.common.service.ticket.payment.enums.BankCompany.class);
+
+    public final DateTimePath<java.time.LocalDateTime> gatewaySwitchExpiresAt = createDateTime("gatewaySwitchExpiresAt", java.time.LocalDateTime.class);
+
     public final StringPath idempotencyKey = createString("idempotencyKey");
 
     public final StringPath orderId = createString("orderId");

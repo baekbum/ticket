@@ -59,3 +59,12 @@ dependencyManagement {
 		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
 	}
 }
+
+// PG 운영자가 원문 키를 소스나 로그에 남기지 않고 일회성으로 발급한다.
+tasks.register('issueMerchantCredential', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.bum.payment_gateway_service.support.merchant.MerchantCredentialIssueCommand'
+    args providers.gradleProperty('merchantId').getOrElse(''),
+            providers.gradleProperty('merchantPrefix').getOrElse(''),
+            providers.gradleProperty('credentialOutput').getOrElse('')
+}

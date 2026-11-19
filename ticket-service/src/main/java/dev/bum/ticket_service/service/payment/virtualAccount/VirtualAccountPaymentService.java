@@ -1,6 +1,5 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
@@ -8,7 +7,6 @@ import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
-import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,17 +25,23 @@ public class VirtualAccountPaymentService {
 
     // 결제 완료 업무 처리를 담당하는 서비스.
     private final PaymentCompletionService paymentCompletionService;
-    // 결제 만료 업무 처리를 담당하는 서비스.
-    private final PaymentExpirationService paymentExpirationService;
     // 가상계좌 결제 잠금 업무 처리를 담당하는 서비스.
     private final VirtualAccountPaymentLockService paymentLocks;
 
     /**
-     * 게이트웨이의 가상계좌 입금 결과를 로컬 결제에 반영한다.
+     * PG 통보는 가맹점이 준비한 예매 소유자까지 검증한다.
      */
-    public PaymentResponse completeDepositFromGateway(VirtualAccountDepositCompleteRequest request) {
+    public PaymentResponse completeDepositFromGateway(
+            VirtualAccountDepositCompleteRequest request,
+            String buyerReference
+    ) {
 
         Payment payment = paymentLocks.lock(request.getPaymentNo());
+
+        if (!StringUtils.hasText(buyerReference) || payment.getReservation() == null
+                || !buyerReference.equals(payment.getReservation().getUserId())) {
+            throw new org.springframework.security.access.AccessDeniedException("입금 통보의 예매 소유자가 일치하지 않습니다.");
+        }
 
         validateGatewayVirtualAccountDeposit(payment, request);
         if (isDepositApplied(payment) || isCancelledReservation(payment)) {
@@ -45,22 +49,6 @@ public class VirtualAccountPaymentService {
         }
 
         return paymentCompletionService.completeDeposit(payment, request.getDepositedAt(), request.getDepositorName());
-    }
-
-    /**
-     * 게이트웨이의 가상계좌 만료 결과를 로컬에 반영한다.
-     */
-    public PaymentResponse expireFromGateway(VirtualAccountExpiredEvent event) {
-
-        Payment payment = paymentLocks.lock(event.getPaymentNo());
-
-        validateGatewayVirtualAccountExpiration(payment, event);
-        if (payment.getStatus() == PaymentStatus.EXPIRED || isDepositApplied(payment) || isCancelledReservation(payment)) {
-            return payment.toResponse();
-        }
-
-        paymentExpirationService.expire(payment);
-        return payment.toResponse();
     }
 
     /**
@@ -106,7 +94,6 @@ public class VirtualAccountPaymentService {
         }
 
         if (payment.getExpiresAt() != null && request.getDepositedAt() != null && request.getDepositedAt().isAfter(payment.getExpiresAt())) {
-            paymentExpirationService.expire(payment);
             throw new IllegalArgumentException("입금 기한이 만료되었습니다.");
         }
     }
@@ -130,36 +117,4 @@ public class VirtualAccountPaymentService {
                 && payment.getReservation().getStatus() == ReservationStatus.CANCELLED;
     }
 
-    /**
-     * 게이트웨이의 가상계좌 만료 통지를 검증한다.
-     */
-    private void validateGatewayVirtualAccountExpiration(Payment payment, VirtualAccountExpiredEvent event) {
-
-        if (payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalArgumentException("무통장 입금 결제 요청이 아닙니다.");
-        }
-
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(event.getAmount()) != 0) {
-            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
-        }
-
-        if (StringUtils.hasText(payment.getAccountNumber())
-                && !payment.getAccountNumber().equals(event.getAccountNumber())) {
-            throw new IllegalArgumentException("입금 계좌번호가 일치하지 않습니다.");
-        }
-
-        if (!Objects.equals(payment.getBankName(), event.getBankName())
-                || event.getBankCompany() == null
-                || !Objects.equals(event.getBankName(), event.getBankCompany().getBankName())) {
-            throw new IllegalArgumentException("입금 은행 정보가 일치하지 않습니다.");
-        }
-
-        if (payment.getStatus() == PaymentStatus.EXPIRED || isDepositApplied(payment) || isCancelledReservation(payment)) {
-            return;
-        }
-
-        if (payment.getStatus() != PaymentStatus.WAITING_DEPOSIT) {
-            throw new IllegalArgumentException("만료 처리할 수 없는 결제 상태입니다.");
-        }
-    }
 }

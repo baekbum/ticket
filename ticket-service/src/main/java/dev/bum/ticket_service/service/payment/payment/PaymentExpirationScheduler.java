@@ -1,5 +1,6 @@
 package dev.bum.ticket_service.service.payment.payment;
 
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,8 @@ public class PaymentExpirationScheduler {
         LocalDateTime now = LocalDateTime.now();
         List<Long> expiredPaymentIds = paymentJpaRepository.findExpiredPaymentIds(
                 EXPIRE_TARGET_STATUSES,
+                PaymentMethod.BANK_TRANSFER,
+                PaymentStatus.WAITING_DEPOSIT,
                 now,
                 PageRequest.of(0, BATCH_SIZE)
         );

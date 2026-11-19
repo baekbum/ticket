@@ -1,3 +1,13 @@
+-- 최초 가맹점은 미발급 상태다. 운영자가 issueMerchantCredential 명령으로 별도 발급한다.
+-- 고정 가맹점 코드를 사용하므로 반복 실행이나 중복 표시 이름으로 기존 가맹점을 잘못 선택하지 않는다.
+INSERT INTO merchants (merchant_id, merchant_name, status, credential_hash, notification_contract, notification_target_key)
+VALUES (1, 'Ticksy', 'ACTIVE', NULL, 'PAYMENT_NOTIFICATION_V1', 'ticksy')
+ON CONFLICT (merchant_id) DO NOTHING;
+SELECT setval(pg_get_serial_sequence('merchants', 'merchant_id'), (SELECT max(merchant_id) FROM merchants));
+
+-- 통보 대상은 MerchantNotificationEndpointService.register로 별도 등록한다.
+-- 평문 토큰이나 환경별 암호문을 초기 데이터 SQL에 고정하지 않는다.
+
 INSERT INTO dummy_cards (
     user_id,
     card_company,

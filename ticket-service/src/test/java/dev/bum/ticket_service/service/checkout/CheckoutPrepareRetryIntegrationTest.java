@@ -1,12 +1,13 @@
 package dev.bum.ticket_service.service.checkout;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
+
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareRequest;
 import dev.bum.common.service.ticket.checkout.dto.CheckoutPrepareResponse;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayCardClient;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -78,12 +79,12 @@ import static org.mockito.Mockito.when;
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({CheckoutService.class, CheckoutIdempotencyKeyGenerator.class, EventBookingGuard.class})
+@Import({CheckoutTransactionService.class, CheckoutIdempotencyKeyGenerator.class, EventBookingGuard.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named = "CHECKOUT_TEST_POSTGRES_URL", matches = "jdbc:postgresql:.*")
 class CheckoutPrepareRetryIntegrationTest {
 
-    @Autowired CheckoutService checkout;
+    @Autowired CheckoutTransactionService checkout;
     @Autowired CheckoutAttemptJpaRepository attempts;
     @Autowired EventJpaRepository events;
     @Autowired SeatJpaRepository seats;
@@ -94,7 +95,7 @@ class CheckoutPrepareRetryIntegrationTest {
     @MockitoBean QueueAccessService queue;
     @MockitoBean ReservationRepository reservations;
     @MockitoBean CheckoutPaymentService payments;
-    @MockitoBean PaymentGatewayCardClient gateway;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService virtualAccounts;
     @MockitoBean Clock clock;
     @MockitoSpyBean EventBookingGuard bookingGuard;
     @MockitoSpyBean CheckoutIdempotencyKeyGenerator keyGenerator;

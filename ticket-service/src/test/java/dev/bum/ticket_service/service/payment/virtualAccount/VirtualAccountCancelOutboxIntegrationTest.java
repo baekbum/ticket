@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.payment.virtualAccount;
 
-import dev.bum.common.kafka.payment.VirtualAccountExpiredEvent;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService;
+
 import dev.bum.common.service.ticket.event.event.enums.*;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.common.service.ticket.payment.enums.*;
@@ -8,7 +9,12 @@ import dev.bum.common.service.ticket.reservation.dto.CancelReservationRequest;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.*;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
+import dev.bum.ticket_service.feign.paymentgateway.*;
+import dev.bum.common.service.paymentgateway.notification.*;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+import dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService;
+import dev.bum.ticket_service.service.payment.card.CardPaymentService;
+import org.springframework.http.ResponseEntity;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.event.event.*;
 import dev.bum.ticket_service.jpa.payment.payment.*;
@@ -49,9 +55,11 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = VirtualAccountCancelOutboxIntegrationTest.PersistenceConfig.class)
 @Import({ReservationCancellationService.class, TicketPurchaseCountService.class, TicketRepositoryImpl.class,
         VirtualAccountCancelOutboxService.class, VirtualAccountCancelOutboxPublisher.class,
+        VirtualAccountCancelOutboxCommands.class,
         VirtualAccountCancelOutboxDispatcher.class, VirtualAccountPaymentLockService.class,
         VirtualAccountPaymentService.class, PaymentCompletionService.class, PaymentExpirationService.class,
-        VirtualAccountReconciliationCompletionService.class, VirtualAccountReconciliationValidator.class})
+        BankDepositNotificationService.class, VirtualAccountIssuanceCheckoutCommandService.class,
+        VirtualAccountExpirationCommandService.class, PaymentService.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class VirtualAccountCancelOutboxIntegrationTest {
@@ -70,9 +78,13 @@ class VirtualAccountCancelOutboxIntegrationTest {
     }
 
     @Autowired ReservationCancellationService cancellation;
-    @Autowired VirtualAccountPaymentService deposits;
-    @Autowired VirtualAccountReconciliationCompletionService reconciliation;
+    @Autowired BankDepositNotificationService notifications;
+    @Autowired VirtualAccountExpirationCommandService expirations;
+    @MockitoBean CardPaymentService cardPayments;
     @Autowired VirtualAccountCancelOutboxPublisher publisher;
+    @MockitoSpyBean VirtualAccountCancelOutboxCommands deliveryCommands;
+    @MockitoBean dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayTransactionClient transactionGateway;
+    @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutService issuance;
     @Autowired VirtualAccountCancelOutboxDispatcher dispatcher;
     @Autowired VirtualAccountCancelOutboxService enqueue;
     @MockitoSpyBean VirtualAccountCancelOutboxJpaRepository outbox;
@@ -89,9 +101,8 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @MockitoBean SeatCacheService cache;
     @MockitoBean UserCouponRepository coupons;
     @MockitoBean PaymentRefundProcessService refunds;
-    @MockitoBean CardPaymentRefundService cardRefunds;
-    @MockitoBean VirtualAccountPaymentRefundService bankRefunds;
-    @MockitoBean PaymentGatewayVirtualAccountClient gateway;
+    private static final String PG_ID = "20261118550e8400-e29b-41d4-a716-446655440000";
+    private static final LocalDateTime DEADLINE = LocalDateTime.of(2026, 10, 28, 23, 59);
     Fixture fixture;
 
     record Fixture(Long reservationId, Long paymentId, Long ticketId, Long seatId) { }
@@ -99,13 +110,8 @@ class VirtualAccountCancelOutboxIntegrationTest {
     @BeforeEach void setup() {
         when(clock.instant()).thenReturn(Instant.parse("2026-10-27T03:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-        when(refunds.inspectRequest(any(), anyList(), anyBoolean(), any()))
-                .thenReturn(new PaymentRefundRequestContext(null, false));
-        doAnswer(invocation -> {
-            var request = invocation.getArgument(0, GatewayVirtualAccountCancelRequest.class);
-            return new GatewayVirtualAccountCancelResponse(request.paymentNo(), request.bankName(),
-                    request.accountNumber(), request.amount(), GatewayVirtualAccountStatus.CANCELLED);
-        }).when(gateway).cancel(any());
+        doReturn(ResponseEntity.ok(cancelledResponse(PG_ID)))
+                .when(transactionGateway).cancel(eq(PG_ID), any());
         tx().executeWithoutResult(status -> {
             outbox.deleteAll();
             payments.deleteAll();
@@ -128,7 +134,9 @@ class VirtualAccountCancelOutboxIntegrationTest {
             Payment payment = Payment.builder().reservation(reservation).paymentNo("PAY-1")
                     .method(PaymentMethod.BANK_TRANSFER).status(PaymentStatus.WAITING_DEPOSIT).amount(10000)
                     .idempotencyKey("checkout-1").requestedAt(LocalDateTime.now()).build();
-            payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.of(2026,10,28,23,59));
+            payment.planGatewayAccount(BankCompany.KB, DEADLINE);
+            payment.bindGatewayPayment(PG_ID);
+            payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", DEADLINE);
             payments.saveAndFlush(payment);
             jdbc.update("insert into ticket_purchase_locks(user_id, limit_scope, scope_key, ticket_count, created_at) values (?, ?, ?, ?, ?)",
                     "owner", "PER_EVENT", event.getEventId().toString(), 1, LocalDateTime.now());
@@ -153,12 +161,13 @@ class VirtualAccountCancelOutboxIntegrationTest {
         });
     }
 
-    @Test void cancellationCommitsAllStatesAndOutboxWithoutCallingPg() {
+    @Test
+    void cancellationCommitsAllStatesAndOutboxWithoutCallingPg() {
         cancel();
         assertCancelled();
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.AVAILABLE);
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
-        verifyNoInteractions(gateway);
+        verifyNoInteractions(transactionGateway);
         // 같은 잠금 아래 다시 enqueue해도 작업은 하나다.
         tx().executeWithoutResult(status -> enqueue.enqueue(payments.findByIdForUpdate(fixture.paymentId()).orElseThrow()));
         assertThat(outbox.count()).isEqualTo(1);
@@ -166,7 +175,8 @@ class VirtualAccountCancelOutboxIntegrationTest {
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
     }
 
-    @Test void rollbackAndOutboxSaveFailurePreserveUnpaidReservation() {
+    @Test
+    void rollbackAndOutboxSaveFailurePreserveUnpaidReservation() {
         assertThatThrownBy(() -> tx().executeWithoutResult(status -> {
             cancelWithinTransaction();
             throw new IllegalStateException("커밋 전 실패");
@@ -180,19 +190,37 @@ class VirtualAccountCancelOutboxIntegrationTest {
         assertThat(tickets.findById(fixture.ticketId()).orElseThrow().getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
         assertThat(counts.findAll().getFirst().getTicketCount()).isEqualTo(1);
-        verifyNoInteractions(gateway);
+        verifyNoInteractions(transactionGateway);
     }
 
-    @Test void lostPgResponseRetriesTheSameRequestAndCompletes() {
+    @Test
+    void unfinishedRefundPreventsUnpaidCancellationFromOverwritingTheRequest() {
+        when(refunds.hasUnfinishedRequest(any(Payment.class))).thenReturn(true);
+
+        assertThatThrownBy(this::cancel)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("입금 대기 예매에 진행 중인 환불 요청이 존재합니다.");
+
+        assertThat(outbox.count()).isZero();
+        assertThat(payments.findById(fixture.paymentId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+        assertThat(reservations.findById(fixture.reservationId()).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.LOCKED);
+        verifyNoInteractions(transactionGateway);
+    }
+
+    @Test
+    void lostPgResponseRetriesTheSameRequestAndCompletes() {
         cancel();
         AtomicInteger attempts = new AtomicInteger();
-        var payload = record().toRequest();
+        GatewayAccountCancelRequest payload = record().toGatewayRequest(1L);
         doAnswer(invocation -> {
-            assertThat(invocation.getArgument(0, GatewayVirtualAccountCancelRequest.class)).isEqualTo(payload);
+            assertThat(invocation.getArgument(0, String.class)).isEqualTo(PG_ID);
+            assertThat(invocation.getArgument(1, GatewayAccountCancelRequest.class)).isEqualTo(payload);
             if (attempts.incrementAndGet() == 1) throw new IllegalStateException("PG 취소 후 응답 유실");
-            return new GatewayVirtualAccountCancelResponse(payload.paymentNo(), payload.bankName(), payload.accountNumber(),
-                    payload.amount(), GatewayVirtualAccountStatus.CANCELLED);
-        }).when(gateway).cancel(any());
+            return ResponseEntity.ok(cancelledResponse(PG_ID));
+        }).when(transactionGateway).cancel(eq(PG_ID), any());
         dispatcher.retryPendingEvents();
         assertCancelled();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
@@ -206,34 +234,37 @@ class VirtualAccountCancelOutboxIntegrationTest {
         assertThat(attempts).hasValue(2);
     }
 
-    @Test void mismatchedPgResponseDoesNotCompleteOutbox() {
+    @Test
+    void mismatchedPgResponseDoesNotCompleteOutbox() {
         cancel();
-        doReturn(new GatewayVirtualAccountCancelResponse("OTHER", BankCompany.KB.getBankName(),
-                "1111-123456", BigDecimal.valueOf(10000), GatewayVirtualAccountStatus.CANCELLED)).when(gateway).cancel(any());
+        doReturn(ResponseEntity.ok(cancelledResponse("OTHER")))
+                .when(transactionGateway).cancel(eq(PG_ID), any());
         dispatcher.retryPendingEvents();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
         assertThat(record().getRetryCount()).isEqualTo(1);
     }
 
-    @Test void deliveryCommitFailureLeavesWorkForSafeRetry() {
+    @Test
+    void deliveryCommitFailureLeavesWorkForSafeRetry() {
         cancel();
         AtomicInteger attempts = new AtomicInteger();
+        doThrow(new IllegalStateException("완료 커밋 실패")).doCallRealMethod()
+                .when(deliveryCommands).delivered(anyLong(), anyLong(), eq("CANCELLED"), eq("CANCELLED_BEFORE_DEPOSIT"));
         doAnswer(invocation -> {
-            if (attempts.incrementAndGet() == 1) TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void beforeCommit(boolean readOnly) { throw new IllegalStateException("완료 커밋 실패"); }
-            });
-            var payload = record().toRequest();
-            return new GatewayVirtualAccountCancelResponse(payload.paymentNo(), payload.bankName(), payload.accountNumber(),
-                    payload.amount(), GatewayVirtualAccountStatus.CANCELLED);
-        }).when(gateway).cancel(any());
+            attempts.incrementAndGet();
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return ResponseEntity.ok(cancelledResponse(PG_ID));
+        }).when(transactionGateway).cancel(eq(PG_ID), any());
         dispatcher.retryPendingEvents();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
+        makeReady();
         dispatcher.retryPendingEvents();
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
         assertThat(attempts).hasValue(2);
     }
 
-    @Test void lateDepositAndExpirationCannotReviveCancellationOrReleaseResoldSeat() {
+    @Test
+    void lateDepositAndExpirationCannotReviveCancellationOrReleaseResoldSeat() {
         cancel();
         Long buyerTicket = tx().execute(status -> {
             Seat seat = seats.findByIdForUpdate(fixture.seatId()).orElseThrow();
@@ -243,10 +274,9 @@ class VirtualAccountCancelOutboxIntegrationTest {
             return tickets.save(Ticket.builder().reservation(buyer).event(seat.getEvent()).seat(seat).userId("buyer")
                     .status(TicketStatus.PAID).build()).getTicketId();
         });
-        assertThat(deposits.completeDepositFromGateway(depositRequest()).getStatus()).isEqualTo(PaymentStatus.CANCELLED);
-        assertThat(deposits.expireFromGateway(VirtualAccountExpiredEvent.builder().paymentNo("PAY-1")
-                .bankCompany(BankCompany.KB).bankName(BankCompany.KB.getBankName()).accountNumber("1111-123456")
-                .amount(BigDecimal.valueOf(10000)).expiredAt(LocalDateTime.now()).build()).getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(notifications.receive(depositEvent()).outcome())
+                .isEqualTo(BankDepositNotificationResponse.Outcome.RESERVATION_CANCELLED);
+        assertThat(expirations.expireIfConfirmed(candidate(), expiredResponse())).isFalse();
         assertCancelled();
         assertThat(tickets.findById(buyerTicket).orElseThrow().getStatus()).isEqualTo(TicketStatus.PAID);
         assertThat(seats.findById(fixture.seatId()).orElseThrow().getStatus()).isEqualTo(SeatStatus.RESERVED);
@@ -254,64 +284,113 @@ class VirtualAccountCancelOutboxIntegrationTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-    void depositAndManualCompletionWaitForCancellation(boolean manualCompletion) throws Exception {
+    void depositAndPgExpirationWaitForCancellation(boolean expiration) throws Exception {
         CountDownLatch locked = new CountDownLatch(1), release = new CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(2)) {
+
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
             try {
-                var cancel = pool.submit(() -> tx().executeWithoutResult(status -> {
+                Future<?> cancel = pool.submit(() -> tx().executeWithoutResult(status -> {
                     cancelWithinTransaction();
                     locked.countDown();
                     await(release);
                 }));
                 await(locked);
-                var deposit = pool.submit(() -> manualCompletion
-                        ? reconciliation.complete("PAY-1", new GatewayVirtualAccountStatusResponse(
-                                "PAY-1", BankCompany.KB, BankCompany.KB.getBankName(), "1111-123456", "입금자",
-                                BigDecimal.valueOf(10000), LocalDateTime.of(2026,10,28,23,59),
-                                depositRequest().getDepositedAt(), GatewayVirtualAccountStatus.DEPOSITED))
-                        : deposits.completeDepositFromGateway(depositRequest()));
-                assertThatThrownBy(() -> deposit.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                Future<Object> operation = pool.submit(() -> expiration
+                        ? expirations.expireIfConfirmed(candidate(), expiredResponse())
+                        : notifications.receive(depositEvent()));
+
+                assertThatThrownBy(() -> operation.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
                 release.countDown();
                 cancel.get(10, TimeUnit.SECONDS);
-                if (manualCompletion) {
-                    assertThatThrownBy(() -> deposit.get(10, TimeUnit.SECONDS))
-                            .hasRootCauseMessage("Ticket 결제가 입금 대기 상태가 아닙니다. 만료·취소 건은 별도 조치가 필요합니다.");
+
+                if (expiration) {
+                    assertThat(operation.get(10, TimeUnit.SECONDS)).isEqualTo(false);
                 } else {
-                    assertThat(deposit.get(10, TimeUnit.SECONDS).getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+                    assertThat(((BankDepositNotificationResponse) operation.get(10, TimeUnit.SECONDS)).outcome())
+                            .isEqualTo(BankDepositNotificationResponse.Outcome.RESERVATION_CANCELLED);
                 }
             } finally { release.countDown(); }
         }
+
         assertCancelled();
     }
 
-    @Test void concurrentWorkersDeliverOnlyOnce() throws Exception {
+    @Test
+    void concurrentWorkersDeliverOnlyOnce() throws Exception {
         cancel();
         CountDownLatch sending = new CountDownLatch(1), release = new CountDownLatch(1);
         Long id = record().getOutboxId();
-        var payload = record().toRequest();
         doAnswer(invocation -> {
             sending.countDown(); await(release);
-            return new GatewayVirtualAccountCancelResponse(payload.paymentNo(), payload.bankName(), payload.accountNumber(),
-                    payload.amount(), GatewayVirtualAccountStatus.CANCELLED);
-        }).when(gateway).cancel(any());
+            return ResponseEntity.ok(cancelledResponse(PG_ID));
+        }).when(transactionGateway).cancel(eq(PG_ID), any());
         try (var pool = Executors.newFixedThreadPool(2)) {
             try {
                 var first = pool.submit(() -> publisher.deliver(id));
                 await(sending);
                 var second = pool.submit(() -> publisher.deliver(id));
-                assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                second.get(3, TimeUnit.SECONDS);
                 release.countDown(); first.get(10, TimeUnit.SECONDS); second.get(10, TimeUnit.SECONDS);
             } finally { release.countDown(); }
         }
-        verify(gateway, times(1)).cancel(any());
+        verify(transactionGateway, times(1)).cancel(eq(PG_ID), any());
         assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
     }
 
-    private VirtualAccountDepositCompleteRequest depositRequest() {
-        return VirtualAccountDepositCompleteRequest.builder().paymentNo("PAY-1").bankCompany(BankCompany.KB)
-                .bankName(BankCompany.KB.getBankName()).accountNumber("1111-123456").depositorName("입금자")
-                .amount(BigDecimal.valueOf(10000)).depositedAt(LocalDateTime.of(2026,10,27,12,0)).build();
+    @Test
+    void unsupportedUnlinkedOutboxIsNotSentOrMarkedDelivered() {
+        cancel();
+        jdbc.update("update virtual_account_cancel_outbox set bank_company = null where outbox_id = ?",
+                record().getOutboxId());
+
+        publisher.deliver(record().getOutboxId());
+
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
+        assertThat(record().getRetryCount()).isEqualTo(1);
+        assertThat(record().getLastErrorType()).isEqualTo("IllegalStateException");
+        verifyNoInteractions(transactionGateway, issuance);
+        assertCancelled();
     }
+
+    @Test
+    void expiredLeaseCanBeReclaimedAndAStaleWorkerCannotCompleteOrFailTheNewAttempt() {
+        cancel();
+        Long id = record().getOutboxId();
+        VirtualAccountCancelOutbox first = deliveryCommands.claimDelivery(id);
+        assertThat(deliveryCommands.claimDelivery(id)).isNull();
+        jdbc.update("update virtual_account_cancel_outbox set lease_until = ? where outbox_id = ?",
+                LocalDateTime.now().minusMinutes(1), id);
+        VirtualAccountCancelOutbox second = deliveryCommands.claimDelivery(id);
+        assertThat(second.getDeliveryAttempt()).isEqualTo(first.getDeliveryAttempt() + 1);
+        deliveryCommands.delivered(id, first.getDeliveryAttempt(), null, null);
+        deliveryCommands.failed(id, first.getDeliveryAttempt(), "LATE_FAILURE", LocalDateTime.now());
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.PENDING);
+        assertThat(record().getDeliveryAttempt()).isEqualTo(second.getDeliveryAttempt());
+        assertThat(record().getLastErrorType()).isNull();
+        deliveryCommands.delivered(id, second.getDeliveryAttempt(), null, null);
+        assertThat(record().getStatus()).isEqualTo(VirtualAccountCancelOutboxStatus.DELIVERED);
+    }
+
+    private GatewayAccountCancelResponse cancelledResponse(String id) {
+        return new GatewayAccountCancelResponse(id, "PAY-1", id + ":CANCEL:INITIAL", "CANCELLED",
+                "CANCELLED_BEFORE_DEPOSIT", "CANCELLED", LocalDateTime.of(2026, 10, 27, 12, 0), false);
+    }
+
+    private BankDepositNotification depositEvent() {
+        return new BankDepositNotification(1, PG_ID + ":DEPOSIT:INITIAL", 1L, PG_ID, "PAY-1", "owner",
+                PaymentMethod.BANK_TRANSFER, PaymentStatus.PAID, BigDecimal.valueOf(10000), "1111-123456",
+                BankCompany.KB, "입금자", LocalDateTime.of(2026, 10, 27, 12, 0));
+    }
+
+    private VirtualAccountExpirationCandidate candidate() {
+        return new VirtualAccountExpirationCandidate(fixture.paymentId(), "PAY-1", PG_ID);
+    }
+
+    private GatewayPaymentPrepareResponse expiredResponse() {
+        return new GatewayPaymentPrepareResponse(PG_ID, 1L, "PAY-1", "owner", PaymentMethod.BANK_TRANSFER,
+                BankCompany.KB, BigDecimal.valueOf(10000), DEADLINE, "EXPIRED");
+    }
+
     private static void await(CountDownLatch latch) {
         try { if (!latch.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("동시성 테스트 대기 시간 초과"); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }

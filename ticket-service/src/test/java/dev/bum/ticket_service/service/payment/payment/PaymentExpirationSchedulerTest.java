@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.payment.payment;
 
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
+import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -36,6 +38,8 @@ class PaymentExpirationSchedulerTest {
     void expire_payments() {
         given(paymentJpaRepository.findExpiredPaymentIds(
                 argThat(statuses -> containsExpireTargetStatuses(statuses)),
+                eq(PaymentMethod.BANK_TRANSFER),
+                eq(PaymentStatus.WAITING_DEPOSIT),
                 any(LocalDateTime.class),
                 any(Pageable.class)
         )).willReturn(List.of(1L, 2L));

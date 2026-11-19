@@ -268,7 +268,7 @@ public class PaymentRefundProcess {
             String reason
     ) {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
 
         if (status == next && event != PaymentRefundHistoryType.RETRY_REQUESTED) return;
         PaymentRefundProcessStatus before = status;
@@ -288,14 +288,6 @@ public class PaymentRefundProcess {
                 null);
     }
 
-    // 기존 요청이 대체되었음을 반영한다.
-    public void superseded() {
-
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
-        move(PaymentRefundProcessStatus.SUPERSEDED, PaymentRefundHistoryType.SUPERSEDED, null);
-        refund.supersede();
-    }
-
     // 게이트웨이 재시도 요청 상태를 반영한다.
     public void gatewayRetryRequested() {
 
@@ -311,7 +303,7 @@ public class PaymentRefundProcess {
     // 게이트웨이 처리 실패 결과를 반영한다.
     public void gatewayFailed(String reason) {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
         retryCount++;
         move(
                 PaymentRefundProcessStatus.GATEWAY_FAILED,
@@ -322,7 +314,7 @@ public class PaymentRefundProcess {
     // 로컬 데이터 반영 성공 결과를 기록한다.
     public void localSucceeded() {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
         move(
                 PaymentRefundProcessStatus.LOCAL_SUCCEEDED,
                 PaymentRefundHistoryType.LOCAL_SUCCEEDED,
@@ -340,6 +332,29 @@ public class PaymentRefundProcess {
                 reason);
     }
 
+    // HTTP 결과가 유실되어도 다음 요청이 환불 실행 대신 철회 확인을 이어가게 한다.
+    public void withdrawalRequested() {
+
+        if (status == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED || status == PaymentRefundProcessStatus.LOCAL_FAILED) return;
+        move(PaymentRefundProcessStatus.WITHDRAW_REQUESTED, PaymentRefundHistoryType.WITHDRAW_REQUESTED, null);
+    }
+
+    // 은행에서 미실행 종료가 확인된 신청만 철회 완료한다.
+    public void withdrawn() {
+
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
+                || status == PaymentRefundProcessStatus.WITHDRAWN) return;
+
+        if (status == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
+                || status == PaymentRefundProcessStatus.LOCAL_FAILED) {
+            throw new IllegalStateException("이미 환불된 신청은 철회할 수 없습니다.");
+        }
+
+        move(PaymentRefundProcessStatus.WITHDRAWN, PaymentRefundHistoryType.WITHDRAWN, null);
+        refund.withdraw();
+        completedAt = LocalDateTime.now();
+    }
+
     // 외부 응답에 사용할 DTO로 변환한다.
     public PaymentRefundProcessResponse toResponse() {
 
@@ -350,6 +365,7 @@ public class PaymentRefundProcess {
                 .paymentNo(getPaymentNo())
                 .method(getMethod())
                 .refundAmount(getRefundAmount())
+                .cancellationFeeAmount(getCancellationFeeAmount())
                 .fullCancellation(isFullCancellation())
                 .selectedTicketIds(getSelectedTicketIds())
                 .status(status.name())

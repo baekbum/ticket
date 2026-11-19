@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.jpa.checkout;
 
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
@@ -81,6 +82,15 @@ public class CheckoutAttempt {
     @JoinColumn(name = "payment_id")
     private Payment payment;
 
+    // 카드→무통장 전환의 최초 은행. 카드 전환은 은행 없이 gatewaySwitchExpiresAt만 저장한다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gateway_switch_bank_company", length = 30)
+    private BankCompany gatewaySwitchBankCompany;
+
+    // 동일 PG 전환 요청의 고정 기한. 무통장은 입금기한, 카드는 최초 좌석 선점 기한이다.
+    @Column(name = "gateway_switch_expires_at")
+    private LocalDateTime gatewaySwitchExpiresAt;
+
     // 결제 준비 시도 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -98,6 +108,28 @@ public class CheckoutAttempt {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // 은행→카드 전환은 은행 없이 기한만 고정한다. 반대 방향 의도와 섞지 않는다.
+    public void planGatewayCardSwitch(LocalDateTime deadline) {
+
+        if (gatewaySwitchBankCompany != null || deadline == null
+                || (gatewaySwitchExpiresAt != null && !gatewaySwitchExpiresAt.equals(deadline))) {
+            throw new IllegalArgumentException("최초 카드 전환 조건과 다릅니다.");
+        }
+
+        gatewaySwitchExpiresAt = deadline.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public void planGatewaySwitch(BankCompany bank, LocalDateTime expiresAt) {
+
+        if (bank == null || expiresAt == null || (gatewaySwitchBankCompany != null
+                && (gatewaySwitchBankCompany != bank || !gatewaySwitchExpiresAt.equals(expiresAt)))) {
+            throw new IllegalArgumentException("최초 결제수단 전환 조건과 다릅니다.");
+        }
+
+        gatewaySwitchBankCompany = bank;
+        gatewaySwitchExpiresAt = expiresAt.truncatedTo(ChronoUnit.MICROS);
+    }
 
     // 결제 준비 시도 처리에서 처리에 필요한 상태와 데이터를 준비한다.
     public static CheckoutAttempt prepare(

@@ -31,6 +31,9 @@ public class PaymentRefundProcessResponse {
     // 환불 금액.
     private Integer refundAmount;
 
+    // 최초 신청 시 확정한 취소 수수료. 재시도 시 다시 계산하지 않는다.
+    private Integer cancellationFeeAmount;
+
     // 전체 취소 여부.
     private boolean fullCancellation;
 

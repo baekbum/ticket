@@ -25,16 +25,19 @@ public class VirtualAccountCancelOutboxService {
 
         if (payment.getMethod() != PaymentMethod.BANK_TRANSFER || payment.getStatus() != PaymentStatus.CANCELLED
                 || payment.getReservation() == null || payment.getReservation().getStatus() != ReservationStatus.CANCELLED
-                || !StringUtils.hasText(payment.getPaymentNo()) || !StringUtils.hasText(payment.getAccountNumber())
+                || !StringUtils.hasText(payment.getPaymentNo())
+                || payment.getGatewayBankCompany() == null
                 || !StringUtils.hasText(payment.getBankName()) || payment.getAmount() == null) {
             throw new IllegalStateException("취소된 무통장 결제와 계좌 정보가 필요합니다.");
         }
         // 호출자가 결제를 잠근 트랜잭션에서 저장한다. 전용 테이블의 paymentNo가 취소 작업의 멱등 기준이다.
-        VirtualAccountCancelOutbox existing = repository.findByPaymentNo(payment.getPaymentNo()).orElse(null);
+        VirtualAccountCancelOutbox existing = repository.findIdByPaymentNo(payment.getPaymentNo())
+                .flatMap(repository::findByIdForUpdate).orElse(null);
         VirtualAccountCancelOutbox pending = VirtualAccountCancelOutbox.pending(payment);
-        if (existing == null) repository.save(pending);
-        else if (!existing.toRequest().equals(pending.toRequest())) {
-            throw new IllegalStateException("같은 결제의 계좌 취소 정보가 일치하지 않습니다.");
+        if (existing == null) {
+            repository.save(pending);
+        } else {
+            existing.bindGateway(payment);
         }
     }
 }

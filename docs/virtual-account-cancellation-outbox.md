@@ -1,8 +1,12 @@
 # 입금 전 예매 취소와 PG 계좌 취소
 
+> 2026-11-18: 아래 구형 동기 취소 API와 PG 미연결 계좌 호환 분기는 제거했다. 취소 Outbox는 신규 PG ID·등록 가맹점 계약만 사용한다. 발급 전 신규 거래는 최초 은행 조건으로 prepare → issue를 복구한 뒤 취소하며, 상세 범위는 [추가 정리 기록](payment-legacy-retirement.md)을 따른다.
+
+2026-11-11 신규 Ticksy 거래는 PG ID 취소 API의 202 접수와 최종 통보를 구분한다. 발급 중 취소도 복구하며 Outbox와 receipt를 연결한다. [신규 호출 계약](ticksy-gateway-virtual-account.md)을 우선한다. 아래 paymentNo 기반 동기 응답 설명은 폐쇄 전 구조의 기록이다.
+
 입금 전 무통장 예매는 전체 취소만 허용한다. 티켓 서비스는 예약을 먼저 잠그고 결제, 구매 매수, 티켓, 좌석 순서로 잠금을 획득한다. 예약·티켓·결제를 `CANCELLED`, 좌석을 `AVAILABLE`로 변경하고 `virtual_account_cancel_outbox`의 `PENDING` 작업을 같은 트랜잭션에 저장한다. 원래 트랜잭션이 롤백되거나 Outbox 저장이 실패하면 모두 롤백된다. 기존 입금 전 취소의 쿠폰 정책은 유지한다.
 
-스케줄러는 커밋된 작업만 읽고 작업별 별도 트랜잭션에서 Outbox 행을 잠근 뒤 PG 취소 API를 호출한다. 원래 예약·결제 잠금을 잡은 채 HTTP를 호출하지 않는다. PG의 취소 상태와 결제번호·계좌·은행·금액을 모두 확인한 뒤 `DELIVERED`로 변경한다. HTTP 오류, 응답 유실, 불일치 응답은 `PENDING`과 재시도 정보를 유지한다. PG 성공 후 티켓의 완료 기록 커밋에 실패해도 같은 작업으로 재시도한다.
+스케줄러는 커밋된 작업을 짧은 트랜잭션에서 60초 임대·시도 번호로 선점하고, 트랜잭션 밖에서 PG 취소 API를 호출한다. 응답 반영은 별도 짧은 트랜잭션이다. 원래 예약·결제 잠금을 잡은 채 HTTP를 호출하지 않는다. PG의 취소 상태와 결제번호·계좌·은행·금액을 모두 확인한 뒤 `DELIVERED`로 변경한다. HTTP 오류, 응답 유실, 불일치 응답은 `PENDING`과 재시도 정보를 유지한다. PG 성공 후 티켓의 완료 기록 커밋에 실패해도 같은 작업으로 재시도한다.
 
 ## PG 취소 API와 멱등성
 
@@ -29,7 +33,7 @@
 
 ## 배포와 운영
 
-기존 ticket DB에는 배포 전 `ticket-service/src/main/resources/sql/add-virtual-account-cancel-outbox.sql`만 적용한다. PG는 기존 테이블과 `CANCELLED` 상태·이력을 사용하므로 추가 테이블이 필요 없다. 내부 입금 API의 응답이 `result`와 `payment`를 포함하는 형태로 바뀌므로 PG와 티켓 서비스를 함께 배포한다. 배포 이전에 취소된 예매는 자동 소급 변경하지 않으며 별도 대사가 필요하다.
+현재 ticket DB의 취소 Outbox 테이블·제약·인덱스 반영을 확인한 뒤 일회성 추가 SQL은 삭제했다. 최신 정의는 ticket-service의 schema.sql에 유지하며 기존 DB에는 전체 스키마를 재실행하지 않는다. PG는 기존 테이블과 `CANCELLED` 상태·이력을 사용하므로 추가 테이블이 필요 없다. 내부 입금 API의 응답이 `result`와 `payment`를 포함하는 형태로 바뀌므로 PG와 티켓 서비스를 함께 배포한다. 배포 이전에 취소된 예매는 자동 소급 변경하지 않으며 별도 대사가 필요하다.
 
 설정은 `app.virtual-account.cancel-outbox.fixed-delay-ms`, `retry-delay-ms`(기본 30000), `batch-size`(기본 100)다. 운영 시 `PENDING` 건수, 가장 오래된 생성 시각, 재시도 횟수, 오류 유형을 확인한다. 계좌·입금자 원문을 실패 로그에 남기지 않는다.
 
@@ -37,7 +41,7 @@
 
 `VirtualAccountCancelOutboxIntegrationTest`는 H2 PostgreSQL 모드의 격리 DB에서 취소 커밋·롤백, Outbox 저장 실패, 응답 유실과 재시도, 완료 커밋 실패, 동시 작업자, 취소와 자동·수동 입금 반영의 잠금 경합, 취소 후 재판매된 좌석의 입금·만료 보호를 검증한다. HTTP와 Redis 경계는 모의 구현을 사용한다.
 
-PG의 `VirtualAccountDepositOutboxIntegrationTest`는 반복 취소, 입금 후 취소 응답, 두 취소 경로의 순서 역전, 응답 유실, 계좌 취소와 입금 통지 완료의 공동 롤백, 입금·취소 경합을 검증한다. `SecurityConfigAuthorizationTest`는 무인증·잘못된 내부 토큰·일반 사용자·입금 제공자의 취소 접근을 차단하고 내부 서비스만 허용하는지 확인한다.
+PG의 `GatewayVirtualAccountDepositOutboxIntegrationTest`는 반복 취소, 입금 후 취소 응답, 두 취소 경로의 순서 역전, 응답 유실, 계좌 취소와 입금 통지 완료의 공동 롤백, 입금·취소 경합을 검증한다. `SecurityConfigAuthorizationTest`는 무인증·잘못된 내부 토큰·일반 사용자·입금 제공자의 취소 접근을 차단하고 내부 서비스만 허용하는지 확인한다.
 
 ```powershell
 .\gradlew.bat :common:test :ticket-service:test :payment-gateway-service:test --continue --offline --no-daemon

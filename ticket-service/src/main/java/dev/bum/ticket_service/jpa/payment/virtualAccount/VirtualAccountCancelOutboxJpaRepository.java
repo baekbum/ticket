@@ -12,6 +12,9 @@ public interface VirtualAccountCancelOutboxJpaRepository extends JpaRepository<V
 
     Optional<VirtualAccountCancelOutbox> findByPaymentNo(String paymentNo);
 
+    @Query("select o.outboxId from VirtualAccountCancelOutbox o where o.paymentNo = :paymentNo")
+    Optional<Long> findIdByPaymentNo(@Param("paymentNo") String paymentNo);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from VirtualAccountCancelOutbox o where o.outboxId = :id")
     Optional<VirtualAccountCancelOutbox> findByIdForUpdate(@Param("id") Long id);
@@ -19,6 +22,7 @@ public interface VirtualAccountCancelOutboxJpaRepository extends JpaRepository<V
     @Query("""
             select o.outboxId from VirtualAccountCancelOutbox o
             where o.status = :status and o.nextAttemptAt <= :now
+              and (o.leaseUntil is null or o.leaseUntil <= :now)
             order by o.nextAttemptAt, o.outboxId
             """)
     List<Long> findReadyIds(

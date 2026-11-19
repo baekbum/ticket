@@ -1,17 +1,15 @@
 package dev.bum.ticket_service.jpa.payment;
 
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService;
+
 import dev.bum.common.service.ticket.coupon.coupon.enums.DiscountType;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.jpa.event.event.*;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.payment.PaymentHistory;
@@ -33,7 +31,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.*;
 import dev.bum.ticket_service.jpa.ticket.*;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
-import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessCreator;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundRollbackRecorder;
 import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentService;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
@@ -41,6 +38,11 @@ import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
+import dev.bum.common.service.paymentgateway.notification.CardPaymentNotification;
+import dev.bum.common.service.paymentgateway.notification.CardPaymentNotificationResponse;
+import dev.bum.ticket_service.service.payment.card.CardPaymentService;
+import dev.bum.ticket_service.service.payment.payment.PaymentService;
+import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificationService;
 
 import jakarta.persistence.EntityManager;
 
@@ -74,26 +76,21 @@ import static org.mockito.Mockito.times;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({PaymentRefundProcessService.class, PaymentRefundProcessCreator.class, PaymentRefundRollbackRecorder.class,
+@Import({PaymentRefundProcessService.class, PaymentRefundRollbackRecorder.class,
+        dev.bum.ticket_service.service.checkout.payment.virtualAccount.VirtualAccountIssuanceCheckoutCommandService.class,
+        dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountCancelOutboxService.class,
         VirtualAccountPaymentService.class,
         dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService.class,
-        PaymentCompletionService.class, PaymentExpirationService.class})
+        PaymentCompletionService.class, PaymentExpirationService.class,
+        CardPaymentService.class, PaymentService.class, CardPaymentNotificationService.class,
+        dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService.class})
 class PaymentModelIntegrationTest {
     @MockitoBean Clock clock;
-    @MockitoBean PaymentGatewayRefundClient refundResolution;
 
     @BeforeEach
-    void configureTimeAndGatewayResolution() {
+    void configureTime() {
         given(clock.instant()).willReturn(Instant.parse("2026-10-15T03:00:00Z"));
         given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
-        given(refundResolution.resolve(any())).willAnswer(invocation -> {
-            GatewayRefundResolutionRequest request = invocation.getArgument(0);
-            return GatewayRefundResolutionResponse.builder()
-                    .paymentRefundProcessId(request.paymentRefundProcessId())
-                    .paymentNo(request.paymentNo())
-                    .outcome(Outcome.NOT_FOUND)
-                    .build();
-        });
     }
 
     @Autowired PaymentRefundProcessService processService;
@@ -115,7 +112,104 @@ class PaymentModelIntegrationTest {
     @Autowired EntityManager entityManager;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired VirtualAccountPaymentService virtualAccountPayments;
+    @Autowired CardPaymentNotificationService cardNotifications;
     @MockitoBean TicketRepository ticketRepository;
+    @Autowired dev.bum.ticket_service.service.payment.notification.BankDepositNotificationService bankNotifications;
+
+    @Test
+    void standardBankNotificationUpdatesTheRealPaymentAndReplaysWithoutNewHistory() {
+        Payment payment = payment("standard-bank-notification");
+        payment.switchToBankTransfer();
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
+        payments.saveAndFlush(payment);
+        given(ticketRepository.selectByReservation(payment.getReservation()))
+                .willReturn(tickets.findByReservation(payment.getReservation()));
+        var event = bankEvent(payment, "user");
+        var first = bankNotifications.receive(event);
+        payments.flush();
+        assertThat(first.outcome()).isEqualTo(dev.bum.common.service.paymentgateway.notification.BankDepositNotificationResponse.Outcome.APPLIED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getStatus().name().equals("PAID"))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.RESERVED);
+        long count = paymentHistories.count();
+        assertThat(bankNotifications.receive(event)).isEqualTo(first);
+        payments.flush();
+        assertThat(paymentHistories.count()).isEqualTo(count);
+    }
+
+    @Test
+    void standardBankNotificationCannotReviveCancelledReservationOrReclaimAvailableSeats() {
+        Payment payment = payment("cancelled-bank-notification");
+        payment.switchToBankTransfer();
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
+        payment.cancel();
+        payment.getReservation().cancel();
+        tickets.findByReservation(payment.getReservation()).forEach(ticket -> ticket.getSeat().available());
+        payments.saveAndFlush(payment);
+        long count = paymentHistories.count();
+        assertThat(bankNotifications.receive(bankEvent(payment, "user")).outcome())
+                .isEqualTo(dev.bum.common.service.paymentgateway.notification.BankDepositNotificationResponse.Outcome.RESERVATION_CANCELLED);
+        payments.flush();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.AVAILABLE);
+        assertThat(paymentHistories.count()).isEqualTo(count);
+    }
+
+    @Test
+    void standardBankNotificationRejectsAnotherBuyerBeforeCompletingThePayment() {
+        Payment payment = payment("bank-wrong-owner");
+        payment.switchToBankTransfer();
+        payment.planGatewayAccount(BankCompany.KB, LocalDateTime.now().plusDays(1));
+        payment.bindGatewayPayment("20261109550e8400-e29b-41d4-a716-446655440002");
+        payment.bindGatewayAccount(BankCompany.KB.getBankName(), "1111-123456", payment.getGatewayExpiresAt());
+        payments.saveAndFlush(payment);
+        assertThatThrownBy(() -> bankNotifications.receive(bankEvent(payment, "another-user")))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
+    }
+
+    dev.bum.common.service.paymentgateway.notification.BankDepositNotification bankEvent(Payment payment, String buyer) {
+        String id = "20261109550e8400-e29b-41d4-a716-446655440002";
+        return new dev.bum.common.service.paymentgateway.notification.BankDepositNotification(1, id + ":DEPOSIT:INITIAL",
+                1L, id, payment.getPaymentNo(), buyer, PaymentMethod.BANK_TRANSFER, PaymentStatus.PAID,
+                new BigDecimal("12000"), "1111-123456", BankCompany.KB, "입금자", LocalDateTime.now().withNano(123456000));
+    }
+
+    @Test
+    void standardCardNotificationUpdatesTheRealPaymentTicketsAndSeatsAndReplaysWithoutDuplicateHistory() {
+        Payment payment = payments.saveAndFlush(payment("standard-card-notification"));
+        given(ticketRepository.selectByReservation(payment.getReservation()))
+                .willReturn(tickets.findByReservation(payment.getReservation()));
+        String pgId = "20261109550e8400-e29b-41d4-a716-446655440000";
+        payment.bindGatewayPayment(pgId);
+        payments.flush();
+        CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
+                payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
+                new BigDecimal("12000"), "CARD-STANDARD", CardCompany.SHINHAN, "4111-****-****-1111",
+                LocalDateTime.now());
+        CardPaymentNotificationResponse first = cardNotifications.receive(event);
+        payments.flush();
+        assertThat(first.outcome()).isEqualTo(CardPaymentNotificationResponse.Outcome.ACCEPTED);
+        assertThat(first.matches(event)).isTrue();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(payment.getReservation().getStatus()).isEqualTo(ReservationStatus.PAID);
+        assertThat(tickets.findByReservation(payment.getReservation()))
+                .allMatch(ticket -> ticket.getStatus().name().equals("PAID"))
+                .allMatch(ticket -> ticket.getSeat().getStatus() == SeatStatus.RESERVED);
+        long historyCount = paymentHistories.count();
+        CardPaymentNotificationResponse replay = cardNotifications.receive(event);
+        payments.flush();
+        assertThat(replay).isEqualTo(first);
+        assertThat(paymentHistories.count()).isEqualTo(historyCount);
+    }
 
     @ParameterizedTest
     @ValueSource(ints = {0, 3000, 8000})
@@ -132,19 +226,19 @@ class PaymentModelIntegrationTest {
                 .accountNumber("1111-123456").depositorName("입금자").amount(BigDecimal.valueOf(12000))
                 .depositedAt(expiresAt.minusMinutes(1)).build();
 
-        virtualAccountPayments.completeDepositFromGateway(request);
+        virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId());
         if (refundAmount > 0) payment.partialRefund(refundAmount);
         payments.flush();
         int historiesBeforeReplay = payment.getHistories().size();
         PaymentStatus statusBeforeReplay = payment.getStatus();
 
-        var replay = virtualAccountPayments.completeDepositFromGateway(request);
+        var replay = virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId());
         assertThat(replay.getStatus()).isEqualTo(statusBeforeReplay);
         assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
         verify(seatCacheService, times(1)).syncReservedSeatsAfterCommit(any(), any(), any());
 
         request.setDepositorName("다른 입금자");
-        assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request))
+        assertThatThrownBy(() -> virtualAccountPayments.completeDepositFromGateway(request, payment.getReservation().getUserId()))
                 .hasMessage("이미 처리된 입금 정보와 요청이 일치하지 않습니다.");
         assertThat(payment.getHistories()).hasSize(historiesBeforeReplay);
     }
@@ -156,7 +250,7 @@ class PaymentModelIntegrationTest {
         payment.waitDeposit(BankCompany.KB.getBankName(), "1111-123456", LocalDateTime.now().minusDays(1));
         payments.saveAndFlush(payment);
         assertThat(payments.findExpiredPaymentIds(List.of(PaymentStatus.READY, PaymentStatus.WAITING_DEPOSIT),
-                LocalDateTime.now(), PageRequest.of(0, 100)
+                PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_DEPOSIT, LocalDateTime.now(), PageRequest.of(0, 100)
         )).doesNotContain(payment.getPaymentId());
     }
 
@@ -254,7 +348,7 @@ class PaymentModelIntegrationTest {
                                         List.of(PaymentRefundProcessStatus.GATEWAY_SUCCEEDED)))
                 .map(PaymentRefundProcess::getPaymentRefundProcessId)
                 .contains(id);
-        assertThat(refundHistories.existsByPaymentRefundProcess(loaded)).isFalse();
+        assertThat(refundHistories.existsByPaymentRefundProcess(loaded, PaymentRefundHistoryType.LOCAL_APPLIED)).isFalse();
     }
 
     @Test
@@ -275,15 +369,14 @@ class PaymentModelIntegrationTest {
         process.gatewayRetryRequested();
         process.gatewaySucceeded();
         payment.applyCancellation(5000, 1000);
-        processService.completeCancellation(
-                process.getPaymentRefundProcessId(),
-                payment);
+        refundHistories.save(PaymentRefundHistory.create(process, payment));
+        process.localSucceeded();
         processes.flush();
         Long id = process.getPaymentRefundProcessId();
         Reservation reservation = process.getReservation();
         entityManager.clear();
 
-        List<PaymentRefundHistory> successful = refundHistories.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation);
+        List<PaymentRefundHistory> successful = refundHistories.findByReservationOrderByPaymentRefundHistoryIdDesc(reservation, PaymentRefundHistoryType.LOCAL_APPLIED);
         assertThat(successful).hasSize(1);
         assertThat(successful.getFirst().toResponse().getRefundAmount()).isEqualTo(5000);
         assertThat(successful.getFirst().toResponse().getTickets().getFirst().getTicketPrice())
@@ -294,7 +387,7 @@ class PaymentModelIntegrationTest {
         PaymentRefundProcess loaded = processes.findById(id).orElseThrow();
         assertThat(loaded.getRefund().getStatus()).isEqualTo(PaymentRefundStatus.COMPLETED);
         assertThat(loaded.getHistories()).hasSize(6);
-        assertThat(refundHistories.existsByPaymentRefundProcess(loaded)).isTrue();
+        assertThat(refundHistories.existsByPaymentRefundProcess(loaded, PaymentRefundHistoryType.LOCAL_APPLIED)).isTrue();
     }
 
     @Test
@@ -345,6 +438,25 @@ class PaymentModelIntegrationTest {
                                 .createQuery("select count(p) from PaymentProcess p", Long.class)
                                 .getSingleResult())
                 .isZero();
+    }
+
+    @Test
+    void standardCardNotificationCannotReviveACancelledPayment() {
+        Payment payment = payment("cancelled-standard-card");
+        payment.cancel();
+        payments.saveAndFlush(payment);
+        String pgId = "20261109550e8400-e29b-41d4-a716-446655440001";
+        payment.bindGatewayPayment(pgId);
+        payments.flush();
+        CardPaymentNotification event = new CardPaymentNotification(1, pgId + ":APPROVE:INITIAL", 1L, pgId,
+                payment.getPaymentNo(), "user", PaymentMethod.CREDIT_CARD, PaymentStatus.PAID,
+                new BigDecimal("12000"), "CARD-CANCELLED", CardCompany.SHINHAN, "4111-****-****-1111",
+                LocalDateTime.now());
+        long historyCount = paymentHistories.count();
+        assertThat(cardNotifications.receive(event).outcome()).isEqualTo(CardPaymentNotificationResponse.Outcome.REJECTED);
+        payments.flush();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(paymentHistories.count()).isEqualTo(historyCount);
     }
 
     private Payment payment(String key) {

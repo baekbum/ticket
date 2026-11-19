@@ -47,7 +47,7 @@ public class DummyVirtualAccountPaymentHistory {
     @JoinColumn(name = "virtual_account_id", nullable = false)
     private DummyVirtualAccount virtualAccount;
 
-    // ticket-service에서 생성한 결제 식별 번호.
+    // 계좌의 은행 내부 참조값. 신규 PG 연결 거래에서는 가맹점 결제번호 대신 pgPaymentId를 보존한다.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
@@ -107,6 +107,14 @@ public class DummyVirtualAccountPaymentHistory {
                 .historyType(VirtualAccountPaymentHistoryType.CANCELLED)
                 .message("티켓 예매 취소로 가상계좌를 취소했습니다.")
                 .build();
+    }
+
+    // 신규 은행 경로는 Ticksy 업무 용어 없이 PG 요청에 따른 계좌 정리 사실만 기록한다.
+    public static DummyVirtualAccountPaymentHistory cancelledByGateway(DummyVirtualAccount virtualAccount) {
+
+        return DummyVirtualAccountPaymentHistory.builder().virtualAccount(virtualAccount)
+                .paymentNo(virtualAccount.getPaymentNo()).historyType(VirtualAccountPaymentHistoryType.CANCELLED)
+                .message("PG 원거래 요청으로 가상계좌를 취소했습니다. 자금 반환은 실행하지 않았습니다.").build();
     }
 
     // 환불 결과와 금액을 반영한다.

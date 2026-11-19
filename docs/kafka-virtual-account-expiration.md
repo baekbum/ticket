@@ -1,5 +1,7 @@
 # 가상계좌 만료 이벤트 소비
 
+이 Kafka 경로는 pgPaymentId가 없는 기존 계좌에 적용한다. 신규 PG 연결 계좌는 [은행→PG 만료 Outbox와 Ticksy 상태 조회](payment-gateway-account-expiration.md)를 사용하며 Ticksy를 직접 만료시키는 Kafka 메시지는 발행하지 않는다.
+
 기존 계좌의 발급 재요청도 계좌를 잠근 뒤 만료 여부를 확인한다. 이 경로에서 만료를 확정하면 스케줄러와 마찬가지로 만료 이력과 Outbox를 함께 저장한다. 따라서 계좌만 `EXPIRED`로 바뀌어 티켓에 만료 알림이 누락되는 경우를 방지한다.
 
 발급된 무통장 계좌의 만료는 PG에서 확정한 이 이벤트로 반영한다. 티켓의 자체 만료 스케줄러는 `BANK_TRANSFER`·`WAITING_DEPOSIT`을 제외하여, 기한 안에 입금됐지만 [입금 알림](virtual-account-deposit-outbox.md)이 지연된 결제의 좌석을 먼저 해제하지 않는다.

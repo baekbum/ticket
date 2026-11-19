@@ -48,9 +48,10 @@ public class PaymentRefund {
         status = PaymentRefundStatus.COMPLETED;
     }
 
-    // 기존 요청을 새 요청으로 대체된 상태로 변경한다.
-    public void supersede() {
+    // 금융 실행 없이 신청을 철회한다. 예매·티켓·좌석의 취소와는 구분한다.
+    public void withdraw() {
 
-        status = PaymentRefundStatus.SUPERSEDED;
+        status = PaymentRefundStatus.WITHDRAWN;
     }
+
 }

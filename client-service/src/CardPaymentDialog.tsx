@@ -7,7 +7,7 @@ import type { CardApprovalResponse, CardCompany, CardPaymentStep } from './cardP
 import './CardPaymentDialog.css';
 
 type Props = {
-  payment: { paymentNo: string; amount: number; expiresAt: string | null; status: string };
+  payment: { pgPaymentId?: string | null; paymentNo: string; amount: number; expiresAt: string | null; status: string };
   request: ReturnType<typeof createAuthenticatedRequest>;
   onComplete: (result: CardApprovalResponse) => void;
   onClose: () => void;
@@ -16,6 +16,21 @@ type Props = {
 export default function CardPaymentDialog({ payment, request, onComplete, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
+  const sessionRef = useRef<{ pgPaymentId: string; paymentNo: string; amount: number; paymentSession: string; expiresAt: string; canApprove: boolean } | null>(null);
+
+  // 세션은 메모리에만 두고 만료/새로고침 시 Ticksy에서 본인 거래의 세션을 다시 받는다.
+  async function paymentSession() {
+    if (!payment.pgPaymentId) throw new Error('PG 결제 준비 정보가 없습니다. 같은 결제 요청으로 다시 시도해주세요.');
+    const saved = sessionRef.current;
+    if (saved && saved.pgPaymentId === payment.pgPaymentId && Date.parse(saved.expiresAt) > Date.now() + 5000) return saved;
+    const received = await request<NonNullable<typeof saved>>(`/ticket/api/v1/checkout/payments/${encodeURIComponent(payment.paymentNo)}/gateway-session`, { method: 'POST' });
+    if (!received || received.pgPaymentId !== payment.pgPaymentId || received.paymentNo !== payment.paymentNo
+        || received.amount !== payment.amount || !received.paymentSession || Date.parse(received.expiresAt) <= Date.now()) {
+      throw new Error('카드 결제 세션을 확인하지 못했습니다. 같은 결제로 다시 시도해주세요.');
+    }
+    sessionRef.current = received;
+    return received;
+  }
   const approvalError = useRef('');
   const attemptKey = `ticksy.card-attempt:${payment.paymentNo}`;
   const [phase, setPhase] = useState<'INPUT' | 'SUBMITTING' | 'PENDING' | 'TERMINAL'>(() =>
@@ -41,17 +56,23 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
   // 응답을 잃어도 같은 결제번호의 결과만 조회한다. 카드 정보는 저장하지 않는다.
   useEffect(() => {
     if (phase !== 'PENDING') return;
+    if (!payment.pgPaymentId) {
+      setPhase('TERMINAL');
+      setError('PG 결제 준비 정보가 없습니다. 같은 결제 요청으로 다시 시도해주세요.');
+      return;
+    }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 8000);
     let next: number | undefined;
     let disposed = false;
     async function check() {
       try {
-        const result = await request<CardApprovalResponse>(
-          `/payment-gateway/api/v1/payments/card/${encodeURIComponent(payment.paymentNo)}`,
-          { method: 'GET', signal: controller.signal });
+        const session = await paymentSession();
+        const url = `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(session.pgPaymentId)}`;
+        const result = await request<CardApprovalResponse>(url,
+          { method: 'GET', signal: controller.signal, headers: { 'X-PG-Payment-Session': session.paymentSession } });
         if (disposed) return;
-        if (result.paymentNo !== payment.paymentNo) throw new Error('결제 번호를 확인하지 못했습니다.');
+        if (result.paymentNo !== payment.paymentNo || result.pgPaymentId !== payment.pgPaymentId) throw new Error('결제 번호를 확인하지 못했습니다.');
         const outcome = cardResult(result);
         if (outcome === 'COMPLETE') {
           sessionStorage.removeItem(attemptKey);
@@ -70,15 +91,30 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
         setError('');
       } catch (failure) {
         if (disposed) return;
-        if (failure instanceof ApiRequestError && failure.status === 400) {
+        if (failure instanceof ApiRequestError && failure.code === 'GATEWAY_PAYMENT_METHOD_CHANGED') {
+          setPhase('TERMINAL');
+          setError(failure.message);
+          return;
+        }
+        if (failure instanceof ApiRequestError && failure.status === 404) {
+          if (payment.pgPaymentId && sessionRef.current?.canApprove === false) {
+            setPhase('TERMINAL');
+            setError('카드 승인 기한이 만료되었습니다. 예매 내역을 확인해주세요.');
+            return;
+          }
           // 승인 이력이 없으면 결제번호를 유지한 채 입력을 다시 받는다.
           sessionStorage.removeItem(attemptKey);
           setPhase('INPUT');
           setError(approvalError.current || '승인 이력이 없습니다. 카드 정보를 확인한 후 다시 결제해주세요.');
           return;
         }
-        setError(failure instanceof SessionExpiredError ? failure.message
-          : '결제 결과를 확인하지 못했습니다. 연결이 복구되면 자동으로 다시 확인합니다.');
+        if (failure instanceof ApiRequestError && failure.status === 403) sessionRef.current = null;
+        if (failure instanceof ApiRequestError && failure.status === 409) {
+          setError(failure.message);
+        } else {
+          setError(failure instanceof SessionExpiredError ? failure.message
+            : '결제 결과를 확인하지 못했습니다. 연결이 복구되면 자동으로 다시 확인합니다.');
+        }
       } finally {
         window.clearTimeout(timeout);
       }
@@ -86,7 +122,7 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
     }
     void check();
     return () => { disposed = true; controller.abort(); window.clearTimeout(timeout); window.clearTimeout(next); };
-  }, [phase, pollCount, payment.paymentNo, request, attemptKey]);
+  }, [phase, pollCount, payment.paymentNo, payment.pgPaymentId, request, attemptKey]);
 
   useEffect(() => {
     if (phase === 'INPUT') stepHeading.current?.focus();
@@ -141,12 +177,18 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     let approvalRequested = false;
     try {
+      const session = await paymentSession();
+      if (!session.canApprove) {
+        setPhase('PENDING');
+        return;
+      }
       const body = JSON.stringify(buildCardApprovalRequest(form, payment));
       sessionStorage.setItem(attemptKey, 'PENDING');
       approvalRequested = true;
-      const result = await request<CardApprovalResponse>('/payment-gateway/api/v1/payments/card/approve',
-        { method: 'POST', body, signal: controller.signal });
-      if (result.paymentNo === payment.paymentNo && cardResult(result) === 'COMPLETE') {
+      const url = `/payment-gateway/api/v1/payments/card/checkout/${encodeURIComponent(session.pgPaymentId)}/approve`;
+      const result = await request<CardApprovalResponse>(url,
+        { method: 'POST', body, signal: controller.signal, headers: { 'X-PG-Payment-Session': session.paymentSession } });
+      if (result.paymentNo === payment.paymentNo && result.pgPaymentId === payment.pgPaymentId && cardResult(result) === 'COMPLETE') {
         sessionStorage.removeItem(attemptKey);
         resetInputs();
         onComplete(result);
@@ -161,6 +203,7 @@ export default function CardPaymentDialog({ payment, request, onComplete, onClos
         setError(INVALID_CARD_INFORMATION_MESSAGE);
         setPhase('INPUT');
       } else {
+        if (failure instanceof ApiRequestError && failure.status === 403) sessionRef.current = null;
         const message = failure instanceof ApiRequestError || failure instanceof SessionExpiredError
           ? failure.message : '결제 요청을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
         approvalError.current = message;

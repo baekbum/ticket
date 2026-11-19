@@ -58,6 +58,9 @@ public enum ErrorCode {
     TICKET_DUPLICATE("이미 존재하는 티켓입니다."),
     TICKET_LIMIT_EXCEEDED("예매 가능 수량을 초과했습니다."),
 
+    // Payment
+    GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED("가상계좌 발급 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도하거나 예매 내역을 확인해주세요."),
+
     // Queue
     QUEUE_ACCESS_DENIED("대기열 접근 권한이 없습니다."),
     ACTIVE_TOKEN_EXPIRED("좌석 선택 시간이 초과되었습니다. 예매를 다시 시작해주세요."),
@@ -71,6 +74,9 @@ public enum ErrorCode {
     REQUIRED_HEADER_MISSING("필수 헤더가 누락되었습니다."),
 
     // 기타
+    GATEWAY_CARD_PREPARATION_UNCONFIRMED("카드 결제 준비 결과를 확인하지 못했습니다."),
+    GATEWAY_METHOD_CHANGE_UNCONFIRMED("기존 카드 승인 또는 결제수단 변경 결과를 확인하지 못했습니다."),
+    GATEWAY_PAYMENT_METHOD_CHANGED("결제수단이 변경되었습니다. 예매 내역을 확인해주세요."),
     INTERNAL_SERVER_ERROR("서버 오류가 발생했습니다.");
     private final String message;
 }

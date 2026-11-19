@@ -2,29 +2,21 @@ package dev.bum.ticket_service.service.payment.refund;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionRequest;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse.Outcome;
-import dev.bum.common.service.ticket.payment.dto.GatewayRefundResolutionResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessCondRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
-import dev.bum.common.service.ticket.payment.dto.RefundAccountRequest;
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
-import dev.bum.common.service.ticket.reservation.dto.CancelReservationResponse;
-import dev.bum.common.service.ticket.reservation.policy.ReservationCancellationPolicy;
 import dev.bum.common.service.ticket.ticket.enums.TicketStatus;
 import dev.bum.ticket_service.audit.AuditDataMapper;
 import dev.bum.ticket_service.audit.AuditLog;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayRefundClient;
 import dev.bum.ticket_service.exception.reservation.ReservationCancellationInProgressException;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistory;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryJpaRepository;
+import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundHistoryType;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcess;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessJpaRepository;
 import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundProcessStatus;
-import dev.bum.ticket_service.jpa.payment.refund.PaymentRefundSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCouponRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationJpaRepository;
@@ -33,7 +25,6 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
 import dev.bum.ticket_service.jpa.ticket.TicketJpaRepository;
-import dev.bum.ticket_service.service.reservation.reservation.CancellationFeeCalculator.CancellationRefundCalculation;
 import dev.bum.ticket_service.service.reservation.reservation.CancellationTicketValidator;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
@@ -55,29 +46,19 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentRefundProcessService {
 
-    // 처리 시각을 제공하는 시계.
-    private final Clock clock;
-    // 결제 환불 처리 데이터 생성을 담당하는 도구.
-    private final PaymentRefundProcessCreator paymentRefundProcessCreator;
     // 결제 환불 결과와 실패 이력을 기록하는 도구.
     private final PaymentRefundRollbackRecorder paymentRefundRollbackRecorder;
-    // 게이트웨이 환불 API를 호출하는 클라이언트.
-    private final PaymentGatewayRefundClient paymentGatewayRefundClient;
     // 결제 환불 처리 데이터를 조회하고 저장하는 레포지토리.
     private final PaymentRefundProcessJpaRepository paymentRefundProcessJpaRepository;
     // 결제 환불 이력 데이터를 조회하고 저장하는 레포지토리.
@@ -123,111 +104,14 @@ public class PaymentRefundProcessService {
                 page.getTotalPages());
     }
 
-    /**
-     * 기존 요청과 현재 요청의 처리 상태를 점검한다.
-     */
-    @Transactional
-    public PaymentRefundRequestContext inspectRequest(
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
+    // 입금 전 취소가 진행 중인 환불 신청을 덮어쓰지 않도록 읽기만 한다.
+    @Transactional(readOnly = true)
+    public boolean hasUnfinishedRequest(Payment payment) {
 
-        // A가 Reservation을 잠근 상태에서 기존 프로세스를 일반 조회한다.
-        PaymentRefundProcess previous = paymentRefundProcessJpaRepository
-                .findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
-                        payment.getReservation(), List.of(
-                                PaymentRefundProcessStatus.REQUESTED, PaymentRefundProcessStatus.GATEWAY_FAILED,
-                                PaymentRefundProcessStatus.GATEWAY_SUCCEEDED, PaymentRefundProcessStatus.LOCAL_FAILED
-                        )
-                ).orElse(null);
-
-        if (previous == null) {
-            return PaymentRefundRequestContext.builder()
-                    .previousProcessId(null)
-                    .sameRequest(false)
-                    .build();
-        }
-
-        trackRollback(previous);
-
-        // 금액을 다시 계산하지 않고 대상 티켓·전체 취소 여부·환불 계좌로 요청 동일성을 판단한다.
-        return PaymentRefundRequestContext.builder()
-                .previousProcessId(previous.getPaymentRefundProcessId())
-                .sameRequest(sameRequest(previous, selectedTickets, fullCancellation, refundAccount))
-                .build();
-    }
-
-    /**
-     * 게이트웨이 환불 성공 상태를 기록한다.
-     */
-    @Transactional
-    public void markGatewaySucceeded(Long paymentRefundProcessId) {
-
-        if (paymentRefundProcessId == null) {
-            return;
-        }
-        paymentRefundProcessJpaRepository
-                .findById(paymentRefundProcessId)
-                .ifPresent(PaymentRefundProcess::gatewaySucceeded);
-    }
-
-    /**
-     * 게이트웨이 환불 실패 상태를 기록한다.
-     */
-    @Transactional
-    public void markGatewayFailed(Long paymentRefundProcessId, Throwable throwable) {
-
-        if (paymentRefundProcessId == null) {
-            return;
-        }
-        paymentRefundProcessJpaRepository
-                .findById(paymentRefundProcessId)
-                .ifPresent(process -> process.gatewayFailed(messageOf(throwable)));
-    }
-
-    /**
-     * 로컬 환불 반영 실패 상태를 기록한다.
-     */
-    @Transactional
-    public void markLocalFailed(Long paymentRefundProcessId, Throwable throwable) {
-
-        if (paymentRefundProcessId == null) {
-            return;
-        }
-        paymentRefundProcessJpaRepository
-                .findById(paymentRefundProcessId)
-                .ifPresent(process -> process.localFailed(messageOf(throwable)));
-    }
-
-    /** 티켓·좌석 취소 후 호출하며, 성공 이력과 완료 상태를 같은 A 트랜잭션에 반영한다. */
-    @Transactional
-    public void completeCancellation(
-            Long paymentRefundProcessId,
-            Payment payment
-    ) {
-
-        if (paymentRefundProcessId == null) {
-            return;
-        }
-
-        PaymentRefundProcess process = findById(paymentRefundProcessId);
-        savePaymentRefundHistory(process, payment);
-        process.localSucceeded();
-    }
-
-    /**
-     * 결제 환불 처리 처리에서 이전 요청의 처리 결과를 복구한다.
-     */
-    @Transactional
-    public CancelReservationResponse recoverPreviousRequest(Long paymentRefundProcessId) {
-
-        PaymentRefundProcessResponse completed = completeLocal(paymentRefundProcessId);
-
-        return CancelReservationResponse.recovered(
-                completed.getReservationId(), paymentRefundProcessId, parseTicketIds(completed.getSelectedTicketIds())
-        );
+        return paymentRefundProcessJpaRepository.findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
+                payment.getReservation(), List.of(PaymentRefundProcessStatus.REQUESTED,
+                        PaymentRefundProcessStatus.GATEWAY_FAILED, PaymentRefundProcessStatus.GATEWAY_SUCCEEDED,
+                        PaymentRefundProcessStatus.LOCAL_FAILED, PaymentRefundProcessStatus.WITHDRAW_REQUESTED)).isPresent();
     }
 
     /**
@@ -268,267 +152,6 @@ public class PaymentRefundProcessService {
     }
 
     /**
-     * 게이트웨이 환불 처리 시도를 시작한다.
-     */
-    @Transactional
-    public PaymentRefundProcessGatewayAttempt startGatewayAttempt(
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation,
-            RefundAccountRequest refundAccount,
-            PaymentRefundRequestContext requestContext
-    ) {
-
-        LocalDateTime requestedAt = LocalDateTime.now(clock);
-
-        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER
-                && (refundAccount == null || refundAccount.getBankCompany() == null
-                || !StringUtils.hasText(refundAccount.getAccountNumber())
-                || !StringUtils.hasText(refundAccount.getAccountHolder()))) {
-            throw new IllegalArgumentException("환불 계좌 정보가 필요합니다.");
-        }
-
-        // 기존 요청이 없으면 B에서 최초 기록을 커밋하고 A에서 일반 조회한다.
-        if (!requestContext.hasPreviousRequest()) {
-            return createNewAttempt(payment, selectedTickets, fullCancellation, refundAccount, requestedAt);
-        }
-
-        // A의 예매 잠금이 유지되므로 기존 프로세스에 별도 잠금은 필요하지 않다.
-        PaymentRefundProcess previous = paymentRefundProcessJpaRepository
-                .findById(requestContext.previousProcessId())
-                .orElseThrow(() -> new IllegalStateException("기존 환불 요청을 찾을 수 없습니다."));
-
-        if (!Objects.equals(previous.getReservation().getReservationId(), payment.getReservation().getReservationId())
-                || previous.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
-                || previous.getStatus() == PaymentRefundProcessStatus.SUPERSEDED) {
-            throw new IllegalStateException("기존 환불 요청 상태가 변경되었습니다. 다시 시도해 주세요.");
-        }
-
-        // 4. 동일 요청은 최초 스냅샷을 유지하고 기존 상태에 따라 재개한다.
-        if (requestContext.sameRequest()) {
-            return resumeSameRequest(previous, payment, selectedTickets, fullCancellation, refundAccount);
-        }
-        // 5. 변경 요청은 신규 접수 가능 여부와 기존 PG 결과를 확인한 뒤 처리한다.
-        return prepareChangedRequest(previous, payment, selectedTickets, fullCancellation, refundAccount, requestedAt);
-    }
-
-    /**
-     * 동일한 기존 요청의 처리를 재개한다.
-     */
-    private PaymentRefundProcessGatewayAttempt resumeSameRequest(
-            PaymentRefundProcess previous,
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation,
-            RefundAccountRequest refundAccount
-    ) {
-
-        if (hasGatewaySucceeded(previous)) {
-            return attempt(previous, RefundAction.APPLY_LOCAL);
-        }
-
-        Outcome outcome = resolvePreviousRequest(previous, payment, false);
-
-        if (outcome == Outcome.SUCCEEDED) {
-            return attempt(previous, RefundAction.APPLY_LOCAL);
-        }
-
-        if (outcome == Outcome.CLOSED) {
-            // PG만 종료되고 ticket 저장이 실패했던 경우, 최초 금액·접수 시각을 새 키로 이어간다.
-            previous.superseded();
-            PaymentRefundSnapshot snapshot = previous.getRefund().getSnapshot();
-            return createAttempt(
-                    payment, selectedTickets, fullCancellation, refundAccount,
-                    calculation(snapshot), snapshot.getCapturedAt()
-            );
-        }
-
-        // PG 미실행·실패 요청은 같은 멱등 키로 재시도한다. 마감과 수수료는 다시 계산하지 않는다.
-        previous.gatewayRetryRequested();
-
-        return attempt(previous, RefundAction.REQUEST_GATEWAY);
-    }
-
-    /**
-     * 변경된 환불 요청을 새 처리 시도로 준비한다.
-     */
-    private PaymentRefundProcessGatewayAttempt prepareChangedRequest(
-            PaymentRefundProcess previous,
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean fullCancellation,
-            RefundAccountRequest refundAccount,
-            LocalDateTime requestedAt
-    ) {
-
-        // 이미 PG 성공이 확인된 건은 새 환불 대신 기존 스냅샷으로 로컬 반영을 복구한다.
-        if (hasGatewaySucceeded(previous)) {
-            return attempt(previous, RefundAction.RECOVER_PREVIOUS_REQUEST);
-        }
-
-        // 신규 마감에 걸리면 기존 PG 요청을 종료하지 않고 그대로 유지한다.
-        validateNewCancellation(payment.getReservation(), requestedAt);
-        Outcome outcome = resolvePreviousRequest(previous, payment, true);
-
-        if (outcome == Outcome.SUCCEEDED) {
-            return attempt(previous, RefundAction.RECOVER_PREVIOUS_REQUEST);
-        }
-
-        if (outcome != Outcome.CLOSED) {
-            throw new IllegalStateException("이전 환불 요청의 종료를 확인할 수 없습니다.");
-        }
-
-        // PG에서 기존 ID 실행 차단을 확정한 뒤 기존 건을 종료하고 새 요청을 만든다. 이력은 삭제하지 않는다.
-        previous.superseded();
-
-        return createNewAttempt(payment, selectedTickets, fullCancellation, refundAccount, requestedAt);
-    }
-
-    /**
-     * 게이트웨이 환불이 이미 성공했는지 확인한다.
-     */
-    private boolean hasGatewaySucceeded(PaymentRefundProcess process) {
-
-        return process.getStatus() == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
-                || process.getStatus() == PaymentRefundProcessStatus.LOCAL_FAILED;
-    }
-
-    /**
-     * 이전 환불 요청의 결과를 확인하고 후속 처리를 결정한다.
-     */
-    private Outcome resolvePreviousRequest(PaymentRefundProcess previous, Payment payment, boolean closeIfUnexecuted) {
-
-        GatewayRefundResolutionResponse result = paymentGatewayRefundClient.resolve(
-                GatewayRefundResolutionRequest.builder()
-                        .paymentRefundProcessId(previous.getPaymentRefundProcessId())
-                        .paymentNo(payment.getPaymentNo())
-                        .method(payment.getMethod())
-                        .refundAmount(BigDecimal.valueOf(previous.getRefundAmount()))
-                        .closeIfUnexecuted(closeIfUnexecuted)
-                        .build()
-        );
-        if (result == null || result.outcome() == null
-                || !previous.getPaymentRefundProcessId().equals(result.paymentRefundProcessId())
-                || !payment.getPaymentNo().equals(result.paymentNo())) {
-            throw new IllegalStateException("PG 환불 처리 결과를 확인할 수 없습니다.");
-        }
-
-        if (result.outcome() == Outcome.SUCCEEDED) {
-            // PG 결과는 A에서 반영한다. A가 롤백되면 잠금 해제 후 별도 기록 트랜잭션에 남긴다.
-            previous.gatewaySucceeded();
-        }
-        return result.outcome();
-    }
-
-    /**
-     * 새 처리 시도를 생성한다.
-     */
-    private PaymentRefundProcessGatewayAttempt createNewAttempt(
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean full,
-            RefundAccountRequest account,
-            LocalDateTime requestedAt
-    ) {
-
-        Long processId = paymentRefundProcessCreator.createNewRequest(payment, selectedTickets, full, account, requestedAt);
-
-        return loadCreatedAttempt(processId);
-    }
-
-    /**
-     * 처리 시도 정보를 생성한다.
-     */
-    private PaymentRefundProcessGatewayAttempt createAttempt(
-            Payment payment,
-            List<Ticket> selectedTickets,
-            boolean full,
-            RefundAccountRequest account,
-            CancellationRefundCalculation calculated,
-            LocalDateTime capturedAt
-    ) {
-
-        Long processId = paymentRefundProcessCreator.copyOriginalRequest(
-                payment, selectedTickets, full, account, calculated, capturedAt
-        );
-
-        return loadCreatedAttempt(processId);
-    }
-
-    /**
-     * 생성된 처리 시도를 조회한다.
-     */
-    private PaymentRefundProcessGatewayAttempt loadCreatedAttempt(Long processId) {
-
-        // B의 최초 기록은 A가 롤백돼도 남는다. 예매 잠금 아래 일반 조회한다.
-        PaymentRefundProcess process = paymentRefundProcessJpaRepository.findById(processId)
-                .orElseThrow(() -> new IllegalStateException("생성한 환불 요청을 찾을 수 없습니다."));
-
-        trackRollback(process);
-
-        return attempt(process, process.getRefundAmount() > 0 ? RefundAction.REQUEST_GATEWAY : RefundAction.APPLY_LOCAL);
-    }
-
-    /**
-     * 새 취소 요청이 현재 예매와 결제 상태에 유효한지 검증한다.
-     */
-    private void validateNewCancellation(Reservation reservation, LocalDateTime requestedAt) {
-
-        ReservationCancellationPolicy.validateNewRequest(requestedAt,
-                reservation.getEvent() == null ? null : reservation.getEvent().getCancelDeadlineAt());
-    }
-
-    /**
-     * 두 요청의 처리 대상과 내용이 같은지 확인한다.
-     */
-    private boolean sameRequest(
-            PaymentRefundProcess process,
-            List<Ticket> tickets,
-            boolean full,
-            RefundAccountRequest account
-    ) {
-
-        Set<Long> original = process.getRefund().getSnapshot().getTickets().stream()
-                .map(ticket -> ticket.getTicketId()).collect(Collectors.toSet());
-        Set<Long> selected = tickets.stream().map(Ticket::getTicketId).collect(Collectors.toSet());
-
-        if (!original.equals(selected) || process.isFullCancellation() != full) return false;
-
-        try {
-            process.validateRefundAccount(account);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /**
-     * 환불 처리 시도를 실행한다.
-     */
-    private PaymentRefundProcessGatewayAttempt attempt(PaymentRefundProcess process, RefundAction action) {
-
-        return PaymentRefundProcessGatewayAttempt.builder()
-                .paymentRefundProcessId(process.getPaymentRefundProcessId())
-                .action(action)
-                .calculation(calculation(process.getRefund().getSnapshot()))
-                .build();
-    }
-
-    /**
-     * 환불 계산 정보를 구성한다.
-     */
-    private CancellationRefundCalculation calculation(PaymentRefundSnapshot snapshot) {
-
-        return CancellationRefundCalculation.builder()
-                .refundAmount(snapshot.getRefundAmount())
-                .cancellationFeeAmount(snapshot.getCancellationFeeAmount())
-                .deliveryRefundAmount(snapshot.getDeliveryRefundAmount())
-                .discountDeductionAmount(snapshot.getDiscountAmount())
-                .restoreCoupon(snapshot.isRestoreCoupon())
-                .build();
-    }
-
-    /**
      * 트랜잭션 롤백 시 실패 정보를 기록하도록 등록한다.
      */
     private void trackRollback(PaymentRefundProcess process) {
@@ -557,16 +180,6 @@ public class PaymentRefundProcessService {
         return throwable.getMessage() != null
                 ? throwable.getMessage()
                 : throwable.getClass().getSimpleName();
-    }
-
-    /**
-     * 결제 환불 처리 정보를 식별자로 조회한다.
-     */
-    private PaymentRefundProcess findById(Long paymentRefundProcessId) {
-
-        return paymentRefundProcessJpaRepository
-                .findById(paymentRefundProcessId)
-                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
     }
 
     /**
@@ -638,7 +251,8 @@ public class PaymentRefundProcessService {
             Payment payment
     ) {
 
-        if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process)) {
+        if (paymentRefundHistoryJpaRepository.existsByPaymentRefundProcess(process,
+                PaymentRefundHistoryType.LOCAL_APPLIED)) {
             throw new IllegalStateException("이미 환불 이력이 저장된 환불 처리입니다.");
         }
 

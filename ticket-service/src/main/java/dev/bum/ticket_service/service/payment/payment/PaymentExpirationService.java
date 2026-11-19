@@ -92,9 +92,10 @@ public class PaymentExpirationService {
      */
     private boolean isExpiredIncompletePayment(Payment payment, LocalDateTime now) {
 
-        // 입금 알림이 지연됐을 수 있으므로 발급된 무통장 계좌의 만료는 PG 이벤트로 확정한다.
+        // 신규 PG 무통장은 READY여도 PG 확정 상태로만 만료한다. 기존 발급 계좌는 종전 PG 이벤트를 기다린다.
         if (payment.getMethod() == PaymentMethod.BANK_TRANSFER
-                && payment.getStatus() == PaymentStatus.WAITING_DEPOSIT) return false;
+                && (payment.getStatus() == PaymentStatus.WAITING_DEPOSIT
+                    || payment.getGatewayBankCompany() != null)) return false;
         return (payment.getStatus() == PaymentStatus.READY || payment.getStatus() == PaymentStatus.WAITING_DEPOSIT)
                 && payment.getExpiresAt() != null
                 && !payment.getExpiresAt().isAfter(now);

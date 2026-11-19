@@ -33,13 +33,10 @@ public class PaymentRefundRollbackRecorder {
         if (reservations.findByIdForUpdate(record.reservationId()).isEmpty()) return;
         PaymentRefundProcess process = processes.findById(record.processId()).orElse(null);
         if (process == null || process.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
-                || process.getStatus() == PaymentRefundProcessStatus.SUPERSEDED) return;
+                || process.getStatus() == PaymentRefundProcessStatus.WITHDRAWN) return;
 
         PaymentRefundProcessStatus observed = record.observedStatus();
-        if (observed == PaymentRefundProcessStatus.SUPERSEDED) {
-            // PG의 실행 차단은 A의 롤백과 무관하게 확정되어 있다.
-            process.superseded();
-        } else if (observed == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
+        if (observed == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
                 || observed == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
                 || observed == PaymentRefundProcessStatus.LOCAL_FAILED) {
             // 확인된 PG 성공은 실패 응답으로 되돌리지 않고 로컬 복구 대상으로 남긴다.

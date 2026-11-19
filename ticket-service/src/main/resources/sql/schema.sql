@@ -48,6 +48,7 @@ CREATE TABLE event_policy_outbox (
     next_attempt_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
+
 CREATE INDEX idx_event_policy_ready ON event_policy_outbox(published, next_attempt_at, outbox_id);
 CREATE INDEX idx_event_policy_event ON event_policy_outbox(event_id, outbox_id);
 
@@ -115,7 +116,6 @@ CREATE TABLE seats (
 CREATE INDEX idx_seat_event_location ON seats(event_id, zone, seat_row, seat_col);
 CREATE INDEX idx_seat_area_id ON seats(area_id);
 
-
 -- ==========================================
 -- 5. Reservations 테이블
 -- ==========================================
@@ -134,7 +134,6 @@ CREATE TABLE reservations (
 
 CREATE INDEX idx_reservation_user_id ON reservations(user_id);
 CREATE INDEX idx_reservation_event_id ON reservations(event_id);
-
 
 -- ==========================================
 -- 6. Reservation deliveries
@@ -162,7 +161,6 @@ CREATE TABLE reservation_deliveries (
 CREATE INDEX idx_reservation_delivery_reservation_id ON reservation_deliveries(reservation_id);
 CREATE INDEX idx_reservation_delivery_status ON reservation_deliveries(status);
 
-
 -- ==========================================
 -- 7. Coupons
 -- ==========================================
@@ -187,7 +185,6 @@ CREATE TABLE coupons (
 CREATE INDEX idx_coupon_status_valid_until ON coupons(status, valid_until);
 CREATE INDEX idx_coupon_status_valid_days_after_issue ON coupons(status, valid_days_after_issue);
 
-
 -- ==========================================
 -- 8. User coupons
 -- ==========================================
@@ -208,7 +205,6 @@ CREATE TABLE user_coupons (
 CREATE INDEX idx_user_coupon_user_status ON user_coupons(user_id, status);
 CREATE INDEX idx_user_coupon_coupon_id ON user_coupons(coupon_id);
 
-
 -- ==========================================
 -- 9. Reservation discounts
 -- ==========================================
@@ -227,77 +223,89 @@ CREATE TABLE reservation_discounts (
 CREATE INDEX idx_reservation_discount_reservation_id ON reservation_discounts(reservation_id);
 CREATE INDEX idx_reservation_discount_user_coupon_id ON reservation_discounts(user_coupon_id);
 
-
 -- ==========================================
 -- 10. Payments
 -- ==========================================
 -- 결제 확정 당시의 금액 계산 근거
 CREATE TABLE payment_snapshots (
- payment_snapshot_id BIGSERIAL PRIMARY KEY,
- amount INTEGER NOT NULL,
- reservation_fee_amount INTEGER NOT NULL DEFAULT 0,
- delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
- captured_at TIMESTAMP NOT NULL
+    payment_snapshot_id BIGSERIAL PRIMARY KEY,
+    amount INTEGER NOT NULL,
+    reservation_fee_amount INTEGER NOT NULL DEFAULT 0,
+    delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
+    captured_at TIMESTAMP NOT NULL
 );
+
 CREATE TABLE payment_snapshot_tickets (
- payment_snapshot_id BIGINT NOT NULL REFERENCES payment_snapshots(payment_snapshot_id),
- item_order INTEGER NOT NULL,
- ticket_id BIGINT,
- ticket_price INTEGER NOT NULL,
- PRIMARY KEY(payment_snapshot_id,item_order)
+    payment_snapshot_id BIGINT NOT NULL REFERENCES payment_snapshots(payment_snapshot_id),
+    item_order INTEGER NOT NULL,
+    ticket_id BIGINT,
+    ticket_price INTEGER NOT NULL,
+
+    PRIMARY KEY (payment_snapshot_id, item_order)
 );
+
 CREATE TABLE payment_snapshot_discounts (
- payment_snapshot_id BIGINT NOT NULL REFERENCES payment_snapshots(payment_snapshot_id),
- item_order INTEGER NOT NULL,
- user_coupon_id BIGINT,
- discount_type VARCHAR(30),
- discount_name VARCHAR(100),
- coupon_discount_type VARCHAR(30),
- discount_value INTEGER,
- discount_amount INTEGER NOT NULL,
- PRIMARY KEY(payment_snapshot_id,item_order)
+    payment_snapshot_id BIGINT NOT NULL REFERENCES payment_snapshots(payment_snapshot_id),
+    item_order INTEGER NOT NULL,
+    user_coupon_id BIGINT,
+    discount_type VARCHAR(30),
+    discount_name VARCHAR(100),
+    coupon_discount_type VARCHAR(30),
+    discount_value INTEGER,
+    discount_amount INTEGER NOT NULL,
+
+    PRIMARY KEY (payment_snapshot_id, item_order)
 );
+
 -- 결제 작업의 최신 진행 단계
 CREATE TABLE payment_processes (
- payment_process_id BIGSERIAL PRIMARY KEY,
- stage VARCHAR(40) NOT NULL,
- failure_reason VARCHAR(1000),
- retry_count INTEGER NOT NULL DEFAULT 0,
- last_tried_at TIMESTAMP NOT NULL
+    payment_process_id BIGSERIAL PRIMARY KEY,
+    stage VARCHAR(40) NOT NULL,
+    failure_reason VARCHAR(1000),
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_tried_at TIMESTAMP NOT NULL
 );
+
 -- 개별 환불의 확정된 계산 근거
 CREATE TABLE payment_refund_snapshots (
- payment_refund_snapshot_id BIGSERIAL PRIMARY KEY,
- refund_amount INTEGER NOT NULL,
- cancellation_fee_amount INTEGER NOT NULL DEFAULT 0,
- full_cancellation BOOLEAN NOT NULL,
- ticket_amount INTEGER NOT NULL DEFAULT 0,
- discount_amount INTEGER NOT NULL DEFAULT 0,
- delivery_refund_amount INTEGER NOT NULL DEFAULT 0,
- refund_bank_company VARCHAR(30),
- refund_account_number_masked VARCHAR(50),
- refund_account_number_hash VARCHAR(64),
- refund_account_holder VARCHAR(50),
- captured_at TIMESTAMP NOT NULL,
+    refund_account_ciphertext TEXT,
+    payment_refund_snapshot_id BIGSERIAL PRIMARY KEY,
+    refund_amount INTEGER NOT NULL,
+    cancellation_fee_amount INTEGER NOT NULL DEFAULT 0,
+    full_cancellation BOOLEAN NOT NULL,
+    ticket_amount INTEGER NOT NULL DEFAULT 0,
+    discount_amount INTEGER NOT NULL DEFAULT 0,
+    delivery_refund_amount INTEGER NOT NULL DEFAULT 0,
+    refund_bank_company VARCHAR(30),
+    refund_account_number_masked VARCHAR(50),
+    refund_account_number_hash VARCHAR(64),
+    refund_account_holder VARCHAR(50),
+    captured_at TIMESTAMP NOT NULL,
     restore_coupon BOOLEAN NOT NULL DEFAULT FALSE
 );
+
 CREATE TABLE payment_refund_snapshot_tickets (
- payment_refund_history_ticket_id BIGSERIAL PRIMARY KEY,
- refund_snapshot_id BIGINT NOT NULL REFERENCES payment_refund_snapshots(payment_refund_snapshot_id),
- ticket_id BIGINT NOT NULL,
- ticket_price INTEGER NOT NULL
+    payment_refund_history_ticket_id BIGSERIAL PRIMARY KEY,
+    refund_snapshot_id BIGINT NOT NULL REFERENCES payment_refund_snapshots(payment_refund_snapshot_id),
+    ticket_id BIGINT NOT NULL,
+    ticket_price INTEGER NOT NULL
 );
+
 CREATE TABLE payment_refunds (
- payment_refund_id BIGSERIAL PRIMARY KEY,
- payment_id BIGINT NOT NULL,
- refund_snapshot_id BIGINT NOT NULL UNIQUE REFERENCES payment_refund_snapshots(payment_refund_snapshot_id),
- status VARCHAR(30) NOT NULL
+    payment_refund_id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL,
+    refund_snapshot_id BIGINT NOT NULL UNIQUE REFERENCES payment_refund_snapshots(payment_refund_snapshot_id),
+    status VARCHAR(30) NOT NULL
 );
 
 CREATE TABLE payments (
     payment_id BIGSERIAL PRIMARY KEY,
     reservation_id BIGINT NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
+    pg_payment_id VARCHAR(44),
+    gateway_bank_company VARCHAR(30),
+    gateway_expires_at TIMESTAMP,
+    gateway_issue_pending BOOLEAN NOT NULL DEFAULT FALSE,
     method VARCHAR(30) NOT NULL,
     status VARCHAR(30) NOT NULL,
     refunded_amount INTEGER NOT NULL DEFAULT 0,
@@ -319,6 +327,7 @@ CREATE TABLE payments (
 
     CONSTRAINT uk_payments_reservation_id UNIQUE (reservation_id),
     CONSTRAINT uk_payments_payment_no UNIQUE (payment_no),
+    CONSTRAINT uk_payments_pg_payment_id UNIQUE (pg_payment_id),
     CONSTRAINT uk_payments_account_number UNIQUE (account_number),
     CONSTRAINT uk_payments_idempotency_key UNIQUE (idempotency_key)
 );
@@ -326,7 +335,7 @@ CREATE TABLE payments (
 CREATE INDEX idx_payment_reservation_id ON payments(reservation_id);
 CREATE INDEX idx_payment_status_expires_at ON payments(status, expires_at);
 CREATE INDEX idx_payments_idempotency_key_status ON payments(idempotency_key, status);
-
+CREATE INDEX idx_payments_gateway_expiration ON payments(method, status, gateway_expires_at, payment_id);
 
 -- ==========================================
 -- 11. Checkout attempts
@@ -338,6 +347,8 @@ CREATE TABLE checkout_attempts (
     event_id BIGINT NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     payment_id BIGINT,
+    gateway_switch_bank_company VARCHAR(30),
+    gateway_switch_expires_at TIMESTAMP(6),
     status VARCHAR(30) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -354,41 +365,43 @@ CREATE INDEX idx_checkout_attempts_status_expires_at ON checkout_attempts(status
 CREATE TABLE checkout_attempt_seats (
     idempotency_key VARCHAR(100) NOT NULL REFERENCES checkout_attempts(idempotency_key) ON DELETE CASCADE,
     seat_id BIGINT NOT NULL,
+
     CONSTRAINT uk_checkout_attempt_seats PRIMARY KEY (idempotency_key, seat_id),
     CONSTRAINT chk_checkout_attempt_seats_id CHECK (seat_id > 0)
 );
-
 
 -- ==========================================
 -- 12. Payment refund processes
 -- ==========================================
 CREATE TABLE payment_refund_processes (
- payment_refund_process_id BIGSERIAL PRIMARY KEY,
- refund_id BIGINT NOT NULL UNIQUE REFERENCES payment_refunds(payment_refund_id),
- status VARCHAR(30) NOT NULL,
- failure_reason VARCHAR(1000),
- retry_count INTEGER NOT NULL DEFAULT 0,
- last_tried_at TIMESTAMP,
- completed_at TIMESTAMP,
- created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    payment_refund_process_id BIGSERIAL PRIMARY KEY,
+    refund_id BIGINT NOT NULL UNIQUE REFERENCES payment_refunds(payment_refund_id),
+    status VARCHAR(30) NOT NULL,
+    failure_reason VARCHAR(1000),
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_tried_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE INDEX idx_payment_refund_processes_status ON payment_refund_processes(status);
 
 -- 환불 요청·실패·재시도·성공의 사건 이력. 성공 결과는 success_key로 한 번만 저장한다.
 CREATE TABLE payment_refund_histories (
- payment_refund_history_id BIGSERIAL PRIMARY KEY,
- payment_refund_process_id BIGINT NOT NULL REFERENCES payment_refund_processes(payment_refund_process_id),
- event_type VARCHAR(40) NOT NULL,
- before_status VARCHAR(30),
- after_status VARCHAR(30),
- failure_reason VARCHAR(1000),
- refunded_amount_after INTEGER,
- refundable_amount_after INTEGER,
- payment_status_after VARCHAR(30),
- success_key VARCHAR(100) UNIQUE,
- created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    payment_refund_history_id BIGSERIAL PRIMARY KEY,
+    payment_refund_process_id BIGINT NOT NULL REFERENCES payment_refund_processes(payment_refund_process_id),
+    event_type VARCHAR(40) NOT NULL,
+    before_status VARCHAR(30),
+    after_status VARCHAR(30),
+    failure_reason VARCHAR(1000),
+    refunded_amount_after INTEGER,
+    refundable_amount_after INTEGER,
+    payment_status_after VARCHAR(30),
+    success_key VARCHAR(100) UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE INDEX idx_refund_history_process ON payment_refund_histories(payment_refund_process_id);
 
 -- ==========================================
@@ -408,7 +421,6 @@ CREATE INDEX idx_ticket_reservation_id ON tickets(reservation_id);
 CREATE INDEX idx_ticket_user_id ON tickets(user_id);
 CREATE INDEX idx_ticket_seat_id ON tickets(seat_id);
 CREATE INDEX idx_ticket_user_event_status ON tickets(user_id, event_id, status);
-
 
 -- ==========================================
 -- 16. Seat cache sync failures
@@ -451,17 +463,18 @@ CREATE TABLE ticket_purchase_locks (
 
 -- 결제 사건의 누적 이력
 CREATE TABLE payment_histories (
- payment_history_id BIGSERIAL PRIMARY KEY,
- payment_id BIGINT NOT NULL REFERENCES payments(payment_id),
- event_type VARCHAR(40) NOT NULL,
- method VARCHAR(30) NOT NULL,
- before_status VARCHAR(30),
- after_status VARCHAR(30) NOT NULL,
- refunded_amount_after INTEGER NOT NULL,
- cancellation_fee_amount_after INTEGER NOT NULL,
- reason VARCHAR(1000),
- occurred_at TIMESTAMP NOT NULL
+    payment_history_id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL REFERENCES payments(payment_id),
+    event_type VARCHAR(40) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    before_status VARCHAR(30),
+    after_status VARCHAR(30) NOT NULL,
+    refunded_amount_after INTEGER NOT NULL,
+    cancellation_fee_amount_after INTEGER NOT NULL,
+    reason VARCHAR(1000),
+    occurred_at TIMESTAMP NOT NULL
 );
+
 CREATE INDEX idx_payment_histories_payment ON payment_histories(payment_id);
 
 -- ticket DB에서 실행한다. 좌석 상태 변경과 함께 저장하는 Redis 동기화 작업.
@@ -477,9 +490,11 @@ CREATE TABLE IF NOT EXISTS seat_cache_sync_outbox (
     last_error_type VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     applied_at TIMESTAMP,
+
     CONSTRAINT chk_seat_cache_outbox_status CHECK (status IN ('PENDING', 'APPLIED')),
     CONSTRAINT chk_seat_cache_outbox_retry_count CHECK (retry_count >= 0)
 );
+
 CREATE INDEX IF NOT EXISTS idx_seat_cache_outbox_ready
     ON seat_cache_sync_outbox(status, next_attempt_at, outbox_id);
 
@@ -488,7 +503,14 @@ CREATE TABLE IF NOT EXISTS virtual_account_cancel_outbox (
     outbox_id BIGSERIAL PRIMARY KEY,
     payment_no VARCHAR(60) NOT NULL,
     bank_name VARCHAR(50) NOT NULL,
-    account_number VARCHAR(50) NOT NULL,
+    account_number VARCHAR(50),
+    pg_payment_id VARCHAR(44),
+    buyer_reference VARCHAR(100),
+    bank_company VARCHAR(30),
+    gateway_result VARCHAR(30),
+    gateway_reason VARCHAR(100),
+    delivery_attempt BIGINT NOT NULL DEFAULT 0,
+    lease_until TIMESTAMP,
     amount INTEGER NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
     retry_count INTEGER NOT NULL DEFAULT 0,
@@ -496,10 +518,24 @@ CREATE TABLE IF NOT EXISTS virtual_account_cancel_outbox (
     last_error_type VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivered_at TIMESTAMP,
+
     CONSTRAINT uk_va_cancel_outbox_payment_no UNIQUE (payment_no),
     CONSTRAINT chk_va_cancel_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
     CONSTRAINT chk_va_cancel_outbox_retry_count CHECK (retry_count >= 0),
     CONSTRAINT chk_va_cancel_outbox_amount CHECK (amount >= 0)
 );
+
 CREATE INDEX IF NOT EXISTS idx_va_cancel_outbox_ready
     ON virtual_account_cancel_outbox(status, next_attempt_at, outbox_id);
+
+-- PG의 최종 은행 취소 결과 수신 이력. 예매·좌석 취소와 자금 반환을 다시 실행하지 않는다.
+CREATE TABLE gateway_bank_cancellation_receipts (
+    event_id VARCHAR(100) PRIMARY KEY,
+    payment_no VARCHAR(60) NOT NULL,
+    payload JSONB NOT NULL,
+    received_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_gateway_bank_cancel_receipt_payment UNIQUE (payment_no),
+    CONSTRAINT fk_gateway_bank_cancel_receipt_payment FOREIGN KEY (payment_no)
+        REFERENCES payments(payment_no)
+);

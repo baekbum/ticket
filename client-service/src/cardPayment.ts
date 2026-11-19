@@ -77,6 +77,9 @@ export function buildCardApprovalRequest(form: CardPaymentForm, payment: { payme
 }
 export type CardApprovalResponse = {
   paymentNo: string;
+  pgPaymentId?: string;
+  pgStatus?: string;
+  notificationStatus?: string;
   approved?: boolean;
   status?: string;
   transactionId?: string;
@@ -85,9 +88,10 @@ export type CardApprovalResponse = {
 };
 
 export function cardResult(result: CardApprovalResponse): 'COMPLETE' | 'TERMINAL' | 'PENDING' {
-  if (result.status === 'PENDING' || result.status === 'APPROVED' || result.status === 'TICKET_PAYMENT_FAILED') return 'PENDING';
-  if (['CANCELLED', 'APPROVAL_FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(result.status || '')) return 'TERMINAL';
-  if (result.status === 'TICKET_PAYMENT_COMPLETED' || (result.approved === true && !result.status)) return 'COMPLETE';
+  if (result.pgPaymentId) {
+    if (['CANCELLED', 'EXPIRED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(result.pgStatus || '')) return 'TERMINAL';
+    return result.pgStatus === 'PAID' && result.notificationStatus === 'DELIVERED' ? 'COMPLETE' : 'PENDING';
+  }
   return 'PENDING';
 }
 

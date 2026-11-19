@@ -2,7 +2,7 @@
 
 PG 계좌는 입금 사실만 관리한다. 입금 시 계좌 행을 비관적으로 잠그고 `DEPOSITED`, 입금 이력, `virtual_account_deposit_outbox`의 `PENDING` 알림을 같은 트랜잭션에서 커밋한다. 입금 커밋이 실패하면 티켓을 호출하지 않는다. 동일 계좌의 동일한 입금 재요청은 이력과 알림을 추가하지 않으며, 금액·입금자·명시된 입금 시각이 다르면 거부한다.
 
-`VirtualAccountDepositOutboxService`는 `MANDATORY`로 입금 트랜잭션에 참여하고 `afterCommit`에 최초 전달을 등록한다. `VirtualAccountDepositOutboxPublisher`는 별도의 `REQUIRES_NEW` 트랜잭션으로 Outbox 행만 잠가 전달한다. 계좌 행의 잠금은 입금 커밋 때 끝나므로 티켓 응답을 기다리는 동안 계좌를 계속 잠그지 않는다. 여러 PG 인스턴스가 같은 알림을 선택해도 Outbox 행 잠금과 전달 완료 상태 검사로 중복 호출을 제어한다.
+`GatewayVirtualAccountDepositOutboxService`는 `MANDATORY`로 입금 트랜잭션에 참여하고 `afterCommit`에 최초 전달을 등록한다. `GatewayVirtualAccountDepositOutboxPublisher`는 별도의 `REQUIRES_NEW` 트랜잭션으로 Outbox 행만 잠가 전달한다. 계좌 행의 잠금은 입금 커밋 때 끝나므로 티켓 응답을 기다리는 동안 계좌를 계속 잠그지 않는다. 여러 PG 인스턴스가 같은 알림을 선택해도 Outbox 행 잠금과 전달 완료 상태 검사로 중복 호출을 제어한다.
 
 티켓은 예약 → 결제 순서로 잠그고 은행·계좌·금액을 확인한다. 최초 요청은 입금 시각이 기한 안인지 확인한 뒤 결제·예매·티켓·좌석을 기존 트랜잭션에서 함께 반영한다. 이미 `PAID`, `PARTIALLY_REFUNDED`, `REFUNDED`라면 최초 입금자·입금 시각까지 일치하는 경우 현재 결과를 반환하며 완료 이력을 다시 만들지 않는다. 내부 응답은 `result: APPLIED`와 `payment`를 포함한다. PG는 응답의 결제번호·수단·금액·은행·계좌·입금자·입금 시각과 완료 상태를 확인하고 Outbox만 `DELIVERED`로 바꾼다. 정상 입금의 PG 계좌는 `DEPOSITED`를 유지한다.
 
@@ -12,6 +12,6 @@ PG 계좌는 입금 사실만 관리한다. 입금 시 계좌 행을 비관적�
 
 설정은 `app.virtual-account.deposit-outbox.fixed-delay-ms`, `retry-delay-ms`, `batch-size`다. Feign의 연결·응답 타임아웃은 기존 `ticket-payment-client` 설정을 따른다. 입금 알림은 HTTP로, 기존 만료 이벤트는 Kafka로 전달하며 서로 다른 Outbox를 사용한다.
 
-기존 DB에는 PG를 중지한 상태에서 `payment-gateway-service/src/main/resources/sql/add-virtual-account-deposit-outbox.sql`을 적용한 뒤 새 버전을 실행한다. 이 SQL은 테이블·인덱스를 만들고 기존 입금 완료·연동 실패 건의 알림을 채운다. 이전 `TICKET_PAYMENT_COMPLETED`는 `DELIVERED`, 나머지 입금 건은 `PENDING`으로 보존한 뒤 계좌 상태를 `DEPOSITED`로 정리한다. 기존 상태·이력 enum의 티켓 연동 값은 제거했다. 해당 타입의 과거 이력이 남아 있으면 SQL이 중단되므로 별도 보관·정리한 뒤 적용한다. 이력은 임의 삭제하거나 실제 입금 이력으로 바꾸지 않는다. 입금 시각·입금자 정보가 없는 과거 행은 자동 이관하지 않는다.
+최신 테이블·인덱스 정의는 PG의 schema.sql에 유지한다. 현재 DB의 스키마와 과거 입금 자료 보정 완료를 확인한 뒤 일회성 추가 SQL은 삭제했다. 당시 마이그레이션은 테이블·인덱스를 만들고 기존 입금 완료·연동 실패 건의 알림을 채웠다. 이전 `TICKET_PAYMENT_COMPLETED`는 `DELIVERED`, 나머지 입금 건은 `PENDING`으로 보존한 뒤 계좌 상태를 `DEPOSITED`로 정리한다. 기존 상태·이력 enum의 티켓 연동 값은 제거했다. 다른 기존 DB에서 해당 타입의 과거 이력이 남아 있으면 별도 보관·정리 계획을 세운다. 기존 DB에 전체 schema.sql을 재실행하지 않는다. 이력은 임의 삭제하거나 실제 입금 이력으로 바꾸지 않는다. 입금 시각·입금자 정보가 없는 과거 행은 자동 이관하지 않는다.
 
-`VirtualAccountDepositOutboxIntegrationTest`는 기본 H2에서 실행한다. `GATEWAY_DEPOSIT_TEST_POSTGRES_PORT`를 설정하면 로컬 검증 전용 PostgreSQL DB `gateway_deposit_test`(계정·비밀번호 `gateway_test`)를 사용한다. 테이블을 생성·삭제하므로 임시 컨테이너에서 실행한다. 입금 커밋 전 미호출, 커밋 실패 롤백, 응답 유실, 최초 전달 누락, 전달 완료 커밋 실패, 응답 검증, 동시 전달을 검증한다. 티켓 측 실제 JPA 반영·환불 이후 재전달·이력 중복 방지는 `PaymentModelIntegrationTest`에서 검증한다.
+`GatewayVirtualAccountDepositOutboxIntegrationTest`는 기본 H2에서 실행한다. `GATEWAY_DEPOSIT_TEST_POSTGRES_PORT`를 설정하면 로컬 검증 전용 PostgreSQL DB `gateway_deposit_test`(계정·비밀번호 `gateway_test`)를 사용한다. 테이블을 생성·삭제하므로 임시 컨테이너에서 실행한다. 입금 커밋 전 미호출, 커밋 실패 롤백, 응답 유실, 최초 전달 누락, 전달 완료 커밋 실패, 응답 검증, 동시 전달을 검증한다. 티켓 측 실제 JPA 반영·환불 이후 재전달·이력 중복 방지는 `PaymentModelIntegrationTest`에서 검증한다.

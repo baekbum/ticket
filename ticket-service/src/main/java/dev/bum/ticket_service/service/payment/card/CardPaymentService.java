@@ -1,17 +1,15 @@
 package dev.bum.ticket_service.service.payment.card;
 
 import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.CardPaymentSettlementResponse;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentValidationRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
-import dev.bum.ticket_service.jpa.payment.payment.PaymentJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.service.payment.payment.PaymentCompletionService;
 import dev.bum.ticket_service.service.payment.payment.PaymentExpirationService;
+import dev.bum.ticket_service.service.payment.virtualAccount.VirtualAccountPaymentLockService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,22 +26,33 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CardPaymentService {
 
-    // 결제 데이터를 조회하고 저장하는 레포지토리.
-    private final PaymentJpaRepository paymentJpaRepository;
+    // 신규 PG 통보는 예매 → 결제 순서를 유지한다.
+    private final VirtualAccountPaymentLockService gatewayLocks;
+
     // 결제 완료 업무 처리를 담당하는 서비스.
     private final PaymentCompletionService paymentCompletionService;
     // 결제 만료 업무 처리를 담당하는 서비스.
     private final PaymentExpirationService paymentExpirationService;
 
-    /**
-     * 게이트웨이 카드 승인 결과를 로컬 결제에 반영한다.
-     */
-    public CardPaymentSettlementResponse settleFromGateway(CardPaymentCompleteRequest request) {
+    // 표준 PG 통보는 결제번호뿐 아니라 저장된 PG 거래 ID까지 대조한다.
+    public CardPaymentSettlementResponse settleFromGateway(CardPaymentCompleteRequest request, String pgPaymentId) {
 
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+        if (pgPaymentId == null || pgPaymentId.isBlank()) {
+            throw new IllegalArgumentException("PG 카드 거래 식별자가 필요합니다.");
+        }
+
+        return settle(request, pgPaymentId);
+    }
+
+    private CardPaymentSettlementResponse settle(CardPaymentCompleteRequest request, String pgPaymentId) {
+
+        Payment payment = gatewayLocks.lock(request.getPaymentNo());
 
         validateOwner(payment, request.getUserId());
+
+        if (!pgPaymentId.equals(payment.getPgPaymentId())) {
+            throw new IllegalArgumentException("카드 통보의 PG 원거래가 일치하지 않습니다.");
+        }
 
         if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
             throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
@@ -90,63 +99,6 @@ public class CardPaymentService {
     }
 
     /**
-     * 게이트웨이 결제 완료 결과를 로컬에 반영한다.
-     */
-    public PaymentResponse completeFromGateway(CardPaymentCompleteRequest request) {
-
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-        Reservation reservation = payment.getReservation();
-
-        validateGatewayCardCompletion(payment, reservation, request);
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            return payment.toResponse();
-        }
-
-        return paymentCompletionService.completeCard(
-                payment,
-                request.getTransactionId(),
-                request.getCardCompany(),
-                request.getMaskedCardNumber(),
-                LocalDateTime.now()
-        );
-    }
-
-    /**
-     * payment가 결제 가능한 상태인지 체크하는 로직
-     * @param request
-     * @return
-     */
-    public PaymentResponse validateBeforeApproval(CardPaymentValidationRequest request) {
-
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.paymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        validateOwnerAndMethod(payment, request.userId());
-
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("승인 가능한 결제 상태가 아닙니다.");
-        }
-
-        if (isExpired(payment)) {
-            throw new IllegalArgumentException("결제 기한이 만료되었습니다.");
-        }
-        payment.approvalRequested();
-        return payment.toResponse();
-    }
-
-    /**
-     * 결제 소유자와 결제 수단이 요청과 일치하는지 검증한다.
-     */
-    private void validateOwnerAndMethod(Payment payment, String userId) {
-
-        validateOwner(payment, userId);
-        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
-        }
-    }
-
-    /**
      * 요청자가 처리 대상의 소유자인지 검증한다.
      */
     private void validateOwner(Payment payment, String userId) {
@@ -173,24 +125,6 @@ public class CardPaymentService {
                 || !request.getTransactionId().equals(payment.getCardInfo().getTransactionId())) {
             throw new IllegalArgumentException("기존 카드 승인 거래번호와 일치하지 않습니다.");
         }
-    }
-
-    /**
-     * 게이트웨이 결제 실패 결과를 로컬에 반영한다.
-     */
-    public PaymentResponse failFromGateway(CardPaymentFailRequest request) {
-
-        Payment payment = paymentJpaRepository.findByPaymentNoForUpdate(request.getPaymentNo())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-        Reservation reservation = payment.getReservation();
-
-        validateGatewayCardFailure(payment, reservation, request);
-        if (payment.getStatus() == PaymentStatus.FAILED) {
-            return payment.toResponse();
-        }
-
-        payment.fail(request.getFailureReason());
-        return payment.toResponse();
     }
 
     /**
@@ -224,36 +158,6 @@ public class CardPaymentService {
         }
 
         validatePaymentNotExpired(payment);
-    }
-
-    /**
-     * 게이트웨이의 카드 결제 실패 통지를 검증한다.
-     */
-    private void validateGatewayCardFailure(
-            Payment payment,
-            Reservation reservation,
-            CardPaymentFailRequest request
-    ) {
-
-        if (reservation == null || !request.getUserId().equals(reservation.getUserId())) {
-            throw new AccessDeniedException("다른 사용자의 결제 실패 요청입니다.");
-        }
-
-        if (payment.getMethod() != PaymentMethod.CREDIT_CARD) {
-            throw new IllegalArgumentException("카드 결제 요청이 아닙니다.");
-        }
-
-        if (BigDecimal.valueOf(payment.getAmount()).compareTo(request.getAmount()) != 0) {
-            throw new IllegalArgumentException("결제 금액이 일치하지 않습니다.");
-        }
-
-        if (payment.getStatus() == PaymentStatus.FAILED) {
-            return;
-        }
-
-        if (payment.getStatus() != PaymentStatus.READY) {
-            throw new IllegalArgumentException("카드 결제 실패 처리할 수 없는 상태입니다.");
-        }
     }
 
     /**
