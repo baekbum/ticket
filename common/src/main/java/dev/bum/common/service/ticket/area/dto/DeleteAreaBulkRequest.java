@@ -13,6 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DeleteAreaBulkRequest {
+
+    // 좌석 구역 식별자 목록.
     @NotEmpty
     private List<Long> areaIds;
 }

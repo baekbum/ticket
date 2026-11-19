@@ -8,11 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRefundProcessJpaRepository
         extends JpaRepository<PaymentRefundProcess, Long>,
                 JpaSpecificationExecutor<PaymentRefundProcess> {
+
+    List<PaymentRefundProcess> findByRefundPaymentReservationOrderByPaymentRefundProcessIdDesc(Reservation reservation);
 
     @Query("select p.refund.payment.reservation.reservationId from PaymentRefundProcess p"
             + " where p.paymentRefundProcessId = :id")
@@ -25,8 +28,9 @@ public interface PaymentRefundProcessJpaRepository
                 + " p2.refund.payment.reservation=:reservation and p2.status in :statuses)")
     Optional<PaymentRefundProcess>
             findFirstByReservationAndStatusInOrderByPaymentRefundProcessIdDesc(
-                    @Param("reservation")
+            @Param("reservation")
                             Reservation reservation,
-                    @Param("statuses")
-                            Collection<PaymentRefundProcessStatus> statuses);
+            @Param("statuses")
+                            Collection<PaymentRefundProcessStatus> statuses
+    );
 }

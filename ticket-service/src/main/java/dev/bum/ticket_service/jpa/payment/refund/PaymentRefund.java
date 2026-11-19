@@ -12,34 +12,46 @@ import lombok.*;
 @Getter
 @NoArgsConstructor
 public class PaymentRefund {
+
+    // 결제 환불 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long paymentRefundId;
 
+    // 결제 정보.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_id", nullable = false)
     private Payment payment;
 
+    // 처리 시점의 데이터 스냅샷.
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "refund_snapshot_id", nullable = false, unique = true)
     private PaymentRefundSnapshot snapshot;
 
+    // 결제 환불 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentRefundStatus status;
 
+    // 전달받은 값으로 결제 환불 객체를 초기화한다.
     @Builder
     public PaymentRefund(Payment payment, PaymentRefundSnapshot snapshot) {
+
         this.payment = payment;
         this.snapshot = snapshot;
         status = PaymentRefundStatus.REQUESTED;
     }
 
+    // 결제 환불 처리에서 완료 상태로 변경하고 결과를 반영한다.
     public void complete() {
+
         status = PaymentRefundStatus.COMPLETED;
     }
 
-    public void supersede() {
-        status = PaymentRefundStatus.SUPERSEDED;
+    // 금융 실행 없이 신청을 철회한다. 예매·티켓·좌석의 취소와는 구분한다.
+    public void withdraw() {
+
+        status = PaymentRefundStatus.WITHDRAWN;
     }
+
 }

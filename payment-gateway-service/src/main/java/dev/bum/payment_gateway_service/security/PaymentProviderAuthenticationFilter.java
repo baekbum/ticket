@@ -17,7 +17,6 @@ import java.util.List;
 public class PaymentProviderAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String PROVIDER_TOKEN_HEADER = "X-Payment-Provider-Token";
-
     private final PaymentProviderTokenValidator tokenValidator;
 
     @Override
@@ -26,6 +25,7 @@ public class PaymentProviderAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+
         String providerToken = request.getHeader(PROVIDER_TOKEN_HEADER);
         if (providerToken != null) {
             try {

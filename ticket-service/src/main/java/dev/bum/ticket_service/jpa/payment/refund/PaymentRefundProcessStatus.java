@@ -16,6 +16,9 @@ public enum PaymentRefundProcessStatus {
     // gateway 환불은 성공했지만 로컬 DB 상태 변경 또는 커밋이 실패한 상태.
     LOCAL_FAILED,
 
-    // PG에서 미실행 요청을 종료하고 다른 요청으로 대체한 상태.
-    SUPERSEDED
+    // 기존 신청의 금융 미실행 종료 확인을 기다린다.
+    WITHDRAW_REQUESTED,
+
+    // 은행에서 미실행 종료가 확정된 환불 신청.
+    WITHDRAWN
 }

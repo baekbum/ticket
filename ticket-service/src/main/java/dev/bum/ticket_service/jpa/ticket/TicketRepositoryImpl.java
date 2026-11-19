@@ -20,6 +20,7 @@ public class TicketRepositoryImpl implements TicketRepository {
 
     @Override
     public void insert(List<Ticket> tickets) {
+
         for (Ticket ticket : tickets) {
             jpaRepository.save(ticket); // 티켓 저장
         }
@@ -27,12 +28,14 @@ public class TicketRepositoryImpl implements TicketRepository {
 
     @Override
     public Ticket select(long id) {
+
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다."));
     }
 
     @Override
     public List<Ticket> selectByIdList(List<Long> idList) {
+
         List<Ticket> tickets = jpaRepository.findAllByTicketIdIn(idList);
 
         if (tickets.isEmpty()) throw new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다.");
@@ -43,6 +46,7 @@ public class TicketRepositoryImpl implements TicketRepository {
     @Override
     @Observed(name = "ticket.repository.ticket.select-by-reservation", contextualName = "ticket repository ticket select by reservation")
     public List<Ticket> selectByReservation(Reservation reservation) {
+
         List<Ticket> tickets = jpaRepository.findByReservation(reservation);
 
         if (tickets.isEmpty()) throw new TicketNotExistException("해당 티켓 정보는 존재하지 않습니다.");
@@ -52,17 +56,20 @@ public class TicketRepositoryImpl implements TicketRepository {
 
     @Override
     public boolean isWithinPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
+
         long currentReservedCount = countActiveTicketsByEvent(userId, event);
         return isWithinLimit(event, selectedSeatCnt, currentReservedCount);
     }
 
     @Override
     public boolean isWithinGroupPurchaseLimit(String userId, Event event, int selectedSeatCnt) {
+
         long currentReservedCount = countActiveTicketsByEventGroup(userId, event.getEventGroupCode());
         return isWithinLimit(event, selectedSeatCnt, currentReservedCount);
     }
 
     private boolean isWithinLimit(Event event, int selectedSeatCnt, long currentReservedCount) {
+
         if (event.getMaxTicketsPerPerson() == currentReservedCount) {
             return false;
         }
@@ -72,6 +79,7 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     private long countActiveTicketsByEvent(String userId, Event event) {
+
         // 취소(CANCELLED)된 티켓을 제외하고, 유저가 수량을 점유하고 있는 모든 티켓 상태 정의
         List<TicketStatus> activeStatuses = List.of(
                 TicketStatus.PENDING_PAYMENT,
@@ -83,6 +91,7 @@ public class TicketRepositoryImpl implements TicketRepository {
     }
 
     private long countActiveTicketsByEventGroup(String userId, String eventGroupCode) {
+
         List<TicketStatus> activeStatuses = List.of(
                 TicketStatus.PENDING_PAYMENT,
                 TicketStatus.PAID

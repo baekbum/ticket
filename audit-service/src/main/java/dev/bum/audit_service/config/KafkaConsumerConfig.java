@@ -33,6 +33,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<Object, Object> kafkaTemplate,
             KafkaDltSlackNotifier kafkaDltSlackNotifier
     ) {
+
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> {
@@ -60,6 +61,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties,
             DefaultErrorHandler kafkaErrorHandler
     ) {
+
         return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, AuditLogEvent.class);
     }
 
@@ -68,6 +70,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties,
             DefaultErrorHandler kafkaErrorHandler
     ) {
+
         return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, LoginLogEvent.class);
     }
 
@@ -76,6 +79,7 @@ public class KafkaConsumerConfig {
             DefaultErrorHandler kafkaErrorHandler,
             Class<T> eventType
     ) {
+
         Map<String, Object> consumerProperties = kafkaProperties.buildConsumerProperties();
         JsonDeserializer<T> jsonDeserializer = new JsonDeserializer<>(eventType, false);
         ErrorHandlingDeserializer<T> valueDeserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);

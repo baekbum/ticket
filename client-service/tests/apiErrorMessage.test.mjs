@@ -31,3 +31,25 @@ test('주요 HTTP 상태와 알 수 없는 상태에도 안내 문구를 제공�
   assert.match(getApiErrorMessage(502, ''), /일시적인 서비스 오류/);
   assert.match(getApiErrorMessage(499, '{"code":"UNKNOWN_ERROR"}'), /요청을 완료하지 못했습니다/);
 });
+
+test('발급 결과 미확인 503에는 같은 결제 요청 재시도 안내만 표시한다', () => {
+  const body = JSON.stringify({ code: 'GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED', message: 'SQL 내부 오류 상세' });
+  assert.equal(getApiErrorMessage(503, body),
+    '가상계좌 발급 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도하거나 예매 내역을 확인해주세요.');
+  assert.match(getApiErrorMessage(500, body), /일시적인 서비스 오류/);
+  assert.match(getApiErrorMessage(503, '{"code":"UNKNOWN","message":"내부 예외"}'), /일시적인 서비스 오류/);
+});
+
+test('환불 결과 미확인과 동시 처리 오류는 고정 안내만 표시한다', () => {
+  assert.match(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_REFUND_UNCONFIRMED', message: '내부 SQL 상세' })), /같은 신청으로 다시 시도/);
+  assert.equal(getApiErrorMessage(409, JSON.stringify({ code: 'RESERVATION_PROCESSING', message: '내부 잠금 상세' })), '해당 예매에 대한 처리가 진행 중입니다. 잠시 후 다시 시도해 주세요.');
+});
+
+test('카드 준비 결과 미확인은 내부 상세 대신 같은 결제 요청 재시도를 안내한다', () => {
+  assert.equal(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_CARD_PREPARATION_UNCONFIRMED', message: 'internal failure detail' })), '카드 결제 준비 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도해주세요.');
+});
+
+test('수단 변경 결과 미확인과 이미 변경된 카드 세션은 고정 안내를 반환한다', () => {
+  assert.match(getApiErrorMessage(503, JSON.stringify({ code: 'GATEWAY_METHOD_CHANGE_UNCONFIRMED', message: 'SQL 내부 상세' })), /같은 요청으로 다시 시도/);
+  assert.match(getApiErrorMessage(409, JSON.stringify({ code: 'GATEWAY_PAYMENT_METHOD_CHANGED', message: 'SQL 내부 상세' })), /결제수단이 변경/);
+});

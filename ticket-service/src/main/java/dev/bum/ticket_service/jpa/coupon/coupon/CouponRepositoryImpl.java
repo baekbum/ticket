@@ -30,22 +30,20 @@ public class CouponRepositoryImpl implements CouponRepository {
 
     @Override
     public Coupon insert(Coupon coupon) {
+
         return jpaRepository.save(coupon);
     }
 
     @Override
-    public Coupon update(Coupon coupon) {
-        return jpaRepository.saveAndFlush(coupon);
-    }
-
-    @Override
     public Coupon selectById(Long couponId) {
+
         return jpaRepository.findById(couponId)
                 .orElseThrow(() -> new IllegalArgumentException("쿠폰 정보가 존재하지 않습니다."));
     }
 
     @Override
     public Page<Coupon> selectByCond(CouponCondRequest cond, Pageable pageable) {
+
         QCoupon coupon = QCoupon.coupon;
 
         List<OrderSpecifier<?>> orderSpecifiers = new ArrayList<>();
@@ -90,6 +88,7 @@ public class CouponRepositoryImpl implements CouponRepository {
 
     @Override
     public List<Coupon> selectDownloadableCoupons(LocalDateTime now) {
+
         QCoupon coupon = QCoupon.coupon;
 
         return queryFactory
@@ -104,7 +103,26 @@ public class CouponRepositoryImpl implements CouponRepository {
     }
 
     @Override
+    public boolean existsByCode(String code) {
+
+        return jpaRepository.existsByCode(code);
+    }
+
+    @Override
+    public boolean existsByCodeExceptId(String code, Long couponId) {
+
+        return jpaRepository.existsByCodeAndCouponIdNot(code, couponId);
+    }
+
+    @Override
+    public Coupon update(Coupon coupon) {
+
+        return jpaRepository.saveAndFlush(coupon);
+    }
+
+    @Override
     public long expireExpiredCoupons(LocalDateTime now) {
+
         QCoupon coupon = QCoupon.coupon;
 
         return queryFactory
@@ -119,45 +137,42 @@ public class CouponRepositoryImpl implements CouponRepository {
                 .execute();
     }
 
-    @Override
-    public boolean existsByCode(String code) {
-        return jpaRepository.existsByCode(code);
-    }
-
-    @Override
-    public boolean existsByCodeExceptId(String code, Long couponId) {
-        return jpaRepository.existsByCodeAndCouponIdNot(code, couponId);
-    }
-
     private BooleanExpression nameLike(String name) {
+
         return StringUtils.hasText(name) ? QCoupon.coupon.name.like("%" + name + "%") : null;
     }
 
     private BooleanExpression codeLike(String code) {
+
         return StringUtils.hasText(code) ? QCoupon.coupon.code.like("%" + code + "%") : null;
     }
 
     private BooleanExpression discountTypeEq(CouponDiscountType discountType) {
+
         return discountType != null ? QCoupon.coupon.discountType.eq(discountType) : null;
     }
 
     private BooleanExpression validFromDateEq(LocalDate validFrom) {
+
         return validFrom != null
                 ? QCoupon.coupon.validFrom.between(validFrom.atStartOfDay(), validFrom.atTime(LocalTime.MAX))
                 : null;
     }
 
     private BooleanExpression validUntilDateEq(LocalDate validUntil) {
+
         return validUntil != null
                 ? QCoupon.coupon.validUntil.between(validUntil.atStartOfDay(), validUntil.atTime(LocalTime.MAX))
                 : null;
     }
 
     private BooleanExpression validDaysAfterIssueEq(Integer validDaysAfterIssue) {
+
         return validDaysAfterIssue != null ? QCoupon.coupon.validDaysAfterIssue.eq(validDaysAfterIssue) : null;
     }
 
     private BooleanExpression statusEq(CouponStatus status) {
+
         return status != null ? QCoupon.coupon.status.eq(status) : null;
     }
 }

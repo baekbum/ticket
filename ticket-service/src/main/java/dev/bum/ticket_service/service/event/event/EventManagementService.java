@@ -33,8 +33,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EventManagementService {
 
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventRepository repository;
+    // 공연 업무 처리를 담당하는 서비스.
     private final EventPosterService eventPosterService;
+    // 공연 정책 업무 처리를 담당하는 서비스.
     private final EventPolicyOutboxService eventPolicyOutboxService;
 
     /**
@@ -42,6 +45,7 @@ public class EventManagementService {
      */
     @AuditLog(action = "EVENT_CREATE_BULK", targetType = "EVENT")
     public List<EventResponse> insertBulk(InsertEventBulkRequest info, MultipartFile posterImage) {
+
         if (info.getSchedules() == null || info.getSchedules().isEmpty()) {
             throw new IllegalArgumentException("등록할 공연 일정 정보가 없습니다.");
         }
@@ -67,6 +71,7 @@ public class EventManagementService {
      */
     @Transactional(readOnly = true)
     public EventResponse selectById(Long id) {
+
         log.info("[SELECT] EventId : {}", id);
 
         return repository.selectById(id).toResponse();
@@ -79,6 +84,7 @@ public class EventManagementService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<EventResponse> selectByCond(EventCondRequest cond) {
+
         log.info("[SELECT] Info : {}", cond.toString());
 
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -101,6 +107,7 @@ public class EventManagementService {
      */
     @AuditLog(action = "EVENT_UPDATE", targetType = "EVENT")
     public EventResponse update(Long id, UpdateEventRequest info) {
+
         log.info("[UPDATE] Id : {}, Info : {}", id, info);
         Event beforeEvent = repository.selectByIdForUpdate(id);
         AuditDataMapper.setChangedData(beforeEvent, info, "description", "venueAddress", "posterUrl");
@@ -115,6 +122,7 @@ public class EventManagementService {
      */
     @AuditLog(action = "EVENT_UPDATE", targetType = "EVENT")
     public EventResponse update(Long id, UpdateEventRequest info, MultipartFile posterImage) {
+
         log.info("[UPDATE WITH POSTER] Id : {}, Info : {}", id, info);
 
         Event event = repository.selectByIdForUpdate(id);
@@ -139,6 +147,7 @@ public class EventManagementService {
      */
     @AuditLog(action = "EVENT_DELETE", targetType = "EVENT")
     public EventResponse delete(Long id) {
+
         log.info("[DELETE] EventId : {}", id);
 
         Event event = repository.selectByIdForUpdate(id);
@@ -152,6 +161,7 @@ public class EventManagementService {
      */
     @AuditLog(action = "EVENT_DELETE_BULK", targetType = "EVENT")
     public void deleteBulk(DeleteEventBulkRequest info) {
+
         if (info.getEventIds() == null || info.getEventIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 이벤트 정보가 없습니다.");
         }
@@ -166,6 +176,7 @@ public class EventManagementService {
      * @return
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -185,7 +196,14 @@ public class EventManagementService {
         return sort;
     }
 
-    private InsertEventRequest toInsertEventRequest(InsertEventCommonRequest common, InsertEventScheduleRequest schedule) {
+    /**
+     * 공연 회차 정보를 공연 생성 요청으로 변환한다.
+     */
+    private InsertEventRequest toInsertEventRequest(
+            InsertEventCommonRequest common,
+            InsertEventScheduleRequest schedule
+    ) {
+
         return InsertEventRequest.builder()
                 .artistName(common.getArtistName())
                 .title(common.getTitle())

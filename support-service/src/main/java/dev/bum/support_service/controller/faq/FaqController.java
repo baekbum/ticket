@@ -25,6 +25,7 @@ public class FaqController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
+
         return ResponseEntity.ok(faqService.selectPublished(category, keyword, page, size));
     }
 }

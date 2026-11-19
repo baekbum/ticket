@@ -13,19 +13,23 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/v1/manage/queue/redis")
 @RequiredArgsConstructor
 public class QueueRedisManagementController {
+
     private final ReactiveQueueRedisInspectService queueRedisInspectService;
 
     @GetMapping("/event/{eventId}")
     public Mono<ResponseEntity<QueueRedisInspectResponse>> inspectEventQueue(
             @PathVariable("eventId") Long eventId,
             @RequestParam(value = "mode", defaultValue = "WAITING") QueueRedisInspectMode mode,
-            @RequestParam(value = "limit", defaultValue = "100") int limit) {
+            @RequestParam(value = "limit", defaultValue = "100") int limit
+    ) {
+
         return queueRedisInspectService.inspectEventQueue(eventId, mode, limit)
                 .map(ResponseEntity::ok);
     }
 
     @GetMapping("/token/{token}")
     public Mono<ResponseEntity<QueueRedisInspectResponse>> inspectToken(@PathVariable("token") String token) {
+
         return queueRedisInspectService.inspectToken(token)
                 .map(ResponseEntity::ok);
     }
@@ -34,7 +38,9 @@ public class QueueRedisManagementController {
     public Mono<ResponseEntity<Void>> removeToken(
             @PathVariable("eventId") Long eventId,
             @PathVariable("token") String token,
-            @RequestParam("mode") QueueRedisInspectMode mode) {
+            @RequestParam("mode") QueueRedisInspectMode mode
+    ) {
+
         return queueRedisInspectService.removeToken(eventId, token, mode)
                 .map(removed -> removed
                         ? ResponseEntity.noContent().build() : ResponseEntity.status(HttpStatus.NOT_FOUND).build());

@@ -15,14 +15,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class LoginAttemptService {
+
+    // 인증 데이터를 조회하고 저장하는 레포지토리.
     private final AuthJpaRepository authJpaRepository;
+    // 사용자 로그인 잠금 데이터를 조회하고 저장하는 레포지토리.
     private final UserLoginLockJpaRepository loginLocks;
+    // 비밀번호를 암호화하고 일치 여부를 확인하는 인코더.
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * 입력한 비밀번호가 저장된 값과 일치하는지 검증한다.
+     */
     // 로그인 실패 예외로 바깥 트랜잭션이 롤백되어도 실패 횟수와 잠금은 커밋한다.
     @Transactional(propagation = Propagation.REQUIRES_NEW,
             noRollbackFor = {PasswordIncorrectException.class, UserLoginLockedException.class})
     public void validatePassword(Long authId, String password) {
+
         // 잠금 행이 아직 없어도 최초 생성과 비밀번호 재설정을 계정별로 직렬화한다.
         Auth auth = authJpaRepository.findByIdForUpdate(authId)
                 .orElseThrow(() -> new UserNotExistException("존재하지 않는 사용자입니다."));

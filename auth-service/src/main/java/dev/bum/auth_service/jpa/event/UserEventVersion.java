@@ -13,21 +13,29 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class UserEventVersion {
+
+    // 인증 정보 식별자.
     @Id
     @Column(name = "auth_id")
     private Long authId;
 
+    // 마지막으로 반영한 이벤트 버전.
     @Column(name = "last_event_version", nullable = false)
     private long lastEventVersion;
 
+    // 삭제 여부.
     @Column(nullable = false)
     private boolean deleted;
 
+    // 이미 반영한 이벤트보다 오래된 이벤트인지 확인한다.
     public boolean isStale(long incomingVersion) {
+
         return deleted || incomingVersion <= lastEventVersion;
     }
 
+    // 사용자 이벤트 버전 처리에서 이벤트 버전을 증가시키고 최신 상태를 반영한다.
     public void advance(long incomingVersion, boolean deleted) {
+
         this.lastEventVersion = incomingVersion;
         this.deleted = deleted;
     }

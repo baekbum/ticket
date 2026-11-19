@@ -55,20 +55,29 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AreaManagementService {
 
+    // SVG 배치도에서 허용되지 않은 내용을 제거하는 도구.
     private final SvgLayoutSanitizer svgLayoutSanitizer;
+    // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
     private final AreaRepository repository;
+    // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
     private final AreaJpaRepository areaJpaRepository;
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventRepository eventRepository;
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventLayoutJpaRepository layoutJpaRepository;
+    // 좌석 데이터를 조회하고 저장하는 레포지토리.
     private final SeatJpaRepository seatJpaRepository;
+
     /**
      * 이벤트 그룹 코드에 속한 모든 이벤트에 동일한 SVG 구역 배치도를 등록한다.
      */
     @AuditLog(action = "AREA_CREATE_SVG_GROUP", targetType = "AREA")
     public List<AreaResponse> insertSvgByEventGroupCode(String eventGroupCode, MultipartFile svgFile, boolean force) {
+
         if (!StringUtils.hasText(eventGroupCode)) {
             throw new IllegalArgumentException("이벤트 그룹 코드를 입력해주세요.");
         }
+
         if (svgFile == null || svgFile.isEmpty()) {
             throw new IllegalArgumentException("SVG 파일을 업로드해주세요.");
         }
@@ -101,27 +110,11 @@ public class AreaManagementService {
     }
 
     /**
-     * 이벤트에 기존 구역 배치도 또는 구역 데이터가 존재하는지 확인한다.
-     */
-    private boolean hasAreaLayout(Long eventId) {
-        return layoutJpaRepository.existsByEvent_EventId(eventId) || areaJpaRepository.existsByEvent_EventId(eventId);
-    }
-
-    /**
-     * SVG 재등록을 위해 기존 좌석, 구역, 배치도 데이터를 삭제한다.
-     */
-    private void deleteAreaLayout(Long eventId) {
-        log.info("[AREA SVG REPLACE] delete previous layout. eventId : {}", eventId);
-        seatJpaRepository.deleteByEventEventId(eventId);
-        areaJpaRepository.deleteByEvent_EventId(eventId);
-        layoutJpaRepository.deleteByEvent_EventId(eventId);
-    }
-
-    /**
      * 이벤트 ID로 저장된 구역 배치도 SVG를 조회한다.
      */
     @Transactional(readOnly = true)
     public EventLayoutResponse selectLayout(Long eventId) {
+
         log.info("[EVENT LAYOUT SELECT] eventId : {}", eventId);
         return layoutJpaRepository.findByEvent_EventId(eventId)
                 .map(layout -> {
@@ -137,6 +130,7 @@ public class AreaManagementService {
      */
     @Transactional(readOnly = true)
     public AreaResponse selectById(Long id) {
+
         log.info("[AREA SELECT] areaId : {}", id);
         return repository.selectById(id).toResponse();
     }
@@ -146,6 +140,7 @@ public class AreaManagementService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<AreaResponse> selectByCond(AreaCondRequest cond) {
+
         log.info("[AREA SELECT] cond : {}", cond);
 
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
@@ -165,6 +160,7 @@ public class AreaManagementService {
      */
     @AuditLog(action = "AREA_UPDATE", targetType = "AREA")
     public AreaResponse update(Long id, UpdateAreaRequest info) {
+
         log.info("[AREA UPDATE] areaId : {}, info : {}", id, info);
         Area beforeArea = repository.selectById(id);
         AuditDataMapper.setChangedData(beforeArea, info);
@@ -176,6 +172,7 @@ public class AreaManagementService {
      */
     @AuditLog(action = "AREA_DELETE", targetType = "AREA")
     public AreaResponse delete(Long id) {
+
         log.info("[AREA DELETE] areaId : {}", id);
         return repository.delete(id).toResponse();
     }
@@ -185,6 +182,7 @@ public class AreaManagementService {
      */
     @AuditLog(action = "AREA_DELETE_BULK", targetType = "AREA")
     public void deleteBulk(DeleteAreaBulkRequest info) {
+
         if (info.getAreaIds() == null || info.getAreaIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 구역 정보가 없습니다.");
         }
@@ -194,9 +192,29 @@ public class AreaManagementService {
     }
 
     /**
+     * 이벤트에 기존 구역 배치도 또는 구역 데이터가 존재하는지 확인한다.
+     */
+    private boolean hasAreaLayout(Long eventId) {
+
+        return layoutJpaRepository.existsByEvent_EventId(eventId) || areaJpaRepository.existsByEvent_EventId(eventId);
+    }
+
+    /**
+     * SVG 재등록을 위해 기존 좌석, 구역, 배치도 데이터를 삭제한다.
+     */
+    private void deleteAreaLayout(Long eventId) {
+
+        log.info("[AREA SVG REPLACE] delete previous layout. eventId : {}", eventId);
+        seatJpaRepository.deleteByEventEventId(eventId);
+        areaJpaRepository.deleteByEvent_EventId(eventId);
+        layoutJpaRepository.deleteByEvent_EventId(eventId);
+    }
+
+    /**
      * 구역 등록 요청 목록을 검증하고 repository에 저장한다.
      */
     private List<AreaResponse> insertAreas(List<InsertAreaRequest> areas) {
+
         if (areas == null || areas.isEmpty()) {
             throw new IllegalArgumentException("등록할 구역 정보가 없습니다.");
         }
@@ -212,6 +230,7 @@ public class AreaManagementService {
      * 요청 sort 문자열을 Spring Data Sort 객체로 변환한다.
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -232,6 +251,7 @@ public class AreaManagementService {
      * 이벤트별 정제된 SVG 배치도 스냅샷을 저장하거나 교체한다.
      */
     private void saveEventLayout(Long eventId, String originalFileName, String svgText) {
+
         Event event = eventRepository.selectById(eventId);
         EventLayout layout = layoutJpaRepository.findByEvent_EventId(eventId)
                 .orElseGet(() -> EventLayout.builder()
@@ -246,6 +266,7 @@ public class AreaManagementService {
      * SVG 문서를 파싱해 구역 등록 요청 목록으로 변환한다.
      */
     private List<InsertAreaRequest> parseSvgAreas(Long eventId, String svgText) {
+
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
@@ -277,13 +298,20 @@ public class AreaManagementService {
     /**
      * SVG path/rect 요소 중 구역으로 표시된 요소를 찾아 등록 요청 목록에 추가한다.
      */
-    private void collectSvgAreaElements(NodeList elements, Long eventId, List<InsertAreaRequest> areas, Set<String> parsedLayoutKeys) {
+    private void collectSvgAreaElements(
+            NodeList elements,
+            Long eventId,
+            List<InsertAreaRequest> areas,
+            Set<String> parsedLayoutKeys
+    ) {
+
         for (int i = 0; i < elements.getLength(); i++) {
             Element element = (Element) elements.item(i);
             String className = element.getAttribute("class");
             if (!containsClass(className, "area")) {
                 continue;
             }
+
             if (containsClass(className, "console")) {
                 continue;
             }
@@ -293,6 +321,7 @@ public class AreaManagementService {
             if ("CONSOLE".equalsIgnoreCase(areaName)) {
                 continue;
             }
+
             if (!StringUtils.hasText(layoutKey) || !parsedLayoutKeys.add(layoutKey)) {
                 continue;
             }
@@ -312,6 +341,7 @@ public class AreaManagementService {
      * 업로드된 SVG 파일의 바이트를 UTF-8 텍스트로 읽고 정규화한다.
      */
     private String normalizeSvgFile(MultipartFile svgFile) {
+
         try {
             return normalizeSvgText(new String(svgFile.getBytes(), StandardCharsets.UTF_8));
         } catch (Exception e) {
@@ -323,6 +353,7 @@ public class AreaManagementService {
      * SVG class 속성에 특정 class token이 포함되어 있는지 확인한다.
      */
     private boolean containsClass(String className, String target) {
+
         if (!StringUtils.hasText(className)) return false;
         for (String token : className.split("\\s+")) {
             if (target.equals(token)) return true;
@@ -334,6 +365,7 @@ public class AreaManagementService {
      * SVG 요소 ID에서 구역 prefix를 제거해 layoutKey 후보를 만든다.
      */
     private String normalizeId(String id) {
+
         if (!StringUtils.hasText(id)) return null;
         return id
                 .replaceFirst("^area-2f-", "")
@@ -347,6 +379,7 @@ public class AreaManagementService {
      * 값이 있으면 trim한 값을 사용하고 없으면 fallback을 반환한다.
      */
     private String firstText(String value, String fallback) {
+
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
@@ -354,6 +387,7 @@ public class AreaManagementService {
      * SVG 속성 또는 class 정보에서 좌석 등급을 결정한다.
      */
     private SeatGrade parseGrade(String grade, String className) {
+
         String value = firstText(grade, null);
         if (!StringUtils.hasText(value)) {
             if (containsClass(className, "vip")) value = "VIP";
@@ -368,6 +402,7 @@ public class AreaManagementService {
      * 가격 문자열에서 숫자만 추출해 정수 가격으로 변환한다.
      */
     private Integer parsePrice(String price) {
+
         if (!StringUtils.hasText(price)) return 0;
         String digits = price.replaceAll("[^0-9]", "");
         return StringUtils.hasText(digits) ? Integer.parseInt(digits) : 0;
@@ -377,6 +412,7 @@ public class AreaManagementService {
      * 일반 SVG 텍스트 또는 data URI 형태의 SVG를 파싱 가능한 SVG 텍스트로 정규화한다.
      */
     private String normalizeSvgText(String rawText) {
+
         if (!StringUtils.hasText(rawText)) {
             throw new IllegalArgumentException("SVG 파일 내용이 비어 있습니다.");
         }

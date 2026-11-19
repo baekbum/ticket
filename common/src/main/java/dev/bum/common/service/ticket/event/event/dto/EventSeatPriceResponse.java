@@ -12,7 +12,12 @@ import lombok.NoArgsConstructor;
 @Builder
 public class EventSeatPriceResponse {
 
+    // 좌석 구역 이름.
     private String areaName;
+
+    // 좌석 등급.
     private SeatGrade grade;
+
+    // 가격.
     private Integer price;
 }

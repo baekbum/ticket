@@ -15,7 +15,9 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class CouponExpirationScheduler {
 
+    // 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final CouponRepository couponRepository;
+    // 사용자 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final UserCouponRepository userCouponRepository;
 
     /**
@@ -24,6 +26,7 @@ public class CouponExpirationScheduler {
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void expireCouponData() {
+
         LocalDateTime now = LocalDateTime.now();
 
         long expiredCouponCount = couponRepository.expireExpiredCoupons(now);

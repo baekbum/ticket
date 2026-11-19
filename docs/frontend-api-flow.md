@@ -1,5 +1,7 @@
 # Frontend API Flow
 
+> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+
 이 문서는 사용자 프론트 화면에서 API를 호출하는 순서를 정리한 계약 초안이다.
 현재 별도 프론트 서버가 없으므로, 경로는 각 백엔드 서비스의 내부 API 경로(`/api/v1/...`) 기준으로 적는다.
 나중에 프론트 서버나 Gateway/BFF가 생기면 Base URL만 해당 환경에 맞게 치환한다.
@@ -515,7 +517,7 @@ Content-Type: application/json
 #### 13-2. 가상계좌 입금 시뮬레이션
 
 ```http
-POST /api/v1/payments/virtual-account/deposit
+POST /api/v1/banks/virtual-accounts/legacy/deposit
 Authorization: Bearer {adminAccessToken}
 Content-Type: application/json
 ```
@@ -610,7 +612,7 @@ Authorization: Bearer {accessToken}
 9. POST /api/v1/seat/occupy with X-Active-Token
 10. POST /api/v1/checkout/prepare with X-Active-Token
 11. 배송/쿠폰/결제수단 제출 후 paymentNo 발급
-12. 무통장 선택 시 POST /api/v1/payments/virtual-account/deposit
+12. 무통장 선택 시 POST /api/v1/banks/virtual-accounts/legacy/deposit
 13. GET  /api/v1/reservation/select/id/{reservationId}
 14. GET  /api/v1/ticket/reservation/{reservationId}
 ```

@@ -5,7 +5,8 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
-import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
@@ -243,6 +244,7 @@ const BANK_COMPANIES = [
 ] as const;
 type BankCompany = typeof BANK_COMPANIES[number]['code'];
 type BookingPaymentResponse = {
+  pgPaymentId?: string | null;
   cardCompany?: CardCompany;
   maskedCardNumber?: string;
   selectedSeats?: SeatResponse[];
@@ -863,6 +865,14 @@ function App() {
     () => sessionStorage.getItem('ticksy.userName') || '',
   );
   const [customAlert, setCustomAlert] = useState<CustomAlertState | null>(null);
+  const handleSessionExpired = useCallback((message: string) => {
+    setLoginUserName('');
+    setPage('login');
+    setCustomAlert({ message });
+    window.history.replaceState({ page: 'login' }, '', getUrlForPage('login'));
+  }, []);
+  useSessionExpiration(handleSessionExpired);
+
   const isFullAuthPage =
     page === 'login' ||
     page === 'signup' ||
@@ -2743,7 +2753,7 @@ function BookingWindowPage() {
         }
         return;
       }
-      if (payment.status !== 'WAITING_DEPOSIT' || !payment.bankName || !payment.accountNumber || !payment.expiresAt) {
+      if (!['WAITING_DEPOSIT', 'PAID'].includes(payment.status) || !payment.bankName || !payment.accountNumber || !payment.expiresAt) {
         throw new Error('가상계좌 발급 정보를 확인하지 못했습니다. 다시 시도해주세요.');
       }
       setCompletedPayment(paymentWithSelectedSeats);
@@ -2887,8 +2897,8 @@ function BookingWindowPage() {
         <main className="booking-complete-panel">
           <BookingCheckoutStepper currentStep="COMPLETE" />
           <div className="booking-checkout-header">
-            <h1>{completedPayment.method === 'CREDIT_CARD' ? '결제와 예매가 완료되었습니다' : '예매 신청이 완료되었습니다'}</h1>
-            <p>{completedPayment.method === 'CREDIT_CARD' ? '카드 결제가 정상적으로 처리되었습니다. 예매 내역을 확인해주세요.' : '현재 입금 대기 중입니다. 아래 계좌로 입금 기한 내에 정확한 금액을 입금해주세요.'}</p>
+            <h1>{completedPayment.status === 'PAID' ? '결제와 예매가 완료되었습니다' : '예매 신청이 완료되었습니다'}</h1>
+            <p>{completedPayment.method === 'CREDIT_CARD' ? '카드 결제가 정상적으로 처리되었습니다. 예매 내역을 확인해주세요.' : completedPayment.status === 'PAID' ? '입금이 확인되어 예매가 완료되었습니다. 예매 내역을 확인해주세요.' : '현재 입금 대기 중입니다. 아래 계좌로 입금 기한 내에 정확한 금액을 입금해주세요.'}</p>
           </div>
           <section className="booking-payment-card">
             <h2>{completedPayment.method === 'CREDIT_CARD' ? '카드 결제 정보' : '무통장 입금 정보'}</h2>
@@ -2903,10 +2913,10 @@ function BookingWindowPage() {
               <div><dt>입금 은행</dt><dd>{completedPayment.bankName}</dd></div>
               <div><dt>계좌번호</dt><dd><BookingAccountNumber accountNumber={completedPayment.accountNumber} /></dd></div>
               <div><dt>입금 금액</dt><dd><strong>{completedPayment.amount.toLocaleString()}원</strong></dd></div>
-              <div><dt>입금 기한 (한국시간)</dt><dd>{completedPayment.expiresAt?.replace('T', ' ')}</dd></div>
+              {completedPayment.status === 'WAITING_DEPOSIT' && <div><dt>입금 기한 (한국시간)</dt><dd>{completedPayment.expiresAt?.replace('T', ' ')}</dd></div>}
               </>}
             </dl>
-            {completedPayment.method === 'BANK_TRANSFER' && <p>기한 내 입금하지 않으면 예매가 자동 취소됩니다.</p>}
+            {completedPayment.method === 'BANK_TRANSFER' && completedPayment.status === 'WAITING_DEPOSIT' && <p>기한 내 입금하지 않으면 예매가 자동 취소됩니다.</p>}
           </section>
           <section className="booking-payment-card">
             <h2>{eventDetail?.title}</h2>
@@ -4731,7 +4741,11 @@ function TopButton() {
   );
 }
 
-const request = createAuthenticatedRequest({ storage: sessionStorage, fetch: window.fetch.bind(window) });
+const request = createAuthenticatedRequest({
+  storage: sessionStorage,
+  fetch: window.fetch.bind(window),
+  onSessionExpired: (message) => window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: message })),
+});
 
 function clearLoginStorage() {
   sessionStorage.removeItem('ticksy.accessToken');

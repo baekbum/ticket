@@ -12,13 +12,15 @@ import java.time.Duration;
 
 @Configuration(proxyBeanMethods = false)
 public class ReactiveTokenStateConfig {
+
     @Bean(destroyMethod = "close")
     public ReactiveTokenStateStore reactiveTokenStateStore(
             @Value("${token-state.redis.host:${TOKEN_STATE_REDIS_HOST:localhost}}") String host,
             @Value("${token-state.redis.port:${TOKEN_STATE_REDIS_PORT:6390}}") int port,
             @Value("${token-state.redis.database:${TOKEN_STATE_REDIS_DATABASE:0}}") int database,
             @Value("${token-state.redis.password:${TOKEN_STATE_REDIS_PASSWORD:}}") String password,
-            @Value("${token-state.redis.timeout:${TOKEN_STATE_REDIS_TIMEOUT:2s}}") Duration timeout) {
+            @Value("${token-state.redis.timeout:${TOKEN_STATE_REDIS_TIMEOUT:2s}}") Duration timeout
+    ) {
 
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration(host, port);
         configuration.setDatabase(database);

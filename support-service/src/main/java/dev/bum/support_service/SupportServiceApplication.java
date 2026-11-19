@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = {"dev.bum.support_service", "dev.bum.common"})
 public class SupportServiceApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(SupportServiceApplication.class, args);
-	}
+    public static void main(String[] args) {
 
+	    SpringApplication.run(SupportServiceApplication.class, args);
+	}
 }

@@ -1,168 +1,66 @@
 package dev.bum.ticket_service.service;
 
 import dev.bum.common.service.ticket.checkout.dto.CheckoutConfirmRequest;
-import dev.bum.common.service.ticket.event.event.enums.EventStatus;
-import dev.bum.common.service.ticket.payment.enums.BankCompany;
-import dev.bum.common.service.ticket.payment.enums.GatewayVirtualAccountStatus;
-import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
-import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
-import dev.bum.common.service.ticket.reservation.enums.ReservationStatus;
-import dev.bum.ticket_service.feign.paymentgateway.GatewayVirtualAccountIssueResponse;
-import dev.bum.ticket_service.feign.paymentgateway.PaymentGatewayVirtualAccountClient;
+import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
-import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
-
-import org.junit.jupiter.api.DisplayName;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.*;
+import static org.assertj.core.api.Assertions.*;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-
-@ExtendWith(MockitoExtension.class)
 class CheckoutVirtualAccountServiceTest {
 
-    @Mock
-    private PaymentGatewayVirtualAccountClient paymentGatewayVirtualAccountClient;
+    final LocalDate today = LocalDate.of(2026, 11, 11);
+    final CheckoutVirtualAccountService service = new CheckoutVirtualAccountService(
+            Clock.fixed(Instant.parse("2026-11-11T03:00:00Z"), ZoneId.of("Asia/Seoul")));
 
-    @InjectMocks
-    private CheckoutVirtualAccountService virtualAccountService;
-
-    @Test
-    @DisplayName("무통장 결제 confirm 처리 시 gateway에서 가상계좌를 발급받아 결제에 반영한다")
-    void process_virtual_account_payment() {
-        Event event = event();
-        Reservation reservation = reservation(event);
-        Payment payment = payment(reservation);
-        CheckoutConfirmRequest request = request("KB");
-
-        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any()))
-                .willReturn(virtualAccountIssueResponse());
-
-        virtualAccountService.issue(request, payment);
-
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_DEPOSIT);
-        assertThat(payment.getBankName()).isEqualTo("KB국민은행");
-        assertThat(payment.getAccountNumber()).isEqualTo("1111-2222-3333-4444");
-        assertThat(payment.getExpiresAt()).isEqualTo(LocalDateTime.of(2026, 9, 18, 23, 59, 59));
-        then(paymentGatewayVirtualAccountClient).should().issue(ArgumentMatchers.argThat(argument ->
-                argument.getPaymentNo().equals("PAY-20260727120000-abcdef123456")
-                        && argument.getBankCompany() == BankCompany.KB
-                        && argument.getAmount().compareTo(BigDecimal.valueOf(180000)) == 0
-                        && argument.getEventDateTime().equals(event.getEventDateTime())
-        ));
+    @Test void persistsAnIntentAndTheOldTicksyDeadlineRuleWithoutHttpOrAnAccountNumber() {
+        Payment payment = payment(today.plusDays(5));
+        service.issue(request("KB"), payment);
+        assertThat(payment.getGatewayBankCompany()).isEqualTo(BankCompany.KB);
+        assertThat(payment.isGatewayIssuePending()).isTrue();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payment.getAccountNumber()).isNull();
+        assertThat(payment.getPgPaymentId()).isNull();
+        assertThat(payment.getGatewayExpiresAt()).isEqualTo(today.plusDays(1).atTime(23, 59, 59));
     }
 
-    @Test
-    @DisplayName("은행 코드가 없으면 무통장 결제 confirm 처리를 거부한다")
-    void reject_missing_bank_code() {
-        assertThatThrownBy(() -> virtualAccountService.issue(request(" "), payment(reservation(event()))))
-                .isInstanceOf(IllegalArgumentException.class)
+    @Test void tomorrowShowsDeadlineTodayAndSameDayBankTransferIsRejected() {
+        Payment payment = payment(today.plusDays(1));
+        service.issue(request(" kb "), payment);
+        assertThat(payment.getGatewayExpiresAt()).isEqualTo(today.atTime(23, 59, 59));
+        assertThatThrownBy(() -> service.issue(request("KB"), payment(today)))
+                .hasMessage("공연 당일에는 무통장 입금을 사용할 수 없습니다.");
+    }
+
+    @Test void retryKeepsTheFirstDeadlineAndRejectsAnotherBank() {
+        Payment payment = payment(today.plusDays(5));
+        LocalDateTime original = today.plusDays(1).atTime(23, 59, 59);
+        payment.planGatewayAccount(BankCompany.KB, original);
+        service.issue(request("KB"), payment);
+        assertThat(payment.getGatewayExpiresAt()).isEqualTo(original);
+        assertThatThrownBy(() -> service.issue(request("SHINHAN"), payment)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(payment.getGatewayBankCompany()).isEqualTo(BankCompany.KB);
+    }
+
+    @Test void rejectsMissingOrUnknownBank() {
+        assertThatThrownBy(() -> service.issue(request(" "), payment(today.plusDays(5))))
                 .hasMessage("은행 코드가 필요합니다.");
-    }
-
-    @Test
-    @DisplayName("지원하지 않는 은행 코드면 무통장 결제 confirm 처리를 거부한다")
-    void reject_invalid_bank_code() {
-        assertThatThrownBy(() -> virtualAccountService.issue(request("UNKNOWN"), payment(reservation(event()))))
-                .isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> service.issue(request("UNKNOWN"), payment(today.plusDays(5))))
                 .hasMessage("지원하지 않는 은행 코드입니다.");
     }
 
-    private CheckoutConfirmRequest request(String bankCode) {
-        return CheckoutConfirmRequest.builder()
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                .bankCode(bankCode)
-                .build();
+    CheckoutConfirmRequest request(String bank) {
+        return CheckoutConfirmRequest.builder().paymentMethod(PaymentMethod.BANK_TRANSFER).bankCode(bank).build();
     }
 
-    @Test
-    void reject_unsuccessful_issue_without_marking_payment_waiting() {
-        Payment payment = payment(reservation(event()));
-        GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
-        response.setIssued(false);
-        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any())).willReturn(response);
-
-        assertThatThrownBy(() -> virtualAccountService.issue(request("KB"), payment))
-                .isInstanceOf(IllegalStateException.class);
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
-        assertThat(payment.getAccountNumber()).isNull();
-    }
-
-    @Test
-    @DisplayName("PG 가상계좌가 만료 상태면 결제 대기 상태로 변경하지 않는다")
-    void reject_expired_virtual_account_without_marking_payment_waiting() {
-        Payment payment = payment(reservation(event()));
-        GatewayVirtualAccountIssueResponse response = virtualAccountIssueResponse();
-        response.setStatus(GatewayVirtualAccountStatus.EXPIRED);
-        given(paymentGatewayVirtualAccountClient.issue(ArgumentMatchers.any())).willReturn(response);
-
-        assertThatThrownBy(() -> virtualAccountService.issue(request("KB"), payment))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("가상계좌 발급에 실패했습니다.");
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
-        assertThat(payment.getAccountNumber()).isNull();
-    }
-
-    private GatewayVirtualAccountIssueResponse virtualAccountIssueResponse() {
-        return GatewayVirtualAccountIssueResponse.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .bankCompany(BankCompany.KB)
-                .bankName("KB국민은행")
-                .accountNumber("1111-2222-3333-4444")
-                .amount(BigDecimal.valueOf(180000))
-                .expiresAt(LocalDateTime.of(2026, 9, 18, 23, 59, 59))
-                .status(GatewayVirtualAccountStatus.WAITING_DEPOSIT)
-                .issued(true)
-                .message("가상계좌가 발급되었습니다.")
-                .build();
-    }
-
-    private Event event() {
-        return Event.builder()
-                .eventId(1L)
-                .artistName("IU")
-                .title("IU Concert")
-                .venue("KSPO Dome")
-                .eventDateTime(LocalDateTime.of(2026, 9, 18, 18, 0))
-                .totalSeats(100)
-                .availableSeats(100)
-                .status(EventStatus.ON_SALE)
-                .maxTicketsPerPerson(4)
-                .build();
-    }
-
-    private Reservation reservation(Event event) {
-        return Reservation.builder()
-                .reservationId(1L)
-                .orderId("ORDER-1")
-                .userId("user01")
-                .event(event)
-                .status(ReservationStatus.PENDING_PAYMENT)
-                .reservedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
-                .build();
-    }
-
-    private Payment payment(Reservation reservation) {
-        return Payment.builder()
-                .paymentId(1L)
-                .reservation(reservation)
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .method(PaymentMethod.BANK_TRANSFER)
-                .status(PaymentStatus.READY)
-                .amount(180000)
-                .requestedAt(LocalDateTime.of(2026, 7, 27, 12, 0))
-                .build();
+    Payment payment(LocalDate date) {
+        Reservation reservation = Reservation.builder().userId("owner")
+                .event(Event.builder().eventDateTime(date.atTime(18, 0)).build()).build();
+        return Payment.builder().reservation(reservation).paymentNo("PAY-1").method(PaymentMethod.BANK_TRANSFER)
+                .amount(100).requestedAt(LocalDateTime.now()).build();
     }
 }

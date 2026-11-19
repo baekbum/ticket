@@ -19,6 +19,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EventPolicyException.class)
     public ResponseEntity<ErrorResponse> handleEventPolicy(EventPolicyException ex) {
+
         return ResponseEntity.status(ex.isUnavailable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ex.isUnavailable() ? ErrorCode.QUEUE_UNAVAILABLE : ErrorCode.EVENT_NOT_BOOKABLE,
                         ex.getMessage()));
@@ -26,24 +27,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleRedisException() {
+
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(QueueTokenInvalidException.class)
     public ResponseEntity<ErrorResponse> handleQueueTokenInvalidException(QueueTokenInvalidException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_TOKEN_INVALID, ex.getMessage()));
     }
 
     @ExceptionHandler(WebExchangeBindException.class)
     public ResponseEntity<ErrorResponse> handleWebExchangeBindException(WebExchangeBindException ex) {
+
         Map<String, String> details = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         fieldError -> fieldError.getField(),

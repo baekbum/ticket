@@ -1,0 +1,113 @@
+# Ticksy의 PG 거래 기반 가상계좌 호출
+
+2026-11-11부터 새 무통장 checkout은 기존 paymentNo 단독 발급 대신 가맹점 인증 기반 PG prepare·발급·비동기 취소 API를 호출한다. 2026-11-18 잔여 정리로 구형 계좌의 취소·관리자 정합성 API 및 Kafka 만료 수신 경로를 제거했다. 카드 브라우저 호출은 [신규 세션 승인 흐름](ticksy-gateway-card-checkout.md)을 사용한다.
+
+## 실제 요청 경로
+
+~~~mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant T as Ticksy
+    participant PG as PG
+    participant B as BankController
+    U->>T: checkout/prepare → checkout/confirm
+    T->>T: 예매·Payment·불변 발급 조건 커밋
+    T->>PG: POST /payments/gateway/prepare
+    PG-->>T: pgPaymentId + 최초 준비 조건
+    T->>T: 원거래 검증 후 pgPaymentId 커밋
+    T->>PG: POST /virtual-account/gateway/{pgPaymentId}/issue
+    PG->>B: 기존 계좌 조회 → 필요 시 발급
+    PG-->>T: 최초 계좌·금액·기한
+    T->>T: 계좌·WAITING_DEPOSIT 반영 커밋
+    T-->>U: 기존 PaymentResponse + pgPaymentId
+    B->>PG: 입금 Outbox
+    PG->>T: 가맹점 입금 Outbox
+    T-->>PG: APPLIED 또는 RESERVATION_CANCELLED
+~~~
+
+위 PG URL의 실제 접두사는 /api/v1/payments다. 브라우저는 PG 서비스 토큰을 받지 않으며 기존 Ticksy checkout URL과 사용자 인증·대기열 검증을 계속 사용한다. PaymentResponse에 nullable pgPaymentId만 추가했다. 프런트는 기존 checkout 멱등키를 재사용하며, 재시도 응답이 이미 PAID라면 입금 대기 안내 대신 완료 화면을 표시한다.
+
+## 책임과 트랜잭션
+
+2026-11-18부터 PG 원거래 준비와 계좌 발급을 명시적인 두 단계로 호출한다.
+
+```java
+PaymentResponse prepared = accounts.prepare(payment.getPaymentNo());
+
+return accounts.issue(prepared.getPaymentNo());
+```
+
+`prepare()`는 저장된 PG ID가 있으면 기존 결과를 반환하고, 없으면 PG prepare 응답을 검증한 뒤 PG ID를 Ticksy에 커밋한다. 계좌 발급 HTTP는 실행하지 않는다. `issue()`는 이미 저장한 PG ID로 계좌를 발급하며, PG ID가 없으면 외부 HTTP 없이 준비 필요 오류를 반환한다. 체크아웃뿐 아니라 카드→무통장 전환·재요청과 취소 Outbox의 발급 복구도 같은 순서로 호출한다.
+
+- CheckoutService는 NEVER 오케스트레이터다. CheckoutTransactionService가 예매·티켓·Payment·발급 의도를 한 로컬 트랜잭션으로 저장한다. 카드→무통장 전환의 기존 카드 승인 이력 조회도 잠금 밖에서 실행하고, 로컬 단계에서 소유자·상태·선점 기한을 다시 확인한다.
+- CheckoutVirtualAccountService는 은행 코드와 공연일 규칙으로 발급 조건만 저장한다. 공연 당일은 거절, 전날은 당일 23:59:59, 나머지는 다음날 23:59:59다. 계산한 기한을 저장하고 재시도 시 현재 날짜로 다시 계산하지 않는다.
+- VirtualAccountIssuanceCheckoutService는 DB 트랜잭션 밖에서 PaymentGatewayTransactionClient의 Feign HTTP를 호출한다. 각 준비·발급 결과 반영은 VirtualAccountIssuanceCheckoutCommandService의 짧은 REQUIRED 트랜잭션이다. 예약 → Payment 순서로 잠근다.
+- prepare 응답의 가맹점·결제번호·사용자·수단·금액·은행·기한을 검증한 뒤 PG ID를 저장한다. 발급 응답에서도 원거래·계좌·기한·최초 은행 상태를 검증한다.
+- 외부 HTTP가 성공한 뒤 Ticksy 저장이 실패하면 PG 원거래를 롤백했다고 주장하지 않는다. 저장된 결제번호·조건과 PG의 멱등 응답으로 재개한다.
+
+신규 Feign 클라이언트는 PaymentGatewayMerchantFeignConfig로 Merchant·credentialKey 헤더를 보낸다. PG는 숫자 코드에 연결된 DB 해시로 인증하며, 본문의 merchantId는 Ticksy 서버 설정 app.payment-gateway.merchant-id와 교차 검증하는 값이다. 일반 사용자 입력으로 가맹점이나 통보 주소를 선택하지 않는다. 원문 키 설정·발급 방법은 [DB 가맹점 인증](payment-gateway-merchant-authentication.md)을 따른다.
+
+## 요청 안에서 추가 3회 재시도와 사용자 재요청
+
+2026-11-12부터 별도 발급 복구 디스패쳐를 제거했다. gateway_issue_pending은 PG 발급 결과가 Ticksy에 아직 반영되지 않았다는 표시로만 사용한다. gateway_next_attempt_at·복구 조회 인덱스·예약 재시도 쿼리도 제거했다. 일반 발급의 백그라운드 자동 재시도는 수행하지 않는다.
+
+- VirtualAccountIssuanceCheckoutService의 prepare와 issue는 각 단계에서 최초 1회 + 추가 3회, 최대 4회 시도한다. 준비 단계가 실패하면 발급 단계는 실행하지 않는다. 네 번째 시도에서 성공해도 해당 요청에 정상 PaymentResponse를 반환한다. 두 단계는 별도 한도를 사용하며 하나의 중첩 재시도 루프로 실행하지 않는다.
+- 타임아웃·연결 실패, PG 5xx, Spring의 일시적인 DB 오류만 재시도한다. 인증·금액·은행·원거래 계약 불일치, PG 4xx, 영구 DB 오류는 즉시 반환한다. 작업 스레드가 중단되면 추가 시도를 멈추고 중단 표시를 유지한다.
+- 두 단계 모두 매 시도마다 커밋된 최초 요청과 PG ID를 다시 읽는다. prepare 응답 유실은 같은 paymentNo·은행·금액·사용자·입금기한으로 재요청한다. PG ID가 저장돼 있으면 prepare 단계는 PG HTTP를 생략한다. issue 단계의 실패·재시도에서 prepare를 다시 호출하지 않는다.
+- Feign 자체 Retryer는 NEVER_RETRY로 고정해 내부 재시도로 호출 횟수가 증가하지 않게 한다. 신규 거래 클라이언트에만 연결 1초·읽기 3초 타임아웃을 설정한다. DB 처리 등 checkout 전체 대기 시간은 별도로 고려해야 한다.
+- 네 번 모두 일시적인 오류로 끝나면 HTTP 503과 GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED를 반환한다. 프런트는 서버 원문 대신 고정 안내문으로 같은 결제 요청 재시도·예매 내역 확인을 안내한다. 기존 checkout 멱등키는 초기화하지 않는다.
+- PG에는 이미 계좌가 발급됐을 수 있으므로 한도 소진만으로 Payment·예매·PG 거래를 취소하거나 새로 생성하지 않는다. 사용자가 같은 checkout 멱등키로 재요청하면 저장한 최초 조건과 PG ID로 기존 결과를 복구한다. 프로세스가 중단된 경우에도 사용자 재요청으로 재개하며 자동 발급 복구는 하지 않는다.
+- 발급 결과를 정상 반영하면 pending을 false로 변경한다. 이후 재요청은 추가 HTTP 없이 로컬 결과를 반환한다. 같은 결제번호에 다른 은행을 보내면 거절한다.
+- 발급 응답보다 입금 통보가 먼저 도착하면 저장한 PG ID와 최초 조건을 검증하여 계좌를 연결하고 입금을 반영한다. 늦은 발급 응답은 PAID를 WAITING_DEPOSIT으로 되돌리지 않는다.
+
+~~~text
+브라우저 checkout 요청
+→ Ticksy 로컬 예매·Payment·최초 조건 커밋
+→ prepare 단계: PG 원거래 준비·ID 저장, 최대 4회 시도
+→ issue 단계: 저장된 PG ID로 계좌 발급·결과 반영, 최대 4회 시도
+→ 성공하면 같은 HTTP 요청에 정상 응답
+→ 한도 소진이면 결과 미확인 503 응답
+→ 사용자가 같은 checkout 멱등키로 다시 요청
+~~~
+
+## 입금 전 취소
+
+1. Ticksy는 예매·티켓·Payment 취소, 좌석 AVAILABLE 복원, 구매 매수 조정, virtual_account_cancel_outbox 저장을 함께 커밋한다. 발급 전 READY인 신규 무통장 결제도 전체 취소할 수 있다.
+2. 발급 중 취소되면 Outbox에 원래 은행·금액·소유자를 먼저 남긴다. 계좌·PG ID가 아직 null이면 취소 발행기가 해당 원거래에 한해 제한 재시도로 발급 결과를 확인·연결한 뒤 같은 취소 작업을 보낸다. 이것은 명시적인 예매 취소의 후속 정리이며 일반 발급을 자동 완료하는 스케줄러가 아니다. 늦은 발급 응답으로 예매나 좌석을 되살리지 않는다.
+3. 발행기는 60초 임대와 시도 번호로 짧게 선점한다. HTTP 동안 DB 잠금을 유지하지 않는다. 프로세스 중단 시 임대가 만료되면 같은 작업을 다시 선점하고, 이전 작업자의 늦은 결과는 무시한다.
+4. 신규 거래는 POST /api/v1/payments/virtual-account/gateway/{pgPaymentId}/cancel을 사용한다. 202 PROCESSING이면 요청 전달 상태를 DELIVERED로 기록한다. 이 상태가 금융 취소 성공을 의미하지 않는다.
+5. PG의 최종 BANK_CANCELLATION 통보는 기존 등록 통보 URL에서 수신한다. PG ID·가맹점·사용자·계좌·은행·금액·최초 요청을 검증하고 Outbox의 gateway_result/gateway_reason과 수신 receipt를 같은 트랜잭션에 저장한다. 최종 결과는 CANCELLED 또는 REJECTED다.
+6. 최종 통보가 202 응답보다 먼저 도착하거나 수신 확인 응답이 유실돼도 같은 결과를 반환한다. 늦은 접수 응답·전송 실패는 최종 결과를 덮어쓰지 않는다.
+
+취소된 예매의 입금 통보에는 RESERVATION_CANCELLED를 반환한다. 첫 입금 사실을 지우거나 좌석을 다시 확보하지 않는다. 실제 늦은 입금 자금 반환은 구현하지 않으며 fundsReturned=false다. 은행이 취소를 거절해도 Ticksy의 취소된 예매를 자동 복원하지 않는다.
+
+## 스키마와 기존 데이터
+
+최종 DDL은 ticket-service/src/main/resources/sql/schema.sql이다. 최초 연동 때 실행 중 PostgreSQL의 두 테이블에 컬럼·제약·인덱스와 계좌번호 NOT NULL 해제를 적용했다. 2026-11-12에는 발급 재시도 시각 컬럼과 전용 조회 인덱스만 제거했다. 테이블 삭제·초기화는 하지 않았다. 별도의 add-*.sql 파일은 추가하지 않았다.
+
+| 테이블 | 변경 |
+|---|---|
+| payments | nullable pg_payment_id VARCHAR(44), PG ID UNIQUE, gateway_bank_company, gateway_expires_at, gateway_issue_pending DEFAULT FALSE |
+| virtual_account_cancel_outbox | nullable pg_payment_id·buyer_reference·bank_company, nullable account_number, gateway_result·gateway_reason, delivery_attempt DEFAULT 0·lease_until |
+
+기존 Payment는 PG ID·발급 은행 조건을 null, pending을 false로 유지한다. bank_company가 없는 이전 Outbox는 외부 호출 없이 오류 상태를 기록하며 구형 동기 취소로 우회하지 않는다. 결제번호가 같다는 이유만으로 새 PG 거래를 자동 생성하거나 기존 계좌에 연결하지 않는다.
+
+기존 데이터를 신규 흐름에 옮기려면 서버에 등록된 merchant와 PG 원거래를 확인하고 merchant_payment_no·금액·사용자·은행·계좌가 일치하는지 검증한 뒤 PG ID·고정 조건을 함께 설정해야 한다. 가맹점을 입증할 수 없는 데이터는 자동 처리하지 않고 별도로 보관하여 수동으로 원거래를 대조한다. 이름만으로 가맹점을 추론하지 않는다. 비밀값은 데이터 이전 SQL에 넣지 않는다.
+
+## 현재 제한과 다음 단계
+
+2026-11-12 신규 PG 연결 계좌의 만료는 [은행→PG Outbox와 Ticksy 상태 조회](payment-gateway-account-expiration.md)로 연결했다. Ticksy는 시간이 지났다는 이유만으로 만료하지 않으며 PG EXPIRED 확인 후 기존 좌석·예매 정리를 실행한다. 기한 내 입금이 확정된 거래는 지연 통보되어도 만료하지 않는다.
+
+2026-11-13 신규 PG 원거래의 입금 후 전액·부분 환불은 [환불·신청 철회 계약](payment-gateway-bank-refund.md)으로 연결했다. 기존 관리자 paymentNo 정산 및 Kafka 만료 경로는 제거했다. 신규 원거래의 입금 통보와 PG 상태 확인으로만 처리한다. PG 미등록·발급 전 READY의 만료가 확인되지 않는 경우에는 자동 정리를 보류한다.
+
+기한이 지난 미완료 발급이나 영구적인 인증·등록 URL·데이터 불일치는 제한 재시도나 같은 키 재요청만으로 해결되지 않는다. pending 정보와 로그를 보존하며 관리자 확인이 필요하다. 신규 결제수단을 운영에 활성화하기 전에 등록 merchant·통보 endpoint·암호화된 통보 자격증명이 준비돼 있어야 한다.
+
+## 검증
+
+2026-11-18 준비·발급 분리 검증: 체크아웃·취소 Outbox·결제 모델 테스트 171개가 실패·건너뜀 없이 통과했고 Ticksy bootJar 빌드도 통과했다. 준비 단계만 실행한 시점의 PG ID 커밋·계좌 미발급, 준비 없는 발급 차단, 각 단계의 응답 유실·재시도, 준비 실패 시 발급 중단, 취소·입금 통보 경합과 롤백을 포함한다. 기존 HTTP API와 DB 스키마는 변경하지 않았다.
+
+GatewayVirtualAccountCheckoutIntegrationTest는 별도 H2 DB와 실제 HTTP 서버·Feign 호출로 준비/발급/취소 응답 유실, 최초 요청 재사용, 잘못된 금액·PG ID, 발급 중 취소, 먼저 도착한 입금 통보, 먼저 도착한 최종 취소 통보, 수신 receipt 실패·Outbox 실패의 로컬 롤백을 검증한다. HTTP 전송 시 로컬 트랜잭션이 없다는 것도 확인한다. 기존 checkout·입금·취소·환불·카드 회귀 테스트를 함께 실행한다.
+
+이전 전체 연동 회귀 결과는 공통 45개·PG 295개·Ticksy 232개 통과였다. 2026-11-12 변경은 요청 내 재시도 횟수·한도 소진 후 같은 키 재요청·타임아웃·영구 오류 즉시 반환·취소 Outbox 정리 및 사용자 오류 안내를 추가 검증한다.
+
+2026-11-12 검증 결과: 공통 45개·Ticksy 245개로 백엔드 290개 통과, 별도 PostgreSQL 환경이 필요한 checkout 테스트 11개 제외. 프런트 오류 안내·인증 재요청 테스트 12개와 프로덕션 빌드도 통과했다. 실제 DB와 두 schema.sql의 44개 대상 테이블·492개 컬럼·120개 제약·61개 명시적 인덱스를 읽기 전용으로 대조해 불일치가 없음을 확인했다.

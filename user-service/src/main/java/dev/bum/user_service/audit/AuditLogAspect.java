@@ -31,14 +31,13 @@ public class AuditLogAspect {
 
     private static final String RESULT_SUCCESS = "SUCCESS";
     private static final String RESULT_FAILURE = "FAILURE";
-
     private final AuditLogProducer auditLogProducer;
-
     @Value("${spring.application.name:user-service}")
     private String serviceName;
 
     @Around("@annotation(auditLog)")
     public Object writeAuditLog(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
+
         try {
             Object result = joinPoint.proceed();
             saveAuditLog(joinPoint, auditLog, RESULT_SUCCESS, null);
@@ -57,6 +56,7 @@ public class AuditLogAspect {
             String result,
             Throwable throwable
     ) {
+
         try {
             HttpServletRequest request = currentRequest();
             String actorId = findActorId(request);
@@ -91,6 +91,7 @@ public class AuditLogAspect {
     }
 
     private HttpServletRequest currentRequest() {
+
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes) {
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -101,6 +102,7 @@ public class AuditLogAspect {
     }
 
     private String findActorId(HttpServletRequest request) {
+
         String actorId = AuditContext.getActorId();
         if (StringUtils.hasText(actorId)) {
             return actorId;
@@ -110,6 +112,7 @@ public class AuditLogAspect {
     }
 
     private String findActorType(HttpServletRequest request) {
+
         String actorType = AuditContext.getActorType();
         if (StringUtils.hasText(actorType)) {
             return actorType;
@@ -128,6 +131,7 @@ public class AuditLogAspect {
     }
 
     private String findTargetId(Object[] args, String actorId) {
+
         for (Object arg : args) {
             if (arg instanceof Long) {
                 return String.valueOf(arg);
@@ -138,6 +142,7 @@ public class AuditLogAspect {
             if (arg instanceof ValidatePasswordRequest request) {
                 return request.getUserId();
             }
+
             if (arg instanceof String && StringUtils.hasText((String) arg)) {
                 return (String) arg;
             }
@@ -152,6 +157,7 @@ public class AuditLogAspect {
     }
 
     private String reasonOf(Throwable throwable) {
+
         if (throwable == null) {
             return null;
         }
@@ -166,6 +172,7 @@ public class AuditLogAspect {
     }
 
     private String ipAddressOf(HttpServletRequest request) {
+
         if (request == null) {
             return null;
         }
@@ -179,6 +186,7 @@ public class AuditLogAspect {
     }
 
     private String normalizeIp(String ipAddress) {
+
         if ("0:0:0:0:0:0:0:1".equals(ipAddress) || "::1".equals(ipAddress)) {
             return "127.0.0.1";
         }
@@ -187,6 +195,7 @@ public class AuditLogAspect {
     }
 
     private String firstHeaderOf(HttpServletRequest request, String... names) {
+
         if (request == null) {
             return null;
         }
@@ -202,6 +211,7 @@ public class AuditLogAspect {
     }
 
     private String valueOrNewUuid(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -210,6 +220,7 @@ public class AuditLogAspect {
     }
 
     private String valueOrNewTraceId(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -218,6 +229,7 @@ public class AuditLogAspect {
     }
 
     private String headerOf(HttpServletRequest request, String name) {
+
         if (request == null) {
             return null;
         }
@@ -226,6 +238,7 @@ public class AuditLogAspect {
     }
 
     private Map<String, Object> metadataOf(ProceedingJoinPoint joinPoint, String actorId, String targetId) {
+
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("className", signature.getDeclaringType().getSimpleName());
@@ -243,6 +256,7 @@ public class AuditLogAspect {
     }
 
     private String blankToNull(String value) {
+
         return StringUtils.hasText(value) ? value : null;
     }
 }

@@ -10,10 +10,14 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @Builder
 public class DeleteSeatRequest {
+
+    // 좌석 식별자 목록.
     List<Long> seatIdList;
 
+    // 객체의 문자열 표현을 반환한다.
     @Override
     public String toString() {
+
         if (seatIdList == null) {
             return "DeleteSeatInfo{seatIdList=[]}";
         }

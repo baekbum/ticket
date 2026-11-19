@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class DummyCard {
 
+    // 모의 카드 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "dummy_card_id")
@@ -106,12 +107,16 @@ public class DummyCard {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 유효 기간이 만료되었는지 확인한다.
     public boolean isExpired(LocalDate baseDate) {
+
         LocalDate targetDate = baseDate != null ? baseDate : LocalDate.now();
         return this.expiresAt.isBefore(targetDate);
     }
 
+    // 현재 상태에서 결제를 진행할 수 있는지 확인한다.
     public boolean canPay(BigDecimal paymentAmount) {
+
         if (!Boolean.TRUE.equals(this.active) || paymentAmount == null || paymentAmount.signum() <= 0) {
             return false;
         }
@@ -119,7 +124,9 @@ public class DummyCard {
         return this.currentMonthUsedAmount.add(paymentAmount).compareTo(this.limitAmount) <= 0;
     }
 
+    // 모의 카드 처리에서 승인 결과를 반영한다.
     public void approve(BigDecimal paymentAmount) {
+
         if (!canPay(paymentAmount)) {
             throw new IllegalArgumentException("카드 결제 한도를 초과했거나 사용할 수 없는 카드입니다.");
         }
@@ -127,7 +134,9 @@ public class DummyCard {
         this.currentMonthUsedAmount = this.currentMonthUsedAmount.add(paymentAmount);
     }
 
+    // 카드 승인을 취소한다.
     public void cancelApproval(BigDecimal paymentAmount) {
+
         if (paymentAmount == null || paymentAmount.signum() <= 0) {
             throw new IllegalArgumentException("취소 금액이 올바르지 않습니다.");
         }
@@ -136,7 +145,9 @@ public class DummyCard {
         this.currentMonthUsedAmount = cancelledAmount.signum() < 0 ? BigDecimal.ZERO : cancelledAmount;
     }
 
+    // 카드를 비활성 상태로 변경한다.
     public void deactivate() {
+
         this.active = false;
     }
 }

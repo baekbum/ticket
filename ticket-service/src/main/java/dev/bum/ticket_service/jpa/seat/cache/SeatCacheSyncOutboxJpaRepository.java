@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SeatCacheSyncOutboxJpaRepository extends JpaRepository<SeatCacheSyncOutbox, Long> {
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from SeatCacheSyncOutbox o where o.outboxId = :id")
     Optional<SeatCacheSyncOutbox> findByIdForUpdate(@Param("id") Long id);
@@ -21,6 +22,9 @@ public interface SeatCacheSyncOutboxJpaRepository extends JpaRepository<SeatCach
             where o.status = :status and o.nextAttemptAt <= :now
             order by o.nextAttemptAt, o.outboxId
             """)
-    List<Long> findReadyIds(@Param("status") SeatCacheSyncOutboxStatus status,
-                           @Param("now") LocalDateTime now, Pageable pageable);
+    List<Long> findReadyIds(
+            @Param("status") SeatCacheSyncOutboxStatus status,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
 }

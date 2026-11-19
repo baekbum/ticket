@@ -15,13 +15,20 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @Slf4j
 public class SeatCacheSyncOutboxDispatcher {
-    private final SeatCacheSyncOutboxJpaRepository repository;
-    private final SeatCacheSyncOutboxPublisher publisher;
 
+    // 좌석 캐시 동기화 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
+    private final SeatCacheSyncOutboxJpaRepository repository;
+    // 좌석 캐시 동기화 Outbox 이벤트 이벤트 발행을 담당하는 도구.
+    private final SeatCacheSyncOutboxPublisher publisher;
+    // 한 번에 처리할 발행 대기 이벤트 수.
     @Value("${app.seat-cache.sync-outbox.batch-size:100}")
     private int batchSize = 100;
 
+    /**
+     * 좌석 캐시 동기화 Outbox 이벤트 처리에서 발행 오류를 처리하면서 이벤트를 발행한다.
+     */
     public void publishSafely(Long outboxId) {
+
         if (Thread.currentThread().isInterrupted()) return;
 
         try {
@@ -33,8 +40,12 @@ public class SeatCacheSyncOutboxDispatcher {
         }
     }
 
+    /**
+     * 좌석 캐시 동기화 Outbox 이벤트 처리에서 발행 대기 이벤트를 재시도한다.
+     */
     @Scheduled(fixedDelayString = "${app.seat-cache.sync-outbox.fixed-delay-ms:30000}")
     public void retryPendingEvents() {
+
         repository.findReadyIds(SeatCacheSyncOutboxStatus.PENDING, LocalDateTime.now(),
                 PageRequest.of(0, batchSize)
         ).forEach(this::publishSafely);

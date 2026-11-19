@@ -9,11 +9,15 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 
 @Configuration(proxyBeanMethods = false)
 public class QueueRedisInitializationConfig {
+
     @Bean
     static BeanPostProcessor eagerRedisConnections() {
+
         return new BeanPostProcessor() {
+
             @Override
             public Object postProcessBeforeInitialization(Object bean, String beanName) {
+
                 if (bean instanceof LettuceConnectionFactory factory) {
                     // Reactive API도 첫 공유 연결 생성은 블로킹이므로 서버 시작 전에 준비한다.
                     factory.setEagerInitialization(true);
@@ -27,6 +31,7 @@ public class QueueRedisInitializationConfig {
 
     @Bean
     InitializingBean queueRedisScripts() {
+
         return () -> {
             // 파일 읽기와 SHA 계산을 요청 이벤트 루프에서 수행하지 않는다.
             QueueRedisScripts.REGISTER_WAITING.getSha1();

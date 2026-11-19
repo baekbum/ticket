@@ -25,6 +25,14 @@ const CODE_MESSAGES: Record<string, string> = {
   INVALID_REQUEST: STATUS_MESSAGES[400],
   VALIDATION_FAILED: STATUS_MESSAGES[400],
   REQUIRED_HEADER_MISSING: '요청에 필요한 정보가 누락되었습니다. 화면을 새로고침한 후 다시 시도해주세요.',
+  RESERVATION_PROCESSING: '해당 예매에 대한 처리가 진행 중입니다. 잠시 후 다시 시도해 주세요.',
+  GATEWAY_REFUND_REJECTED: '환불 요청이 거절되었습니다. 신청 내용을 확인하거나 기존 신청을 철회해주세요.',
+  REFUND_REQUEST_CONFLICT: '진행 중인 환불 신청과 내용이 다릅니다. 기존 신청을 확인하거나 철회한 후 다시 신청해주세요.',
+  GATEWAY_REFUND_UNCONFIRMED: '환불 결과를 확인하지 못했습니다. 같은 신청으로 다시 시도해주세요.',
+  GATEWAY_CARD_PREPARATION_UNCONFIRMED: '카드 결제 준비 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도해주세요.',
+  GATEWAY_METHOD_CHANGE_UNCONFIRMED: '기존 금융 처리 또는 결제수단 변경 결과를 확인하지 못했습니다. 같은 요청으로 다시 시도해주세요.',
+  GATEWAY_PAYMENT_METHOD_CHANGED: '결제수단이 변경되었습니다. 예매 내역에서 현재 결제 정보를 확인해주세요.',
+  GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED: '가상계좌 발급 결과를 확인하지 못했습니다. 같은 결제 요청으로 다시 시도하거나 예매 내역을 확인해주세요.',
   QUEUE_TOKEN_INVALID: '예매 대기 정보가 만료되었거나 유효하지 않습니다. 예매를 다시 시작해주세요.',
   QUEUE_ACCESS_DENIED: '현재 예매에 입장할 수 없습니다. 예매 화면을 닫고 다시 입장해주세요.',
   SEAT_CACHE_NOT_FOUND: '좌석 선택 정보가 만료되었습니다. 좌석을 다시 선택해주세요.',
@@ -40,9 +48,6 @@ export function getApiErrorMessage(status: number, responseText: string): string
   const fallback = status >= 500
     ? SERVER_ERROR_MESSAGE
     : STATUS_MESSAGES[status] || '요청을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.';
-  // 서버 장애 응답에는 내부 예외나 프록시 HTML이 포함될 수 있다.
-  if (status >= 500) return fallback;
-
   let message: unknown = responseText.trim();
   let code: unknown;
   try {
@@ -56,6 +61,13 @@ export function getApiErrorMessage(status: number, responseText: string): string
     }
   } catch {
     // 일반 텍스트 응답도 아래에서 사용자 안내 문구인지 확인한다.
+  }
+
+  // 서버의 원문 오류는 표시하지 않고 발급 결과 미확인 코드에만 고정 안내를 허용한다.
+  if (status >= 500) {
+    return status === 503 && (code === 'GATEWAY_ACCOUNT_ISSUE_UNCONFIRMED' || code === 'GATEWAY_REFUND_UNCONFIRMED' || code === 'GATEWAY_CARD_PREPARATION_UNCONFIRMED' || code === 'GATEWAY_METHOD_CHANGE_UNCONFIRMED')
+      ? CODE_MESSAGES[code]
+      : fallback;
   }
 
   if (typeof code === 'string' && code !== 'INVALID_REQUEST' && code !== 'VALIDATION_FAILED'

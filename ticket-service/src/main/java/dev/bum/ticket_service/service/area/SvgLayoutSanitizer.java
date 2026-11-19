@@ -27,12 +27,18 @@ import java.util.regex.Pattern;
 /** Rebuilds a static SVG; simple local CSS is flattened into validated presentation attributes. */
 @Component
 public class SvgLayoutSanitizer {
+
+    // 허용할 SVG 네임스페이스.
     private static final String SVG_NS = "http://www.w3.org/2000/svg";
+    // 허용할 SVG 원문의 최대 길이.
     private static final int MAX_LENGTH = 2_000_000;
+    // 허용할 SVG 요소의 최대 중첩 깊이.
     private static final int MAX_DEPTH = 64;
+    // 표시를 허용할 SVG 요소 목록.
     private static final Set<String> ELEMENTS = Set.of(
             "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
             "text", "tspan", "title", "desc", "defs", "linearGradient", "radialGradient", "stop", "clipPath");
+    // 표시를 허용할 SVG 속성 목록.
     private static final Set<String> ATTRIBUTES = Set.of(
             "id", "class", "viewBox", "width", "height", "preserveAspectRatio", "transform",
             "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "d", "points",
@@ -44,35 +50,30 @@ public class SvgLayoutSanitizer {
             "gradientUnits", "gradientTransform", "spreadMethod", "fx", "fy", "fr", "offset",
             "stop-color", "stop-opacity", "clipPathUnits",
             "data-layout-key", "data-area-name", "data-grade", "data-price");
+    // 표시를 허용할 CSS 스타일 속성 목록.
     private static final Set<String> STYLE_PROPERTIES = Set.of(
             "fill", "stroke", "stroke-width", "fill-opacity", "stroke-opacity", "opacity",
             "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
             "font-size", "font-family", "font-weight", "font-style", "text-anchor", "dominant-baseline",
             "letter-spacing", "word-spacing", "visibility", "display", "stop-color", "stop-opacity",
             "clip-path", "pointer-events");
+    // SVG 내부 참조만 허용하기 위한 검증 패턴.
     private static final Pattern LOCAL_REFERENCE = Pattern.compile("url\\(#[A-Za-z_][A-Za-z0-9_.-]*\\)");
+    // SVG 표시 속성 값의 검증 패턴.
     private static final Pattern PRESENTATION_VALUE = Pattern.compile("[A-Za-z0-9#.,%+\\-\\s]+|(?:rgb|rgba|hsl|hsla)\\([0-9.,%+\\-\\s]+\\)");
+    // SVG에서 CSS 스타일 규칙을 추출하는 패턴.
     private static final Pattern CSS_RULE = Pattern.compile("([^{}]+)\\{([^{}]*)}");
+    // 허용할 단순 CSS 선택자의 검증 패턴.
     private static final Pattern SIMPLE_SELECTOR = Pattern.compile("(?:[.#][A-Za-z_][A-Za-z0-9_-]*|[A-Za-z][A-Za-z0-9]*)");
+    // 글꼴 속성 값의 검증 패턴.
     private static final Pattern FONT = Pattern.compile(
             "(?:(normal|italic|oblique)\\s+)?(?:(normal|bold|[1-9]00)\\s+)?([0-9]+(?:\\.[0-9]+)?(?:px|pt|em|rem|%))\\s+([A-Za-z][A-Za-z0-9 ,_-]*)");
 
-    private record StyleRule(String selector, Map<String, String> properties) {
-        int specificity() {
-            return selector.startsWith("#") ? 100 : selector.startsWith(".") ? 10 : 1;
-        }
-
-        boolean matches(Element element) {
-            if (selector.startsWith("#")) return selector.substring(1).equals(element.getAttribute("id"));
-            if (selector.startsWith(".")) {
-                return List.of(element.getAttribute("class").trim().split("\\s+"))
-                        .contains(selector.substring(1));
-            }
-            return selector.equals(element.getLocalName());
-        }
-    }
-
+    /**
+     * 표시에 사용할 SVG에서 허용되지 않은 내용을 제거한다.
+     */
     public String sanitizeForDisplay(String svg) {
+
         try {
             return sanitize(svg);
         } catch (IllegalArgumentException e) {
@@ -81,7 +82,11 @@ public class SvgLayoutSanitizer {
         }
     }
 
+    /**
+     * SVG에서 허용되지 않은 요소와 속성을 제거한다.
+     */
     public String sanitize(String svg) {
+
         if (svg == null || svg.isBlank() || svg.length() > MAX_LENGTH) {
             throw new IllegalArgumentException("SVG 내용이 비어 있거나 허용 크기를 초과했습니다.");
         }
@@ -120,7 +125,11 @@ public class SvgLayoutSanitizer {
         }
     }
 
+    /**
+     * 허용된 SVG 요소와 속성만 복사한다.
+     */
     private Element copyElement(Element source, Document target, int depth, List<StyleRule> rules) {
+
         if (depth > MAX_DEPTH) throw new IllegalArgumentException("SVG 중첩 깊이를 초과했습니다.");
         Element clean = target.createElementNS(SVG_NS, source.getLocalName());
         NamedNodeMap attributes = source.getAttributes();
@@ -150,19 +159,31 @@ public class SvgLayoutSanitizer {
         return clean;
     }
 
+    /**
+     * 허용된 SVG 네임스페이스인지 확인한다.
+     */
     private boolean allowedNamespace(Element element) {
+
         return element.getNamespaceURI() == null || SVG_NS.equals(element.getNamespaceURI());
     }
 
+    /**
+     * 속성 값이 허용된 형식인지 확인한다.
+     */
     private boolean allowedValue(String name, String value) {
+
         if (name.equals("fill") || name.equals("stroke") || name.equals("clip-path")) {
             return PRESENTATION_VALUE.matcher(value.trim()).matches() || LOCAL_REFERENCE.matcher(value.trim()).matches();
         }
         return true;
     }
 
+    /**
+     * SVG의 스타일 규칙을 읽는다.
+     */
     // Never retain a stylesheet: accept only local class, ID or element selectors and safe values.
     private List<StyleRule> readStyleRules(Element root) {
+
         List<StyleRule> rules = new ArrayList<>();
         var styles = root.getElementsByTagNameNS("*", "style");
         for (int i = 0; i < styles.getLength(); i++) {
@@ -188,7 +209,11 @@ public class SvgLayoutSanitizer {
         return rules;
     }
 
+    /**
+     * SVG 요소에 적용된 표시 속성을 읽는다.
+     */
     private Map<String, String> readPresentationStyle(String style) {
+
         Map<String, String> properties = new LinkedHashMap<>();
         for (String declaration : style.split(";")) {
             int colon = declaration.indexOf(':');
@@ -210,5 +235,32 @@ public class SvgLayoutSanitizer {
             }
         }
         return properties;
+    }
+
+    private record StyleRule(
+            // 조회 또는 선택 조건.
+            String selector,
+
+            // 처리에 사용할 설정.
+            Map<String, String> properties
+    ) {
+
+        // 스타일 선택자의 우선순위를 계산한다.
+        int specificity() {
+
+            return selector.startsWith("#") ? 100 : selector.startsWith(".") ? 10 : 1;
+        }
+
+        // 대상이 선택 조건과 일치하는지 확인한다.
+        boolean matches(Element element) {
+
+            if (selector.startsWith("#")) return selector.substring(1).equals(element.getAttribute("id"));
+
+            if (selector.startsWith(".")) {
+                return List.of(element.getAttribute("class").trim().split("\\s+"))
+                        .contains(selector.substring(1));
+            }
+            return selector.equals(element.getLocalName());
+        }
     }
 }

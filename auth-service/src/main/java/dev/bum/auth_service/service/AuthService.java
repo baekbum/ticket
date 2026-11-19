@@ -39,12 +39,103 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class AuthService {
 
+    // 인증 데이터를 조회하고 저장하는 레포지토리.
     private final AuthRepository repository;
+    // 로그인 시도 업무 처리를 담당하는 서비스.
     private final LoginAttemptService loginAttemptService;
+    // JWT를 발급하고 유효성을 검증하는 도구.
     private final JwtTokenProvider tokenProvider;
+    // 문자열 키와 값을 저장하고 조회하는 Redis 클라이언트.
     private final StringRedisTemplate redisTemplate;
+    // 인증 토큰 상태 정보를 저장하고 조회하는 도구.
     private final TokenStateStore tokenStateStore;
+    // 사용자 이벤트 멱등성 업무 처리를 담당하는 서비스.
     private final UserEventIdempotencyService userEventIdempotencyService;
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저를 추가하는 메서드
+     * @param event
+     */
+    public void insertUserTopic(UserDtoForEvent event) {
+
+        event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
+            republishCurrentState(event);
+            return;
+        }
+
+        log.info("[유저 추가] userId={}", event.getUserId());
+
+        boolean created = repository.insert(event);
+        Auth auth = repository.findByUserId(event.getUserId());
+
+        TokenState previous = tokenStateStore.get(auth.getUserId());
+
+        if (created && previous != null) auth.startAfterPreviousAccount(previous.version());
+        publishAfterCommit(auth.getUserId(), stateOf(auth));
+    }
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저 정보를 수정하는
+     * @param event
+     */
+    public void updateUserTopic(UserDtoForEvent event) {
+
+        event.setUserId(normalizeUserId(event.getUserId()));
+
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+
+        if (result != UserEventRegistrationResult.REGISTERED) {
+            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
+            republishCurrentState(event);
+            return;
+        }
+
+        log.info("[유저 수정] userId={}", event.getUserId());
+        Auth auth = repository.update(event);
+        publishAfterCommit(auth.getUserId(), stateOf(auth));
+    }
+
+    /**
+     * 카프카 토픽에서 데이터를 받아 유저를 삭제하는 메서드
+     * @param event
+     */
+    public void deleteUserTopic(UserDtoForEvent event) {
+
+        event.setUserId(normalizeUserId(event.getUserId()));
+        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
+        if (result == UserEventRegistrationResult.STALE) {
+            republishCurrentState(event);
+            return;
+        }
+        // DELETE 중복도 아래로 진행하여 DB 삭제 후 실패했던 Redis 폐기를 재시도한다.
+        log.info("[유저 삭제] userId={}", event.getUserId());
+        try {
+            Auth auth = repository.findByUserId(event.getUserId());
+            // 삭제 이벤트가 재전달돼도 같은 ID로 새로 가입한 계정은 삭제하지 않는다.
+            if (event.getId() != null && !event.getId().equals(auth.getId())) return;
+            repository.delete(event.getUserId());
+            publishAfterCommit(auth.getUserId(), TokenState.builder()
+                    .version(Math.addExact(auth.getTokenVersion(), 1L))
+                    .active(false)
+                    .role(auth.getRole().name())
+                    .build());
+        } catch (UserNotExistException e) {
+            // DB 삭제 후 Redis 갱신 실패로 재전달된 경우에도 폐기를 완료한다.
+            TokenState current = tokenStateStore.get(event.getUserId());
+            if (current != null) {
+                publishAfterCommit(event.getUserId(), TokenState.builder()
+                        .version(current.active() ? Math.addExact(current.version(), 1L) : current.version())
+                        .active(false)
+                        .role(current.role())
+                        .build());
+            }
+        }
+    }
 
     /**
      * 토큰을 발급하는 메서드.
@@ -55,16 +146,25 @@ public class AuthService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse LoginAndCreateToken(LoginRequest info) {
+
         return loginAndCreateToken(info, UserRole.ROLE_USER);
     }
 
+    /**
+     * 관리자를 인증하고 로그인 토큰을 발급한다.
+     */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @AuditLog(action = "LOGIN", targetType = "AUTH")
     public TokenResponse adminLoginAndCreateToken(LoginRequest info) {
+
         return loginAndCreateToken(info, UserRole.ROLE_ADMIN);
     }
 
+    /**
+     * 사용자를 인증하고 로그인 토큰을 발급한다.
+     */
     private TokenResponse loginAndCreateToken(LoginRequest info, UserRole requiredRole) {
+
         info.setUserId(normalizeUserId(info.getUserId()));
         log.info("Login attempt. userId={}", info.getUserId());
         Auth auth = findByUserId(info.getUserId());
@@ -98,14 +198,21 @@ public class AuthService {
         return tokens;
     }
 
+    /**
+     * 입력한 비밀번호와 저장된 비밀번호가 일치하는지 확인한다.
+     */
     private void comparePassword(LoginRequest info, Auth auth) {
+
         loginAttemptService.validatePassword(auth.getId(), info.getPassword());
     }
 
+    /**
+     * 사용자 ID로 인증 정보 정보를 조회한다.
+     */
     private Auth findByUserId(String userId) {
+
         return repository.findByUserId(normalizeUserId(userId));
     }
-
 
     /**
      * refresh 토큰을 redis에 저장
@@ -113,6 +220,7 @@ public class AuthService {
      * @param refreshToken
      */
     private void addRefreshTokenToRedis(Auth auth, String refreshToken) {
+
         String userId = auth.getUserId();
         String redisKey = buildRefreshTokenKey(userId);
         try {
@@ -128,92 +236,11 @@ public class AuthService {
     }
 
     /**
-     * 카프카 토픽에서 데이터를 받아 유저를 추가하는 메서드
-     * @param event
-     */
-    public void insertUserTopic(UserDtoForEvent event) {
-        event.setUserId(normalizeUserId(event.getUserId()));
-
-        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
-
-        if (result != UserEventRegistrationResult.REGISTERED) {
-            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
-            republishCurrentState(event);
-            return;
-        }
-
-        log.info("[유저 추가] userId={}", event.getUserId());
-
-        boolean created = repository.insert(event);
-        Auth auth = repository.findByUserId(event.getUserId());
-
-        TokenState previous = tokenStateStore.get(auth.getUserId());
-
-        if (created && previous != null) auth.startAfterPreviousAccount(previous.version());
-        publishAfterCommit(auth.getUserId(), stateOf(auth));
-    }
-
-    /**
-     * 카프카 토픽에서 데이터를 받아 유저 정보를 수정하는
-     * @param event
-     */
-    public void updateUserTopic(UserDtoForEvent event) {
-        event.setUserId(normalizeUserId(event.getUserId()));
-
-        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
-
-        if (result != UserEventRegistrationResult.REGISTERED) {
-            log.info("회원 이벤트 DB 반영 생략: authId={}, eventVersion={}, result={}", event.getId(), event.getEventVersion(), result);
-            republishCurrentState(event);
-            return;
-        }
-
-        log.info("[유저 수정] userId={}", event.getUserId());
-        Auth auth = repository.update(event);
-        publishAfterCommit(auth.getUserId(), stateOf(auth));
-    }
-
-    /**
-     * 카프카 토픽에서 데이터를 받아 유저를 삭제하는 메서드
-     * @param event
-     */
-    public void deleteUserTopic(UserDtoForEvent event) {
-        event.setUserId(normalizeUserId(event.getUserId()));
-        UserEventRegistrationResult result = userEventIdempotencyService.registerAndValidate(event);
-        if (result == UserEventRegistrationResult.STALE) {
-            republishCurrentState(event);
-            return;
-        }
-        // DELETE 중복도 아래로 진행하여 DB 삭제 후 실패했던 Redis 폐기를 재시도한다.
-        log.info("[유저 삭제] userId={}", event.getUserId());
-        try {
-            Auth auth = repository.findByUserId(event.getUserId());
-            // 삭제 이벤트가 재전달돼도 같은 ID로 새로 가입한 계정은 삭제하지 않는다.
-            if (event.getId() != null && !event.getId().equals(auth.getId())) return;
-            repository.delete(event.getUserId());
-            publishAfterCommit(auth.getUserId(), TokenState.builder()
-                    .version(Math.addExact(auth.getTokenVersion(), 1L))
-                    .active(false)
-                    .role(auth.getRole().name())
-                    .build());
-        } catch (UserNotExistException e) {
-            // DB 삭제 후 Redis 갱신 실패로 재전달된 경우에도 폐기를 완료한다.
-            TokenState current = tokenStateStore.get(event.getUserId());
-            if (current != null) {
-                publishAfterCommit(event.getUserId(), TokenState.builder()
-                        .version(current.active() ? Math.addExact(current.version(), 1L) : current.version())
-                        .active(false)
-                        .role(current.role())
-                        .build());
-            }
-        }
-    }
-
-    /**
      * Refresh Token을 활용해 Access/Refresh Token 세트를 재발급(갱신)하는 메서드
      */
     @AuditLog(action = "TOKEN_REISSUE", targetType = "AUTH")
     public TokenResponse reissueToken(String refreshToken) {
+
         // 1. Refresh Token 자체의 만료 및 위변조 여부 검증
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "만료되거나 유효하지 않은 Refresh Token입니다. 다시 로그인해 주세요.");
@@ -248,6 +275,7 @@ public class AuthService {
         if (auth == null) {
             throw new UserNotExistException("존재하지 않는 유저입니다.");
         }
+
         if (auth.getStatus() != UserStatus.ACTIVE) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "탈퇴한 계정입니다. 다시 로그인해 주세요.");
         }
@@ -279,8 +307,12 @@ public class AuthService {
         return newTokens;
     }
 
+    /**
+     * 로그인 세션과 인증 토큰을 만료 처리한다.
+     */
     @AuditLog(action = "LOGOUT", targetType = "AUTH")
     public void logout(String refreshToken) {
+
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_INVALID, "유효하지 않은 Refresh Token입니다.");
         }
@@ -317,7 +349,11 @@ public class AuthService {
         }
     }
 
+    /**
+     * 현재 사용자 인증 상태를 이벤트로 다시 발행한다.
+     */
     private void republishCurrentState(UserDtoForEvent event) {
+
         Auth current;
 
         try {
@@ -332,7 +368,11 @@ public class AuthService {
         publishAfterCommit(current.getUserId(), stateOf(current));
     }
 
+    /**
+     * 사용자 정보를 인증 상태 이벤트로 변환한다.
+     */
     private TokenState stateOf(Auth auth) {
+
         return TokenState.builder()
                 .version(auth.getTokenVersion())
                 .active(auth.getStatus() == UserStatus.ACTIVE && !auth.isCurrentlyBlacklisted())
@@ -340,11 +380,20 @@ public class AuthService {
                 .build();
     }
 
+    /**
+     * 트랜잭션 커밋 후 이벤트를 발행하도록 등록한다.
+     */
     private void publishAfterCommit(String userId, TokenState state) {
+
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                /**
+                 * 트랜잭션 커밋이 완료된 뒤 등록한 후속 작업을 실행한다.
+                 */
                 @Override
                 public void afterCommit() {
+
                     publishState(userId, state);
                 }
             });
@@ -353,7 +402,11 @@ public class AuthService {
         }
     }
 
+    /**
+     * 사용자 인증 상태를 이벤트로 발행한다.
+     */
     private void publishState(String userId, TokenState state) {
+
         try {
             tokenStateStore.publish(userId, state);
         } catch (RuntimeException e) {
@@ -362,22 +415,34 @@ public class AuthService {
         }
     }
 
+    /**
+     * 갱신 토큰을 저장할 Redis 키를 구성한다.
+     */
     private String buildRefreshTokenKey(String userId) {
+
         return "RT:" + userId;
     }
 
+    /**
+     * 토큰 변경 스크립트의 실행 결과를 검증한다.
+     */
     private void validateTokenMutationResult(Long result) {
+
         if (Long.valueOf(0L).equals(result)) {
             throw new RedisException(ErrorCode.REFRESH_TOKEN_MISMATCH,
                     "Refresh Token이 변경되었거나 이미 로그아웃되었습니다. 다시 로그인해 주세요.");
         }
+
         if (!Long.valueOf(1L).equals(result)) {
             throw new RedisException("Redis Refresh Token 처리 결과를 확인할 수 없습니다.");
         }
     }
 
+    /**
+     * 사용자 ID의 공백과 대소문자를 정규화한다.
+     */
     private String normalizeUserId(String userId) {
+
         return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
-
 }

@@ -58,237 +58,34 @@ import static dev.bum.common.service.ticket.event.event.enums.TicketLimitScope.P
 @RequiredArgsConstructor
 public class SeatCacheService {
 
+    // 좌석 상태 캐시의 유효 시간.
     private static final Duration SEAT_CACHE_TTL = Duration.ofDays(7);
+    // 좌석 임시 점유 잠금의 유효 시간.
     private static final Duration SEAT_LOCK_TTL = Duration.ofMinutes(10);
+    // 기존 좌석 상태를 보존하며 캐시를 준비하는 Redis 스크립트.
     private static final DefaultRedisScript<Long> SAFE_WARM_UP_SCRIPT = safeWarmUpScript();
+    // 주문 식별자에 포함할 날짜와 시각 표시 형식.
     private static final DateTimeFormatter ORDER_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-
+    // 좌석 데이터를 조회하고 저장하는 레포지토리.
     private final SeatRepository repository;
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventRepository eventRepository;
+    // 문자열 키와 값을 저장하고 조회하는 Redis 클라이언트.
     private final StringRedisTemplate seatRedisTemplate;
+    // 좌석 캐시 동기화 Outbox 이벤트 업무 처리를 담당하는 서비스.
     private final SeatCacheSyncOutboxService seatCacheSyncOutboxService;
+    // 캐시에 없는 좌석 점유 업무 처리를 담당하는 서비스.
     private final SeatCacheMissOccupationService seatCacheMissOccupationService;
+    // 공연 예매 변경의 동시성과 처리 조건을 확인하는 도구.
     private final EventBookingGuard eventBookingGuard;
 
     /**
-     * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
-     * @param eventId
-     * @param mode
-     * @return
+     * 선택한 좌석을 임시 점유한다.
      */
-    @Observed(name = "ticket.seat-cache.redis.warm-up-event", contextualName = "ticket seat cache redis warm up event")
-    public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
-        log.info("[REDIS-WARM-UP] EventId : {}, Mode : {}", eventId, mode);
-
-        Event event = eventRepository.selectById(eventId);
-        validateEventSaleStartAt(event);
-
-        List<Seat> seats = repository.selectByEventId(eventId);
-        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
-
-        return String.format("이벤트 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", eventId, seats.size(), updated);
-    }
-
-    /**
-     * 구역 단위 좌석 정보를 Redis에 적재하는 메서드
-     * @param areaId
-     * @param mode
-     * @return
-     */
-    @Observed(name = "ticket.seat-cache.redis.warm-up-area", contextualName = "ticket seat cache redis warm up area")
-    public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
-        log.info("[REDIS-WARM-UP] AreaId : {}, Mode : {}", areaId, mode);
-        List<Seat> seats = repository.selectByAreaId(areaId);
-        if (seats.isEmpty()) {
-            return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 0개, 반영 0개", areaId);
-        }
-        Event event = eventRepository.selectById(seats.get(0).getEvent().getEventId());
-        validateEventSaleStartAt(event);
-        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
-        return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", areaId, seats.size(), updated);
-    }
-
-    /**
-     * 공연 단위 좌석 캐시를 Redis에서 삭제하는 메서드
-     * @param eventId
-     * @return
-     */
-    @Observed(name = "ticket.seat-cache.redis.delete-event", contextualName = "ticket seat cache redis delete event")
-    public String deleteEventSeatsFromCache(Long eventId) {
-        log.info("[REDIS-DELETE] EventId : {}", eventId);
-        List<Seat> seats = repository.selectByEventId(eventId);
-        long deleted = deleteSeatCache(seats);
-        return String.format("이벤트 %d번 좌석 캐시 삭제 완료 - 대상 %d개, 삭제 key %d개", eventId, seats.size(), deleted);
-    }
-
-    /**
-     * 구역 단위 좌석 캐시를 Redis에서 삭제하는 메서드
-     * @param areaId
-     * @return
-     */
-    @Observed(name = "ticket.seat-cache.redis.delete-area", contextualName = "ticket seat cache redis delete area")
-    public String deleteAreaSeatsFromCache(Long areaId) {
-        log.info("[REDIS-DELETE] AreaId : {}", areaId);
-        List<Seat> seats = repository.selectByAreaId(areaId);
-        long deleted = deleteSeatCache(seats);
-        return String.format("구역 %d번 좌석 캐시 삭제 완료 - 대상 %d개, 삭제 key %d개", areaId, seats.size(), deleted);
-    }
-
-    /**
-     * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
-     * @return
-     */
-    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit, SeatRedisInspectMode mode) {
-        int normalizedLimit = normalizeInspectLimit(limit);
-        SeatRedisInspectMode inspectMode = mode == null ? SeatRedisInspectMode.SEAT : mode;
-
-        List<SeatRedisEntryResponse> entries = scanSeatKeys(buildSeatInspectPattern(eventId, zone, row, col, inspectMode), normalizedLimit)
-                .stream()
-                .filter(key -> matchesInspectMode(key, inspectMode))
-                .limit(normalizedLimit)
-                .map(key -> inspectMode == SeatRedisInspectMode.LOCK ? toSeatRedisLockEntry(key) : toSeatRedisEntry(key))
-                .collect(Collectors.toList());
-
-        return SeatRedisInspectResponse.builder()
-                .scope(inspectMode.name())
-                .eventId(eventId)
-                .limit(normalizedLimit)
-                .count(entries.size())
-                .entries(entries)
-                .build();
-    }
-
-    public String lockSeatCacheForUser(Long seatId, String userId) {
-        log.info("[REDIS-TEST-LOCK] SeatId : {}, UserId : {}", seatId, userId);
-        Seat seat = repository.selectById(seatId);
-        String redisKey = buildSeatRedisKey(seat);
-        String value = buildSeatLockValue(userId, generateOrderId());
-        SeatInfo info = SeatInfo.builder().id(seatId).zone(seat.getZone())
-                .row(seat.getSeatRow()).col(seat.getSeatCol()).build();
-        try {
-            occupySeatAtomically(seat.getEvent().getEventId(), info, redisKey, value);
-        } catch (RuntimeException e) {
-            rollbackSeats(List.of(redisKey), value);
-            throw e;
-        }
-        return String.format("좌석 %d번을 %s 사용자로 Redis 테스트 선점 처리했습니다.", seatId, userId);
-    }
-
-    /**
-     * 단일 좌석 Redis 테스트 선점을 해제하는 메서드
-     * @param seatId
-     * @return
-     */
-    public String unlockSeatCache(Long seatId) {
-        log.info("[REDIS-TEST-UNLOCK] SeatId : {}", seatId);
-        Seat seat = repository.selectById(seatId);
-        String redisKey = buildSeatRedisKey(seat);
-        String lockKey = redisKey + ":lock";
-        String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
-
-        if (currentStatus == null) {
-            throw new SeatCacheNotFoundException();
-        }
-
-        if (!currentStatus.startsWith("LOCKED:")) {
-            throw new SeatAlreadyOccupiedException("선점 상태가 아닌 좌석입니다.");
-        }
-
-        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
-        seatRedisTemplate.delete(lockKey);
-
-        return String.format("좌석 %d번의 Redis 테스트 선점을 취소했습니다.", seatId);
-    }
-
-    /**
-     * Redis를 이용한 다중 좌석 선점 메서드
-     * @param eventId
-     */
-    public String unlockEventSeatCache(Long eventId) {
-        log.info("[REDIS-TEST-UNLOCK-EVENT] EventId : {}", eventId);
-        List<Seat> seats = repository.selectByEventId(eventId);
-        int released = 0;
-
-        for (Seat seat : seats) {
-            String redisKey = buildSeatRedisKey(seat);
-            String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
-
-            if (currentStatus != null && currentStatus.startsWith("LOCKED:")) {
-                seatRedisTemplate.opsForValue().set(redisKey, SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
-                seatRedisTemplate.delete(redisKey + ":lock");
-                released++;
-            }
-        }
-
-        return String.format("이벤트 %d번 좌석 선점 %d건을 취소했습니다.", eventId, released);
-    }
-
-    public SeatResponse applyCachedStatus(SeatResponse seat) {
-        if (seat == null || seat.getEventId() == null || seat.getZone() == null
-                || seat.getSeatRow() == null || seat.getSeatCol() == null) {
-            return seat;
-        }
-
-        String redisKey = buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
-        String value = seatRedisTemplate.opsForValue().get(redisKey);
-
-        applyCachedStatusValue(seat, value);
-        return seat;
-    }
-
-    public List<SeatResponse> applyCachedStatuses(List<SeatResponse> seats) {
-        if (seats == null || seats.isEmpty()) {
-            return seats;
-        }
-
-        List<SeatResponse> cacheableSeats = seats.stream()
-                .filter(this::isCacheableSeatResponse)
-                .toList();
-
-        if (cacheableSeats.isEmpty()) {
-            return seats;
-        }
-
-        List<String> redisKeys = cacheableSeats.stream()
-                .map(seat -> buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol()))
-                .toList();
-        List<String> values = seatRedisTemplate.opsForValue().multiGet(redisKeys);
-
-        if (values == null) {
-            return seats;
-        }
-
-        for (int i = 0; i < cacheableSeats.size(); i++) {
-            String value = i < values.size() ? values.get(i) : null;
-            applyCachedStatusValue(cacheableSeats.get(i), value);
-        }
-
-        return seats;
-    }
-
-    private boolean isCacheableSeatResponse(SeatResponse seat) {
-        return seat != null && seat.getEventId() != null && seat.getZone() != null
-                && seat.getSeatRow() != null && seat.getSeatCol() != null;
-    }
-
-    private void applyCachedStatusValue(SeatResponse seat, String value) {
-        if (value == null) {
-            return;
-        }
-        if (value.startsWith("LOCKED:")) {
-            seat.setStatus(SeatStatus.LOCKED);
-            return;
-        }
-        try {
-            seat.setStatus(SeatStatus.valueOf(value));
-        } catch (IllegalArgumentException ignored) {
-            seat.setStatus(SeatStatus.LOCKED);
-        }
-    }
-
     @Observed(name = "ticket.seat-cache.redis.occupy", contextualName = "ticket seat cache redis occupy")
     @Transactional
     public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
+
         eventBookingGuard.requireBookable(request.getEventId(), false);
         long eventId = request.getEventId();
         String userId = request.getUserId();
@@ -300,8 +97,13 @@ public class SeatCacheService {
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                /**
+                 * 처리 정보 처리에서 트랜잭션 종료 결과에 따른 후속 처리를 수행한다.
+                 */
                 @Override
                 public void afterCompletion(int status) {
+
                     if (status != STATUS_COMMITTED) rollbackSeats(attemptedRedisKeys, lockValue);
                 }
             });
@@ -335,7 +137,262 @@ public class SeatCacheService {
         }
     }
 
+    /**
+     * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
+     * @return
+     */
+    public SeatRedisInspectResponse inspectEventSeatCache(
+            Long eventId,
+            String zone,
+            Integer row,
+            Integer col,
+            int limit,
+            SeatRedisInspectMode mode
+    ) {
+
+        int normalizedLimit = normalizeInspectLimit(limit);
+        SeatRedisInspectMode inspectMode = mode == null ? SeatRedisInspectMode.SEAT : mode;
+
+        List<SeatRedisEntryResponse> entries = scanSeatKeys(buildSeatInspectPattern(eventId, zone, row, col, inspectMode), normalizedLimit)
+                .stream()
+                .filter(key -> matchesInspectMode(key, inspectMode))
+                .limit(normalizedLimit)
+                .map(key -> inspectMode == SeatRedisInspectMode.LOCK ? toSeatRedisLockEntry(key) : toSeatRedisEntry(key))
+                .collect(Collectors.toList());
+
+        return SeatRedisInspectResponse.builder()
+                .scope(inspectMode.name())
+                .eventId(eventId)
+                .limit(normalizedLimit)
+                .count(entries.size())
+                .entries(entries)
+                .build();
+    }
+
+    /**
+     * 사용자의 좌석 점유 캐시 잠금을 획득한다.
+     */
+    public String lockSeatCacheForUser(Long seatId, String userId) {
+
+        log.info("[REDIS-TEST-LOCK] SeatId : {}, UserId : {}", seatId, userId);
+        Seat seat = repository.selectById(seatId);
+        String redisKey = buildSeatRedisKey(seat);
+        String value = buildSeatLockValue(userId, generateOrderId());
+        SeatInfo info = SeatInfo.builder().id(seatId).zone(seat.getZone())
+                .row(seat.getSeatRow()).col(seat.getSeatCol()).build();
+        try {
+            occupySeatAtomically(seat.getEvent().getEventId(), info, redisKey, value);
+        } catch (RuntimeException e) {
+            rollbackSeats(List.of(redisKey), value);
+            throw e;
+        }
+        return String.format("좌석 %d번을 %s 사용자로 Redis 테스트 선점 처리했습니다.", seatId, userId);
+    }
+
+    /**
+     * 단일 좌석 Redis 테스트 선점을 해제하는 메서드
+     * @param seatId
+     * @return
+     */
+    public String unlockSeatCache(Long seatId) {
+
+        log.info("[REDIS-TEST-UNLOCK] SeatId : {}", seatId);
+        Seat seat = repository.selectById(seatId);
+        String redisKey = buildSeatRedisKey(seat);
+        String lockKey = redisKey + ":lock";
+        String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
+
+        if (currentStatus == null) {
+            throw new SeatCacheNotFoundException();
+        }
+
+        if (!currentStatus.startsWith("LOCKED:")) {
+            throw new SeatAlreadyOccupiedException("선점 상태가 아닌 좌석입니다.");
+        }
+
+        seatRedisTemplate.opsForValue().set(redisKey, "AVAILABLE", SEAT_CACHE_TTL);
+        seatRedisTemplate.delete(lockKey);
+
+        return String.format("좌석 %d번의 Redis 테스트 선점을 취소했습니다.", seatId);
+    }
+
+    /**
+     * Redis를 이용한 다중 좌석 선점 메서드
+     * @param eventId
+     */
+    public String unlockEventSeatCache(Long eventId) {
+
+        log.info("[REDIS-TEST-UNLOCK-EVENT] EventId : {}", eventId);
+        List<Seat> seats = repository.selectByEventId(eventId);
+        int released = 0;
+
+        for (Seat seat : seats) {
+            String redisKey = buildSeatRedisKey(seat);
+            String currentStatus = seatRedisTemplate.opsForValue().get(redisKey);
+
+            if (currentStatus != null && currentStatus.startsWith("LOCKED:")) {
+                seatRedisTemplate.opsForValue().set(redisKey, SeatStatus.AVAILABLE.name(), SEAT_CACHE_TTL);
+                seatRedisTemplate.delete(redisKey + ":lock");
+                released++;
+            }
+        }
+
+        return String.format("이벤트 %d번 좌석 선점 %d건을 취소했습니다.", eventId, released);
+    }
+
+    /**
+     * 좌석 응답에 캐시의 점유 상태를 반영한다.
+     */
+    public SeatResponse applyCachedStatus(SeatResponse seat) {
+
+        if (seat == null || seat.getEventId() == null || seat.getZone() == null
+                || seat.getSeatRow() == null || seat.getSeatCol() == null) {
+            return seat;
+        }
+
+        String redisKey = buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
+        String value = seatRedisTemplate.opsForValue().get(redisKey);
+
+        applyCachedStatusValue(seat, value);
+        return seat;
+    }
+
+    /**
+     * 좌석 응답 목록에 캐시의 점유 상태를 반영한다.
+     */
+    public List<SeatResponse> applyCachedStatuses(List<SeatResponse> seats) {
+
+        if (seats == null || seats.isEmpty()) {
+            return seats;
+        }
+
+        List<SeatResponse> cacheableSeats = seats.stream()
+                .filter(this::isCacheableSeatResponse)
+                .toList();
+
+        if (cacheableSeats.isEmpty()) {
+            return seats;
+        }
+
+        List<String> redisKeys = cacheableSeats.stream()
+                .map(seat -> buildSeatRedisKey(seat.getEventId(), seat.getZone(), seat.getSeatRow(), seat.getSeatCol()))
+                .toList();
+        List<String> values = seatRedisTemplate.opsForValue().multiGet(redisKeys);
+
+        if (values == null) {
+            return seats;
+        }
+
+        for (int i = 0; i < cacheableSeats.size(); i++) {
+            String value = i < values.size() ? values.get(i) : null;
+            applyCachedStatusValue(cacheableSeats.get(i), value);
+        }
+
+        return seats;
+    }
+
+    /**
+     * 공연 단위 좌석 캐시를 Redis에서 삭제하는 메서드
+     * @param eventId
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.redis.delete-event", contextualName = "ticket seat cache redis delete event")
+    public String deleteEventSeatsFromCache(Long eventId) {
+
+        log.info("[REDIS-DELETE] EventId : {}", eventId);
+        List<Seat> seats = repository.selectByEventId(eventId);
+        long deleted = deleteSeatCache(seats);
+        return String.format("이벤트 %d번 좌석 캐시 삭제 완료 - 대상 %d개, 삭제 key %d개", eventId, seats.size(), deleted);
+    }
+
+    /**
+     * 구역 단위 좌석 캐시를 Redis에서 삭제하는 메서드
+     * @param areaId
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.redis.delete-area", contextualName = "ticket seat cache redis delete area")
+    public String deleteAreaSeatsFromCache(Long areaId) {
+
+        log.info("[REDIS-DELETE] AreaId : {}", areaId);
+        List<Seat> seats = repository.selectByAreaId(areaId);
+        long deleted = deleteSeatCache(seats);
+        return String.format("구역 %d번 좌석 캐시 삭제 완료 - 대상 %d개, 삭제 key %d개", areaId, seats.size(), deleted);
+    }
+
+    /**
+     * 공연 단위 좌석 정보를 Redis에 적재하는 메서드
+     * @param eventId
+     * @param mode
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.redis.warm-up-event", contextualName = "ticket seat cache redis warm up event")
+    public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
+
+        log.info("[REDIS-WARM-UP] EventId : {}, Mode : {}", eventId, mode);
+
+        Event event = eventRepository.selectById(eventId);
+        validateEventSaleStartAt(event);
+
+        List<Seat> seats = repository.selectByEventId(eventId);
+        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
+
+        return String.format("이벤트 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", eventId, seats.size(), updated);
+    }
+
+    /**
+     * 구역 단위 좌석 정보를 Redis에 적재하는 메서드
+     * @param areaId
+     * @param mode
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.redis.warm-up-area", contextualName = "ticket seat cache redis warm up area")
+    public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
+
+        log.info("[REDIS-WARM-UP] AreaId : {}, Mode : {}", areaId, mode);
+        List<Seat> seats = repository.selectByAreaId(areaId);
+        if (seats.isEmpty()) {
+            return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 0개, 반영 0개", areaId);
+        }
+        Event event = eventRepository.selectById(seats.get(0).getEvent().getEventId());
+        validateEventSaleStartAt(event);
+        int updated = warmUpSeatCache(seats, mode, event.getSaleStartAt());
+        return String.format("구역 %d번 좌석 캐시 적재 완료 - 대상 %d개, 반영 %d개", areaId, seats.size(), updated);
+    }
+
+    /**
+     * 캐시 상태를 반영할 수 있는 좌석 응답인지 확인한다.
+     */
+    private boolean isCacheableSeatResponse(SeatResponse seat) {
+
+        return seat != null && seat.getEventId() != null && seat.getZone() != null
+                && seat.getSeatRow() != null && seat.getSeatCol() != null;
+    }
+
+    /**
+     * 캐시에 저장된 좌석 상태 값을 응답에 적용한다.
+     */
+    private void applyCachedStatusValue(SeatResponse seat, String value) {
+
+        if (value == null) {
+            return;
+        }
+
+        if (value.startsWith("LOCKED:")) {
+            seat.setStatus(SeatStatus.LOCKED);
+            return;
+        }
+        try {
+            seat.setStatus(SeatStatus.valueOf(value));
+        } catch (IllegalArgumentException ignored) {
+            seat.setStatus(SeatStatus.LOCKED);
+        }
+    }
+
+    /**
+     * 좌석 상태와 사용자 제한을 확인하며 원자적으로 점유한다.
+     */
     private void occupySeatAtomically(Long eventId, SeatInfo seat, String redisKey, String lockValue) {
+
         // Lua에서 상태 확인·잠금 획득·좌석 상태 변경을 원자적으로 실행하고 처리 결과를 반환한다.
         Long result = seatRedisTemplate.execute(SeatOccupationScripts.OCCUPY,
                 List.of(redisKey, redisKey + ":lock"), lockValue,
@@ -359,6 +416,7 @@ public class SeatCacheService {
      */
     @Observed(name = "ticket.seat-cache.redis.validate-occupied-seat", contextualName = "ticket seat cache redis validate occupied seat")
     public LocalDateTime validateOccupiedSeat(Long eventId, String userId, String orderId, List<SeatInfo> seats) {
+
         LocalDateTime earliestExpiresAt = null;
 
         for (SeatInfo seat : seats) {
@@ -396,21 +454,25 @@ public class SeatCacheService {
     /** 결제 완료 좌석의 Redis 반영 작업을 DB 변경과 함께 저장한다. */
     @Observed(name = "ticket.seat-cache.redis.sync-reserved-after-commit", contextualName = "ticket seat cache redis sync reserved after commit")
     public void syncReservedSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+
         seatCacheSyncOutboxService.enqueue(seats, "syncReservedSeatsAfterCommit", userId, orderId);
     }
 
     /** 관리자 보정으로 입금 대기가 된 좌석의 Redis 반영 작업을 저장한다. */
     public void syncLockedSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+
         seatCacheSyncOutboxService.enqueue(seats, "syncLockedSeatsAfterCommit", userId, orderId);
     }
 
     /** 취소·환불·만료된 좌석의 Redis 반영 작업을 저장한다. */
     public void syncAvailableSeatsAfterCommit(List<Seat> seats, String userId, String orderId) {
+
         seatCacheSyncOutboxService.enqueue(seats, "syncAvailableSeatsAfterCommit", userId, orderId);
     }
 
     /** 선점을 시도한 좌석 중 이번 요청이 소유한 잠금만 원자적으로 해제한다. */
     private void rollbackSeats(List<String> redisKeys, String lockValue) {
+
         for (String redisKey : redisKeys) {
             try {
                 seatRedisTemplate.execute(SeatOccupationScripts.ROLLBACK,
@@ -425,16 +487,23 @@ public class SeatCacheService {
 
     /** 이번 요청에서 선택한 좌석 수만 공연의 1인 최대 매수와 비교한다. */
     private void validateUserPurchaseLimit(SeatOccupyRequest request) {
+
         Event event = eventRepository.selectById(request.getEventId());
         int selectedSeatCount = request.getSeats().size();
         if (selectedSeatCount <= 0) {
             throw new IllegalArgumentException("선택한 좌석이 없습니다.");
         }
+
         if (event.getMaxTicketsPerPerson() < selectedSeatCount) {
             throw new TicketLimitExceededException(createPurchaseLimitExceededMessage(event, event.getMaxTicketsPerPerson()));
         }
     }
+
+    /**
+     * 구매 수량 제한 초과 안내 메시지를 구성한다.
+     */
     private String createPurchaseLimitExceededMessage(Event event, int limitMax) {
+
         if (event.getTicketLimitScope() == PER_GROUP) {
             return "이 공연은 모든 공연을 포함해서 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";
         }
@@ -442,9 +511,11 @@ public class SeatCacheService {
         return "이 공연은 1인당 최대 " + limitMax + "매까지만 예매 가능합니다.";
     }
 
-
-
+    /**
+     * 공연 판매가 시작되었는지 검증한다.
+     */
     private void validateEventSaleStartAt(Event event) {
+
         if (event.getSaleStartAt() == null) {
             throw new IllegalStateException("판매 시작 시간이 설정되지 않아 좌석 캐시를 예열할 수 없습니다.");
         }
@@ -457,6 +528,7 @@ public class SeatCacheService {
      * @return
      */
     private int warmUpSeatCache(List<Seat> seats, SeatCacheWarmUpMode mode, LocalDateTime saleStartAt) {
+
         if (seats.isEmpty()) {
             return 0;
         }
@@ -526,7 +598,11 @@ public class SeatCacheService {
         return 0;
     }
 
+    /**
+     * 실패를 처리하면서 Redis 스크립트를 미리 로드한다.
+     */
     private static DefaultRedisScript<Long> safeWarmUpScript() {
+
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setScriptText("""
                 if redis.call('exists', KEYS[1]) == 1 or redis.call('exists', KEYS[2]) == 1 then
@@ -539,14 +615,22 @@ public class SeatCacheService {
         return script;
     }
 
+    /**
+     * Redis 점검 조회 건수의 기본값과 상한을 적용한다.
+     */
     private int normalizeInspectLimit(int limit) {
+
         if (limit <= 0) {
             return 100;
         }
         return Math.min(limit, 500);
     }
 
+    /**
+     * 점검 조건에 해당하는 좌석 Redis 키를 순회한다.
+     */
     private List<String> scanSeatKeys(String pattern, int limit) {
+
         ScanOptions options = ScanOptions.scanOptions()
                 .match(pattern)
                 .count(Math.min(limit * 2L, 1000L))
@@ -565,7 +649,11 @@ public class SeatCacheService {
         return keys == null ? List.of() : keys;
     }
 
+    /**
+     * 좌석 캐시가 요청한 점검 모드에 해당하는지 확인한다.
+     */
     private boolean matchesInspectMode(String key, SeatRedisInspectMode mode) {
+
         if (mode == SeatRedisInspectMode.LOCK) {
             return key.endsWith(":lock");
         }
@@ -573,7 +661,17 @@ public class SeatCacheService {
         return !key.endsWith(":lock");
     }
 
-    private String buildSeatInspectPattern(Long eventId, String zone, Integer row, Integer col, SeatRedisInspectMode mode) {
+    /**
+     * 좌석 캐시 점검에 사용할 Redis 키 검색 패턴을 구성한다.
+     */
+    private String buildSeatInspectPattern(
+            Long eventId,
+            String zone,
+            Integer row,
+            Integer col,
+            SeatRedisInspectMode mode
+    ) {
+
         StringBuilder pattern = new StringBuilder("event:")
                 .append(eventId)
                 .append(":seat:");
@@ -603,7 +701,11 @@ public class SeatCacheService {
         return pattern.toString();
     }
 
+    /**
+     * 좌석 캐시를 점검 응답 항목으로 변환한다.
+     */
     private SeatRedisEntryResponse toSeatRedisEntry(String redisKey) {
+
         String value = seatRedisTemplate.opsForValue().get(redisKey);
         Long ttlSeconds = seatRedisTemplate.getExpire(redisKey);
         DataType dataType = seatRedisTemplate.type(redisKey);
@@ -624,7 +726,11 @@ public class SeatCacheService {
                 .build();
     }
 
+    /**
+     * 좌석 잠금 정보를 점검 응답 항목으로 변환한다.
+     */
     private SeatRedisEntryResponse toSeatRedisLockEntry(String lockKey) {
+
         String lockValue = seatRedisTemplate.opsForValue().get(lockKey);
         Long ttlSeconds = seatRedisTemplate.getExpire(lockKey);
         DataType dataType = seatRedisTemplate.type(lockKey);
@@ -645,10 +751,15 @@ public class SeatCacheService {
                 .build();
     }
 
+    /**
+     * 저장된 캐시 값에서 좌석 상태를 결정한다.
+     */
     private String resolveSeatCacheStatus(String value) {
+
         if (value == null) {
             return "MISSING";
         }
+
         if (value.startsWith("LOCKED:")) {
             return "LOCKED";
         }
@@ -661,6 +772,7 @@ public class SeatCacheService {
      * @return
      */
     private long deleteSeatCache(List<Seat> seats) {
+
         if (seats.isEmpty()) {
             return 0;
         }
@@ -681,9 +793,15 @@ public class SeatCacheService {
      * @param keys
      */
     private void expireSeatKeys(List<String> keys) {
+
         seatRedisTemplate.executePipelined(new SessionCallback<Void>() {
+
+            /**
+             * 연결된 Redis 세션에서 작업을 실행하고 결과를 반환한다.
+             */
             @Override
             public <K, V> Void execute(RedisOperations<K, V> operations) throws DataAccessException {
+
                 for (String key : keys) {
                     operations.expire((K) key, SEAT_CACHE_TTL);
                 }
@@ -698,6 +816,7 @@ public class SeatCacheService {
      * @return
      */
     private String buildSeatRedisKey(Seat seat) {
+
         Long eventId = seat.getEvent().getEventId();
         return buildSeatRedisKey(eventId, seat.getZone(), seat.getSeatRow(), seat.getSeatCol());
     }
@@ -711,6 +830,7 @@ public class SeatCacheService {
      * @return
      */
     private String buildSeatRedisKey(Long eventId, String zone, int row, int col) {
+
         String sanitizedZone = zone.replace(" ", "_");
         return String.format("event:%d:seat:%s:%d:%d", eventId, sanitizedZone, row, col);
     }
@@ -720,6 +840,7 @@ public class SeatCacheService {
      * @return
      */
     private String generateOrderId() {
+
         String timestamp = LocalDateTime.now().format(ORDER_ID_FORMATTER);
         String randomValue = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         return "ORD-" + timestamp + "-" + randomValue;
@@ -732,8 +853,7 @@ public class SeatCacheService {
      * @return
      */
     private String buildSeatLockValue(String userId, String orderId) {
+
         return "LOCKED:" + userId + ":" + orderId;
     }
-
-
 }

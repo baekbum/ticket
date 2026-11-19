@@ -30,7 +30,7 @@ token:
 
 app:
   queue:
-    admission-size: 5
+    admission-size: 1000
     max-sessions-per-user: 4
     active-token-ttl: 20m
     waiting-token-ttl: 1m

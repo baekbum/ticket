@@ -8,7 +8,10 @@ import java.util.Optional;
 public interface DlqMessageHandleHistoryJpaRepository extends JpaRepository<DlqMessageHandleHistory, Long>, JpaSpecificationExecutor<DlqMessageHandleHistory> {
 
     Optional<DlqMessageHandleHistory> findTopByDltTopicAndPartitionNoAndMessageOffsetAndStatusOrderByHandledAtDesc(
-            String dltTopic, int partitionNo, long messageOffset, DlqMessageHandleStatus status
+            String dltTopic,
+            int partitionNo,
+            long messageOffset,
+            DlqMessageHandleStatus status
     );
 
     Optional<DlqMessageHandleHistory> findTopByDltTopicAndPartitionNoAndMessageOffsetOrderByHandledAtDesc(
@@ -16,5 +19,4 @@ public interface DlqMessageHandleHistoryJpaRepository extends JpaRepository<DlqM
             int partitionNo,
             long messageOffset
     );
-
 }

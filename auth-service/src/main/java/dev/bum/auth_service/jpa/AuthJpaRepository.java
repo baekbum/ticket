@@ -9,6 +9,7 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
 public interface AuthJpaRepository extends JpaRepository<Auth, Long> {
+
     Optional<Auth> findByUserId(String userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

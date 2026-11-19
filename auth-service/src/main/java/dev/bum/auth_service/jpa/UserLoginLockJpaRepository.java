@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import java.util.Optional;
 
 public interface UserLoginLockJpaRepository extends JpaRepository<UserLoginLock, Long> {
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<UserLoginLock> findByAuthId(Long authId);
 }

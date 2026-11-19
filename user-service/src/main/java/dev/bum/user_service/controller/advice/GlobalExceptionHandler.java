@@ -18,48 +18,56 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserDuplicateException.class)
     public ResponseEntity<ErrorResponse> UserDuplicateException(UserDuplicateException ex) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(ErrorCode.USER_DUPLICATE, ex.getMessage()));
     }
 
     @ExceptionHandler(UserNotExistException.class)
     public ResponseEntity<ErrorResponse> UserNotExistException(UserNotExistException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.USER_NOT_FOUND, ex.getMessage()));
     }
 
     @ExceptionHandler(WithdrawnUserException.class)
     public ResponseEntity<ErrorResponse> withdrawnUser(WithdrawnUserException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.USER_WITHDRAWN, ex.getMessage()));
     }
 
     @ExceptionHandler(UserAddressNotExistException.class)
     public ResponseEntity<ErrorResponse> UserAddressNotExistException(UserAddressNotExistException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.USER_ADDRESS_NOT_FOUND, ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordIncorrectException.class)
     public ResponseEntity<ErrorResponse> PasswordIncorrectException(PasswordIncorrectException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.LOGIN_FAILED, ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> IllegalArgumentException(IllegalArgumentException ex) {
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> AccessDeniedException(AccessDeniedException ex) {
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(ErrorCode.FORBIDDEN, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> MethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+
         Map<String, String> details = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         fieldError -> fieldError.getField(),

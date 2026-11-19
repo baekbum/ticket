@@ -30,22 +30,22 @@ public class ReservationManagementController {
 
     @GetMapping("/select/id/{reservationId}")
     public ResponseEntity<ReservationResponse> selectById(@PathVariable("reservationId") long id) {
+
         return ResponseEntity.ok(reservationManagementService.selectById(id));
     }
 
     @GetMapping("/select/detail/{reservationId}")
     public ResponseEntity<ReservationDetailResponse> selectDetailById(@PathVariable("reservationId") long id) {
+
         return ResponseEntity.ok(reservationManagementService.selectDetailById(id));
     }
 
     @PostMapping("/select")
-    public ResponseEntity<CustomPageResponse<ReservationResponse>> selectByCond(@RequestBody ReservationCondRequest cond) {
-        return ResponseEntity.ok(reservationManagementService.selectByCond(cond));
-    }
+    public ResponseEntity<CustomPageResponse<ReservationResponse>> selectByCond(
+            @RequestBody ReservationCondRequest cond
+    ) {
 
-    @PutMapping("/cancel/id/{id}")
-    public ResponseEntity<CancelReservationResponse> cancel(@PathVariable("id") long id, @RequestBody CancelReservationRequest info) {
-        return ResponseEntity.ok(reservationManagementService.cancel(id, info));
+        return ResponseEntity.ok(reservationManagementService.selectByCond(cond));
     }
 
     @PutMapping("/status/id/{id}")
@@ -53,6 +53,16 @@ public class ReservationManagementController {
             @PathVariable("id") long id,
             @Valid @RequestBody UpdateReservationStatusRequest request
     ) {
+
         return ResponseEntity.ok(reservationManagementService.updateStatus(id, request));
+    }
+
+    @PutMapping("/cancel/id/{id}")
+    public ResponseEntity<CancelReservationResponse> cancel(
+            @PathVariable("id") long id,
+            @RequestBody CancelReservationRequest info
+    ) {
+
+        return ResponseEntity.ok(reservationManagementService.cancel(id, info));
     }
 }

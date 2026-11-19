@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface UserEventVersionJpaRepository extends JpaRepository<UserEventVersion, Long> {
+
     @Modifying(flushAutomatically = true)
     @Query(value = """
             insert into user_event_versions (auth_id, last_event_version, deleted)

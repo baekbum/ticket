@@ -10,8 +10,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(scanBasePackages = {"dev.bum.payment_gateway_service", "dev.bum.common"})
 public class PaymentGatewayServiceApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(PaymentGatewayServiceApplication.class, args);
-	}
+    public static void main(String[] args) {
 
+	    SpringApplication.run(PaymentGatewayServiceApplication.class, args);
+	}
 }

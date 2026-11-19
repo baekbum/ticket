@@ -47,45 +47,57 @@ import java.util.List;
 @Builder
 public class Area {
 
+    // 좌석 구역 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "area_id")
     private Long areaId;
 
+    // 공연 또는 발행 이벤트 정보.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
+    // 좌석 구역 이름.
     @Column(name = "area_name", nullable = false, length = 80)
     private String areaName;
 
+    // 좌석 배치도 저장 키.
     @Column(name = "layout_key", nullable = false, length = 100)
     private String layoutKey;
 
+    // 좌석 등급.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private SeatGrade grade;
 
+    // 가격.
     @Column(nullable = false)
     private Integer price;
 
+    // 좌석 구역 상태.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private AreaStatus status;
 
+    // 생성 시각.
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 마지막 수정 시각.
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // 좌석 목록.
     @OneToMany(mappedBy = "area")
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public AreaResponse toResponse() {
+
         return AreaResponse.builder()
                 .areaId(this.areaId)
                 .eventId(this.event != null ? this.event.getEventId() : null)
@@ -98,21 +110,31 @@ public class Area {
                 .build();
     }
 
+    // 좌석 구역을 수정한다.
     public void update(UpdateAreaRequest info) {
+
         if (StringUtils.hasText(info.getAreaName())) this.areaName = info.getAreaName();
+
         if (StringUtils.hasText(info.getLayoutKey())) this.layoutKey = info.getLayoutKey().trim();
+
         if (info.getGrade() != null) this.grade = info.getGrade();
+
         if (info.getPrice() != null) this.price = info.getPrice();
+
         if (info.getStatus() != null) this.status = info.getStatus();
     }
 
+    // 좌석 배치도 키를 정규화한다.
     @PrePersist
     @PreUpdate
     private void normalizeLayoutKey() {
+
         this.layoutKey = resolveLayoutKey(this.layoutKey, this.areaName);
     }
 
+    // 요청에 사용할 좌석 배치도 키를 결정한다.
     private String resolveLayoutKey(String layoutKey, String areaName) {
+
         return StringUtils.hasText(layoutKey) ? layoutKey.trim() : areaName;
     }
 }

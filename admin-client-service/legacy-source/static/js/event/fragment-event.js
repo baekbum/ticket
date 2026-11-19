@@ -18,6 +18,8 @@ genre: null, region: null, theme: null
 };
 let serverTotalPages    = 1;
 let currentSortFilters  = {};
+const DEFAULT_QUEUE_ADMISSION_SIZE = 1000;
+const MAX_QUEUE_ADMISSION_SIZE = 2147483647;
 const areaLayoutCache = new Map();
 const eventLayoutCache = new Map();
 const seatLayoutCache = new Map();
@@ -277,6 +279,7 @@ tr.innerHTML = `
 <td>${ev.ageLimit != null ? ev.ageLimit + '+' : ''}</td>
 <td>${ev.totalSeats != null ? Number(ev.totalSeats).toLocaleString() : ''}</td>
 <td>${ev.availableSeats != null ? Number(ev.availableSeats).toLocaleString() : ''}</td>
+<td>${Number(ev.queueAdmissionSize ?? DEFAULT_QUEUE_ADMISSION_SIZE).toLocaleString('ko-KR')}명</td>
 
 <td class="actions">
 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
@@ -342,7 +345,7 @@ _set('m-description-text', ev.description);
 _set('m-event-date-time',  formatToDatetimeLocal(ev.eventDateTime));
 _set('m-sale-start-at',    formatToDatetimeLocal(ev.saleStartAt));
 _set('m-sale-end-at',      formatToDatetimeLocal(ev.saleEndAt));
-_set('m-queue-admission-size', ev.queueAdmissionSize ?? 100);
+_set('m-queue-admission-size', ev.queueAdmissionSize ?? DEFAULT_QUEUE_ADMISSION_SIZE);
 _set('m-cancel-deadline-at', formatToDatetimeLocal(ev.cancelDeadlineAt));
 _set('m-running-minutes',  ev.runningMinutes);
 _set('m-age-limit',        ev.ageLimit);
@@ -443,7 +446,7 @@ wrapper.innerHTML = `
     </div>
     <div class="form-group">
       <label>동시 예매 허용 인원 #${rowId}</label>
-      <input type="number" class="m-extra-queue-admission-size" min="1" step="1" value="100">
+      <input type="number" class="m-extra-queue-admission-size" min="1" max="2147483647" step="1" value="${DEFAULT_QUEUE_ADMISSION_SIZE}">
     </div>
     ${actionButtons}
   </div>
@@ -486,7 +489,7 @@ return bulkRows.map(row => ({
 eventDateTime: row.querySelector('.m-extra-event-date-time')?.value || '',
 saleStartAt: row.querySelector('.m-extra-sale-start-at')?.value || '',
 saleEndAt: row.querySelector('.m-extra-sale-end-at')?.value || '',
-queueAdmissionSize: Number(row.querySelector('.m-extra-queue-admission-size')?.value ?? 100),
+queueAdmissionSize: Number(row.querySelector('.m-extra-queue-admission-size')?.value ?? DEFAULT_QUEUE_ADMISSION_SIZE),
 cancelDeadlineAt: row.querySelector('.m-extra-cancel-deadline-at')?.value || ''
 }));
 }
@@ -544,7 +547,7 @@ posterUrl: posterUrlOverride !== undefined ? posterUrlOverride : (ev.posterUrl |
 eventDateTime: eventDateTime ? `${eventDateTime}:00` : ev.eventDateTime,
 saleStartAt: saleStartAt ? `${saleStartAt}:00` : ev.saleStartAt,
 saleEndAt: saleEndAt ? `${saleEndAt}:00` : ev.saleEndAt,
-queueAdmissionSize: ev.queueAdmissionSize ?? 100,
+queueAdmissionSize: ev.queueAdmissionSize ?? DEFAULT_QUEUE_ADMISSION_SIZE,
 cancelDeadlineAt: cancelDeadlineAt ? `${cancelDeadlineAt}:00` : ev.cancelDeadlineAt,
 runningMinutes: ev.runningMinutes,
 ageLimit: ev.ageLimit,
@@ -718,7 +721,7 @@ clearAdditionalSchedules();
 const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
-_set('m-queue-admission-size', '100');
+_set('m-queue-admission-size', DEFAULT_QUEUE_ADMISSION_SIZE);
 _set('m-max-tickets', '2');
 _set('m-ticket-limit-scope', 'PER_EVENT');
 _set('m-genre',       'CONCERT');
@@ -773,8 +776,8 @@ const themeVal     = document.getElementById('m-theme').value;
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 const schedules = collectEventSchedules();
-if (schedules.some(schedule => !Number.isSafeInteger(schedule.queueAdmissionSize) || schedule.queueAdmissionSize < 1)) {
-showToast('동시 예매 허용 인원은 1 이상의 정수로 입력해주세요.', true); return;
+if (schedules.some(schedule => !Number.isSafeInteger(schedule.queueAdmissionSize) || schedule.queueAdmissionSize < 1 || schedule.queueAdmissionSize > MAX_QUEUE_ADMISSION_SIZE)) {
+showToast('동시 예매 허용 인원은 1명 이상 2,147,483,647명 이하의 정수로 입력해주세요.', true); return;
 }
 const missingFields = [];
 if (!artistVal) missingFields.push('아티스트');

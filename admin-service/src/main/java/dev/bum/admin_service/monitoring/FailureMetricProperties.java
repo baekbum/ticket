@@ -15,10 +15,12 @@ public class FailureMetricProperties {
     private final Map<String, Threshold> thresholds = new HashMap<>();
 
     public Map<String, Threshold> getThresholds() {
+
         return thresholds;
     }
 
     public Threshold thresholdOf(String key, double defaultWarningThreshold, double defaultCriticalThreshold) {
+
         Threshold threshold = thresholds.get(key);
         if (threshold == null) {
             return new Threshold(defaultWarningThreshold, defaultCriticalThreshold);
@@ -27,18 +29,19 @@ public class FailureMetricProperties {
         if (threshold.getWarningThreshold() == null) {
             threshold.setWarningThreshold(defaultWarningThreshold);
         }
+
         if (threshold.getCriticalThreshold() == null) {
             threshold.setCriticalThreshold(defaultCriticalThreshold);
         }
         return threshold;
     }
 
-
     @Getter
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Threshold {
+
         private Double warningThreshold;
         private Double criticalThreshold;
     }

@@ -21,16 +21,23 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class UserOutboxPublisher {
-    private final UserOutboxEventJpaRepository repository;
-    private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
 
+    // 사용자 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
+    private final UserOutboxEventJpaRepository repository;
+    // 요청과 이벤트를 JSON으로 변환하는 직렬화 도구.
+    private final ObjectMapper objectMapper;
+    // 이벤트를 Kafka 토픽으로 발행하는 클라이언트.
+    private final KafkaTemplate<String, UserDtoForEvent> kafkaTemplate;
+    // 이벤트 전송 결과를 기다리는 최대 시간(밀리초).
     @Value("${app.user-outbox.send-timeout-ms:10000}")
     private long sendTimeoutMs = 10000;
-
+    // 실패한 이벤트를 다시 처리하기 전 대기 시간(밀리초).
     @Value("${app.user-outbox.retry-delay-ms:30000}")
     private long retryDelayMs = 30000;
 
+    /**
+     * 사용자 Outbox 이벤트 처리에서 이벤트를 발행한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publish(Long outboxId) {
 

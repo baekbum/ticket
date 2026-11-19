@@ -27,8 +27,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SeatService {
 
+    // 좌석 데이터를 조회하고 저장하는 레포지토리.
     private final SeatRepository repository;
+    // 좌석 캐시 업무 처리를 담당하는 서비스.
     private final SeatCacheService seatCacheService;
+
+    /**
+     * Redis를 이용한 다중 좌석 선점 메서드
+     * @param request
+     */
+    @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
+    @Observed(name = "ticket.seat.occupy", contextualName = "ticket seat occupy")
+    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
+
+        return seatCacheService.occupySeat(request);
+    }
 
     /**
      * ID를 통해 좌석 정보 조회 메서드
@@ -37,6 +50,7 @@ public class SeatService {
      */
     @Transactional(readOnly = true)
     public SeatResponse selectById(Long id) {
+
         log.info("[SELECT] SeatId : {}", id);
         return seatCacheService.applyCachedStatus(repository.selectById(id).toDto());
     }
@@ -48,6 +62,7 @@ public class SeatService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<SeatResponse> selectByCond(SeatCondRequest cond) {
+
         log.info("[SELECT] cond : {}", cond.toString());
         Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
 
@@ -64,21 +79,12 @@ public class SeatService {
     }
 
     /**
-     * Redis를 이용한 다중 좌석 선점 메서드
-     * @param request
-     */
-    @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
-    @Observed(name = "ticket.seat.occupy", contextualName = "ticket seat occupy")
-    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
-        return seatCacheService.occupySeat(request);
-    }
-
-    /**
      * 검색 조건에서 sort 옵션을 처리하기 위한 메서드
      * @param sorts
      * @return
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();

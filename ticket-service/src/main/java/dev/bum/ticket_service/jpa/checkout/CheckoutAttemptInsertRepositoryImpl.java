@@ -13,6 +13,7 @@ public class CheckoutAttemptInsertRepositoryImpl implements CheckoutAttemptInser
 
     @Override
     public int insertIfAbsent(CheckoutAttempt attempt) {
+
         int inserted = entityManager.createNativeQuery("""
                         INSERT INTO checkout_attempts (
                             idempotency_key, user_id, order_id, event_id, payment_no,

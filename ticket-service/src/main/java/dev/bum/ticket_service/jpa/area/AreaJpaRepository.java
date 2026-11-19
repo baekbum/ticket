@@ -6,11 +6,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AreaJpaRepository extends JpaRepository<Area, Long> {
-    boolean existsByEvent_EventId(Long eventId);
 
-    void deleteByEvent_EventId(Long eventId);
+    boolean existsByEvent_EventId(Long eventId);
 
     Optional<Area> findByEvent_EventIdAndLayoutKey(Long eventId, String layoutKey);
 
     List<Area> findByEvent_EventIdIn(List<Long> eventIds);
+
+    void deleteByEvent_EventId(Long eventId);
 }

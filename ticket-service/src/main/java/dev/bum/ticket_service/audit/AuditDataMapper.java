@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 public final class AuditDataMapper {
 
     public static void setChangedData(Object beforeSource, Object request, String... maskedFields) {
+
         if (beforeSource == null || request == null) {
             return;
         }
@@ -50,6 +51,7 @@ public final class AuditDataMapper {
     }
 
     public static void setFieldChange(String fieldName, Object beforeValue, Object afterValue) {
+
         Object normalizedBefore = normalize(beforeValue);
         Object normalizedAfter = normalize(afterValue);
         if (Objects.equals(normalizedBefore, normalizedAfter)) {
@@ -66,6 +68,7 @@ public final class AuditDataMapper {
     }
 
     private static Object getFieldValue(Field field, Object target) {
+
         try {
             field.setAccessible(true);
             return field.get(target);
@@ -75,6 +78,7 @@ public final class AuditDataMapper {
     }
 
     private static Object getPropertyValue(Object target, String fieldName) {
+
         try {
             Method getter = target.getClass().getMethod("get" + capitalize(fieldName));
             return getter.invoke(target);
@@ -84,6 +88,7 @@ public final class AuditDataMapper {
     }
 
     private static String capitalize(String value) {
+
         if (!StringUtils.hasText(value)) {
             return value;
         }
@@ -92,6 +97,7 @@ public final class AuditDataMapper {
     }
 
     private static boolean isEmpty(Object value) {
+
         if (value == null) {
             return true;
         }
@@ -100,6 +106,7 @@ public final class AuditDataMapper {
     }
 
     private static Object normalize(Object value) {
+
         if (value instanceof Enum<?>) {
             return ((Enum<?>) value).name();
         }

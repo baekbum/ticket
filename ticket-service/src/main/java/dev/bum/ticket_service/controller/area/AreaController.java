@@ -24,17 +24,20 @@ public class AreaController {
 
     @GetMapping("/layout/event/{eventId}")
     public ResponseEntity<EventLayoutResponse> selectLayout(@PathVariable("eventId") Long eventId) {
+
         EventLayoutResponse response = areaService.selectLayout(eventId);
         return response != null ? ResponseEntity.ok(response) : ResponseEntity.noContent().build();
     }
 
     @GetMapping("/select/id/{areaId}")
     public ResponseEntity<AreaResponse> selectById(@PathVariable("areaId") Long areaId) {
+
         return ResponseEntity.ok(areaService.selectById(areaId));
     }
 
     @GetMapping("/select")
     public ResponseEntity<CustomPageResponse<AreaResponse>> selectByCond(@ModelAttribute AreaCondRequest cond) {
+
         return ResponseEntity.ok(areaService.selectByCond(cond));
     }
 }

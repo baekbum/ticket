@@ -36,7 +36,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserCouponService {
 
+    // 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final CouponRepository couponRepository;
+    // 사용자 쿠폰 데이터를 조회하고 저장하는 레포지토리.
     private final UserCouponRepository userCouponRepository;
 
     /**
@@ -44,6 +46,7 @@ public class UserCouponService {
      */
     @AuditLog(action = "USER_COUPON_ISSUE", targetType = "USER_COUPON")
     public UserCouponResponse issue(IssueCouponRequest request) {
+
         Coupon coupon = couponRepository.selectById(request.getCouponId());
 
         if (coupon.getStatus() != CouponStatus.ACTIVE) {
@@ -70,6 +73,7 @@ public class UserCouponService {
      */
     @AuditLog(action = "USER_COUPON_ISSUE", targetType = "USER_COUPON")
     public UserCouponResponse issue(String userId, Long couponId) {
+
         IssueCouponRequest request = IssueCouponRequest.builder()
                 .userId(userId)
                 .couponId(couponId)
@@ -79,21 +83,11 @@ public class UserCouponService {
     }
 
     /**
-     * 사용자 쿠폰의 상태와 만료일을 수정한다.
-     */
-    @AuditLog(action = "USER_COUPON_UPDATE", targetType = "USER_COUPON")
-    public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
-        UserCoupon userCoupon = userCouponRepository.selectByIdForUpdate(userCouponId);
-        AuditDataMapper.setChangedData(userCoupon, request);
-        userCoupon.update(request);
-        return userCouponRepository.update(userCoupon).toResponse();
-    }
-
-    /**
      * 사용자 ID로 보유 쿠폰 목록을 조회한다.
      */
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId) {
+
         return userCouponRepository.selectByUserId(userId).stream()
                 .map(UserCoupon::toResponse)
                 .toList();
@@ -104,6 +98,7 @@ public class UserCouponService {
      */
     @Transactional(readOnly = true)
     public List<UserCouponResponse> selectByUserId(String userId, UserCouponFilter filter) {
+
         return userCouponRepository.selectByUserId(userId, filter, LocalDateTime.now()).stream()
                 .map(UserCoupon::toResponse)
                 .toList();
@@ -114,6 +109,7 @@ public class UserCouponService {
      */
     @Transactional(readOnly = true)
     public CustomPageResponse<UserCouponResponse> selectByCond(UserCouponCondRequest cond) {
+
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
         Page<UserCouponResponse> page = userCouponRepository.selectByCond(cond, pageRequest).map(UserCoupon::toResponse);
 
@@ -131,6 +127,7 @@ public class UserCouponService {
      */
     @Transactional(readOnly = true)
     public List<CouponResponse> selectDownloadableCoupons(String userId) {
+
         Set<Long> issuedCouponIds = userCouponRepository.selectByUserId(userId).stream()
                 .map(UserCoupon::getCoupon)
                 .map(Coupon::getCouponId)
@@ -143,10 +140,23 @@ public class UserCouponService {
     }
 
     /**
+     * 사용자 쿠폰의 상태와 만료일을 수정한다.
+     */
+    @AuditLog(action = "USER_COUPON_UPDATE", targetType = "USER_COUPON")
+    public UserCouponResponse update(Long userCouponId, UpdateUserCouponRequest request) {
+
+        UserCoupon userCoupon = userCouponRepository.selectByIdForUpdate(userCouponId);
+        AuditDataMapper.setChangedData(userCoupon, request);
+        userCoupon.update(request);
+        return userCouponRepository.update(userCoupon).toResponse();
+    }
+
+    /**
      * 사용자 쿠폰이 주문 금액 기준으로 사용 가능한지 확인하고 할인 금액을 계산한다.
      */
     @Transactional(readOnly = true)
     public CouponAvailabilityResponse checkAvailable(CouponAvailabilityRequest request) {
+
         UserCoupon userCoupon = userCouponRepository.selectById(request.getUserCouponId());
         Coupon coupon = userCoupon.getCoupon();
         LocalDateTime now = LocalDateTime.now();
@@ -172,6 +182,7 @@ public class UserCouponService {
      */
     @Transactional(readOnly = true)
     public CouponAvailabilityResponse checkAvailable(String currentUserId, CouponAvailabilityRequest request) {
+
         request.setUserId(currentUserId);
         return checkAvailable(request);
     }
@@ -179,7 +190,13 @@ public class UserCouponService {
     /**
      * 쿠폰 소유자, 상태, 유효 기간, 최소 주문 금액을 검사해 사용 불가 사유를 반환한다.
      */
-    private String getUnavailableReason(CouponAvailabilityRequest request, UserCoupon userCoupon, Coupon coupon, LocalDateTime now) {
+    private String getUnavailableReason(
+            CouponAvailabilityRequest request,
+            UserCoupon userCoupon,
+            Coupon coupon,
+            LocalDateTime now
+    ) {
+
         if (!request.getUserId().equals(userCoupon.getUserId())) {
             return "해당 사용자의 쿠폰이 아닙니다.";
         }
@@ -219,6 +236,7 @@ public class UserCouponService {
      * 쿠폰 할인 정책에 따라 주문 금액에서 차감할 할인 금액을 계산한다.
      */
     private int calculateDiscountAmount(Coupon coupon, int orderAmount) {
+
         int discountAmount;
 
         if (coupon.getDiscountType() == CouponDiscountType.FIXED_AMOUNT) {
@@ -238,7 +256,12 @@ public class UserCouponService {
     /**
      * 요청 만료일, 발급 후 유효 일수, 쿠폰 정책 만료일 순서로 사용자 쿠폰 만료 시각을 결정한다.
      */
-    private LocalDateTime resolveUserCouponExpiresAt(IssueCouponRequest request, Coupon coupon, LocalDateTime issuedAt) {
+    private LocalDateTime resolveUserCouponExpiresAt(
+            IssueCouponRequest request,
+            Coupon coupon,
+            LocalDateTime issuedAt
+    ) {
+
         if (request.getExpiresAt() != null) {
             return request.getExpiresAt();
         }
@@ -254,6 +277,7 @@ public class UserCouponService {
      * 요청 sort 문자열을 Spring Data Sort 객체로 변환하고 기본 정렬을 적용한다.
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.by(Sort.Order.desc("userCouponId"));
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();

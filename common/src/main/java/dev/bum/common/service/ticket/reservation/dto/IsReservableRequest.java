@@ -9,10 +9,16 @@ import lombok.*;
 @NoArgsConstructor
 @Builder
 public class IsReservableRequest {
+
+    // 사용자 ID.
     @NotBlank
     private String userId;
+
+    // 공연 식별자.
     @NotNull
     private long eventId;
+
+    // 선택한 좌석 수.
     @NotNull
     private int selectedSeatCnt;
 }

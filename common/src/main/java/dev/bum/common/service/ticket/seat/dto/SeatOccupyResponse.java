@@ -15,9 +15,18 @@ import java.util.List;
 @NoArgsConstructor
 public class SeatOccupyResponse {
 
+    // 주문 식별자.
     private String orderId;
+
+    // 공연 식별자.
     private Long eventId;
+
+    // 사용자 ID.
     private String userId;
+
+    // 좌석 목록.
     private List<SeatInfo> seats;
+
+    // 만료 시각.
     private LocalDateTime expiresAt;
 }

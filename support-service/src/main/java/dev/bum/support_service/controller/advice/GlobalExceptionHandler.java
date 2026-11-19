@@ -23,6 +23,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoticeNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoticeNotFound(NoticeNotFoundException exception) {
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("NOTICE_NOT_FOUND")
@@ -32,6 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FaqNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleFaqNotFound(FaqNotFoundException exception) {
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("FAQ_NOT_FOUND")
@@ -41,6 +43,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({InquiryNotFoundException.class, InquiryAnswerNotFoundException.class})
     public ResponseEntity<ErrorResponse> handleInquiryNotFound(RuntimeException exception) {
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.builder()
                         .code("INQUIRY_NOT_FOUND")
@@ -50,6 +53,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InquiryStateConflictException.class)
     public ResponseEntity<ErrorResponse> handleInvalidInquiryState(InquiryStateConflictException exception) {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.builder()
                         .code("INQUIRY_STATE_CONFLICT")
@@ -59,6 +63,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException exception) {
+
         Map<String, String> details = exception.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         error -> error.getField(),
@@ -72,12 +77,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({IllegalArgumentException.class, HttpMessageNotReadableException.class})
     public ResponseEntity<ErrorResponse> handleInvalidRequest(Exception exception) {
+
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, exception.getMessage()));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure() {
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.builder()
                         .code("NOTICE_UPDATE_CONFLICT")

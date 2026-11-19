@@ -13,15 +13,11 @@ test('카드사 코드는 백엔드 enum과 일치하고 표시명은 한글이�
   assert.ok(CARD_COMPANIES.every((card) => /^[가-힣]+$/.test(card.name)));
 });
 
-test('202 대기 및 승인만 된 상태를 결제 완료로 처리하지 않는다', () => {
-  for (const status of ['PENDING', 'APPROVED', 'TICKET_PAYMENT_FAILED', 'UNKNOWN']) {
+test('PG 거래 ID가 없는 구형 응답은 결제 완료로 처리하지 않는다', () => {
+  for (const status of ['PENDING', 'APPROVED', 'TICKET_PAYMENT_FAILED', 'UNKNOWN', 'TICKET_PAYMENT_COMPLETED', 'CANCELLED', 'APPROVAL_FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']) {
     assert.equal(cardResult({ paymentNo: 'PAY-1', status, approved: true }), 'PENDING');
   }
-  assert.equal(cardResult({ paymentNo: 'PAY-1', approved: true }), 'COMPLETE');
-  assert.equal(cardResult({ paymentNo: 'PAY-1', status: 'TICKET_PAYMENT_COMPLETED' }), 'COMPLETE');
-  for (const status of ['CANCELLED', 'APPROVAL_FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']) {
-    assert.equal(cardResult({ paymentNo: 'PAY-1', status, approved: true }), 'TERMINAL');
-  }
+  assert.equal(cardResult({ paymentNo: 'PAY-1', approved: true }), 'PENDING');
 });
 
 test('붙여넣은 카드번호에서 숫자 16자리만 남기고 네 자리씩 구분한다', () => {
@@ -121,4 +117,11 @@ test('카드 정보 오류는 일반 문구로 표시하고 승인 상태를 조
   assert.equal(shouldCheckCardApprovalStatus(wrongPassword), false);
   assert.equal(shouldCheckCardApprovalStatus(Object.assign(new Error('응답 유실'), { status: 502 })), true);
   assert.equal(shouldCheckCardApprovalStatus(new Error('네트워크 오류')), true);
+});
+
+test('신규 PG 카드 승인은 가맹점 반영 완료까지 기다리고 보상 취소를 완료로 표시하지 않는다', () => {
+  const base = { paymentNo: 'PAY-1', pgPaymentId: 'pg-1', pgStatus: 'PAID', approved: true };
+  for (const notificationStatus of ['PENDING', 'SENDING', undefined]) assert.equal(cardResult({ ...base, notificationStatus }), 'PENDING');
+  assert.equal(cardResult({ ...base, notificationStatus: 'DELIVERED' }), 'COMPLETE');
+  for (const pgStatus of ['CANCELLED', 'EXPIRED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']) assert.equal(cardResult({ ...base, pgStatus, notificationStatus: 'DELIVERED' }), 'TERMINAL');
 });

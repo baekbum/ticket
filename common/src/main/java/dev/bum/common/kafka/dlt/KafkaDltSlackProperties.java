@@ -11,34 +11,42 @@ public class KafkaDltSlackProperties {
     private int payloadPreviewLength = 500;
 
     public boolean isEnabled() {
+
         return enabled;
     }
 
     public void setEnabled(boolean enabled) {
+
         this.enabled = enabled;
     }
 
     public String getWebhookUrl() {
+
         return webhookUrl;
     }
 
     public void setWebhookUrl(String webhookUrl) {
+
         this.webhookUrl = webhookUrl;
     }
 
     public String getAdminDlqUrl() {
+
         return adminDlqUrl;
     }
 
     public void setAdminDlqUrl(String adminDlqUrl) {
+
         this.adminDlqUrl = adminDlqUrl;
     }
 
     public int getPayloadPreviewLength() {
+
         return payloadPreviewLength;
     }
 
     public void setPayloadPreviewLength(int payloadPreviewLength) {
+
         this.payloadPreviewLength = payloadPreviewLength;
     }
 }

@@ -21,7 +21,10 @@ public class TicketManagementController {
     private final TicketManagementService ticketManagementService;
 
     @GetMapping("/reservation/{reservationId}")
-    public ResponseEntity<List<TicketResponse>> selectByReservationId(@PathVariable("reservationId") long reservationId) {
+    public ResponseEntity<List<TicketResponse>> selectByReservationId(
+            @PathVariable("reservationId") long reservationId
+    ) {
+
         return ResponseEntity.ok(ticketManagementService.selectByReservationId(reservationId));
     }
 }

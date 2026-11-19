@@ -30,16 +30,11 @@ public class CouponController {
     private final UserCouponService userCouponService;
 
     @GetMapping("/downloadable")
-    public ResponseEntity<List<CouponResponse>> selectDownloadableCoupons(@AuthenticationPrincipal String currentUserId) {
-        return ResponseEntity.ok(userCouponService.selectDownloadableCoupons(currentUserId));
-    }
-
-    @PostMapping("/download/{couponId}")
-    public ResponseEntity<UserCouponResponse> download(
-            @AuthenticationPrincipal String currentUserId,
-            @PathVariable("couponId") Long couponId
+    public ResponseEntity<List<CouponResponse>> selectDownloadableCoupons(
+            @AuthenticationPrincipal String currentUserId
     ) {
-        return ResponseEntity.ok(userCouponService.issue(currentUserId, couponId));
+
+        return ResponseEntity.ok(userCouponService.selectDownloadableCoupons(currentUserId));
     }
 
     @GetMapping("/me")
@@ -47,7 +42,17 @@ public class CouponController {
             @AuthenticationPrincipal String currentUserId,
             @RequestParam(defaultValue = "AVAILABLE") UserCouponFilter filter
     ) {
+
         return ResponseEntity.ok(userCouponService.selectByUserId(currentUserId, filter));
+    }
+
+    @PostMapping("/download/{couponId}")
+    public ResponseEntity<UserCouponResponse> download(
+            @AuthenticationPrincipal String currentUserId,
+            @PathVariable("couponId") Long couponId
+    ) {
+
+        return ResponseEntity.ok(userCouponService.issue(currentUserId, couponId));
     }
 
     @PostMapping("/available")
@@ -55,6 +60,7 @@ public class CouponController {
             @AuthenticationPrincipal String currentUserId,
             @Valid @RequestBody CouponAvailabilityRequest request
     ) {
+
         return ResponseEntity.ok(userCouponService.checkAvailable(currentUserId, request));
     }
 }

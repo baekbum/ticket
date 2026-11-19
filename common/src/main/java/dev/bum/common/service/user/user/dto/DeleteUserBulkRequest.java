@@ -13,6 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DeleteUserBulkRequest {
+
+    // 사용자 ID 목록.
     @NotEmpty
     private List<String> userIds;
 }

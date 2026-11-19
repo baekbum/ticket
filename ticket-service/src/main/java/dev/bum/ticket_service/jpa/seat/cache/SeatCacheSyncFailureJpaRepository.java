@@ -9,6 +9,7 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
 public interface SeatCacheSyncFailureJpaRepository extends JpaRepository<SeatCacheSyncFailure, Long>, JpaSpecificationExecutor<SeatCacheSyncFailure> {
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select f from SeatCacheSyncFailure f where f.id = :id")
     Optional<SeatCacheSyncFailure> findByIdForUpdate(@Param("id") Long id);

@@ -67,6 +67,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      */
     @Override
     public Reservation insert(InsertReservationRequest info) {
+
         Event event = eventRepository.selectById(info.getEventId());
         // 사용자별 구매 카운트를 잠그고 증가시킨 뒤 같은 트랜잭션에서 티켓을 생성한다.
         ticketPurchaseCountService.reserve(event, info.getUserId(), info.getSeats().size());
@@ -119,12 +120,14 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      */
     @Override
     public Reservation selectById(long id) {
+
         return jpaRepository.findById(id)
                 .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
     }
 
     @Override
     public Reservation selectByIdForUpdate(long id) {
+
         try {
             return jpaRepository.findByIdForUpdateNowait(id)
                     .orElseThrow(() -> new ReservationNotExistException("해당 예매 정보는 존재하지 않습니다."));
@@ -141,6 +144,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      */
     @Override
     public Page<Reservation> selectByCond(ReservationCondRequest cond, Pageable pageable) {
+
         reservation = QReservation.reservation;
         QEvent event = QEvent.event;
         QTicket ticket = QTicket.ticket;
@@ -200,6 +204,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @return
      */
     private int calculateTotalTicketAmount(List<Seat> seats) {
+
         return seats.stream()
                 .mapToInt(seat -> seat.getPrice() != null ? seat.getPrice() : 0)
                 .sum();
@@ -212,6 +217,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @return
      */
     private DiscountSnapshot applyCouponIfRequested(InsertReservationRequest info, int totalTicketAmount) {
+
         if (info.getUserCouponId() == null) {
             return null;
         }
@@ -248,7 +254,14 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @param totalTicketAmount
      * @param now
      */
-    private void validateUserCoupon(InsertReservationRequest info, UserCoupon userCoupon, Coupon coupon, int totalTicketAmount, LocalDateTime now) {
+    private void validateUserCoupon(
+            InsertReservationRequest info,
+            UserCoupon userCoupon,
+            Coupon coupon,
+            int totalTicketAmount,
+            LocalDateTime now
+    ) {
+
         if (!info.getUserId().equals(userCoupon.getUserId())) {
             throw new IllegalArgumentException("해당 사용자의 쿠폰이 아닙니다.");
         }
@@ -285,6 +298,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @return
      */
     private int calculateDiscountAmount(Coupon coupon, int totalTicketAmount) {
+
         int discountAmount;
 
         if (coupon.getDiscountType() == CouponDiscountType.FIXED_AMOUNT) {
@@ -307,6 +321,7 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      * @param discountSnapshot
      */
     private void saveReservationDiscount(Reservation reservation, DiscountSnapshot discountSnapshot) {
+
         if (discountSnapshot == null || discountSnapshot.getDiscountAmount() <= 0) {
             return;
         }
@@ -330,25 +345,31 @@ public class ReservationRepositoryImpl implements ReservationRepository {
      */
     @Override
     public void validateReservableFromDatabase(String userId, long eventId, int selectedSeatCnt) {
+
         Event event = eventRepository.selectById(eventId);
         ticketPurchaseCountService.validate(event, userId, selectedSeatCnt);
     }
+
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression userIdEq(String userId) {
+
         return StringUtils.hasText(userId) ? reservation.userId.eq(userId) : null;
     }
 
     private BooleanExpression eventEq(Event event) {
+
         if (event == null) return null;
 
         return reservation.event.eq(event);
     }
 
     private BooleanExpression seatIdEq(QTicket ticket, long seatId) {
+
         return seatId > 0 ? ticket.seat.seatId.eq(seatId) : null;
     }
 
     private BooleanExpression dateBetween(LocalDate startDate, LocalDate endDate) {
+
         if (startDate == null || endDate == null) return null;
 
         // startDate 00:00:00 부터
@@ -360,17 +381,36 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     }
 
     private BooleanExpression statusEq(ReservationStatus status) {
+
         return status != null ? reservation.status.eq(status) : null;
     }
 
     private static class DiscountSnapshot {
+
+        // 사용자에게 발급된 쿠폰 정보.
         private final UserCoupon userCoupon;
+
+        // 할인 이름.
         private final String discountName;
+
+        // 쿠폰 할인 방식.
         private final CouponDiscountType couponDiscountType;
+
+        // 할인율 또는 정액 할인 값.
         private final Integer discountValue;
+
+        // 적용된 할인 금액.
         private final Integer discountAmount;
 
-        private DiscountSnapshot(UserCoupon userCoupon, String discountName, CouponDiscountType couponDiscountType, Integer discountValue, Integer discountAmount) {
+        // 전달받은 값으로 처리 정보 객체를 초기화한다.
+        private DiscountSnapshot(
+                UserCoupon userCoupon,
+                String discountName,
+                CouponDiscountType couponDiscountType,
+                Integer discountValue,
+                Integer discountAmount
+        ) {
+
             this.userCoupon = userCoupon;
             this.discountName = discountName;
             this.couponDiscountType = couponDiscountType;
@@ -378,23 +418,33 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             this.discountAmount = discountAmount;
         }
 
+        // 사용자에게 발급된 쿠폰 정보 값을 반환한다.
         private UserCoupon getUserCoupon() {
+
             return userCoupon;
         }
 
+        // 할인 이름 값을 반환한다.
         private String getDiscountName() {
+
             return discountName;
         }
 
+        // 쿠폰 할인 방식 값을 반환한다.
         private CouponDiscountType getCouponDiscountType() {
+
             return couponDiscountType;
         }
 
+        // 할인율 또는 정액 할인 값 값을 반환한다.
         private Integer getDiscountValue() {
+
             return discountValue;
         }
 
+        // 적용된 할인 금액 값을 반환한다.
         private Integer getDiscountAmount() {
+
             return discountAmount;
         }
     }

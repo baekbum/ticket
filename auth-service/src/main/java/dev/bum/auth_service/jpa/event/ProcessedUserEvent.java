@@ -25,23 +25,30 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 public class ProcessedUserEvent {
+
+    // 처리한 사용자 이벤트 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "processed_user_event_id")
     private Long processedUserEventId;
 
+    // 중복 처리를 방지하는 멱등성 키.
     @Column(name = "idempotency_key", nullable = false, length = 100)
     private String idempotencyKey;
 
+    // 인증 정보 식별자.
     @Column(name = "auth_id", nullable = false)
     private Long authId;
 
+    // 이벤트 적용 순서를 판별하는 버전.
     @Column(name = "event_version", nullable = false)
     private long eventVersion;
 
+    // 사용자 ID.
     @Column(name = "user_id", nullable = false, length = 50)
     private String userId;
 
+    // 이벤트 종류.
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, length = 20)
     private TopicEventType eventType;
@@ -50,6 +57,7 @@ public class ProcessedUserEvent {
     @Column(name = "request_hash", nullable = false, length = 64)
     private String requestHash;
 
+    // 처리 완료 시각.
     @Column(name = "processed_at", nullable = false)
     private LocalDateTime processedAt;
 }

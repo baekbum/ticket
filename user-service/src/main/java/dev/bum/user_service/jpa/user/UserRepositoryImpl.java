@@ -48,6 +48,7 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User insert(InsertUserRequest info) {
+
         info.setUserId(normalizeUserId(info.getUserId()));
         validateIsUserIdDuplicated(info.getUserId());
 
@@ -73,48 +74,41 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     /**
-     * 아이디가 이미 존재하는지 체크
-     * @param userId
-     */
-    @Override
-    public void validateIsUserIdDuplicated(String userId) {
-        if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
-            throw new UserDuplicateException("해당 사용자 ID는 이미 존재합니다.");
-        }
-    }
-
-
-    /**
      * ID로 유저 검색
      * @param userId
      * @return
      */
     @Override
     public User selectById(String userId) {
+
         return jpaRepository.findByUserId(normalizeUserId(userId))
                 .orElseThrow(() -> new UserNotExistException("해당 유저를 발견하지 못했습니다."));
     }
 
     @Override
     public User selectByNameAndPhoneNumber(String name, String phoneNumber) {
+
         return jpaRepository.findByNameAndPhoneNumber(name, phoneNumber)
                 .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
     }
 
     @Override
     public User selectByNameAndEmail(String name, String email) {
+
         return jpaRepository.findByNameAndEmail(name, email)
                 .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
     }
 
     @Override
     public User selectByUserIdAndNameAndPhoneNumber(String userId, String name, String phoneNumber) {
+
         return jpaRepository.findByUserIdAndNameAndPhoneNumber(normalizeUserId(userId), name, phoneNumber)
                 .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
     }
 
     @Override
     public User selectByUserIdAndNameAndEmail(String userId, String name, String email) {
+
         return jpaRepository.findByUserIdAndNameAndEmail(normalizeUserId(userId), name, email)
                 .orElseThrow(() -> new UserNotExistException("사용자 정보가 일치하지 않습니다."));
     }
@@ -127,6 +121,7 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public Page<User> selectByCond(UserCondRequest cond, Pageable pageable) {
+
         user = QUser.user;
 
         // 1. Pageable 객체에서 Sort 정보를 추출하여 OrderSpecifier 리스트를 생성
@@ -179,6 +174,16 @@ public class UserRepositoryImpl implements UserRepository {
         return new PageImpl<>(content, pageable, totalCount);
     }
 
+    @Override
+    public User selectByIdForUpdate(String userId) {
+
+        User user = jpaRepository.findByUserIdForUpdate(normalizeUserId(userId))
+                .orElseThrow(() -> new UserNotExistException("해당 사용자를 찾을 수 없습니다."));
+        // 이미 영속성 컨텍스트에 있던 회원도 잠금 획득 후 최신 상태와 버전으로 갱신한다.
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+        return user;
+    }
+
     /**
      * 유저 정보 업데이트
      * @param userId
@@ -187,6 +192,7 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User update(String userId, UpdateUserRequest info) {
+
         User user = selectByIdForUpdate(userId);
 
         if (StringUtils.hasText(info.getPassword())) {
@@ -206,6 +212,7 @@ public class UserRepositoryImpl implements UserRepository {
      */
     @Override
     public User delete(String userId) {
+
         User user = selectByIdForUpdate(userId);
         eventStates.deleteById(user.getId());
         jpaRepository.delete(user);
@@ -213,54 +220,66 @@ public class UserRepositoryImpl implements UserRepository {
         return user;
     }
 
+    /**
+     * 아이디가 이미 존재하는지 체크
+     * @param userId
+     */
     @Override
-    public User selectByIdForUpdate(String userId) {
-        User user = jpaRepository.findByUserIdForUpdate(normalizeUserId(userId))
-                .orElseThrow(() -> new UserNotExistException("해당 사용자를 찾을 수 없습니다."));
-        // 이미 영속성 컨텍스트에 있던 회원도 잠금 획득 후 최신 상태와 버전으로 갱신한다.
-        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
-        return user;
-    }
+    public void validateIsUserIdDuplicated(String userId) {
 
+        if (jpaRepository.findByUserId(normalizeUserId(userId)).isPresent()) {
+            throw new UserDuplicateException("해당 사용자 ID는 이미 존재합니다.");
+        }
+    }
 
     // QueryDsl 동적 쿼리 관련 메서드
     private BooleanExpression userIdContains(String userId) {
+
         return StringUtils.hasText(userId) ? user.userId.containsIgnoreCase(userId) : null;
     }
 
     private String normalizeUserId(String userId) {
+
         return StringUtils.hasText(userId) ? userId.trim().toLowerCase(Locale.ROOT) : userId;
     }
 
     private BooleanExpression nameContains(String name) {
+
         return StringUtils.hasText(name) ? user.name.contains(name) : null;
     }
 
     private BooleanExpression phoneNumberContains(String phoneNumber) {
+
         return StringUtils.hasText(phoneNumber) ? user.phoneNumber.contains(phoneNumber) : null;
     }
 
     private BooleanExpression emailContains(String email) {
+
         return StringUtils.hasText(email) ? user.email.contains(email) : null;
     }
 
     private BooleanExpression birthDateEq(LocalDate birthDate) {
+
         return birthDate != null ? user.birthDate.eq(birthDate) : null;
     }
 
     private BooleanExpression addressLike(String address) {
+
         return StringUtils.hasText(address) ? user.address.contains(address) : null;
     }
 
     private BooleanExpression isBlacklistedEq(Boolean isBlacklisted) {
+
         return isBlacklisted != null ? user.isBlacklisted.eq(isBlacklisted) : null;
     }
 
     private BooleanExpression statusEq(UserStatus status) {
+
         return status != null ? user.status.eq(status) : null;
     }
 
     private BooleanExpression gradeEq(String grade) {
+
         return StringUtils.hasText(grade) ? user.grade.eq(UserGrade.valueOf(grade)) : null;
     }
 }

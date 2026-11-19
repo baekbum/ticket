@@ -16,10 +16,12 @@ import java.util.List;
 @Builder
 public class InsertEventBulkRequest {
 
+    // 공통 처리 정보.
     @Valid
     @NotNull
     private InsertEventCommonRequest common;
 
+    // 공연 회차 목록.
     @Valid
     @NotEmpty
     private List<InsertEventScheduleRequest> schedules;

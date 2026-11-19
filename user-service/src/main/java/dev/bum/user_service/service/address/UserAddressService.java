@@ -29,23 +29,36 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class UserAddressService {
 
+    // 사용자 배송지 데이터를 조회하고 저장하는 레포지토리.
     private final UserAddressRepository repository;
 
+    /**
+     * 사용자 배송지를 생성하고 저장한다.
+     */
     @AuditLog(action = "USER_ADDRESS_CREATE", targetType = "USER_ADDRESS")
     public UserAddressResponse insert(String userId, InsertUserAddressRequest info) {
+
         String targetUserId = resolveUserId(userId, info.getUserId());
         log.info("[INSERT ADDRESS] userId : {}, info : {}", targetUserId, info);
         return repository.insert(targetUserId, info).toResponse();
     }
 
+    /**
+     * 사용자 배송지 정보를 식별자로 조회한다.
+     */
     @Transactional(readOnly = true)
     public UserAddressResponse selectById(Long addressId) {
+
         log.info("[SELECT ADDRESS] addressId : {}", addressId);
         return repository.selectById(addressId).toResponse();
     }
 
+    /**
+     * 검색 조건에 맞는 사용자 배송지 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<UserAddressResponse> selectByCond(UserAddressCondRequest cond) {
+
         log.info("[SELECT ADDRESS] {}", cond);
         PageRequest pageRequest = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
         Page<UserAddressResponse> addressPage = repository.selectByCond(cond, pageRequest).map(UserAddress::toResponse);
@@ -59,8 +72,12 @@ public class UserAddressService {
         );
     }
 
+    /**
+     * 사용자 ID로 사용자 배송지 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<UserAddressResponse> selectByUserId(String userId, UserAddressCondRequest cond) {
+
         cond.setUserId(userId);
         if (cond.getStatus() == null) {
             cond.setStatus(AddressStatus.ACTIVE);
@@ -68,16 +85,24 @@ public class UserAddressService {
         return selectByCond(cond);
     }
 
+    /**
+     * 사용자 배송지를 수정한다.
+     */
     @AuditLog(action = "USER_ADDRESS_UPDATE", targetType = "USER_ADDRESS")
     public UserAddressResponse update(Long addressId, UpdateUserAddressRequest info) {
+
         log.info("[UPDATE ADDRESS] addressId : {}, info : {}", addressId, info);
         UserAddress beforeAddress = repository.selectById(addressId);
         setUserAddressUpdateAuditData(beforeAddress, info);
         return repository.update(addressId, info).toResponse();
     }
 
+    /**
+     * 현재 사용자의 배송지 정보를 수정한다.
+     */
     @AuditLog(action = "USER_ADDRESS_UPDATE", targetType = "USER_ADDRESS")
     public UserAddressResponse updateMyAddress(String currentUserId, Long addressId, UpdateUserAddressRequest info) {
+
         UserAddress address = repository.selectById(addressId);
         validateOwner(currentUserId, address);
         log.info("[UPDATE MY ADDRESS] userId : {}, addressId : {}, info : {}", currentUserId, addressId, info);
@@ -85,22 +110,34 @@ public class UserAddressService {
         return repository.update(addressId, info).toResponse();
     }
 
+    /**
+     * 사용자 배송지를 삭제한다.
+     */
     @AuditLog(action = "USER_ADDRESS_DELETE", targetType = "USER_ADDRESS")
     public UserAddressResponse delete(Long addressId) {
+
         log.info("[DELETE ADDRESS] addressId : {}", addressId);
         return repository.delete(addressId).toResponse();
     }
 
+    /**
+     * 현재 사용자의 배송지를 삭제한다.
+     */
     @AuditLog(action = "USER_ADDRESS_DELETE", targetType = "USER_ADDRESS")
     public UserAddressResponse deleteMyAddress(String currentUserId, Long addressId) {
+
         UserAddress address = repository.selectById(addressId);
         validateOwner(currentUserId, address);
         log.info("[DELETE MY ADDRESS] userId : {}, addressId : {}", currentUserId, addressId);
         return repository.delete(addressId).toResponse();
     }
 
+    /**
+     * 사용자 배송지를 일괄 삭제한다.
+     */
     @AuditLog(action = "USER_ADDRESS_DELETE_BULK", targetType = "USER_ADDRESS")
     public void deleteBulk(DeleteUserAddressBulkRequest info) {
+
         if (info.getAddressIds() == null || info.getAddressIds().isEmpty()) {
             throw new IllegalArgumentException("삭제할 배송지 정보가 없습니다.");
         }
@@ -108,24 +145,37 @@ public class UserAddressService {
         info.getAddressIds().forEach(this::delete);
     }
 
+    /**
+     * 요청과 인증 정보에서 대상 사용자 ID를 결정한다.
+     */
     private String resolveUserId(String pathUserId, String bodyUserId) {
+
         if (StringUtils.hasText(pathUserId)) {
             return pathUserId;
         }
+
         if (StringUtils.hasText(bodyUserId)) {
             return bodyUserId;
         }
         throw new IllegalArgumentException("배송지를 등록할 사용자 ID가 없습니다.");
     }
 
+    /**
+     * 요청자가 처리 대상의 소유자인지 검증한다.
+     */
     private void validateOwner(String currentUserId, UserAddress address) {
+
         String addressOwnerId = address.getUser().getUserId();
         if (!StringUtils.hasText(currentUserId) || !currentUserId.equals(addressOwnerId)) {
             throw new AccessDeniedException("본인 주소만 수정하거나 삭제할 수 있습니다.");
         }
     }
 
+    /**
+     * 검색 요청의 정렬 항목과 방향을 구성한다.
+     */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -145,7 +195,11 @@ public class UserAddressService {
         return sort;
     }
 
+    /**
+     * 배송지 변경 전후의 감사 로그 데이터를 구성한다.
+     */
     private void setUserAddressUpdateAuditData(UserAddress beforeAddress, UpdateUserAddressRequest info) {
+
         if (beforeAddress == null) {
             return;
         }
@@ -176,6 +230,9 @@ public class UserAddressService {
         AuditContext.setAfterData(afterData);
     }
 
+    /**
+     * 변경된 문자열 항목을 감사 로그 데이터에 추가한다.
+     */
     private void putChangedText(
             Map<String, Object> beforeData,
             Map<String, Object> afterData,
@@ -185,6 +242,7 @@ public class UserAddressService {
             Object beforeValue,
             Object afterValue
     ) {
+
         if (!StringUtils.hasText(requestedValue)) {
             return;
         }
@@ -197,6 +255,9 @@ public class UserAddressService {
         afterData.put(fieldName, afterValue);
     }
 
+    /**
+     * 변경된 값의 이전 값과 새 값을 감사 로그에 추가한다.
+     */
     private void putChangedValue(
             Map<String, Object> beforeData,
             Map<String, Object> afterData,
@@ -206,6 +267,7 @@ public class UserAddressService {
             Object beforeValue,
             Object afterValue
     ) {
+
         if (requestedValue == null) {
             return;
         }
@@ -218,7 +280,11 @@ public class UserAddressService {
         afterData.put(fieldName, afterValue);
     }
 
+    /**
+     * 휴대전화 번호의 일부를 가린다.
+     */
     private String maskPhoneNumber(String phoneNumber) {
+
         if (!StringUtils.hasText(phoneNumber)) {
             return phoneNumber;
         }

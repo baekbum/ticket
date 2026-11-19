@@ -14,12 +14,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class RefundAccountRequest {
 
+    // 은행 구분.
     @NotNull
     private BankCompany bankCompany;
 
+    // 계좌 번호.
     @NotBlank
     private String accountNumber;
 
+    // 계좌 예금주.
     @NotBlank
     private String accountHolder;
 }

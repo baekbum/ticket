@@ -26,7 +26,7 @@ class PaymentProviderAuthenticationFilterTest {
     void authenticates_valid_payment_provider_token() throws ServletException, IOException {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "POST",
-                "/api/v1/payments/virtual-account/deposit"
+                "/api/v1/banks/virtual-accounts/deposit"
         );
         request.addHeader(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "test-provider-token");
 
@@ -42,7 +42,7 @@ class PaymentProviderAuthenticationFilterTest {
     void rejects_invalid_payment_provider_token() throws ServletException, IOException {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "POST",
-                "/api/v1/payments/virtual-account/deposit"
+                "/api/v1/banks/virtual-accounts/deposit"
         );
         request.addHeader(PaymentProviderAuthenticationFilter.PROVIDER_TOKEN_HEADER, "wrong-token");
 

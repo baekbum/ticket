@@ -13,13 +13,17 @@ import java.util.List;
 @Builder
 public class InsertSeatRequest {
 
+    // 공연 식별자.
     @NotNull
     private Long eventId;
 
+    // 좌석 구역 식별자.
     private Long areaId;
 
+    // 조회 또는 처리 모드.
     private SeatInsertMode mode;
 
+    // 좌석 생성에 사용할 구역별 설정.
     @NotNull
     private List<InsertSeatAreaConfig> insertSeatAreaConfigs;
 }

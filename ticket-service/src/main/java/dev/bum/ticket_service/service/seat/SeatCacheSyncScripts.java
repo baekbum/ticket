@@ -3,7 +3,6 @@ package dev.bum.ticket_service.service.seat;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 final class SeatCacheSyncScripts {
-    private SeatCacheSyncScripts() { }
 
     // 값 갱신과 잠금 검사를 원자적으로 수행하고, 다른 예매의 새 선점은 해제하지 않는다.
     static final DefaultRedisScript<Long> APPLY = new DefaultRedisScript<>("""
@@ -17,4 +16,9 @@ final class SeatCacheSyncScripts {
             redis.call('del', KEYS[2])
             return 1
             """, Long.class);
+
+    /**
+     * 외부에서 인스턴스를 생성하지 못하도록 제한한다.
+     */
+    private SeatCacheSyncScripts() { }
 }

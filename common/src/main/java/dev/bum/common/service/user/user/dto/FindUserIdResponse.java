@@ -11,5 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FindUserIdResponse {
 
+    // 마스킹한 사용자 ID.
     private String maskedUserId;
 }

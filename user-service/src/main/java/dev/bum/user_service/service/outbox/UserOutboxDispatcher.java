@@ -14,13 +14,20 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 public class UserOutboxDispatcher {
-    private final UserOutboxEventJpaRepository repository;
-    private final UserOutboxPublisher publisher;
 
+    // 사용자 Outbox 이벤트 데이터를 조회하고 저장하는 레포지토리.
+    private final UserOutboxEventJpaRepository repository;
+    // 사용자 Outbox 이벤트 이벤트 발행을 담당하는 도구.
+    private final UserOutboxPublisher publisher;
+    // 한 번에 처리할 발행 대기 이벤트 수.
     @Value("${app.user-outbox.batch-size:100}")
     private int batchSize = 100;
 
+    /**
+     * 사용자 Outbox 이벤트 처리에서 발행 오류를 처리하면서 이벤트를 발행한다.
+     */
     public void publishSafely(Long outboxId) {
+
         // 중단 요청이 있으면 인터럽트 표시를 유지한 채 다음 이벤트 발행을 건너뛴다.
         if (Thread.currentThread().isInterrupted()) {
             return;
@@ -34,7 +41,11 @@ public class UserOutboxDispatcher {
         }
     }
 
+    /**
+     * 사용자 Outbox 이벤트 처리에서 발행 대기 이벤트를 재시도한다.
+     */
     public void retryPendingEvents() {
+
         repository.findReadyIds(UserOutboxStatus.PENDING, LocalDateTime.now(), PageRequest.of(0, batchSize))
                 .forEach(this::publishSafely);
     }

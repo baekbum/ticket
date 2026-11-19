@@ -38,9 +38,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SeatManagementService {
 
+    // 좌석 데이터를 조회하고 저장하는 레포지토리.
     private final SeatRepository repository;
+    // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventRepository eventRepository;
+    // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
     private final AreaJpaRepository areaJpaRepository;
+    // 좌석 캐시 업무 처리를 담당하는 서비스.
     private final SeatCacheService seatCacheService;
 
     /**
@@ -49,6 +53,7 @@ public class SeatManagementService {
      */
     @AuditLog(action = "SEAT_CREATE", targetType = "SEAT")
     public void insert(InsertSeatRequest info) {
+
         SeatInsertTarget target = resolveSingleTarget(info);
         SeatInsertMode mode = resolveMode(info.getMode());
 
@@ -62,6 +67,7 @@ public class SeatManagementService {
      */
     @AuditLog(action = "SEAT_CREATE_GROUP", targetType = "SEAT")
     public void insertByEventGroupCode(InsertSeatGroupRequest info) {
+
         SeatInsertMode mode = resolveMode(info.getMode());
         List<Event> events = eventRepository.selectByEventGroupCode(info.getEventGroupCode());
         List<SeatInsertTarget> targets = events.stream()
@@ -83,7 +89,194 @@ public class SeatManagementService {
         }
     }
 
+    /**
+     * Redis를 이용한 다중 좌석 선점 메서드
+     * @param request
+     */
+    @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
+    @Observed(name = "ticket.seat.occupy", contextualName = "ticket seat occupy")
+    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
+
+        return seatCacheService.occupySeat(request);
+    }
+
+    /**
+     * ID를 통해 좌석 정보 조회 메서드
+     * @param id
+     * @return
+     */
+    @Transactional(readOnly = true)
+    public SeatResponse selectById(Long id) {
+
+        log.info("[SELECT] SeatId : {}", id);
+        return repository.selectById(id).toDto();
+    }
+
+    /**
+     * 조건을 통해 좌석 정보 조회 메서드
+     * @param cond
+     * @return
+     */
+    @Transactional(readOnly = true)
+    public CustomPageResponse<SeatResponse> selectByCond(SeatCondRequest cond) {
+
+        log.info("[SELECT] cond : {}", cond.toString());
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+
+        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable).map(Seat::toDto);
+
+        return CustomPageResponse.of(
+                seatPage.getContent(),
+                seatPage.getSize(),
+                seatPage.getNumber(),
+                seatPage.getTotalElements(),
+                seatPage.getTotalPages()
+        );
+    }
+
+    /**
+     * 조건에 맞는 좌석을 조회하고 캐시 점유 상태를 반영한다.
+     */
+    @Transactional(readOnly = true)
+    public CustomPageResponse<SeatResponse> selectByCondWithCacheStatus(SeatCondRequest cond) {
+
+        log.info("[SELECT-TEST] cond : {}", cond.toString());
+        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
+
+        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable)
+                .map(Seat::toDto)
+                .map(seatCacheService::applyCachedStatus);
+
+        return CustomPageResponse.of(
+                seatPage.getContent(),
+                seatPage.getSize(),
+                seatPage.getNumber(),
+                seatPage.getTotalElements(),
+                seatPage.getTotalPages()
+        );
+    }
+
+    /**
+     * 공연의 좌석 캐시와 잠금 상태를 점검한다.
+     */
+    @Transactional(readOnly = true)
+    public SeatRedisInspectResponse inspectEventSeatCache(
+            Long eventId,
+            String zone,
+            Integer row,
+            Integer col,
+            int limit,
+            SeatRedisInspectMode mode
+    ) {
+
+        return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit, mode);
+    }
+
+    /**
+     * 좌석 정보 수정 메서드
+     * @param info
+     */
+    @AuditLog(action = "SEAT_UPDATE", targetType = "SEAT")
+    public void update(UpdateSeatRequest info) {
+
+        log.info("[UPDATE] {}", info.toString());
+        repository.update(info);
+    }
+
+    /**
+     * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
+     * @param seatId
+     * @param userId
+     * @return
+     */
+    @AuditLog(action = "SEAT_LOCK", targetType = "SEAT")
+    public String lockSeatCacheForUser(Long seatId, String userId) {
+
+        return seatCacheService.lockSeatCacheForUser(seatId, userId);
+    }
+
+    /**
+     * 단일 좌석 Redis 테스트 선점을 해제하는 메서드
+     * @param seatId
+     * @return
+     */
+    @AuditLog(action = "SEAT_UNLOCK", targetType = "SEAT")
+    public String unlockSeatCache(Long seatId) {
+
+        return seatCacheService.unlockSeatCache(seatId);
+    }
+
+    /**
+     * 공연의 좌석 캐시 잠금을 해제한다.
+     */
+    @AuditLog(action = "SEAT_UNLOCK_EVENT", targetType = "SEAT")
+    public String unlockEventSeatCache(Long eventId) {
+
+        return seatCacheService.unlockEventSeatCache(eventId);
+    }
+
+    /**
+     * 좌석 정보 삭제 메서드
+     * @param id
+     */
+    @AuditLog(action = "SEAT_DELETE", targetType = "SEAT")
+    public void delete(Long id) {
+
+        log.info("[DELETE] SeatId : {}", id);
+        repository.delete(id);
+    }
+
+    /**
+     * 선택한 좌석 일괄 삭제 메서드
+     * @param info
+     */
+    @AuditLog(action = "SEAT_DELETE_BULK", targetType = "SEAT")
+    public void deleteBySeatIdList(DeleteSeatRequest info) {
+
+        if (!info.getSeatIdList().isEmpty()) {
+            log.info("[DELETE] {}", info);
+            repository.deleteByIdList(info.getSeatIdList());
+        }
+    }
+
+    /**
+     * 구역 기준 좌석 삭제 메서드
+     * @param areaId
+     */
+    @AuditLog(action = "SEAT_DELETE_BY_AREA", targetType = "SEAT")
+    public void deleteByAreaId(Long areaId) {
+
+        log.info("[DELETE] AreaId : {}", areaId);
+        repository.deleteByAreaId(areaId);
+    }
+
+    /**
+     * 공연 단위 좌석 캐시를 Redis에서 삭제하는 메서드
+     * @param eventId
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.delete-event", contextualName = "ticket seat cache delete event")
+    public String deleteEventSeatsFromCache(Long eventId) {
+
+        return seatCacheService.deleteEventSeatsFromCache(eventId);
+    }
+
+    /**
+     * 구역 단위 좌석 캐시를 Redis에서 삭제하는 메서드
+     * @param areaId
+     * @return
+     */
+    @Observed(name = "ticket.seat-cache.delete-area", contextualName = "ticket seat cache delete area")
+    public String deleteAreaSeatsFromCache(Long areaId) {
+
+        return seatCacheService.deleteAreaSeatsFromCache(areaId);
+    }
+
+    /**
+     * 단일 처리 대상을 결정한다.
+     */
     private SeatInsertTarget resolveSingleTarget(InsertSeatRequest info) {
+
         Area area = info.getAreaId() != null
                 ? areaJpaRepository.findById(info.getAreaId())
                 .orElseThrow(() -> new AreaNotExistException("해당 구역 정보는 존재하지 않습니다."))
@@ -96,7 +289,11 @@ public class SeatManagementService {
                 .build();
     }
 
+    /**
+     * 묶음 처리 대상을 결정한다.
+     */
     private SeatInsertTarget resolveGroupTarget(Event event, String areaLayoutKey) {
+
         Area area = areaJpaRepository.findByEvent_EventIdAndLayoutKey(event.getEventId(), areaLayoutKey)
                 .orElseThrow(() -> new AreaNotExistException("같은 구역 배치 키를 가진 구역 정보가 존재하지 않습니다."));
 
@@ -107,7 +304,11 @@ public class SeatManagementService {
                 .build();
     }
 
+    /**
+     * 기존 좌석과 요청한 구역 설정을 검증한다.
+     */
     private void validateExistingSeats(List<SeatInsertTarget> targets, SeatInsertMode mode) {
+
         if (mode != SeatInsertMode.FAIL_IF_EXISTS) return;
 
         targets.stream()
@@ -121,7 +322,11 @@ public class SeatManagementService {
                 });
     }
 
+    /**
+     * 좌석 재구성이 필요한 경우 기존 좌석을 삭제한다.
+     */
     private void deleteExistingSeatsIfNeeded(List<SeatInsertTarget> targets, SeatInsertMode mode) {
+
         if (mode != SeatInsertMode.REPLACE) return;
 
         targets.stream()
@@ -129,11 +334,19 @@ public class SeatManagementService {
                 .forEach(target -> repository.deleteByAreaId(target.areaId));
     }
 
+    /**
+     * 구역 식별자별 좌석 수를 집계한다.
+     */
     private long seatCountByAreaId(Long areaId) {
+
         return repository.countByAreaId(areaId);
     }
 
+    /**
+     * 구역별 설정에 따라 좌석을 생성하고 저장한다.
+     */
     private void insertSeats(InsertSeatRequest info, SeatInsertMode mode) {
+
         if (!info.getInsertSeatAreaConfigs().isEmpty()) {
             for (InsertSeatAreaConfig config : info.getInsertSeatAreaConfigs()) {
                 log.info("[INSERT] EventId : {}, Zone : {}, Rows : {}, Cols : {}, Price : {}, Grade : {}",
@@ -154,107 +367,12 @@ public class SeatManagementService {
         }
     }
 
+    /**
+     * 요청에 적용할 처리 모드를 결정한다.
+     */
     private SeatInsertMode resolveMode(SeatInsertMode mode) {
+
         return mode != null ? mode : SeatInsertMode.FAIL_IF_EXISTS;
-    }
-
-    @Builder
-    private static class SeatInsertTarget {
-        private Long eventId;
-        private Long areaId;
-        private String areaName;
-    }
-
-    /**
-     * ID를 통해 좌석 정보 조회 메서드
-     * @param id
-     * @return
-     */
-    @Transactional(readOnly = true)
-    public SeatResponse selectById(Long id) {
-        log.info("[SELECT] SeatId : {}", id);
-        return repository.selectById(id).toDto();
-    }
-
-    /**
-     * 조건을 통해 좌석 정보 조회 메서드
-     * @param cond
-     * @return
-     */
-    @Transactional(readOnly = true)
-    public CustomPageResponse<SeatResponse> selectByCond(SeatCondRequest cond) {
-        log.info("[SELECT] cond : {}", cond.toString());
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-
-        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable).map(Seat::toDto);
-
-        return CustomPageResponse.of(
-                seatPage.getContent(),
-                seatPage.getSize(),
-                seatPage.getNumber(),
-                seatPage.getTotalElements(),
-                seatPage.getTotalPages()
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public CustomPageResponse<SeatResponse> selectByCondWithCacheStatus(SeatCondRequest cond) {
-        log.info("[SELECT-TEST] cond : {}", cond.toString());
-        Pageable pageable = PageRequest.of(cond.getPage(), cond.getSize(), makeSortInfo(cond.getSort()));
-
-        Page<SeatResponse> seatPage = repository.selectByCond(cond, pageable)
-                .map(Seat::toDto)
-                .map(seatCacheService::applyCachedStatus);
-
-        return CustomPageResponse.of(
-                seatPage.getContent(),
-                seatPage.getSize(),
-                seatPage.getNumber(),
-                seatPage.getTotalElements(),
-                seatPage.getTotalPages()
-        );
-    }
-
-    /**
-     * 좌석 정보 수정 메서드
-     * @param info
-     */
-    @AuditLog(action = "SEAT_UPDATE", targetType = "SEAT")
-    public void update(UpdateSeatRequest info) {
-        log.info("[UPDATE] {}", info.toString());
-        repository.update(info);
-    }
-
-    /**
-     * 좌석 정보 삭제 메서드
-     * @param id
-     */
-    @AuditLog(action = "SEAT_DELETE", targetType = "SEAT")
-    public void delete(Long id) {
-        log.info("[DELETE] SeatId : {}", id);
-        repository.delete(id);
-    }
-
-    /**
-     * 선택한 좌석 일괄 삭제 메서드
-     * @param info
-     */
-    @AuditLog(action = "SEAT_DELETE_BULK", targetType = "SEAT")
-    public void deleteBySeatIdList(DeleteSeatRequest info) {
-        if (!info.getSeatIdList().isEmpty()) {
-            log.info("[DELETE] {}", info);
-            repository.deleteByIdList(info.getSeatIdList());
-        }
-    }
-
-    /**
-     * 구역 기준 좌석 삭제 메서드
-     * @param areaId
-     */
-    @AuditLog(action = "SEAT_DELETE_BY_AREA", targetType = "SEAT")
-    public void deleteByAreaId(Long areaId) {
-        log.info("[DELETE] AreaId : {}", areaId);
-        repository.deleteByAreaId(areaId);
     }
 
     /**
@@ -265,6 +383,7 @@ public class SeatManagementService {
      */
     @Observed(name = "ticket.seat-cache.warm-up-event", contextualName = "ticket seat cache warm up event")
     public String warmUpEventSeatsToCache(Long eventId, SeatCacheWarmUpMode mode) {
+
         return seatCacheService.warmUpEventSeatsToCache(eventId, mode);
     }
 
@@ -276,68 +395,8 @@ public class SeatManagementService {
      */
     @Observed(name = "ticket.seat-cache.warm-up-area", contextualName = "ticket seat cache warm up area")
     public String warmUpAreaSeatsToCache(Long areaId, SeatCacheWarmUpMode mode) {
+
         return seatCacheService.warmUpAreaSeatsToCache(areaId, mode);
-    }
-
-    /**
-     * 공연 단위 좌석 캐시를 Redis에서 삭제하는 메서드
-     * @param eventId
-     * @return
-     */
-    @Observed(name = "ticket.seat-cache.delete-event", contextualName = "ticket seat cache delete event")
-    public String deleteEventSeatsFromCache(Long eventId) {
-        return seatCacheService.deleteEventSeatsFromCache(eventId);
-    }
-
-    /**
-     * 구역 단위 좌석 캐시를 Redis에서 삭제하는 메서드
-     * @param areaId
-     * @return
-     */
-    @Observed(name = "ticket.seat-cache.delete-area", contextualName = "ticket seat cache delete area")
-    public String deleteAreaSeatsFromCache(Long areaId) {
-        return seatCacheService.deleteAreaSeatsFromCache(areaId);
-    }
-
-    @Transactional(readOnly = true)
-    public SeatRedisInspectResponse inspectEventSeatCache(Long eventId, String zone, Integer row, Integer col, int limit, SeatRedisInspectMode mode) {
-        return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit, mode);
-    }
-
-    /**
-     * 단일 좌석을 특정 사용자로 Redis 테스트 선점 처리하는 메서드
-     * @param seatId
-     * @param userId
-     * @return
-     */
-    @AuditLog(action = "SEAT_LOCK", targetType = "SEAT")
-    public String lockSeatCacheForUser(Long seatId, String userId) {
-        return seatCacheService.lockSeatCacheForUser(seatId, userId);
-    }
-
-    /**
-     * 단일 좌석 Redis 테스트 선점을 해제하는 메서드
-     * @param seatId
-     * @return
-     */
-    @AuditLog(action = "SEAT_UNLOCK", targetType = "SEAT")
-    public String unlockSeatCache(Long seatId) {
-        return seatCacheService.unlockSeatCache(seatId);
-    }
-
-    @AuditLog(action = "SEAT_UNLOCK_EVENT", targetType = "SEAT")
-    public String unlockEventSeatCache(Long eventId) {
-        return seatCacheService.unlockEventSeatCache(eventId);
-    }
-
-    /**
-     * Redis를 이용한 다중 좌석 선점 메서드
-     * @param request
-     */
-    @AuditLog(action = "SEAT_OCCUPY", targetType = "SEAT")
-    @Observed(name = "ticket.seat.occupy", contextualName = "ticket seat occupy")
-    public SeatOccupyResponse occupySeat(SeatOccupyRequest request) {
-        return seatCacheService.occupySeat(request);
     }
 
     /**
@@ -346,6 +405,7 @@ public class SeatManagementService {
      * @return
      */
     private Sort makeSortInfo(List<String> sorts) {
+
         Sort sort = Sort.unsorted();
         if (sorts != null && !sorts.isEmpty()) {
             List<Sort.Order> orders = new ArrayList<>();
@@ -363,5 +423,16 @@ public class SeatManagementService {
         }
 
         return sort;
+    }
+
+    @Builder
+    private static class SeatInsertTarget {
+
+        // 공연 식별자.
+        private Long eventId;
+        // 좌석 구역 식별자.
+        private Long areaId;
+        // 좌석 구역 이름.
+        private String areaName;
     }
 }

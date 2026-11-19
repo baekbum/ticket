@@ -30,6 +30,12 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final DateTimePath<java.time.LocalDateTime> expiresAt = createDateTime("expiresAt", java.time.LocalDateTime.class);
 
+    public final EnumPath<dev.bum.common.service.ticket.payment.enums.BankCompany> gatewayBankCompany = createEnum("gatewayBankCompany", dev.bum.common.service.ticket.payment.enums.BankCompany.class);
+
+    public final DateTimePath<java.time.LocalDateTime> gatewayExpiresAt = createDateTime("gatewayExpiresAt", java.time.LocalDateTime.class);
+
+    public final BooleanPath gatewayIssuePending = createBoolean("gatewayIssuePending");
+
     public final ListPath<PaymentHistory, QPaymentHistory> histories = this.<PaymentHistory, QPaymentHistory>createList("histories", PaymentHistory.class, QPaymentHistory.class, PathInits.DIRECT2);
 
     public final StringPath idempotencyKey = createString("idempotencyKey");
@@ -41,6 +47,8 @@ public class QPayment extends EntityPathBase<Payment> {
     public final NumberPath<Long> paymentId = createNumber("paymentId", Long.class);
 
     public final StringPath paymentNo = createString("paymentNo");
+
+    public final StringPath pgPaymentId = createString("pgPaymentId");
 
     public final QPaymentProcess process;
 
@@ -84,4 +92,3 @@ public class QPayment extends EntityPathBase<Payment> {
     }
 
 }
-

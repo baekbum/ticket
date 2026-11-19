@@ -36,8 +36,10 @@ import java.time.format.DateTimeFormatter;
 @AllArgsConstructor
 public class ReservationDiscount {
 
+    // 날짜와 시각을 표시하는 형식.
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // 예매 할인 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "reservation_discount_id")
@@ -80,7 +82,9 @@ public class ReservationDiscount {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 외부 응답에 사용할 DTO로 변환한다.
     public ReservationDiscountResponse toResponse() {
+
         return ReservationDiscountResponse.builder()
                 .reservationDiscountId(this.reservationDiscountId)
                 .userCouponId(this.userCoupon != null ? this.userCoupon.getUserCouponId() : null)

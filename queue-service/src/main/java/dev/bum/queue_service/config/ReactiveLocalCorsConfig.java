@@ -12,8 +12,10 @@ import java.util.List;
 @Configuration(proxyBeanMethods = false)
 @Profile("local")
 public class ReactiveLocalCorsConfig {
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
         // 공통 MVC 설정과 동일한 로컬 브라우저 출처를 허용한다.
         configuration.setAllowedOrigins(List.of(

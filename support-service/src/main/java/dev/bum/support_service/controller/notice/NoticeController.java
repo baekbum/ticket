@@ -26,11 +26,13 @@ public class NoticeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
+
         return ResponseEntity.ok(noticeService.selectPublished(category, keyword, page, size));
     }
 
     @GetMapping("/select/id/{noticeId}")
     public ResponseEntity<NoticeResponse> selectById(@PathVariable Long noticeId) {
+
         return ResponseEntity.ok(noticeService.selectPublishedById(noticeId));
     }
 }

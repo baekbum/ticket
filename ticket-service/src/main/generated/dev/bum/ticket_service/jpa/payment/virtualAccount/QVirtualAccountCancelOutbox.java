@@ -23,19 +23,33 @@ public class QVirtualAccountCancelOutbox extends EntityPathBase<VirtualAccountCa
 
     public final NumberPath<Integer> amount = createNumber("amount", Integer.class);
 
+    public final EnumPath<dev.bum.common.service.ticket.payment.enums.BankCompany> bankCompany = createEnum("bankCompany", dev.bum.common.service.ticket.payment.enums.BankCompany.class);
+
     public final StringPath bankName = createString("bankName");
+
+    public final StringPath buyerReference = createString("buyerReference");
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
     public final DateTimePath<java.time.LocalDateTime> deliveredAt = createDateTime("deliveredAt", java.time.LocalDateTime.class);
 
+    public final NumberPath<Long> deliveryAttempt = createNumber("deliveryAttempt", Long.class);
+
+    public final StringPath gatewayReason = createString("gatewayReason");
+
+    public final StringPath gatewayResult = createString("gatewayResult");
+
     public final StringPath lastErrorType = createString("lastErrorType");
+
+    public final DateTimePath<java.time.LocalDateTime> leaseUntil = createDateTime("leaseUntil", java.time.LocalDateTime.class);
 
     public final DateTimePath<java.time.LocalDateTime> nextAttemptAt = createDateTime("nextAttemptAt", java.time.LocalDateTime.class);
 
     public final NumberPath<Long> outboxId = createNumber("outboxId", Long.class);
 
     public final StringPath paymentNo = createString("paymentNo");
+
+    public final StringPath pgPaymentId = createString("pgPaymentId");
 
     public final NumberPath<Integer> retryCount = createNumber("retryCount", Integer.class);
 

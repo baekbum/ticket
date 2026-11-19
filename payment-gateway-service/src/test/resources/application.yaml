@@ -2,6 +2,12 @@ token:
   secret: test-token-secret-value-that-is-long-enough-for-tests
 
 app:
+  checkout:
+    signing-key: test-pg-checkout-signing-key-independent-from-user-jwt
+  merchants:
+    credentials:
+      ticksy:
+        - ${app.ticket.service-token}
   payment-provider:
     token: test-payment-provider-token
   ticket:

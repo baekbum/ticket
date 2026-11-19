@@ -28,6 +28,7 @@ public class AdminDltSlackTestController {
 
     @GetMapping("/config")
     public ResponseEntity<DltSlackTestConfigResponse> config() {
+
         return ResponseEntity.ok(new DltSlackTestConfigResponse(
                 kafkaDltSlackProperties.isEnabled(),
                 StringUtils.hasText(kafkaDltSlackProperties.getWebhookUrl()),
@@ -37,6 +38,7 @@ public class AdminDltSlackTestController {
 
     @PostMapping("/send")
     public ResponseEntity<DltSlackTestResponse> send(@Valid @RequestBody DltSlackTestRequest request) {
+
         String skippedReason = skippedReason();
         boolean sent = false;
         if (skippedReason == null) {
@@ -67,9 +69,11 @@ public class AdminDltSlackTestController {
     }
 
     private String skippedReason() {
+
         if (!kafkaDltSlackProperties.isEnabled()) {
             return "DLT Slack 알림이 비활성화되어 있습니다.";
         }
+
         if (!StringUtils.hasText(kafkaDltSlackProperties.getWebhookUrl())) {
             return "Slack webhook URL이 설정되어 있지 않습니다.";
         }
@@ -77,6 +81,7 @@ public class AdminDltSlackTestController {
     }
 
     private String testExceptionMessage(String exceptionMessage) {
+
         if (StringUtils.hasText(exceptionMessage)) {
             return "[TEST] " + exceptionMessage;
         }
@@ -84,10 +89,12 @@ public class AdminDltSlackTestController {
     }
 
     private int valueOrDefault(Integer value, int defaultValue) {
+
         return value == null ? defaultValue : value;
     }
 
     private long valueOrDefault(Long value, long defaultValue) {
+
         return value == null ? defaultValue : value;
     }
 }

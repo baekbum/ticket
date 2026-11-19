@@ -10,10 +10,12 @@ public class ObservabilityConfig {
 
     @Bean
     public ObservationPredicate actuatorServerRequestObservationPredicate() {
+
         return (name, context) -> {
             if (isSecurityFilterchainObservation(context.getContextualName())) {
                 return false;
             }
+
             if (context instanceof ServerRequestObservationContext serverContext) {
                 return !serverContext.getCarrier().getURI().getPath().contains("/actuator");
             }
@@ -22,6 +24,7 @@ public class ObservabilityConfig {
     }
 
     private boolean isSecurityFilterchainObservation(String contextualName) {
+
         return contextualName != null && contextualName.startsWith("security filterchain");
     }
 }

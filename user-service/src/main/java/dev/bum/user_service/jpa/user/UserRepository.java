@@ -7,15 +7,26 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface UserRepository {
+
     User insert(InsertUserRequest info);
-    void validateIsUserIdDuplicated(String userId);
+
     User selectById(String userId);
+
     User selectByIdForUpdate(String userId);
+
     User selectByNameAndPhoneNumber(String name, String phoneNumber);
+
     User selectByNameAndEmail(String name, String email);
+
     User selectByUserIdAndNameAndPhoneNumber(String userId, String name, String phoneNumber);
+
     User selectByUserIdAndNameAndEmail(String userId, String name, String email);
+
     Page<User> selectByCond(UserCondRequest cond, Pageable pageable);
+
     User update(String userId, UpdateUserRequest info);
+
     User delete(String userId);
+
+    void validateIsUserIdDuplicated(String userId);
 }

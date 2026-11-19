@@ -16,10 +16,12 @@ public class PaymentProviderTokenValidator {
     public PaymentProviderTokenValidator(
             @Value("${app.payment-provider.token}") String providerToken
     ) {
+
         this.providerToken = providerToken;
     }
 
     public void validate(String requestedToken) {
+
         if (!StringUtils.hasText(requestedToken)
                 || !MessageDigest.isEqual(
                 providerToken.getBytes(StandardCharsets.UTF_8),

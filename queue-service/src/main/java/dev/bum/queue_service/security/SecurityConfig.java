@@ -19,11 +19,16 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 @EnableWebFluxSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
     private final JwtTokenProvider jwtTokenProvider;
     private final ReactiveTokenStateStore tokenStateStore;
 
     @Bean
-    public SecurityWebFilterChain filterChain(ServerHttpSecurity http, ObjectProvider<CorsConfigurationSource> corsSources) {
+    public SecurityWebFilterChain filterChain(
+            ServerHttpSecurity http,
+            ObjectProvider<CorsConfigurationSource> corsSources
+    ) {
+
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

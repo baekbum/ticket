@@ -41,21 +41,28 @@ public class EventManagementController {
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
+
         return ResponseEntity.ok(eventManagementService.insertBulk(readEvent(event, InsertEventBulkRequest.class), posterImage));
     }
 
     @GetMapping("/select/id/{eventId}")
     public ResponseEntity<EventResponse> selectById(@PathVariable("eventId") Long eventId) {
+
         return ResponseEntity.ok(eventManagementService.selectById(eventId));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<EventResponse>> selectByCond(@RequestBody EventCondRequest cond) {
+
         return ResponseEntity.ok(eventManagementService.selectByCond(cond));
     }
 
     @PutMapping(value = "/update/id/{eventId}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<EventResponse> update(@PathVariable("eventId") Long eventId, @Valid @RequestBody UpdateEventRequest info) {
+    public ResponseEntity<EventResponse> update(
+            @PathVariable("eventId") Long eventId,
+            @Valid @RequestBody UpdateEventRequest info
+    ) {
+
         return ResponseEntity.ok(eventManagementService.update(eventId, info));
     }
 
@@ -65,21 +72,25 @@ public class EventManagementController {
             @RequestPart("event") String event,
             @RequestPart(value = "posterImage", required = false) MultipartFile posterImage
     ) {
+
         return ResponseEntity.ok(eventManagementService.update(eventId, readEvent(event, UpdateEventRequest.class), posterImage));
     }
 
     @DeleteMapping("/delete/id/{eventId}")
     public ResponseEntity<EventResponse> delete(@PathVariable("eventId") Long eventId) {
+
         return ResponseEntity.ok(eventManagementService.delete(eventId));
     }
 
     @DeleteMapping("/delete/bulk")
     public ResponseEntity<Void> deleteBulk(@Valid @RequestBody DeleteEventBulkRequest info) {
+
         eventManagementService.deleteBulk(info);
         return ResponseEntity.ok().build();
     }
 
     private <T> T readEvent(String event, Class<T> type) {
+
         try {
             return objectMapper.readValue(event, type);
         } catch (JsonProcessingException e) {

@@ -26,6 +26,7 @@ public class PaymentRefundProcessManagementController {
     public ResponseEntity<CustomPageResponse<PaymentRefundProcessResponse>> selectByCond(
             @RequestBody PaymentRefundProcessCondRequest cond
     ) {
+
         return ResponseEntity.ok(paymentRefundProcessService.selectByCond(cond));
     }
 
@@ -33,6 +34,7 @@ public class PaymentRefundProcessManagementController {
     public ResponseEntity<PaymentRefundProcessResponse> completeLocal(
             @PathVariable("paymentRefundProcessId") Long paymentRefundProcessId
     ) {
+
         return ResponseEntity.ok(paymentRefundProcessService.completeLocal(paymentRefundProcessId));
     }
 }

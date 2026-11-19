@@ -21,9 +21,14 @@ import org.springframework.util.StringUtils;
 @Transactional
 public class NoticeManagementService {
 
+    // 공지사항 데이터를 조회하고 저장하는 레포지토리.
     private final NoticeRepository noticeRepository;
 
+    /**
+     * 공지사항을 생성하고 저장한다.
+     */
     public NoticeResponse insert(CreateNoticeRequest request, String authorId) {
+
         if (!StringUtils.hasText(authorId)) {
             throw new IllegalArgumentException("공지 작성자 정보가 필요합니다.");
         }
@@ -42,13 +47,21 @@ public class NoticeManagementService {
         return NoticeMapper.toResponse(noticeRepository.save(notice));
     }
 
+    /**
+     * 공지사항 정보를 식별자로 조회한다.
+     */
     @Transactional(readOnly = true)
     public NoticeResponse selectById(Long noticeId) {
+
         return NoticeMapper.toResponse(findById(noticeId));
     }
 
+    /**
+     * 공지사항 정보를 조회한다.
+     */
     @Transactional(readOnly = true)
     public CustomPageResponse<NoticeResponse> select(NoticeSearchRequest request) {
+
         Page<NoticeResponse> result = noticeRepository.findForManagement(
                         request,
                         PageRequest.of(request.getPage(), request.getSize())
@@ -64,7 +77,11 @@ public class NoticeManagementService {
         );
     }
 
+    /**
+     * 공지사항을 수정한다.
+     */
     public NoticeResponse update(Long noticeId, UpdateNoticeRequest request) {
+
         Notice notice = findById(noticeId);
         notice.update(request.title().trim(), request.content().trim(), request.category());
         notice.changePinned(request.pinned());
@@ -72,16 +89,28 @@ public class NoticeManagementService {
         return NoticeMapper.toResponse(notice);
     }
 
+    /**
+     * 공지사항을 삭제한다.
+     */
     public void delete(Long noticeId) {
+
         Notice notice = findById(noticeId);
         notice.archive();
     }
 
+    /**
+     * 공지사항 정보를 식별자로 조회한다.
+     */
     private Notice findById(Long noticeId) {
+
         return noticeRepository.findById(noticeId);
     }
 
+    /**
+     * 처리 상태를 변경한다.
+     */
     private void changeStatus(Notice notice, PublicationStatus requestedStatus) {
+
         if (notice.getStatus() == requestedStatus) {
             return;
         }

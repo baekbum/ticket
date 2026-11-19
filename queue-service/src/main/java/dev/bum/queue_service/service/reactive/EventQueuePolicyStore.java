@@ -13,17 +13,17 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class EventQueuePolicyStore {
+
+    // 대기열 상태와 토큰을 저장하고 조회하는 Redis 클라이언트.
     private final ReactiveStringRedisTemplate redis;
+    // 대기열 작업에 사용할 Redis 키 생성 도구.
     private final QueueRedisKeys keys;
 
-    public Mono<Void> validate(Long eventId, boolean existing) {
-        return redis.execute(QueueRedisScripts.VALIDATE_POLICY, List.of(keys.policyKey(eventId)),
-                        List.of(existing ? "1" : "0")).next()
-                .defaultIfEmpty("POLICY_UNAVAILABLE")
-                .flatMap(result -> "OK".equals(result) ? Mono.empty() : Mono.error(new EventPolicyException(result)));
-    }
-
+    /**
+     * 공연 처리에서 전달받은 변경 사항을 반영한다.
+     */
     public Mono<Long> apply(EventQueuePolicyEvent event) {
+
         return Mono.defer(() -> {
             if (event.eventId() == null || event.eventId() <= 0 || event.version() <= 0
                     || event.status() == null || event.admissionSize() <= 0) {
@@ -37,5 +37,16 @@ public class EventQueuePolicyStore {
                     .switchIfEmpty(Mono.error(new org.springframework.dao.DataAccessResourceFailureException(
                             "공연 정책 저장 결과를 확인할 수 없습니다.")));
         });
+    }
+
+    /**
+     * 공연 처리에서 요청 값과 현재 상태가 유효한지 검증한다.
+     */
+    public Mono<Void> validate(Long eventId, boolean existing) {
+
+        return redis.execute(QueueRedisScripts.VALIDATE_POLICY, List.of(keys.policyKey(eventId)),
+                        List.of(existing ? "1" : "0")).next()
+                .defaultIfEmpty("POLICY_UNAVAILABLE")
+                .flatMap(result -> "OK".equals(result) ? Mono.empty() : Mono.error(new EventPolicyException(result)));
     }
 }

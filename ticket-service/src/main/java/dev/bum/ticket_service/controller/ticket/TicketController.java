@@ -26,6 +26,7 @@ public class TicketController {
             @AuthenticationPrincipal String currentUserId,
             @PathVariable("reservationId") long reservationId
     ) {
+
         return ResponseEntity.ok(ticketService.selectMyTicketsByReservationId(currentUserId, reservationId));
     }
 }

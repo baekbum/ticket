@@ -13,15 +13,14 @@ public class KafkaTopicConfig {
     private static final String DLT_SUFFIX = ".DLT";
     private static final String DLT_RETENTION_MS = "1209600000";
     private static final String DLT_RETENTION_BYTES = "1073741824";
-
     @Value("${topic.audit.log.name}")
     private String auditLogTopicName;
-
     @Value("${topic.login.log.name}")
     private String loginLogTopicName;
 
     @Bean
     public NewTopic auditLogTopic() {
+
         return TopicBuilder.name(auditLogTopicName)
                 .partitions(3)
                 .replicas(1)
@@ -30,6 +29,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic auditLogDltTopic() {
+
         return TopicBuilder.name(auditLogTopicName + DLT_SUFFIX)
                 .partitions(3)
                 .replicas(1)
@@ -40,6 +40,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic loginLogDltTopic() {
+
         return TopicBuilder.name(loginLogTopicName + DLT_SUFFIX)
                 .partitions(3)
                 .replicas(1)

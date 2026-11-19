@@ -6,14 +6,31 @@ import dev.bum.common.service.support.inquiry.enums.InquiryStatus;
 import java.time.LocalDateTime;
 
 public record InquiryResponse(
+        // 문의 식별자.
         Long inquiryId,
+
+        // 요청자 ID.
         String requesterId,
+
+        // 분류.
         InquiryCategory category,
+
+        // 제목.
         String title,
+
+        // 본문.
         String content,
+
+        // 문의 상태.
         InquiryStatus status,
+
+        // 문의 답변 내용.
         InquiryAnswerResponse answer,
+
+        // 생성 시각.
         LocalDateTime createdAt,
+
+        // 마지막 수정 시각.
         LocalDateTime updatedAt
 ) {
 }

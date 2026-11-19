@@ -36,27 +36,49 @@ public class CouponManagementController {
 
     @PostMapping("/insert")
     public ResponseEntity<CouponResponse> insert(@Valid @RequestBody InsertCouponRequest request) {
+
         return ResponseEntity.ok(couponService.insert(request));
     }
 
-    @PutMapping("/update/id/{couponId}")
-    public ResponseEntity<CouponResponse> update(@PathVariable("couponId") Long couponId, @Valid @RequestBody UpdateCouponRequest request) {
-        return ResponseEntity.ok(couponService.update(couponId, request));
+    @PostMapping("/issue")
+    public ResponseEntity<UserCouponResponse> issue(@Valid @RequestBody IssueCouponRequest request) {
+
+        return ResponseEntity.ok(userCouponService.issue(request));
     }
 
     @GetMapping("/select/id/{couponId}")
     public ResponseEntity<CouponResponse> selectById(@PathVariable("couponId") Long couponId) {
+
         return ResponseEntity.ok(couponService.selectById(couponId));
     }
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<CouponResponse>> selectByCond(@RequestBody CouponCondRequest cond) {
+
         return ResponseEntity.ok(couponService.selectByCond(cond));
     }
 
-    @PostMapping("/issue")
-    public ResponseEntity<UserCouponResponse> issue(@Valid @RequestBody IssueCouponRequest request) {
-        return ResponseEntity.ok(userCouponService.issue(request));
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<UserCouponResponse>> selectByUserId(@PathVariable("userId") String userId) {
+
+        return ResponseEntity.ok(userCouponService.selectByUserId(userId));
+    }
+
+    @PostMapping("/user-coupon/select")
+    public ResponseEntity<CustomPageResponse<UserCouponResponse>> selectUserCouponsByCond(
+            @RequestBody UserCouponCondRequest cond
+    ) {
+
+        return ResponseEntity.ok(userCouponService.selectByCond(cond));
+    }
+
+    @PutMapping("/update/id/{couponId}")
+    public ResponseEntity<CouponResponse> update(
+            @PathVariable("couponId") Long couponId,
+            @Valid @RequestBody UpdateCouponRequest request
+    ) {
+
+        return ResponseEntity.ok(couponService.update(couponId, request));
     }
 
     @PutMapping("/user-coupon/update/id/{userCouponId}")
@@ -64,16 +86,7 @@ public class CouponManagementController {
             @PathVariable("userCouponId") Long userCouponId,
             @Valid @RequestBody UpdateUserCouponRequest request
     ) {
+
         return ResponseEntity.ok(userCouponService.update(userCouponId, request));
-    }
-
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<UserCouponResponse>> selectByUserId(@PathVariable("userId") String userId) {
-        return ResponseEntity.ok(userCouponService.selectByUserId(userId));
-    }
-
-    @PostMapping("/user-coupon/select")
-    public ResponseEntity<CustomPageResponse<UserCouponResponse>> selectUserCouponsByCond(@RequestBody UserCouponCondRequest cond) {
-        return ResponseEntity.ok(userCouponService.selectByCond(cond));
     }
 }

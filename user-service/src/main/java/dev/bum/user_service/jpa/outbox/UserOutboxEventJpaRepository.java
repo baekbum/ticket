@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserOutboxEventJpaRepository extends JpaRepository<UserOutboxEvent, Long> {
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from UserOutboxEvent e where e.outboxId = :id")
     Optional<UserOutboxEvent> findByIdForUpdate(@Param("id") Long id);
@@ -29,5 +30,9 @@ public interface UserOutboxEventJpaRepository extends JpaRepository<UserOutboxEv
               )
             order by e.outboxId
             """)
-    List<Long> findReadyIds(@Param("status") UserOutboxStatus status, @Param("now") LocalDateTime now, Pageable pageable);
+    List<Long> findReadyIds(
+            @Param("status") UserOutboxStatus status,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
 }

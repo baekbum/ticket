@@ -38,6 +38,7 @@ public class KafkaDlqManagementController {
 
     @GetMapping("/topics")
     public ResponseEntity<List<DlqTopicResponse>> topics() {
+
         return ResponseEntity.ok(kafkaDlqQueryService.topics());
     }
 
@@ -50,6 +51,7 @@ public class KafkaDlqManagementController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "status", required = false) DlqMessageStatus status
     ) {
+
         return ResponseEntity.ok(kafkaDlqQueryService.messages(dltTopic, partition, fromOffset, size, page, status));
     }
 
@@ -59,37 +61,48 @@ public class KafkaDlqManagementController {
             @RequestParam("partition") int partition,
             @RequestParam("offset") long offset
     ) {
+
         return ResponseEntity.ok(kafkaDlqQueryService.detail(dltTopic, partition, offset));
     }
 
-    @PostMapping("/replay")
-    public ResponseEntity<DlqMessageHandleResponse> replay(@Valid @RequestBody DlqMessageHandleRequest request) {
-        return ResponseEntity.ok(kafkaDlqReplayService.replay(request));
-    }
-
-    @PostMapping("/replay/modified")
-    public ResponseEntity<DlqMessageHandleResponse> replayModified(@Valid @RequestBody DlqMessageModifiedReplayRequest request) {
-        return ResponseEntity.ok(kafkaDlqReplayService.replayModified(request));
-    }
-
-    @PostMapping("/discard")
-    public ResponseEntity<DlqMessageHandleResponse> discard(@Valid @RequestBody DlqMessageHandleRequest request) {
-        return ResponseEntity.ok(kafkaDlqReplayService.discard(request));
-    }
-
-    @PostMapping("/replay/release-stalled")
-    public ResponseEntity<Void> releaseStalled(@Valid @RequestBody DlqMessageHandleRequest request) {
-        kafkaDlqReplayService.releaseStalled(request);
-        return ResponseEntity.noContent().build();
-    }
-
     @PostMapping("/histories")
-    public ResponseEntity<Page<DlqMessageHandleHistoryResponse>> histories(@RequestBody(required = false) DlqMessageHandleHistoryCondRequest cond) {
+    public ResponseEntity<Page<DlqMessageHandleHistoryResponse>> histories(
+            @RequestBody(required = false) DlqMessageHandleHistoryCondRequest cond
+    ) {
+
         return ResponseEntity.ok(kafkaDlqHistoryService.histories(cond));
     }
 
     @GetMapping("/histories/{id}")
     public ResponseEntity<DlqMessageHandleHistoryResponse> history(@PathVariable("id") Long id) {
+
         return ResponseEntity.ok(kafkaDlqHistoryService.history(id));
+    }
+
+    @PostMapping("/replay")
+    public ResponseEntity<DlqMessageHandleResponse> replay(@Valid @RequestBody DlqMessageHandleRequest request) {
+
+        return ResponseEntity.ok(kafkaDlqReplayService.replay(request));
+    }
+
+    @PostMapping("/replay/modified")
+    public ResponseEntity<DlqMessageHandleResponse> replayModified(
+            @Valid @RequestBody DlqMessageModifiedReplayRequest request
+    ) {
+
+        return ResponseEntity.ok(kafkaDlqReplayService.replayModified(request));
+    }
+
+    @PostMapping("/replay/release-stalled")
+    public ResponseEntity<Void> releaseStalled(@Valid @RequestBody DlqMessageHandleRequest request) {
+
+        kafkaDlqReplayService.releaseStalled(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/discard")
+    public ResponseEntity<DlqMessageHandleResponse> discard(@Valid @RequestBody DlqMessageHandleRequest request) {
+
+        return ResponseEntity.ok(kafkaDlqReplayService.discard(request));
     }
 }

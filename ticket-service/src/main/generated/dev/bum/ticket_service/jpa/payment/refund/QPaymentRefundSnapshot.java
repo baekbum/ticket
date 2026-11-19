@@ -32,6 +32,8 @@ public class QPaymentRefundSnapshot extends EntityPathBase<PaymentRefundSnapshot
 
     public final NumberPath<Long> paymentRefundSnapshotId = createNumber("paymentRefundSnapshotId", Long.class);
 
+    public final StringPath refundAccountCiphertext = createString("refundAccountCiphertext");
+
     public final StringPath refundAccountHolder = createString("refundAccountHolder");
 
     public final StringPath refundAccountNumberHash = createString("refundAccountNumberHash");

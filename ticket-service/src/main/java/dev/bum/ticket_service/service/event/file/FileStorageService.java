@@ -22,22 +22,34 @@ import java.util.Set;
 @Service
 public class FileStorageService {
 
+    // 포스터 업로드에서 허용할 이미지 확장자 목록.
     private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
+    // 포스터 저장 경로에 포함할 날짜 형식.
     private static final DateTimeFormatter POSTER_DIR_FORMATTER = DateTimeFormatter.ofPattern("yy_MM");
-
+    // 업로드 파일을 저장할 최상위 경로.
     private final Path uploadRoot;
+    // 업로드 파일의 공개 URL 접두사.
     private final String publicUrlPrefix;
+    // 처리 시각을 제공하는 시계.
     private final Clock clock;
 
+    /**
+     * 전달받은 값으로 저장 파일 객체를 초기화한다.
+     */
     @Autowired
     public FileStorageService(
             @Value("${app.upload.root:uploads}") String uploadRoot,
             @Value("${app.upload.public-url-prefix:/ticket/uploads}") String publicUrlPrefix
     ) {
+
         this(uploadRoot, publicUrlPrefix, Clock.systemDefaultZone());
     }
 
+    /**
+     * 전달받은 값으로 저장 파일 객체를 초기화한다.
+     */
     FileStorageService(String uploadRoot, String publicUrlPrefix, Clock clock) {
+
         this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
         this.publicUrlPrefix = trimTrailingSlash(publicUrlPrefix);
         this.clock = clock;
@@ -47,6 +59,7 @@ public class FileStorageService {
      * 이벤트 포스터 이미지를 검증한 뒤 월별 업로드 경로에 저장하고 공개 URL을 반환한다.
      */
     public String saveEventPoster(MultipartFile file) {
+
         if (file == null || file.isEmpty()) {
             return null;
         }
@@ -74,6 +87,7 @@ public class FileStorageService {
      * 공개 URL이 업로드 경로에 속하면 연결된 포스터 파일을 삭제한다.
      */
     public void deleteByPublicUrl(String publicUrl) {
+
         if (!StringUtils.hasText(publicUrl) || !publicUrl.startsWith(publicUrlPrefix + "/")) {
             return;
         }
@@ -96,6 +110,7 @@ public class FileStorageService {
      * 업로드 파일의 확장자와 content-type이 이미지인지 검증한다.
      */
     private void validateImage(MultipartFile file, String extension) {
+
         if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("jpg, jpeg, png, webp의 확장자만 등록 가능합니다.");
         }
@@ -110,6 +125,7 @@ public class FileStorageService {
      * 원본 파일명에서 소문자 확장자를 추출한다.
      */
     private String extractExtension(String originalFilename) {
+
         String filename = StringUtils.cleanPath(originalFilename != null ? originalFilename : "");
         int dotIndex = filename.lastIndexOf('.');
 
@@ -120,7 +136,16 @@ public class FileStorageService {
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
     }
 
-    private Path copyWithUniqueName(MultipartFile file, Path posterDir, String originalFilename, String extension) throws IOException {
+    /**
+     * 중복되지 않는 이름으로 파일을 복사한다.
+     */
+    private Path copyWithUniqueName(
+            MultipartFile file,
+            Path posterDir,
+            String originalFilename,
+            String extension
+    ) throws IOException {
+
         for (int sequence = 0; ; sequence++) {
             String storedFileName = buildStoredFileName(originalFilename, extension, sequence);
             Path target = posterDir.resolve(storedFileName).normalize();
@@ -153,7 +178,11 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * 저장에 사용할 고유 파일 이름을 구성한다.
+     */
     private String buildStoredFileName(String originalFilename, String extension, int sequence) {
+
         String filename = StringUtils.cleanPath(originalFilename != null ? originalFilename : "");
         filename = filename.replace("\\", "/");
         int slashIndex = filename.lastIndexOf('/');
@@ -176,6 +205,7 @@ public class FileStorageService {
      * URL prefix 비교가 흔들리지 않도록 마지막 슬래시를 제거한다.
      */
     private String trimTrailingSlash(String value) {
+
         if (value == null || value.isBlank()) {
             return "";
         }

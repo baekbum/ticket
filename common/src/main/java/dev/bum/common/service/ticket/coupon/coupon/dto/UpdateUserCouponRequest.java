@@ -15,8 +15,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class UpdateUserCouponRequest {
 
+    // 사용자 쿠폰 상태.
     @NotNull
     private UserCouponStatus status;
 
+    // 만료 시각.
     private LocalDateTime expiresAt;
 }

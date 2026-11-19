@@ -15,11 +15,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class IssueCouponRequest {
 
+    // 사용자 ID.
     @NotBlank
     private String userId;
 
+    // 쿠폰 식별자.
     @NotNull
     private Long couponId;
 
+    // 만료 시각.
     private LocalDateTime expiresAt;
 }

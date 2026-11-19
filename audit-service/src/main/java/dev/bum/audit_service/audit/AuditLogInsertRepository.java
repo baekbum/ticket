@@ -12,11 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @RequiredArgsConstructor
 public class AuditLogInsertRepository {
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public int insertIfAbsent(AuditLogEntity entry) {
+
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("idempotencyKey", entry.getIdempotencyKey())
                 .addValue("requestHash", entry.getRequestHash())
@@ -54,6 +56,7 @@ public class AuditLogInsertRepository {
     }
 
     private String json(Object value) {
+
         if (value == null) return null;
         try {
             return objectMapper.writeValueAsString(value);

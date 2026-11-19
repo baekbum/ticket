@@ -39,43 +39,56 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TicketPurchaseLock {
 
+    // 고유 식별자.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 사용자 ID.
     @Column(name = "user_id", length = 100, nullable = false, updatable = false)
     private String userId;
 
+    // 구매 제한 적용 범위.
     @Enumerated(EnumType.STRING)
     @Column(name = "limit_scope", length = 20, nullable = false, updatable = false)
     private TicketLimitScope limitScope;
 
+    // 구매 제한 범위를 식별하는 키.
     @Column(name = "scope_key", length = 100, nullable = false, updatable = false)
     private String scopeKey;
 
+    // 티켓 수량.
     @Column(name = "ticket_count", nullable = false)
     private long ticketCount;
 
+    // 구매 제한에 사용되는 수량을 증가시킨다.
     public void increase(long amount, int limit) {
+
         validateIncrease(amount, limit);
         ticketCount += amount;
     }
 
+    // 수량 증가 후 구매 제한을 초과하지 않는지 검증한다.
     public void validateIncrease(long amount, int limit) {
+
         if (amount <= 0) throw new IllegalArgumentException("추가 매수는 양수여야 합니다.");
+
         if (ticketCount + amount > limit) {
             throw new TicketLimitExceededException(
                     "더 이상 좌석을 예매할 수 없습니다. 1인당 최대 " + limit + "매까지 예매 가능합니다.");
         }
     }
 
+    // 구매 제한에 사용되는 수량을 감소시킨다.
     public void decrease(long amount) {
+
         if (amount < 0 || amount > ticketCount) {
             throw new IllegalStateException("구매 매수 차감 정보가 일치하지 않습니다.");
         }
         ticketCount -= amount;
     }
 
+    // 생성 시각.
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

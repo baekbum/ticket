@@ -23,6 +23,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<Object, Object> kafkaTemplate,
             KafkaDltSlackNotifier kafkaDltSlackNotifier
     ) {
+
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> {

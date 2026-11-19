@@ -34,15 +34,14 @@ public class AuditLogAspect {
     private static final String RESULT_FAILURE = "FAILURE";
     private static final String LOGIN_ACTION = "LOGIN";
     private static final String PASSWORD_AUTH_METHOD = "PASSWORD";
-
     private final AuditLogProducer auditLogProducer;
     private final LoginLogProducer loginLogProducer;
-
     @Value("${spring.application.name:auth-service}")
     private String serviceName;
 
     @Around("@annotation(auditLog)")
     public Object writeAuditLog(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
+
         try {
             Object result = joinPoint.proceed();
             saveAuditLog(joinPoint, auditLog, RESULT_SUCCESS, null);
@@ -61,6 +60,7 @@ public class AuditLogAspect {
             String result,
             Throwable throwable
     ) {
+
         try {
             HttpServletRequest request = currentRequest();
             String actorId = findActorId(joinPoint.getArgs());
@@ -108,6 +108,7 @@ public class AuditLogAspect {
     }
 
     private void publishAuditLog(AuditLogEvent event, String action) {
+
         try {
             auditLogProducer.send(event);
         } catch (Exception exception) {
@@ -116,6 +117,7 @@ public class AuditLogAspect {
     }
 
     private void publishLoginLog(LoginLogEvent event) {
+
         try {
             loginLogProducer.send(event);
         } catch (Exception exception) {
@@ -124,6 +126,7 @@ public class AuditLogAspect {
     }
 
     private HttpServletRequest currentRequest() {
+
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             return attributes.getRequest();
         }
@@ -132,6 +135,7 @@ public class AuditLogAspect {
     }
 
     private String findActorId(Object[] args) {
+
         String actorId = AuditContext.getActorId();
         if (StringUtils.hasText(actorId)) {
             return actorId;
@@ -147,6 +151,7 @@ public class AuditLogAspect {
     }
 
     private String findActorType(String actorId) {
+
         String actorType = AuditContext.getActorType();
         if (StringUtils.hasText(actorType)) {
             return actorType;
@@ -160,6 +165,7 @@ public class AuditLogAspect {
     }
 
     private String reasonOf(Throwable throwable) {
+
         if (throwable == null) {
             return null;
         }
@@ -174,10 +180,12 @@ public class AuditLogAspect {
     }
 
     private String failureReasonOf(Throwable throwable) {
+
         return throwable != null ? throwable.getClass().getSimpleName() : null;
     }
 
     private String ipAddressOf(HttpServletRequest request) {
+
         if (request == null) {
             return null;
         }
@@ -191,6 +199,7 @@ public class AuditLogAspect {
     }
 
     private String normalizeIp(String ipAddress) {
+
         if ("0:0:0:0:0:0:0:1".equals(ipAddress) || "::1".equals(ipAddress)) {
             return "127.0.0.1";
         }
@@ -199,6 +208,7 @@ public class AuditLogAspect {
     }
 
     private String firstHeaderOf(HttpServletRequest request, String... names) {
+
         if (request == null) {
             return null;
         }
@@ -214,6 +224,7 @@ public class AuditLogAspect {
     }
 
     private String valueOrNewUuid(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -222,6 +233,7 @@ public class AuditLogAspect {
     }
 
     private String valueOrNewTraceId(String value) {
+
         if (StringUtils.hasText(value)) {
             return value;
         }
@@ -230,6 +242,7 @@ public class AuditLogAspect {
     }
 
     private String headerOf(HttpServletRequest request, String name) {
+
         if (request == null) {
             return null;
         }
@@ -238,6 +251,7 @@ public class AuditLogAspect {
     }
 
     private Map<String, Object> metadataOf(ProceedingJoinPoint joinPoint, String actorId) {
+
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("className", signature.getDeclaringType().getSimpleName());
@@ -251,6 +265,7 @@ public class AuditLogAspect {
     }
 
     private String blankToNull(String value) {
+
         return StringUtils.hasText(value) ? value : null;
     }
 }

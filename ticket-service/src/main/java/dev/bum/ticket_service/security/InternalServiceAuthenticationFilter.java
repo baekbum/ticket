@@ -21,7 +21,6 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
     private static final String SERVICE_TOKEN_HEADER = "X-Service-Token";
     private static final RequestMatcher INTERNAL_PAYMENT_REQUEST_MATCHER =
             new AntPathRequestMatcher("/api/*/payments/internal/**");
-
     private final InternalServiceTokenValidator internalServiceTokenValidator;
 
     @Override
@@ -30,6 +29,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+
         if (isInternalPaymentRequest(request)) {
             authenticateInternalService(request);
         }
@@ -38,6 +38,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void authenticateInternalService(HttpServletRequest request) {
+
         try {
             internalServiceTokenValidator.validate(request.getHeader(SERVICE_TOKEN_HEADER));
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -52,6 +53,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean isInternalPaymentRequest(HttpServletRequest request) {
+
         return INTERNAL_PAYMENT_REQUEST_MATCHER.matches(request);
     }
 }

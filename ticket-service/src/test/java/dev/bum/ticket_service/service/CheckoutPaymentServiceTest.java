@@ -5,7 +5,7 @@ import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
-import dev.bum.ticket_service.service.checkout.payment.CheckoutVirtualAccountService;
+import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +30,7 @@ class CheckoutPaymentServiceTest {
         Payment payment = Payment.builder()
                 .method(PaymentMethod.CREDIT_CARD)
                 .status(PaymentStatus.READY)
+                .expiresAt(java.time.LocalDateTime.now().plusMinutes(10))
                 .build();
         CheckoutConfirmRequest request = CheckoutConfirmRequest.builder()
                 .paymentMethod(PaymentMethod.CREDIT_CARD)
@@ -38,6 +39,7 @@ class CheckoutPaymentServiceTest {
         checkoutPaymentService.process(request, payment);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.READY);
+        assertThat(payment.getGatewayExpiresAt()).isEqualTo(payment.getExpiresAt());
         verifyNoInteractions(virtualAccountService);
     }
 

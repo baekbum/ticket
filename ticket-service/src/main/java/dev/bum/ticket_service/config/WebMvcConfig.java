@@ -14,11 +14,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final Path uploadRoot;
 
     public WebMvcConfig(@Value("${app.upload.root:uploads}") String uploadRoot) {
+
         this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(uploadRoot.toUri().toString());
     }
