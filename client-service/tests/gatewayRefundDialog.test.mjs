@@ -84,15 +84,15 @@ test('신규 PG 카드는 계좌 입력 없이 공통 신청 API로 환불한다
     return url.endsWith('/refunds') ? [] : payload;
   });
   try {
-    assert.equal(button(view.document, '환불 신청'), undefined);
+    assert.equal(button(view.document, '취소 신청'), undefined);
     assert.equal(view.document.querySelectorAll('.my-ticket-seat-table button').length, 0);
     const checkboxes = view.document.querySelectorAll('.my-ticket-seat-table input[type="checkbox"]');
     await act(async () => { checkboxes[0].click(); });
     assert.ok(view.document.querySelector('.my-ticket-seat-heading .my-ticket-refund-button'));
     await act(async () => { checkboxes[0].click(); });
-    assert.equal(button(view.document, '환불 신청'), undefined);
+    assert.equal(button(view.document, '취소 신청'), undefined);
     await act(async () => { checkboxes[0].click(); checkboxes[1].click(); });
-    await act(async () => { button(view.document, '환불 신청').click(); });
+    await act(async () => { button(view.document, '취소 신청').click(); });
     assert.ok(!view.document.body.textContent.includes('환불 계좌 정보'));
     await act(async () => { button(view.document, '환불하기').click(); });
     assert.deepEqual(calls, [{ url: '/ticket/api/v1/reservation/1/refunds',
@@ -121,12 +121,13 @@ test('무통장 환불 선택을 모두 해제하면 신청 버튼과 기존 계
   });
   try {
     const checkbox = view.document.querySelector('.my-ticket-seat-table input[type="checkbox"]');
-    assert.equal(button(view.document, '환불 신청'), undefined);
+    assert.equal(button(view.document, '취소 신청'), undefined);
     await act(async () => { checkbox.click(); });
+    assert.equal(view.document.querySelectorAll('.my-ticket-seat-table input:checked').length, 1);
     await act(async () => { view.document.querySelector('.my-ticket-seat-heading button').click(); });
     assert.ok(view.document.querySelector('.my-ticket-refund-form'));
     await act(async () => { checkbox.click(); });
-    assert.equal(button(view.document, '환불 신청'), undefined);
+    assert.equal(button(view.document, '취소 신청'), undefined);
     assert.equal(view.document.querySelector('.my-ticket-refund-form'), null);
     assert.deepEqual(posts, []);
   } finally { await view.close(); }
