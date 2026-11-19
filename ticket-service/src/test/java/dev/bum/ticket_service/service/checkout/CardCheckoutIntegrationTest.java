@@ -65,7 +65,6 @@ class CardCheckoutIntegrationTest {
     @Autowired CardCheckoutService service;
     @Autowired CardCheckoutCommandService commands;
     @Autowired CardPaymentNotificationService notifications;
-    @Autowired CardPaymentService cardPayments;
     @Autowired PaymentJpaRepository payments;
     @Autowired ReservationJpaRepository reservations;
     @Autowired EventJpaRepository events;
@@ -224,9 +223,7 @@ class CardCheckoutIntegrationTest {
         assertThatThrownBy(() -> notifications.receive(wrong)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test void newPgCardsCannotUseLegacyApprovalOrChangeToAnUnrelatedBankTransaction() {
-        assertThatThrownBy(() -> cardPayments.validateBeforeApproval(new CardPaymentValidationRequest(number,"owner")))
-                .isInstanceOf(IllegalArgumentException.class);
+    @Test void newPgCardsCannotChangeToAnUnrelatedBankTransaction() {
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(tx ->
                 payments.findByPaymentNo(number).orElseThrow().switchToBankTransfer())).isInstanceOf(IllegalStateException.class);
         verifyNoInteractions(gateway);

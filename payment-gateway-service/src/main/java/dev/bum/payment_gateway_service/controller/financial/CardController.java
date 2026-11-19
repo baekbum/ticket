@@ -3,7 +3,6 @@ package dev.bum.payment_gateway_service.controller.financial;
 import dev.bum.payment_gateway_service.dto.card.*;
 import dev.bum.common.service.paymentgateway.refund.*;
 import dev.bum.payment_gateway_service.service.financial.card.CardPaymentRefundService;
-import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.service.financial.card.CardApprovalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

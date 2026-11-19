@@ -1,4 +1,6 @@
-# PG 가맹점·거래·식별자 설계
+#> 2026-11-18 모델 정리: 구형 PG 환불·은행 Outbox 테이블, 미사용 DTO와 Ticksy 구형 카드 콜백도 제거했다. 아래 이전 설계·호환 경로 설명보다 [현재 정리 범위](payment-legacy-model-cleanup.md)와 [환불 멱등성](refund-idempotency.md)을 우선한다.
+
+ PG 가맹점·거래·식별자 설계
 
 2026-11-15 Ticksy 신규 카드 checkout의 PG prepare·ID 저장과 브라우저의 거래 전용 세션 승인·조회, 공통 결과 통보를 연결했다. 실제 호출·인증·응답 유실 복구·기존 카드 호환 및 현재 수단 전환/환불 제한은 [카드 checkout 연동](ticksy-gateway-card-checkout.md)을 우선한다.
 

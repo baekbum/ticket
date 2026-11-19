@@ -403,12 +403,12 @@ class GatewayCorePostgresTest {
     }
 
     @Test
-    void actualFinancialColumnsAreNullableStringsAndConstrainedWithoutChangingTheCardLedger() {
+    void actualFinancialColumnsAreRequiredStringsAndConstrainedWithoutChangingTheCardLedger() {
         assertThat(jdbc.queryForObject("""
                 select count(*) from information_schema.columns where table_schema = 'public'
                   and table_name in ('dummy_card_payment_histories', 'dummy_virtual_accounts')
                   and column_name = 'pg_payment_id' and data_type = 'character varying'
-                  and character_maximum_length = 44 and is_nullable = 'YES'
+                  and character_maximum_length = 44 and is_nullable = 'NO'
                 """, Long.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("""
                 select count(*) from pg_constraint where conname in (
@@ -450,7 +450,7 @@ class GatewayCorePostgresTest {
     }
 
     @Test
-    void accountIssuanceStateAndJsonSnapshotAreStoredAndLegacyLookupsExcludeLinkedAccounts() {
+    void accountIssuanceStateAndJsonSnapshotAreStored() {
         GatewayPayment payment = payment(merchant(), "VERIFY-ISSUANCE", PaymentMethod.BANK_TRANSFER);
         histories.saveAndFlush(GatewayPaymentHistory.registered(payment));
         DummyVirtualAccount account = accounts.saveAndFlush(account(payment.getPgPaymentId(), payment.getPgPaymentId(),
@@ -469,9 +469,6 @@ class GatewayCorePostgresTest {
                 .containsEntry("accountNumber", "VERIFY-ISSUE-1000")
                 .containsEntry("bankStatus", "WAITING_DEPOSIT");
         assertThat(accounts.findByPgPaymentId(payment.getPgPaymentId())).isPresent();
-        assertThat(accounts.findByPaymentNo(payment.getPgPaymentId())).isEmpty();
-        assertThat(accounts.findByPaymentNoForUpdate(payment.getPgPaymentId())).isEmpty();
-        assertThat(accounts.findByAccountNumber(account.getAccountNumber())).isEmpty();
     }
 
     @ParameterizedTest
@@ -502,23 +499,6 @@ class GatewayCorePostgresTest {
             assertThatThrownBy(() -> accounts.saveAndFlush(account(payment.getPgPaymentId(), "VERIFY-SECOND-BANK", "VERIFY-4000")))
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
-    }
-
-    @Test
-    void actualDatabasePreservesSeveralLegacyRowsWithoutGatewayLinks() {
-        DummyCard card = card();
-        for (int index = 1; index <= 2; index++) {
-            approvals.saveAndFlush(DummyCardPaymentHistory.approved(card, "verify", "VERIFY-LEGACY-CARD-" + index,
-                    "VERIFY-TX-" + index, "4111-****-****-1111", new BigDecimal("100.00")));
-            accounts.saveAndFlush(DummyVirtualAccount.issue("VERIFY-LEGACY-BANK-" + index, BankCompany.KB,
-                    "VERIFY-LEGACY-" + index, new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59)));
-        }
-        entityManager.clear();
-
-        assertThat(approvals.findByPaymentNo("VERIFY-LEGACY-CARD-1").orElseThrow().getPgPaymentId()).isNull();
-        assertThat(approvals.findByPaymentNo("VERIFY-LEGACY-CARD-2").orElseThrow().getPgPaymentId()).isNull();
-        assertThat(accounts.findPgPaymentIdByAccountNumber("VERIFY-LEGACY-1")).isEmpty();
-        assertThat(accounts.findPgPaymentIdByAccountNumber("VERIFY-LEGACY-2")).isEmpty();
     }
 
     DummyCard card() {
@@ -571,5 +551,22 @@ class GatewayCorePostgresTest {
         assertThat(stored.isClosed()).isTrue();
         assertThat(stored.getCreatedAt()).isNotNull();
         assertThatCode(() -> stored.validate(request)).doesNotThrowAnyException();
+    }
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void actualDatabaseRejectsFinancialRowsWithoutGatewayLinks(PaymentMethod method) {
+        if (method == PaymentMethod.CREDIT_CARD) {
+            assertThatThrownBy(() -> jdbc.update("""
+                    insert into dummy_card_payment_histories
+                        (user_id, payment_no, card_company, card_number_masked, amount, status, approved_at)
+                    values ('verify', 'VERIFY-MISSING-PG-CARD', 'SHINHAN', '4111-****-****-1111', 100, 'APPROVED', CURRENT_TIMESTAMP)
+                    """)).isInstanceOf(DataIntegrityViolationException.class).rootCause().hasMessageContaining("pg_payment_id");
+        } else {
+            assertThatThrownBy(() -> jdbc.update("""
+                    insert into dummy_virtual_accounts
+                        (payment_no, bank_company, bank_name, account_number, amount, status, expires_at)
+                    values ('VERIFY-MISSING-PG-BANK', 'KB', 'KB', 'VERIFY-MISSING-PG', 100, 'WAITING_DEPOSIT', CURRENT_TIMESTAMP)
+                    """)).isInstanceOf(DataIntegrityViolationException.class).rootCause().hasMessageContaining("pg_payment_id");
+        }
     }
 }

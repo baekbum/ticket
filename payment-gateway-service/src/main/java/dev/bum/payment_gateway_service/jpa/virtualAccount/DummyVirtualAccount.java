@@ -51,11 +51,11 @@ public class DummyVirtualAccount {
     @Column(name = "virtual_account_id")
     private Long virtualAccountId;
 
-    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 기존 API 전환 전에는 null이며 입금 이력은 이 계좌를 통해 연결된다.
-    @Column(name = "pg_payment_id", length = 44, updatable = false)
+    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 계좌마다 필수이며 입금 이력은 이 계좌를 통해 연결된다.
+    @Column(name = "pg_payment_id", nullable = false, length = 44, updatable = false)
     private String pgPaymentId;
 
-    // 기존 계좌는 Ticksy 결제번호, 신규 PG 연결 계좌는 pgPaymentId를 쓰는 은행 내부 참조값.
+    // 은행 내부 원거래 참조값. PG 금융 요청에서는 pgPaymentId를 사용한다.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
@@ -112,26 +112,6 @@ public class DummyVirtualAccount {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 기존 API의 가상계좌를 PG 연결 없이 발급한다. 진입점 전환이 끝나면 연결된 생성 경로를 사용한다.
-    public static DummyVirtualAccount issue(
-            String paymentNo,
-            BankCompany bankCompany,
-            String accountNumber,
-            BigDecimal amount,
-            LocalDateTime expiresAt
-    ) {
-
-        return DummyVirtualAccount.builder()
-                .paymentNo(paymentNo)
-                .bankCompany(bankCompany)
-                .bankName(bankCompany.getBankName())
-                .accountNumber(accountNumber)
-                .amount(amount)
-                .status(VirtualAccountPaymentStatus.WAITING_DEPOSIT)
-                .expiresAt(expiresAt)
-                .build();
-    }
-
     // PG 거래를 참조하는 계좌를 발급한다. 가맹점·금액·은행 검증은 PG 계층에서 수행한다.
     public static DummyVirtualAccount issue(
             String pgPaymentId,
@@ -144,10 +124,9 @@ public class DummyVirtualAccount {
 
         Objects.requireNonNull(pgPaymentId, "가상계좌에 연결할 PG 결제 식별자가 필요합니다.");
 
-        DummyVirtualAccount account = issue(paymentNo, bankCompany, accountNumber, amount, expiresAt);
-        account.pgPaymentId = pgPaymentId;
-
-        return account;
+        return DummyVirtualAccount.builder().pgPaymentId(pgPaymentId).paymentNo(paymentNo)
+                .bankCompany(bankCompany).bankName(bankCompany.getBankName()).accountNumber(accountNumber)
+                .amount(amount).status(VirtualAccountPaymentStatus.WAITING_DEPOSIT).expiresAt(expiresAt).build();
     }
 
     // 가상계좌 처리에서 입금 결과를 반영한다.

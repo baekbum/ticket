@@ -20,8 +20,5 @@ public enum PaymentRefundProcessStatus {
     WITHDRAW_REQUESTED,
 
     // 은행에서 미실행 종료가 확정된 환불 신청.
-    WITHDRAWN,
-
-    // 기존 환불 경로에서 미실행 요청을 종료하고 다른 요청으로 대체한 상태.
-    SUPERSEDED
+    WITHDRAWN
 }

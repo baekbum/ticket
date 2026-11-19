@@ -55,15 +55,15 @@ public class DummyCardPaymentHistory {
     @JoinColumn(name = "dummy_card_id")
     private DummyCard dummyCard;
 
-    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 기존 API 전환 전에는 null이며 카드 원장에는 저장하지 않는다.
-    @Column(name = "pg_payment_id", length = 44, updatable = false)
+    // 연결된 PG 거래의 yyyyMMdd + UUID 문자열. 카드 승인·실패 거래마다 필수이며 카드 원장과 구분한다.
+    @Column(name = "pg_payment_id", nullable = false, length = 44, updatable = false)
     private String pgPaymentId;
 
     // 로그인한 예매자 ID. 카드 소유자는 연결된 dummyCard에 별도로 보관한다.
     @Column(name = "user_id", nullable = false, length = 50)
     private String userId;
 
-    // ticket-service에서 생성한 결제 식별 번호.
+    // 금융 내부 원거래 참조값. 신규 PG 금융 요청에서는 pgPaymentId를 사용한다.
     @Column(name = "payment_no", nullable = false, length = 60)
     private String paymentNo;
 
@@ -89,22 +89,18 @@ public class DummyCardPaymentHistory {
     @Column(name = "refunded_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal refundedAmount = BigDecimal.ZERO;
 
-    // payment-gateway와 ticket-service 연동 처리 상태.
+    // 가맹점 통보 상태와 분리된 카드 금융 처리 상태.
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
     private CardPaymentHistoryStatus status;
 
-    // 카드 승인 실패 또는 ticket-service 결제 완료 요청 실패 사유.
+    // 카드 금융 승인 실패 또는 취소 사유.
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
     // 카드 검증과 승인 처리가 처리된 시각.
     @Column(name = "approved_at", nullable = false)
     private LocalDateTime approvedAt;
-
-    // ticket-service 결제 완료 반영 시각.
-    @Column(name = "ticket_completed_at")
-    private LocalDateTime ticketCompletedAt;
 
     // 카드 사용 내역 row가 DB에 최초 저장된 시각.
     @CreationTimestamp
@@ -115,29 +111,6 @@ public class DummyCardPaymentHistory {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    // 기존 API의 카드 승인 결과를 PG 연결 없이 생성한다. 진입점 전환이 끝나면 연결된 생성 경로를 사용한다.
-    public static DummyCardPaymentHistory approved(
-            DummyCard dummyCard,
-            String requestingUserId,
-            String paymentNo,
-            String transactionId,
-            String maskedCardNumber,
-            BigDecimal amount
-    ) {
-
-        return DummyCardPaymentHistory.builder()
-                .dummyCard(dummyCard)
-                .userId(requestingUserId)
-                .paymentNo(paymentNo)
-                .transactionId(transactionId)
-                .cardCompany(dummyCard.getCardCompany())
-                .maskedCardNumber(maskedCardNumber)
-                .amount(amount)
-                .status(CardPaymentHistoryStatus.APPROVED)
-                .approvedAt(LocalDateTime.now())
-                .build();
-    }
 
     // PG 거래를 참조하는 카드 승인 거래를 생성한다. 가맹점·금액·수단 검증은 PG 계층에서 수행한다.
     public static DummyCardPaymentHistory approved(
@@ -152,36 +125,11 @@ public class DummyCardPaymentHistory {
 
         Objects.requireNonNull(pgPaymentId, "카드 승인에 연결할 PG 결제 식별자가 필요합니다.");
 
-        DummyCardPaymentHistory history = approved(
-                dummyCard, requestingUserId, paymentNo, transactionId, maskedCardNumber, amount);
-        history.pgPaymentId = pgPaymentId;
-        history.approvedAt = history.approvedAt.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-
-        return history;
-    }
-
-    // 기존 API의 카드 승인 실패를 PG 연결 없이 기록한다.
-    public static DummyCardPaymentHistory approvalFailed(
-            DummyCard dummyCard,
-            String userId,
-            String paymentNo,
-            CardCompany cardCompany,
-            String maskedCardNumber,
-            BigDecimal amount,
-            String failureReason
-    ) {
-
-        return DummyCardPaymentHistory.builder()
-                .dummyCard(dummyCard)
-                .userId(userId)
-                .paymentNo(paymentNo)
-                .cardCompany(cardCompany)
-                .maskedCardNumber(maskedCardNumber)
-                .amount(amount)
-                .status(CardPaymentHistoryStatus.APPROVAL_FAILED)
-                .failureReason(failureReason)
-                .approvedAt(LocalDateTime.now())
-                .build();
+        return DummyCardPaymentHistory.builder().pgPaymentId(pgPaymentId).dummyCard(dummyCard)
+                .userId(requestingUserId).paymentNo(paymentNo).transactionId(transactionId)
+                .cardCompany(dummyCard.getCardCompany()).maskedCardNumber(maskedCardNumber).amount(amount)
+                .status(CardPaymentHistoryStatus.APPROVED)
+                .approvedAt(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS)).build();
     }
 
     // PG 거래에 속한 최초 승인 실패를 기록한다. 재시도와 재승인은 같은 거래 행을 기준으로 처리한다.
@@ -198,28 +146,10 @@ public class DummyCardPaymentHistory {
 
         Objects.requireNonNull(pgPaymentId, "카드 승인 실패에 연결할 PG 결제 식별자가 필요합니다.");
 
-        DummyCardPaymentHistory history = approvalFailed(
-                dummyCard, userId, paymentNo, cardCompany, maskedCardNumber, amount, failureReason);
-        history.pgPaymentId = pgPaymentId;
-
-        return history;
-    }
-
-    // 티켓 서비스에 결제 완료 결과를 반영한다.
-    public void completeTicketPayment(LocalDateTime ticketCompletedAt) {
-
-        this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_COMPLETED;
-        this.ticketCompletedAt = ticketCompletedAt != null ? ticketCompletedAt : LocalDateTime.now();
-        this.failureReason = null;
-    }
-
-    // 티켓 서비스에 결제 실패 결과를 반영한다.
-    public void failTicketPayment(String failureReason) {
-
-        this.status = CardPaymentHistoryStatus.TICKET_PAYMENT_FAILED;
-        this.failureReason = failureReason;
-        // 반복해서 실패하는 건은 재처리 순서를 뒤로 옮겨 다른 승인 대기 건이 먼저 처리되도록 한다.
-        this.updatedAt = LocalDateTime.now();
+        return DummyCardPaymentHistory.builder().pgPaymentId(pgPaymentId).dummyCard(dummyCard)
+                .userId(userId).paymentNo(paymentNo).cardCompany(cardCompany).maskedCardNumber(maskedCardNumber)
+                .amount(amount).status(CardPaymentHistoryStatus.APPROVAL_FAILED).failureReason(failureReason)
+                .approvedAt(LocalDateTime.now()).build();
     }
 
     // 모의 카드를 취소 상태로 변경한다.
@@ -227,14 +157,6 @@ public class DummyCardPaymentHistory {
 
         this.status = CardPaymentHistoryStatus.CANCELLED;
         this.failureReason = failureReason;
-    }
-
-    // 모의 카드 처리에서 환불 요청을 처리하고 결과를 반영한다.
-    public void refund() {
-
-        this.refundedAmount = this.amount;
-        this.status = CardPaymentHistoryStatus.REFUNDED;
-        this.failureReason = null;
     }
 
     // 모의 카드 처리에서 환불 요청을 처리하고 결과를 반영한다.

@@ -54,9 +54,4 @@ public class PaymentRefund {
         status = PaymentRefundStatus.WITHDRAWN;
     }
 
-    // 기존 요청을 새 요청으로 대체된 상태로 변경한다.
-    public void supersede() {
-
-        status = PaymentRefundStatus.SUPERSEDED;
-    }
 }

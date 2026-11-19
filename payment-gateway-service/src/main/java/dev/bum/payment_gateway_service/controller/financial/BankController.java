@@ -5,7 +5,6 @@ import dev.bum.common.service.paymentgateway.refund.BankRefundResult;
 import dev.bum.common.service.ticket.payment.dto.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.dto.bank.*;
-import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssuanceService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountIssueCommandService;
 import dev.bum.payment_gateway_service.service.financial.virtualAccount.BankVirtualAccountDepositService;

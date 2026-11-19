@@ -6,8 +6,8 @@ import { CARD_COMPANIES } from './cardPayment';
 type Ticket = { ticketId: number; seatName: string; zone: string; seatRow: number; seatCol: number; grade: string; price: number; status: string };
 type RefundApplication = { paymentRefundProcessId: number; selectedTicketIds: string; refundAmount: number; cancellationFeeAmount: number; status: string; refundBankCompany: string | null; refundAccountNumberMasked: string | null; createdAt: string };
 type RefundAction = { outcome: 'SUCCEEDED' | 'WITHDRAWN'; application: RefundApplication; message: string };
-const finishedRefund = (status: string) => ['LOCAL_SUCCEEDED', 'WITHDRAWN', 'SUPERSEDED'].includes(status);
-const refundStatusLabels: Record<string, string> = { REQUESTED: '결과 확인 대기', GATEWAY_FAILED: '결과 확인 필요', GATEWAY_SUCCEEDED: '환불 반영 대기', LOCAL_FAILED: '환불 반영 재시도 필요', LOCAL_SUCCEEDED: '환불 완료', WITHDRAW_REQUESTED: '철회 확인 중', WITHDRAWN: '철회 완료', SUPERSEDED: '종료' };
+const finishedRefund = (status: string) => ['LOCAL_SUCCEEDED', 'WITHDRAWN'].includes(status);
+const refundStatusLabels: Record<string, string> = { REQUESTED: '결과 확인 대기', GATEWAY_FAILED: '결과 확인 필요', GATEWAY_SUCCEEDED: '환불 반영 대기', LOCAL_FAILED: '환불 반영 재시도 필요', LOCAL_SUCCEEDED: '환불 완료', WITHDRAW_REQUESTED: '철회 확인 중', WITHDRAWN: '철회 완료' };
 type Detail = {
   reservation: { reservationId: number; userId: string; eventId: number; eventTitle: string; eventDateTime: string; venue: string; cancelDeadlineAt: string | null };
   tickets: Ticket[];

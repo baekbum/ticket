@@ -268,7 +268,7 @@ public class PaymentRefundProcess {
             String reason
     ) {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
 
         if (status == next && event != PaymentRefundHistoryType.RETRY_REQUESTED) return;
         PaymentRefundProcessStatus before = status;
@@ -288,14 +288,6 @@ public class PaymentRefundProcess {
                 null);
     }
 
-    // 기존 요청이 대체되었음을 반영한다.
-    public void superseded() {
-
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN || status == PaymentRefundProcessStatus.SUPERSEDED) return;
-        move(PaymentRefundProcessStatus.SUPERSEDED, PaymentRefundHistoryType.SUPERSEDED, null);
-        refund.supersede();
-    }
-
     // 게이트웨이 재시도 요청 상태를 반영한다.
     public void gatewayRetryRequested() {
 
@@ -311,7 +303,7 @@ public class PaymentRefundProcess {
     // 게이트웨이 처리 실패 결과를 반영한다.
     public void gatewayFailed(String reason) {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
         retryCount++;
         move(
                 PaymentRefundProcessStatus.GATEWAY_FAILED,
@@ -322,7 +314,7 @@ public class PaymentRefundProcess {
     // 로컬 데이터 반영 성공 결과를 기록한다.
     public void localSucceeded() {
 
-        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+        if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED || status == PaymentRefundProcessStatus.WITHDRAWN) return;
         move(
                 PaymentRefundProcessStatus.LOCAL_SUCCEEDED,
                 PaymentRefundHistoryType.LOCAL_SUCCEEDED,
@@ -351,8 +343,7 @@ public class PaymentRefundProcess {
     public void withdrawn() {
 
         if (status == PaymentRefundProcessStatus.LOCAL_SUCCEEDED
-                || status == PaymentRefundProcessStatus.WITHDRAWN
-                || status == PaymentRefundProcessStatus.SUPERSEDED) return;
+                || status == PaymentRefundProcessStatus.WITHDRAWN) return;
 
         if (status == PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
                 || status == PaymentRefundProcessStatus.LOCAL_FAILED) {

@@ -529,20 +529,6 @@ class GatewayCardApprovalIntegrationTest {
     }
 
     @Test
-    void legacyPaymentNumberQueriesAndRecoveryCannotConsumeLinkedCardTransactions() throws Exception {
-        String id = prepare("test-merchant-b", "PAY-LEGACY-ISOLATED", "100", PaymentMethod.CREDIT_CARD);
-        approved("test-merchant-b", id);
-        new TransactionTemplate(transactions).executeWithoutResult(status -> {
-            assertThat(approvals.findByPaymentNo(id)).isEmpty();
-            assertThat(approvals.findByPaymentNoAndTransactionId(id, event(id).getTransactionId())).isEmpty();
-            assertThat(approvals.findByPaymentNoForUpdate(id)).isEmpty();
-            assertThat(approvals.existsByPaymentNo(id)).isFalse();
-        });
-        assertThat(approvals.findPendingPaymentNos(List.of(CardPaymentHistoryStatus.APPROVED),
-                org.springframework.data.domain.PageRequest.of(0, 100))).isEmpty();
-    }
-
-    @Test
     void financialHttpAndNotificationDispatchAreForbiddenInsideAnOuterTransaction() {
         assertThatThrownBy(() -> new TransactionTemplate(transactions).execute(status ->
                 pgApprovals.status(null, UUID.randomUUID().toString())))

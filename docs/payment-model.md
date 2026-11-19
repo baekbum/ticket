@@ -35,8 +35,8 @@
 
 ## 환불
 
-- `PaymentRefund`: 원본 결제 참조와 개별 환불의 업무 상태(`REQUESTED`, `COMPLETED`, 요청 변경으로 종료한 `SUPERSEDED`).
-- `PaymentRefundSnapshot`: 요청 환불액, 취소 수수료, 전체 취소 여부, 대상 티켓과 당시 가격, 금액 계산 근거 및 마스킹한 환불 계좌. 계좌 원문 대신 비교용 SHA-256 해시를 저장한다.
+- `PaymentRefund`: 원본 결제 참조와 개별 환불의 업무 상태(`REQUESTED`, `COMPLETED`, 사용자가 철회한 `WITHDRAWN`).
+- `PaymentRefundSnapshot`: 요청 환불액, 취소 수수료, 전체 취소 여부, 대상 티켓과 당시 가격, 금액 계산 근거 및 마스킹한 환불 계좌. 계좌는 마스킹·비교용 SHA-256 해시와 재전송용 암호문으로 저장하고 원문을 노출하지 않는다.
 - `PaymentRefundProcess`: 최신 PG/로컬 처리 단계, 실패 원인, 재시도 횟수와 처리 시각. 결제번호·수단·금액·예매 참조·티켓 ID 문자열을 별도 컬럼으로 반복 저장하지 않는다. 기존 조회 메서드는 환불 정보와 스냅샷을 참조하여 값을 반환한다.
 - `PaymentRefundHistory`: 요청, 실패, 재시도, PG 성공, 로컬 반영과 완료의 사건을 누적한다. 요청 정보와 대상 티켓은 스냅샷에서 조회하고, 로컬 반영 성공 사건에만 처리 직후의 누적 환불액·환불 가능액·결제 상태를 기록한다.
 
@@ -54,7 +54,7 @@
 
 ReservationCancellationService는 입금 전 무통장의 전체 취소만 담당한다. 예매·티켓·Payment 취소, 좌석 AVAILABLE 복원, PG 취소 Outbox 저장을 함께 커밋한다. 결제된 예매는 신규 환불 신청 API를 안내하며 구형 카드·계좌 환불을 실행하지 않는다. 진행 중인 환불 존재 여부는 hasUnfinishedRequest로 읽기만 한다.
 
-구형 inspectRequest/startGatewayAttempt/resolve 기반 재시도·자동 대체 흐름과 전용 클라이언트는 제거했다. SUPERSEDED 등 과거 상태와 이력 테이블은 스키마 호환을 위해 유지하며 신규 환불은 해당 대체 흐름을 생성하지 않는다. 자세한 변경 범위는 [레거시 정리 기록](payment-legacy-retirement.md), 현행 금융 계약은 [카드 환불](payment-gateway-card-refund.md)·[은행 환불](payment-gateway-bank-refund.md)을 참고한다.
+구형 inspectRequest/startGatewayAttempt/resolve 기반 재시도·자동 대체 흐름과 전용 클라이언트는 제거했다. 2026-11-18 후속 정리에서 SUPERSEDED 상태와 구형 전용 모델·테이블도 제거했다. 현재 재시도·철회 이력은 유지한다. [모델·설정 정리 기록](payment-legacy-model-cleanup.md)을 참고한다. 자세한 변경 범위는 [레거시 정리 기록](payment-legacy-retirement.md), 현행 금융 계약은 [카드 환불](payment-gateway-card-refund.md)·[은행 환불](payment-gateway-bank-refund.md)을 참고한다.
 
 ## 저장 관계
 
@@ -109,7 +109,7 @@ WHERE EXISTS (
 COMMIT;
 ```
 
-PG DB의 `gateway_refunds`는 `status`, `failure_reason`, `version`, `updated_at`을 사용한다. 기존 `closed` 컬럼의 상태를 변환하는 적용 SQL은 `docs/refund-idempotency.md`에 있다. 새 코드와 스키마는 ticket·PG를 함께 배포해야 한다.
+구형 PG `gateway_refunds`는 제거했다. 현재 PG 환불은 `gateway_bank_refunds`·`gateway_card_refunds`, 금융 결과는 `bank_virtual_account_refunds`·`card_payment_refunds`를 사용한다. [현재 환불 멱등성](refund-idempotency.md)을 따른다.
 
 기존 DB에 추가했던 중복 방지 컬럼은 아래 SQL로 제거한다. 해당 컬럼에 걸린 UNIQUE·CHECK·외래 키 제약도 PostgreSQL이 함께 제거한다. 관련 쓰기를 중단하고 새 코드 배포와 함께 적용한다.
 

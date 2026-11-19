@@ -1,7 +1,6 @@
 package dev.bum.payment_gateway_service.service.gateway.client;
 
 import dev.bum.payment_gateway_service.dto.card.*;
-import dev.bum.payment_gateway_service.dto.financial.*;
 import dev.bum.payment_gateway_service.dto.bank.*;
 import dev.bum.payment_gateway_service.dto.virtualAccount.*;
 import dev.bum.payment_gateway_service.exception.FinancialProviderResponseException;

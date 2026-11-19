@@ -1,50 +1,33 @@
 # 환불 요청 멱등성
 
-> 2026-11-18: 구형 paymentNo 전용 PG/금융 API와 X-Service-Token 전용 PG 인증은 폐쇄했다. 아래의 구형 경로 설명은 이전 구조 기록이며 호출 계약으로 사용하지 않는다. 현재 변경 범위와 보존한 API는 [레거시 정리 기록](payment-legacy-retirement.md)을 따른다. 은행 입금은 `/api/v1/banks/virtual-accounts/deposit`, 환불은 신규 PG 거래·가맹점 범위 API를 사용한다.
+2026-11-18 현재 계약. 구형 paymentNo 전용 환불 실행·resolve API와 gateway_refunds는 제거했다. 은행·카드의 공통 PG 진입점은 GatewayPaymentRefundController다. 세부 API·응답은 [은행 환불](payment-gateway-bank-refund.md)과 [카드 환불](payment-gateway-card-refund.md)을 따른다.
 
-ticket-service의 `paymentRefundProcessId`를 카드/가상계좌 PG 환불 요청에 전달한다. 신규 환불 프로세스는 PG 호출 전에 `REQUIRES_NEW` 트랜잭션으로 커밋하며, 실패 재시도는 기존 프로세스 ID를 재사용한다.
+## 최초 신청과 재시도
 
-PG의 `gateway_refunds`는 최초 요청과 처리 상태(`REQUESTED`, `SUCCEEDED`, `FAILED`, `CLOSED`), 성공 응답과 실패 이유를 저장한다. 프로세스 ID가 기본 키이며, 같은 ID로 결제번호·결제 수단·금액·카드 거래번호 또는 환불 계좌 정보가 달라지면 거부한다. 이미 성공한 요청의 재전달에는 원래 성공 응답을 반환하고, 미완료·실패 요청은 같은 ID와 최초 조건으로 재시도한다. 금액의 소수점 표현 차이(4000과 4000.00)는 같은 금액으로 취급한다.
+Ticksy는 예매의 NOWAIT 잠금 아래 PaymentRefundSnapshot과 대상 티켓·가격·수수료·환불액·계좌 조건을 저장하고 PaymentRefundProcess를 만든다. 준비 트랜잭션은 외부 요청 전에 커밋한다. 실행 시 예매를 다시 잠그고 최신 상태를 확인한다.
 
-요청 변경 시 `POST /api/v1/payments/refunds/internal/resolve`를 사용한다. 이 API는 내부 서비스 토큰으로만 접근한다. 환불 실행과 같은 결제 행을 잠근 뒤 결과를 확인하며, `closeIfUnexecuted=true`이면 아직 성공하지 않은 ID를 `CLOSED`로 종료한다. 기록이 없는 ID도 종료 기록을 저장해 늦은 실행을 차단한다. 이미 성공한 ID의 최초 결과는 유지한다. 조회 결과는 `SUCCEEDED`, `CLOSED`, `REQUESTED`, `FAILED`, `NOT_FOUND`이며, 최초 기록만 존재한다고 환불 성공으로 간주하지 않는다.
+동일 대상·조건의 재요청은 최초 신청 ID와 스냅샷을 재사용한다. 완료된 요청도 최초 성공을 반환한다. 미완료 신청과 조건이 다르면 기존 신청 정보를 포함한 409로 거절하며 자동 대체하지 않는다. 다른 좌석의 새 신청은 기존 신청의 완료 또는 명시적 철회가 확인된 뒤 허용한다. SUPERSEDED 상태는 제거했다.
 
-PG의 A 트랜잭션은 카드 승인 이력 또는 가상계좌 행을 먼저 잠그고 프로세스 ID로 환불 기록을 일반 조회한다. 기록이 없으면 생성 전용 B(`REQUIRES_NEW`)가 요청 정보만 저장·커밋한다. B는 A가 잠근 결제 행을 조회하거나 갱신하지 않는다. A는 커밋된 요청을 일반 조회하고, 실제 환불과 `SUCCEEDED` 변경을 함께 커밋한다. 동일 결제의 동시 요청은 원래 결제 행의 잠금으로 직렬화하며, 환불 기록의 별도 비관적 락은 사용하지 않는다. 서로 다른 결제가 같은 ID를 사용하려는 경우에도 기본 키 제약으로 중복 생성을 막는다.
+Ticksy의 paymentRefundProcessId를 PG의 refundRequestId로 전달한다. PG는 인증된 가맹점의 저장 원거래를 조회하고 결제수단을 선택한다. paymentNo만으로 환불이나 가맹점 권한을 식별하지 않는다.
 
-A가 롤백되면 최초 기록은 남고 실제 환불·성공 상태는 되돌아간다. 잠금 해제 후 별도 트랜잭션에서 같은 결제 행을 잠그고 실패 상태를 기록한다. 이미 성공·종료됐거나 버전이 변경된 기록은 과거 실패로 덮어쓰지 않는다. 실패 기록 자체가 유실돼도 `REQUESTED` 기록과 같은 프로세스 ID로 재시도할 수 있다. ticket도 `Reservation` 잠금 아래 프로세스를 일반 조회하고, 롤백 후 실패 기록은 먼저 예매를 잠근 뒤 수행한다.
+## PG와 금융 결과
 
-카드는 기존 누적 환불액을 변경한다. 가상계좌는 잠금 아래 `gateway_refunds` 중 `SUCCEEDED`인 금액만 합산해 남은 환불액을 검증하며 기존 환불 이력도 같은 트랜잭션에 저장한다. 요청·실패·종료 기록은 환불액에 포함하지 않는다. 현재 PG는 더미 구현이므로 DB 반영이 환불 실행이다. 실제 외부 PG API를 연결할 때에는 외부 PG에도 같은 멱등 키를 전달하고 결과 조회/복구 흐름을 추가해야 한다.
+PG는 gateway_bank_refunds 또는 gateway_card_refunds에 최초 조건과 REQUESTED/SUCCEEDED/WITHDRAWN 결과를 저장한다. 키는 UNIQUE(pg_payment_id, refund_request_id)다. 금융 결과는 bank_virtual_account_refunds 또는 card_payment_refunds에 같은 거래·신청 범위로 저장한다.
 
-ticket의 사용자 취소·관리자 취소·수동 환불 완료는 `Reservation`을 `FOR UPDATE NOWAIT`로 잠근다. 같은 예매가 다른 트랜잭션에서 처리 중이면 기다리지 않고 `409 Conflict`, `RESERVATION_CANCELLATION_IN_PROGRESS`로 응답한다. 먼저 시작한 요청은 계속 처리되며, 실패 후 명시적으로 다시 요청하면 기존 프로세스 ID와 스냅샷을 재사용한다. 롤백 후 실패 이력을 기록하는 내부 트랜잭션은 기존 대기형 잠금을 유지한다. PG의 결제 잠금도 기존 대기 방식을 유지한다.
+같은 키의 다른 금액·계좌 등은 거절한다. 금액은 통화 소수 자릿수에 맞춰 정규화하며 재시도에서 조건이나 키를 새로 만들지 않는다. 금융 원거래 잠금 아래 누적 환불·한도 복원·이력·확정 결과를 함께 커밋한다. PG도 자체 확정 트랜잭션으로 상태·환불액·이력·결과를 함께 커밋한다.
 
-## 배포
+Ticksy→PG는 자동 재시도하지 않는다. PG→은행·카드는 같은 요청으로 최초 1회와 추가 3회까지 시도한다. 연결·응답 유실, 5xx, 해석 불가·불일치 결과는 재시도하며 확정 4xx는 즉시 거절한다. 네 번 모두 결과를 확인하지 못하면 503 결과 미확인으로 안내하고 사용자가 같은 신청을 다시 요청한다. 사용자 환불 전용 Outbox·자동 실행 스케줄러는 없다.
 
-이전 `closed` 컬럼을 사용하는 PG DB를 갱신할 때는 관련 쓰기를 중단하고 아래 SQL을 한 번 실행한다. 기존 성공·종료 기록을 새 상태로 변환하며, 최초 요청 생성용 기본값은 변환 후 `REQUESTED`로 설정한다. 신규 DB는 갱신된 생성 SQL을 사용한다.
+금융만 성공했거나 PG 성공 응답이 유실돼도 같은 키로 최초 결과를 재생한다. Ticksy 로컬 반영만 실패한 경우 확인된 금융 성공을 보존하고 로컬 완료를 복구한다. HTTP를 넘는 공동 롤백은 가정하지 않는다.
 
-```sql
-BEGIN;
-ALTER TABLE gateway_refunds
-    ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'SUCCEEDED',
-    ADD COLUMN failure_reason VARCHAR(1000),
-    ADD COLUMN version BIGINT NOT NULL DEFAULT 0,
-    ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
-UPDATE gateway_refunds SET status = CASE WHEN closed THEN 'CLOSED' ELSE 'SUCCEEDED' END;
-ALTER TABLE gateway_refunds
-    ALTER COLUMN status SET DEFAULT 'REQUESTED',
-    DROP COLUMN closed,
-    ADD CONSTRAINT chk_gateway_refunds_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'FAILED', 'CLOSED'));
-COMMIT;
-```
+## 환불 신청 철회와 경합
 
-1. gateway_refunds의 최신 정의는 PG의 schema.sql을 따른다. 현재 DB 반영이 확인된 일회성 추가 SQL은 삭제했다. 다른 기존 DB에서 테이블이 없다면 필요한 CREATE TABLE·INDEX만 별도 적용하고, 기존 테이블은 위 상태 변환 SQL로 갱신한다. 초기화용 `schema.sql` 전체를 기존 DB에 실행하지 않는다.
-2. ticket과 PG를 함께 갱신한다. 새 PG는 프로세스 ID 없는 환불 요청을 거부하므로 구버전 ticket에서 새 PG로 환불 요청이 들어가지 않도록 환불을 잠시 중단하거나 배포를 조율한다.
-3. 배포 이전에 이미 실행된 환불에는 이 테이블의 기록이 없다. 과거 PG 성공 여부가 불명확한 프로세스를 자동 재시도하지 말고 PG 이력과 대조한다. 가상계좌 누적 한도 검증에도 과거 환불액은 자동 포함되지 않으므로 기존 환불 건은 별도로 정합성을 확인해야 한다.
+철회는 이미 지급한 환불을 되돌리는 기능이 아니다. Ticksy는 WITHDRAW_REQUESTED를 먼저 커밋하고 최초 조건으로 철회를 요청한다. 금융 환불이 먼저 성공했다면 최초 SUCCEEDED를 반환하여 PG·Ticksy 완료를 복구한다. 미실행 요청은 금융 측 WITHDRAWN 기록으로 지연 실행을 차단한다. 철회 결과가 확인되지 않으면 새 신청을 차단하고 동일 철회를 재확인한다.
 
-## 환불 애플리케이션 로그
+사용자 환불 실행·철회는 Ticksy Reservation의 FOR UPDATE NOWAIT 잠금을 PG HTTP와 로컬 반영 완료까지 유지한다. 같은 예매의 다른 요청은 기다리지 않고 409 RESERVATION_PROCESSING을 반환한다. PG는 금융 HTTP 동안 원거래 잠금을 유지하지 않고 전후 짧은 트랜잭션을 사용한다. 금융 도메인은 원거래 잠금으로 환불과 철회를 직렬화한다.
 
-무통장 환불 성공·실패 로그는 `paymentNo`, `processId`, `refundAmount`로 요청을 추적한다.
-계좌번호·예금주는 출력하지 않으며, 실패 시 `errorType`으로 예외 클래스 이름만 기록한다.
-PG 실패 상태 기록과 ticket 롤백 결과 기록에 실패한 경우에도 예외 메시지·원인·스택 트레이스를 로그에 전달하지 않는다.
+## 저장·검증
 
-## 검증
+최종 DDL은 각 서비스의 schema.sql을 따른다. 구형 모델 삭제와 데이터 보호 범위는 [모델·설정 정리 기록](payment-legacy-model-cleanup.md)에 기록한다. 초기화 SQL 전체를 기존 DB에 실행하지 않는다. 환불 계좌 암호화 키와 가맹점 자격증명은 소스·DDL에 넣지 않는다.
 
-`GatewayRefundIntegrationTest`는 H2 DB에서 카드/가상계좌 재전달, 요청 불일치, 기본 키 중복 삽입 거부, 성공 금액만의 누적 한도, 최초 기록의 독립 커밋, 실제 환불 롤백과 같은 ID 재시도를 검증한다. 원래 결제 행을 잠근 동시 요청의 대기, 요청·실패·종료 조회 결과, 늦은 실패 기록의 성공 상태 덮어쓰기 방지도 검증한다. 기존 환불 및 사용자/관리자 취소 테스트는 프로세스 ID 전달 경로를 검증한다. 실제 PostgreSQL 환경에서의 장애 재현과 배포는 별도로 수행한다.
+현재 회귀 테스트는 동일 키 재전달·조건 불일치·가맹점 격리·부분 환불·철회 경합·응답 유실·저장 실패 롤백·Ticksy NOWAIT 충돌을 검증한다. PostgreSQL을 사용하는 테스트와 실제 DB 스키마 확인 결과는 정리 기록에 남긴다.

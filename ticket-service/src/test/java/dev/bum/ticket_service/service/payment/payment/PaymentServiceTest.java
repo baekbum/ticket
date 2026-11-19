@@ -1,11 +1,8 @@
 package dev.bum.ticket_service.service.payment.payment;
 
-import dev.bum.common.service.ticket.payment.dto.CardPaymentCompleteRequest;
-import dev.bum.common.service.ticket.payment.dto.CardPaymentFailRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentResponse;
 import dev.bum.common.service.ticket.payment.dto.VirtualAccountDepositCompleteRequest;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
-import dev.bum.common.service.ticket.payment.enums.CardCompany;
 import dev.bum.common.service.ticket.payment.enums.PaymentMethod;
 import dev.bum.common.service.ticket.payment.enums.PaymentStatus;
 import dev.bum.ticket_service.service.payment.card.CardPaymentService;
@@ -35,54 +32,6 @@ class PaymentServiceTest {
 
     @InjectMocks
     private PaymentService paymentService;
-
-    @Test
-    @DisplayName("카드 결제 완료 요청을 카드 결제 서비스로 위임한다")
-    void delegate_card_completion() {
-        CardPaymentCompleteRequest request = CardPaymentCompleteRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .userId("user01")
-                .amount(BigDecimal.valueOf(180000))
-                .transactionId("CARD-transaction-1")
-                .cardCompany(CardCompany.SHINHAN)
-                .maskedCardNumber("4111-****-****-1111")
-                .build();
-        PaymentResponse expectedResponse = paidResponse(PaymentMethod.CREDIT_CARD);
-
-        given(cardPaymentService.completeFromGateway(request)).willReturn(expectedResponse);
-
-        PaymentResponse response = paymentService.completeCardFromGateway(request);
-
-        assertThat(response).isEqualTo(expectedResponse);
-        then(cardPaymentService).should().completeFromGateway(request);
-    }
-
-    @Test
-    @DisplayName("카드 결제 실패 요청을 카드 결제 서비스로 위임한다")
-    void delegate_card_failure() {
-        CardPaymentFailRequest request = CardPaymentFailRequest.builder()
-                .paymentNo("PAY-20260727120000-abcdef123456")
-                .userId("user01")
-                .amount(BigDecimal.valueOf(180000))
-                .failureReason("카드 승인 실패")
-                .build();
-        PaymentResponse expectedResponse = PaymentResponse.builder()
-                .paymentId(1L)
-                .reservationId(1L)
-                .orderId("ORDER-1")
-                .paymentNo(request.getPaymentNo())
-                .method(PaymentMethod.CREDIT_CARD)
-                .status(PaymentStatus.FAILED)
-                .amount(180000)
-                .build();
-
-        given(cardPaymentService.failFromGateway(request)).willReturn(expectedResponse);
-
-        PaymentResponse response = paymentService.failCardFromGateway(request);
-
-        assertThat(response).isEqualTo(expectedResponse);
-        then(cardPaymentService).should().failFromGateway(request);
-    }
 
     @Test
     @DisplayName("가상계좌 입금 완료 요청을 무통장 결제 서비스로 위임한다")

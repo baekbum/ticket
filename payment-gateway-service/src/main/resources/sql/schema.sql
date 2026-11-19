@@ -173,7 +173,7 @@ CREATE TABLE dummy_card_payment_histories (
     history_id BIGSERIAL PRIMARY KEY,
     dummy_card_id BIGINT,
     -- 기존 API 전환과 검증된 데이터 이관이 끝난 뒤 NOT NULL로 강화한다.
-    pg_payment_id VARCHAR(44),
+    pg_payment_id VARCHAR(44) NOT NULL,
     user_id VARCHAR(50) NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     transaction_id VARCHAR(80),
@@ -184,7 +184,6 @@ CREATE TABLE dummy_card_payment_histories (
     status VARCHAR(40) NOT NULL,
     failure_reason VARCHAR(500),
     approved_at TIMESTAMP NOT NULL,
-    ticket_completed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -208,7 +207,7 @@ CREATE INDEX idx_dummy_card_payment_histories_status ON dummy_card_payment_histo
 CREATE TABLE dummy_virtual_accounts (
     virtual_account_id BIGSERIAL PRIMARY KEY,
     -- 기존 API 전환과 검증된 데이터 이관이 끝난 뒤 NOT NULL로 강화한다.
-    pg_payment_id VARCHAR(44),
+    pg_payment_id VARCHAR(44) NOT NULL,
     payment_no VARCHAR(60) NOT NULL,
     bank_company VARCHAR(30) NOT NULL,
     bank_name VARCHAR(50) NOT NULL,
@@ -255,85 +254,7 @@ CREATE TABLE dummy_virtual_account_payment_histories (
 CREATE INDEX idx_dummy_virtual_account_histories_payment_no ON dummy_virtual_account_payment_histories(payment_no);
 CREATE INDEX idx_dummy_virtual_account_histories_history_type ON dummy_virtual_account_payment_histories(history_type);
 
--- ==========================================
--- Virtual account outbox events 테이블
--- ==========================================
-CREATE TABLE virtual_account_outbox_events (
-    outbox_id BIGSERIAL PRIMARY KEY,
-    event_type VARCHAR(60) NOT NULL,
-    status VARCHAR(30) NOT NULL,
-    payment_no VARCHAR(60) NOT NULL,
-    bank_company VARCHAR(30) NOT NULL,
-    bank_name VARCHAR(50) NOT NULL,
-    account_number VARCHAR(30) NOT NULL,
-    amount NUMERIC(15, 2) NOT NULL,
-    occurred_at TIMESTAMP NOT NULL,
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    last_error_message VARCHAR(500),
-    published_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT chk_virtual_account_outbox_amount CHECK (amount > 0),
-    CONSTRAINT chk_virtual_account_outbox_retry_count CHECK (retry_count >= 0)
-);
-
-CREATE INDEX idx_virtual_account_outbox_type_status_id ON virtual_account_outbox_events(event_type, status, outbox_id);
-CREATE INDEX idx_virtual_account_outbox_payment_no ON virtual_account_outbox_events(payment_no);
-
--- 입금 사실과 함께 커밋하고 ticket HTTP 성공 응답까지 재전달하는 Outbox.
-CREATE TABLE virtual_account_deposit_outbox (
-    outbox_id BIGSERIAL PRIMARY KEY,
-    payment_no VARCHAR(60) NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-    bank_company VARCHAR(30) NOT NULL,
-    bank_name VARCHAR(50) NOT NULL,
-    account_number VARCHAR(30) NOT NULL,
-    depositor_name VARCHAR(50) NOT NULL,
-    amount NUMERIC(15, 2) NOT NULL,
-    deposited_at TIMESTAMP NOT NULL,
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_error_type VARCHAR(100),
-    delivered_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT uk_va_deposit_outbox_payment_no UNIQUE (payment_no),
-    CONSTRAINT chk_va_deposit_outbox_status CHECK (status IN ('PENDING', 'DELIVERED')),
-    CONSTRAINT chk_va_deposit_outbox_amount CHECK (amount > 0),
-    CONSTRAINT chk_va_deposit_outbox_retry_count CHECK (retry_count >= 0)
-);
-
-CREATE INDEX idx_va_deposit_outbox_ready ON virtual_account_deposit_outbox(status, next_attempt_at, outbox_id);
-
--- 환불 프로세스별 최초 요청을 보존하고 성공·실패·미실행 종료 상태를 기록한다.
-CREATE TABLE gateway_refunds (
-    payment_refund_process_id BIGINT PRIMARY KEY,
-    payment_no VARCHAR(60) NOT NULL,
-    method VARCHAR(30) NOT NULL,
-    refund_amount NUMERIC(15, 2) NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'REQUESTED',
-    failure_reason VARCHAR(1000),
-    version BIGINT NOT NULL DEFAULT 0,
-    transaction_id VARCHAR(100),
-    refund_bank_company VARCHAR(30),
-    refund_account_number VARCHAR(100),
-    refund_account_holder VARCHAR(100),
-    card_status VARCHAR(40),
-    message VARCHAR(500) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT chk_gateway_refunds_status CHECK (status IN ('REQUESTED', 'SUCCEEDED', 'FAILED', 'CLOSED')),
-    CONSTRAINT chk_gateway_refunds_process_id CHECK (payment_refund_process_id > 0),
-    CONSTRAINT chk_gateway_refunds_amount CHECK (refund_amount > 0)
-);
-
-CREATE INDEX idx_gateway_refunds_payment_no ON gateway_refunds(payment_no);
-
--- 기존 DB에 한 번만 적용한다. 기존 테이블/행은 변경하거나 삭제하지 않는다.
-
+-- 신규 PG 카드 승인 통보 Outbox. 금융 상태와 분리된 전달 상태를 저장한다.
 CREATE TABLE gateway_card_notification_outbox (
     notification_id BIGSERIAL PRIMARY KEY,
     event_id VARCHAR(100) NOT NULL,

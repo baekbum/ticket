@@ -107,25 +107,6 @@ class GatewayFinancialLinkIntegrationTest {
     }
 
     @Test
-    void legacyFactoriesAllowSeveralUnlinkedRowsWithoutInventingAMerchant() {
-        DummyCard card = card();
-        for (int index = 1; index <= 2; index++) {
-            approvals.saveAndFlush(DummyCardPaymentHistory.approved(card, "buyer", "LEGACY-CARD-" + index,
-                    "TRANSACTION-" + index, "4111-****-****-1111", new BigDecimal("100.00")));
-            accounts.saveAndFlush(DummyVirtualAccount.issue("LEGACY-BANK-" + index, BankCompany.KB,
-                    "3000-" + index, new BigDecimal("100.00"), LocalDateTime.of(2099, 1, 1, 23, 59, 59)));
-        }
-        entityManager.clear();
-
-        assertThat(approvals.findAll()).hasSize(2).allSatisfy(row -> assertThat(row.getPgPaymentId()).isNull());
-        assertThat(accounts.findAll()).hasSize(2).allSatisfy(row -> assertThat(row.getPgPaymentId()).isNull());
-        assertThat(accounts.findPgPaymentIdByAccountNumber("3000-1")).isEmpty();
-        assertThat(accounts.findPgPaymentIdByAccountNumber("missing")).isEmpty();
-        assertThat(payments.count()).isZero();
-        assertThat(merchants.count()).isZero();
-    }
-
-    @Test
     void failedApprovalWithoutACardCanStillReferToTheGatewayPayment() {
         GatewayPayment payment = payment(merchant(), "FAILED-CARD", PaymentMethod.CREDIT_CARD);
         approvals.saveAndFlush(DummyCardPaymentHistory.approvalFailed(payment.getPgPaymentId(), null, "buyer",
@@ -202,5 +183,20 @@ class GatewayFinancialLinkIntegrationTest {
     DummyVirtualAccount account(GatewayPayment payment, String paymentNo, String accountNumber) {
         return DummyVirtualAccount.issue(payment.getPgPaymentId(), paymentNo, BankCompany.KB, accountNumber,
                 payment.getAmount(), payment.getExpiresAt());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void everyFinancialRowRequiresAGatewayPayment(PaymentMethod method) {
+        GatewayPayment payment = payment(merchant(), "NO-NULL-LINK", method);
+
+        if (method == PaymentMethod.CREDIT_CARD) {
+            DummyCardPaymentHistory row = approval(payment, card(), payment.getPgPaymentId());
+            org.springframework.test.util.ReflectionTestUtils.setField(row, "pgPaymentId", null);
+            assertThatThrownBy(() -> approvals.saveAndFlush(row)).isInstanceOf(DataIntegrityViolationException.class);
+        } else {
+            DummyVirtualAccount row = account(payment, payment.getPgPaymentId(), "REQ-1000");
+            org.springframework.test.util.ReflectionTestUtils.setField(row, "pgPaymentId", null);
+            assertThatThrownBy(() -> accounts.saveAndFlush(row)).isInstanceOf(DataIntegrityViolationException.class);
+        }
     }
 }

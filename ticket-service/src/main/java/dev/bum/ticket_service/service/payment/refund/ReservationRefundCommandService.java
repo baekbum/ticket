@@ -170,10 +170,6 @@ public class ReservationRefundCommandService {
             return response(process, false);
         }
 
-        if (process.getStatus() == PaymentRefundProcessStatus.SUPERSEDED) {
-            throw new IllegalArgumentException("종료된 환불 신청입니다.");
-        }
-
         if (!withdraw && process.getStatus() == PaymentRefundProcessStatus.WITHDRAW_REQUESTED) {
             throw conflict(process);
         }
@@ -334,13 +330,12 @@ public class ReservationRefundCommandService {
     }
 
     /**
-     * 철회·완료·기존 대체 상태는 새 신청을 차단하지 않는다.
+     * 철회·완료 상태는 새 신청을 차단하지 않는다.
      */
     private boolean active(PaymentRefundProcess process) {
 
         return process.getStatus() != PaymentRefundProcessStatus.LOCAL_SUCCEEDED
-                && process.getStatus() != PaymentRefundProcessStatus.WITHDRAWN
-                && process.getStatus() != PaymentRefundProcessStatus.SUPERSEDED;
+                && process.getStatus() != PaymentRefundProcessStatus.WITHDRAWN;
     }
 
     /**

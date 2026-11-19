@@ -1,4 +1,6 @@
-# PG 연결 가상계좌 환불·신청 철회
+#> 2026-11-18 모델 정리: 구형 PG 환불·은행 Outbox 테이블, 미사용 DTO와 Ticksy 구형 카드 콜백도 제거했다. 아래 이전 설계·호환 경로 설명보다 [현재 정리 범위](payment-legacy-model-cleanup.md)와 [환불 멱등성](refund-idempotency.md)을 우선한다.
+
+ PG 연결 가상계좌 환불·신청 철회
 
 2026-11-15 PG 진입점을 GatewayPaymentRefundController로 공통화했다. 저장된 원거래 수단으로 은행·카드를 선택하며 은행의 URL·요청·응답·멱등 해시는 유지한다. [카드 확장과 공통 계약](payment-gateway-card-refund.md)을 참고한다.
 
@@ -55,7 +57,7 @@ Ticksy의 paymentRefundProcessId 문자열이 refundRequestId다. PG·은행의 
 5. PG·Ticksy까지 WITHDRAWN이 확인되면 신청만 종료한다. 예매·티켓·좌석은 그대로이며 다른 좌석으로 새 신청 ID를 발급할 수 있다.
 6. 철회 응답이 확인되지 않으면 WITHDRAW_REQUESTED를 유지하고 새 신청을 차단한다. 사용자는 철회 확인을 재시도한다.
 
-브라우저의 다시 시도·환불 신청 취소 버튼은 LOCAL_SUCCEEDED·WITHDRAWN·SUPERSEDED가 아닌 신청에만 표시한다. 처리 중에는 비활성화한다. WITHDRAW_REQUESTED의 다시 확인은 환불 실행이 아니라 철회 API를 호출한다.
+브라우저의 다시 시도·환불 신청 취소 버튼은 LOCAL_SUCCEEDED·WITHDRAWN이 아닌 신청에만 표시한다. 처리 중에는 비활성화한다. WITHDRAW_REQUESTED의 다시 확인은 환불 실행이 아니라 철회 API를 호출한다.
 
 ## 잠금과 트랜잭션
 

@@ -10,6 +10,5 @@ public enum PaymentRefundHistoryType {
     LOCAL_SUCCEEDED,
     LOCAL_FAILED,
     WITHDRAW_REQUESTED,
-    WITHDRAWN,
-    SUPERSEDED
+    WITHDRAWN
 }

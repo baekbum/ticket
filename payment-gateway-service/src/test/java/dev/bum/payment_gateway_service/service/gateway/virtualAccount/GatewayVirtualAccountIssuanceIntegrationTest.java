@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenStateStore;
-import dev.bum.common.service.ticket.payment.dto.GatewayVirtualAccountCancelRequest;
 import dev.bum.common.service.ticket.payment.enums.*;
 import dev.bum.payment_gateway_service.config.*;
 import dev.bum.payment_gateway_service.controller.advice.*;
@@ -90,10 +89,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     @Autowired MerchantJpaRepository merchants;
     @Autowired GatewayPaymentJpaRepository payments;
     @Autowired DummyVirtualAccountJpaRepository accounts;
-    @Autowired VirtualAccountDepositOutboxJpaRepository depositOutbox;
     @Autowired GatewayBankNotificationJpaRepository bankNotifications;
     @Autowired dev.bum.payment_gateway_service.jpa.outbox.BankTransferOutboxJpaRepository bankOutboxes;
-    @Autowired VirtualAccountOutboxEventJpaRepository expiryOutbox;
     @Autowired GatewayVirtualAccountIssuanceService issuance;
     @Autowired PlatformTransactionManager transactions;
     @Autowired FinancialSimulationToken internalToken;
@@ -110,8 +107,6 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
     void setup() {
         bankOutboxes.deleteAll();
         bankNotifications.deleteAll();
-        depositOutbox.deleteAll();
-        expiryOutbox.deleteAll();
         bankHistories.deleteAll();
         accounts.deleteAll();
         histories.deleteAll();
@@ -135,7 +130,6 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
         assertThat(payments.findById(id).orElseThrow().getStatus()).isEqualTo(GatewayPaymentStatus.WAITING_DEPOSIT);
         assertThat(histories.countByPaymentPgPaymentId(id)).isEqualTo(2);
         assertThat(bankHistories.count()).isEqualTo(1);
-        assertThat(depositOutbox.count()).isZero();
     }
 
     @Test
@@ -243,7 +237,6 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
                 .andExpect(jsonPath("$.accountNumber").value("1111-9999-999999"));
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
                 .isEqualTo(VirtualAccountPaymentStatus.WAITING_DEPOSIT);
-        assertThat(expiryOutbox.count()).isZero();
     }
 
     @Test
@@ -330,8 +323,8 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
         JsonNode issued = issued("test-merchant-b", id);
         mvc.perform(get("/api/v1/payments/virtual-account/internal/" + id + "/status")
                 .header("X-Service-Token", "test-merchant-a")).andExpect(status().isForbidden());
-        GatewayVirtualAccountCancelRequest cancel = new GatewayVirtualAccountCancelRequest(id,
-                issued.get("bankName").asText(), issued.get("accountNumber").asText(), new BigDecimal("100"));
+        Map<String, Object> cancel = Map.of("paymentNo", id, "bankName", issued.get("bankName").asText(),
+                "accountNumber", issued.get("accountNumber").asText(), "amount", new BigDecimal("100"));
         mvc.perform(post("/api/v1/payments/virtual-account/cancel").header("X-Service-Token", "test-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(cancel)))
                 .andExpect(status().isForbidden());
@@ -342,7 +335,7 @@ class GatewayVirtualAccountIssuanceIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.pgPaymentId").value(id));
         assertThat(accounts.findByPgPaymentId(id).orElseThrow().getStatus())
                 .isEqualTo(VirtualAccountPaymentStatus.DEPOSITED);
-        assertThat(depositOutbox.count()).isZero();
+
         assertThat(bankHistories.count()).isEqualTo(2);
         assertThat(bankNotifications.count()).isZero();
         assertThat(bankOutboxes.count()).isEqualTo(1);

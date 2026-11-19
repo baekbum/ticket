@@ -3,7 +3,6 @@ package dev.bum.payment_gateway_service.dto.gateway;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import dev.bum.common.service.ticket.payment.enums.BankCompany;
 import dev.bum.payment_gateway_service.dto.bank.BankVirtualAccountDepositResponse;
-import dev.bum.payment_gateway_service.dto.financial.FinancialVirtualAccountDepositResponse;
 import dev.bum.payment_gateway_service.jpa.gateway.GatewayPayment;
 import dev.bum.payment_gateway_service.jpa.gateway.GatewayPaymentStatus;
 import dev.bum.payment_gateway_service.jpa.virtualAccount.VirtualAccountPaymentStatus;
@@ -51,14 +50,6 @@ public record GatewayVirtualAccountPaymentDepositResponse(
         // 금융/통보 상태와 별도로 표시할 안내 문구.
         String message
 ) {
-
-    // 기존 미연결 계좌도 같은 PG 응답 타입으로 변환한다. 없던 PG 전용 필드는 JSON에 추가하지 않는다.
-    public static GatewayVirtualAccountPaymentDepositResponse from(FinancialVirtualAccountDepositResponse bank) {
-
-        return new GatewayVirtualAccountPaymentDepositResponse(null, bank.paymentNo(), bank.bankCompany(), bank.bankName(),
-                bank.accountNumber(), bank.depositorName(), bank.amount(), bank.status(), bank.expiresAt(),
-                bank.depositedAt(), null, null, bank.message());
-    }
 
     // 금융 결과와 PG 확정 결과를 분리해 반환한다.
     public static GatewayVirtualAccountPaymentDepositResponse from(
