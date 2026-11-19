@@ -139,10 +139,11 @@
 .my-ticket-seat-table { border-collapse: collapse; width: 100%; min-width: 450px; border: 1px solid #e5e5e5; font-size: 14px; }
 .my-ticket-seat-table th, .my-ticket-seat-table td { text-align: center; padding: 18px 12px; border-bottom: 1px solid #eee; }
 .my-ticket-seat-table th { font-weight: 500; background: #fafafa; color: #777; }
-.my-ticket-seat-table .my-ticket-refund-button { padding: 7px 14px; border-color: #237344; border-radius: 6px; color: #237344; white-space: nowrap; }
-.my-ticket-seat-table .my-ticket-refund-button:hover:not(:disabled) { background: #237344; color: white; }
-.my-ticket-seat-table .my-ticket-refund-button:disabled { cursor: not-allowed; opacity: .45; }
-.my-ticket-refund-unavailable { color: #aaa; }
+.my-ticket-seat-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 38px; margin-bottom: 16px; }
+.my-ticket-detail-dialog .my-ticket-seat-heading h3 { margin: 0; }
+.my-ticket-detail-dialog .my-ticket-refund-button { padding: 7px 14px; border-color: #237344; border-radius: 6px; color: #237344; white-space: nowrap; }
+.my-ticket-detail-dialog .my-ticket-refund-button:hover:not(:disabled) { background: #237344; color: white; }
+.my-ticket-detail-dialog .my-ticket-refund-button:disabled { cursor: not-allowed; opacity: .45; }
 .my-ticket-refund-form { display: grid; grid-template-columns: 1fr repeat(3, minmax(140px, 1fr)) auto; align-items: end; gap: 12px; margin-top: 16px; padding: 18px; border: 1px solid #d8e5dc; border-radius: 10px; background: #f5f8f4; }
 .my-ticket-refund-form > div:first-child { display: grid; gap: 6px; }
 .my-ticket-refund-form > div:first-child span, .my-ticket-refund-form label { color: #68716b; font-size: 13px; }

@@ -42,8 +42,11 @@ async function scenario(pgPaymentId) {
     return [];
   };
   await act(async () => root.render(React.createElement(Dialog, { reservationId: 1, request, onClose() {}, onRefunded() { completed++; } })));
-  await act(async () => document.querySelector('.my-ticket-seat-table button').click());
-  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '환불하기').click());
+  if (pgPaymentId) {
+    await act(async () => document.querySelector('.my-ticket-seat-table input[type="checkbox"]').click());
+    await act(async () => document.querySelector('.my-ticket-seat-heading .my-ticket-refund-button').click());
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '환불하기').click());
+  }
   return { calls, get completed() { return completed; }, close: async () => act(async () => root.unmount()) };
 }
 
@@ -64,6 +67,7 @@ test('PG 거래가 없는 결제는 구형 취소·환불 API로 우회하지 �
   try {
     assert.equal(run.completed, 0);
     assert.equal(run.calls.filter(call => call.options.method !== 'GET').length, 0);
-    assert.ok(document.body.textContent.includes('PG 결제 정보가 없어'));
+    assert.equal(document.querySelector('.my-ticket-seat-table input[type="checkbox"]').disabled, true);
+    assert.equal(document.querySelector('.my-ticket-refund-button'), null);
   } finally { await run.close(); }
 });

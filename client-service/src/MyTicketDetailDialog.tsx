@@ -86,6 +86,13 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
   }, [isGatewayPayment, request, reservationId, retry]);
   const paymentIsRefundable = payment?.status === 'PAID' || payment?.status === 'PARTIALLY_REFUNDED';
 
+  function selectRefundTicket(ticketId: number, checked: boolean) {
+    setSelectedIds((ids) => checked ? [...ids, ticketId] : ids.filter((id) => id !== ticketId));
+    setRefundTicket(null);
+    setConfirmTicket(null);
+    setRefundSelection([]);
+  }
+
   function beginRefund(ticket: Ticket, ids: number[] = [ticket.ticketId]) {
     setRefundSelection(ids);
     setRefundTicket(ticket);
@@ -190,20 +197,21 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
           <div><dt>결제 금액</dt><dd>{money(payment.amount)}</dd></div>
           <div><dt>환불 금액</dt><dd>{money(payment.refundedAmount ?? 0)}</dd></div>
         </dl>}</section>
-        <section><h3>좌석 정보 ({detail.tickets.length}매)</h3><div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
+        <section><div className="my-ticket-seat-heading">
+          <h3>좌석 정보 ({detail.tickets.length}매)</h3>
+          {isGatewayPayment && selectedIds.length > 0 && <button className="my-ticket-refund-button" type="button"
+            disabled={refundingTicketId != null} onClick={() => {
+              const first = detail.tickets.find((ticket) => ticket.ticketId === selectedIds[0]);
+              if (first) beginRefund(first, selectedIds);
+            }}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button>}
+        </div><div className="my-ticket-table-scroll"><table className="my-ticket-seat-table">
           <thead><tr><th>좌석 등급</th><th>좌석 번호</th><th>구매 금액</th><th>예매/취소</th><th>환불</th></tr></thead>
           <tbody>{detail.tickets.map((ticket) => <tr key={ticket.ticketId}><td>{ticket.grade}석</td><td>{seatName(ticket)}</td><td>{money(ticket.price)}</td><td>{ticketLabels[ticket.status] || ticket.status}</td><td>
-            {isGatewayPayment && ticket.status === 'PAID' && paymentIsRefundable && <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)} disabled={refundingTicketId != null} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, ticket.ticketId] : ids.filter((id) => id !== ticket.ticketId))} />}
-            {ticket.status === 'PAID' && paymentIsRefundable ? <button className="my-ticket-refund-button" type="button"
-              disabled={refundingTicketId != null} onClick={() => beginRefund(ticket)}>
-              {refundingTicketId === ticket.ticketId ? '처리 중…' : '환불 / 재시도'}
-            </button> : <span className="my-ticket-refund-unavailable">-</span>}
+            <input type="checkbox" aria-label={`${seatName(ticket)} 환불 선택`} checked={selectedIds.includes(ticket.ticketId)}
+              disabled={refundingTicketId != null || !isGatewayPayment || ticket.status !== 'PAID' || !paymentIsRefundable}
+              onChange={(event) => selectRefundTicket(ticket.ticketId, event.target.checked)} />
           </td></tr>)}</tbody>
         </table></div>{!detail.tickets.length && <p>발급된 티켓이 없습니다.</p>}
-          {isGatewayPayment && selectedIds.length > 0 && <button type="button" disabled={refundingTicketId != null} onClick={() => {
-            const first = detail.tickets.find((ticket) => ticket.ticketId === selectedIds[0]);
-            if (first) beginRefund(first, selectedIds);
-          }}>선택 좌석 환불 신청 ({selectedIds.length}석)</button>}
           {isGatewayPayment && <section aria-label="환불 신청 이력"><h3>환불 신청 이력</h3>
             {applicationsError && <p role="alert">{applicationsError} <button type="button" onClick={() => setRetry((value) => value + 1)}>이력 다시 확인</button></p>}
             {applications.length === 0 && !applicationsError && <p>환불 신청 이력이 없습니다.</p>}
