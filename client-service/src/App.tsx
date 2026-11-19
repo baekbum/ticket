@@ -5,7 +5,8 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
-import { ActiveTokenExpiredError, ApiRequestError, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
@@ -864,6 +865,14 @@ function App() {
     () => sessionStorage.getItem('ticksy.userName') || '',
   );
   const [customAlert, setCustomAlert] = useState<CustomAlertState | null>(null);
+  const handleSessionExpired = useCallback((message: string) => {
+    setLoginUserName('');
+    setPage('login');
+    setCustomAlert({ message });
+    window.history.replaceState({ page: 'login' }, '', getUrlForPage('login'));
+  }, []);
+  useSessionExpiration(handleSessionExpired);
+
   const isFullAuthPage =
     page === 'login' ||
     page === 'signup' ||
@@ -4732,7 +4741,11 @@ function TopButton() {
   );
 }
 
-const request = createAuthenticatedRequest({ storage: sessionStorage, fetch: window.fetch.bind(window) });
+const request = createAuthenticatedRequest({
+  storage: sessionStorage,
+  fetch: window.fetch.bind(window),
+  onSessionExpired: (message) => window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: message })),
+});
 
 function clearLoginStorage() {
   sessionStorage.removeItem('ticksy.accessToken');
