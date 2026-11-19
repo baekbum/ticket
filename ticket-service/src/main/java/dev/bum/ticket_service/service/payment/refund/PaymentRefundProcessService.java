@@ -239,7 +239,8 @@ public class PaymentRefundProcessService {
         if (payment.getStatus() == PaymentStatus.PAID
                 || payment.getStatus() == PaymentStatus.PARTIALLY_REFUNDED) {
             payment.applyCancellation(
-                    process.getRefundAmount(), process.getCancellationFeeAmount());
+                    process.getRefundAmount(), process.getCancellationFeeAmount(),
+                    process.getRefund().getSnapshot().getReservationFeeRefundAmount());
         }
     }
 

@@ -234,6 +234,7 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
             <label>예금주<input value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} autoComplete="name" disabled={refundingTicketId != null} /></label>
             <div className="my-ticket-refund-actions"><button type="button" onClick={() => setRefundTicket(null)} disabled={refundingTicketId != null}>취소</button><button type="submit" disabled={refundingTicketId != null}>{refundingTicketId != null ? '처리 중…' : '환불 신청'}</button></div>
           </form>}
+          <p className="my-ticket-deadline">예매 당일(한국 시간) 신청한 환불은 취소한 좌석의 예매 수수료도 반환합니다. 다음 날부터는 예매 수수료가 제외됩니다.</p>
           <p className="my-ticket-deadline">공연 취소 마감: {date(detail.reservation.cancelDeadlineAt)}</p>
           <p className="my-ticket-deadline">신규 취소는 매일 23:50:00까지 가능합니다. 기한 내 접수한 미완료 요청은 마감 이후에도 재시도할 수 있습니다.</p>
         </section>

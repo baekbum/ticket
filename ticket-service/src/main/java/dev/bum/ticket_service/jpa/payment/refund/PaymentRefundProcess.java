@@ -161,6 +161,22 @@ public class PaymentRefundProcess {
             boolean restoreCoupon
     ) {
 
+        return create(payment, tickets, amount, fee, full, account, capturedAt, restoreCoupon, 0);
+    }
+
+    // 최초 계산한 예매 수수료 반환분을 포함해 환불 신청을 생성한다.
+    public static PaymentRefundProcess create(
+            Payment payment,
+            List<Ticket> tickets,
+            Integer amount,
+            Integer fee,
+            boolean full,
+            RefundAccountRequest account,
+            LocalDateTime capturedAt,
+            boolean restoreCoupon,
+            int reservationFeeRefundAmount
+    ) {
+
         return PaymentRefundProcess.builder()
                 .refund(
                         PaymentRefund.builder()
@@ -171,6 +187,7 @@ public class PaymentRefundProcess {
                                                 .tickets(tickets)
                                                 .refundAmount(amount)
                                                 .cancellationFeeAmount(fee)
+                                                .reservationFeeRefundAmount(reservationFeeRefundAmount)
                                                 .fullCancellation(full)
                                                 .refundAccount(account)
                                                 .capturedAt(capturedAt)

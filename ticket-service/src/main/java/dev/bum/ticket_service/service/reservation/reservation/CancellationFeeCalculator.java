@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.reservation.reservation;
 
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentSnapshotTicket;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
@@ -132,8 +133,11 @@ public final class CancellationFeeCalculator {
                 ? cancelledTicketAmount - discountCalculation.deductionAmount()
                 : calculateTicketRefundWithoutDiscountSnapshot(
                         payment, activeTicketAmount, cancelledTicketAmount, fullCancellation);
-        int amountBeforeCancellationFee = Math.max(ticketRefundAmount + deliveryRefundAmount, 0);
-        int settleableAmount = Math.min(amountBeforeCancellationFee, payment.getRefundableAmount());
+        int reservationFeeRefundAmount = calculateReservationFeeRefund(reservation, payment, cancelledTickets, cancelledAt);
+        int amountBeforeCancellationFee = Math.max(ticketRefundAmount + deliveryRefundAmount, 0)
+                + reservationFeeRefundAmount;
+        int settleableAmount = Math.min(amountBeforeCancellationFee,
+                payment.getRefundableAmount() + reservationFeeRefundAmount);
         int cancellationFeeAmount = Math.min(
                 calculateCancellationFee(reservation, cancelledTicketAmount, cancelledAt),
                 settleableAmount);
@@ -142,9 +146,46 @@ public final class CancellationFeeCalculator {
                 .refundAmount(settleableAmount - cancellationFeeAmount)
                 .cancellationFeeAmount(cancellationFeeAmount)
                 .deliveryRefundAmount(deliveryRefundAmount)
+                .reservationFeeRefundAmount(reservationFeeRefundAmount)
                 .discountDeductionAmount(discountCalculation.deductionAmount())
                 .restoreCoupon(discountCalculation.restoreCoupon())
                 .build();
+    }
+
+    // 한국 시간의 같은 날짜에 접수한 좌석만 예매 수수료를 반환한다.
+    // 최초 결제 스냅샷 순서에 나머지 원을 배분해 부분 취소 순서와 무관하게 합계를 보존한다.
+    private static int calculateReservationFeeRefund(
+            Reservation reservation,
+            Payment payment,
+            List<Ticket> cancelledTickets,
+            LocalDateTime cancelledAt
+    ) {
+
+        if (reservation.getReservedAt() == null
+                || !reservation.getReservedAt().toLocalDate().equals(cancelledAt.toLocalDate())
+                || payment.getReservationFeeAmount() == 0) {
+            return 0;
+        }
+
+        List<PaymentSnapshotTicket> original = payment.getSnapshot().getTickets();
+        List<Long> selectedIds = cancelledTickets.stream().map(Ticket::getTicketId).toList();
+
+        if (original.isEmpty() || selectedIds.stream().anyMatch(id -> id == null
+                || original.stream().filter(ticket -> id.equals(ticket.getTicketId())).count() != 1)) {
+            throw new IllegalArgumentException("예매 수수료를 계산할 최초 결제 티켓 정보를 확인할 수 없습니다.");
+        }
+
+        int share = payment.getReservationFeeAmount() / original.size();
+        int remainder = payment.getReservationFeeAmount() % original.size();
+        int amount = 0;
+
+        for (int index = 0; index < original.size(); index++) {
+            if (selectedIds.contains(original.get(index).getTicketId())) {
+                amount += share + (index < remainder ? 1 : 0);
+            }
+        }
+
+        return Math.min(amount, payment.getReservationFeeAmount() - payment.getReservationFeeRefundedAmount());
     }
 
     /**
@@ -291,6 +332,9 @@ public final class CancellationFeeCalculator {
 
             // 취소 수수료 금액.
             int cancellationFeeAmount,
+
+            // 환불 금액에 포함된 예매 당일 좌석분의 예매 수수료.
+            int reservationFeeRefundAmount,
 
             // 배송비 환불 금액.
             int deliveryRefundAmount,

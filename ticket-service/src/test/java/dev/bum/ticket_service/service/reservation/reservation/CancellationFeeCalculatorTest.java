@@ -15,6 +15,7 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.coupon.coupon.Coupon;
 import dev.bum.ticket_service.jpa.coupon.userCoupon.UserCoupon;
 import dev.bum.ticket_service.jpa.payment.payment.Payment;
+import dev.bum.ticket_service.jpa.payment.payment.PaymentSnapshot;
 import dev.bum.ticket_service.jpa.reservation.reservation.Reservation;
 import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDiscount;
 import dev.bum.ticket_service.jpa.seat.Seat;
@@ -25,6 +26,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -169,6 +171,135 @@ class CancellationFeeCalculatorTest {
         assertThat(firstCalculation.refundAmount() + lastCalculation.refundAmount()).isEqualTo(281200);
         assertThat(lastCalculation.deliveryRefundAmount()).isEqualTo(3200);
         assertThat(lastCalculation.discountDeductionAmount()).isEqualTo(10000);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2026-09-15T23:49:00,108000,8000", "2026-09-16T00:00:00,100000,0"})
+    @DisplayName("예매일과 같은 날짜만 예매 수수료를 반환하며 24시간 유예로 판단하지 않는다")
+    void refundBookingFeeOnlyOnBookingDate(String requestedAt, int expectedAmount, int expectedFee) {
+
+        Reservation reservation = reservation(CANCELLED_AT.withHour(23).withMinute(40), CANCELLED_AT.plusDays(10));
+        Ticket ticket = ticket(1L, reservation, 100000);
+        Payment payment = bookingFeePayment(reservation, List.of(ticket), 8000);
+
+        CancellationFeeCalculator.CancellationRefundCalculation calculation = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(ticket), List.of(ticket), List.of(), true,
+                LocalDateTime.parse(requestedAt));
+
+        assertThat(calculation.refundAmount()).isEqualTo(expectedAmount);
+        assertThat(calculation.reservationFeeRefundAmount()).isEqualTo(expectedFee);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,1,2", "2,0,1"})
+    @DisplayName("원 단위 수수료를 최초 티켓 순서로 배분하고 순차 취소해도 전체 금액을 보존한다")
+    void allocateBookingFeeAcrossPartialRefunds(int first, int second, int third) {
+
+        Reservation reservation = reservation(CANCELLED_AT.minusHours(1), CANCELLED_AT.plusDays(10));
+        List<Ticket> original = List.of(ticket(1L, reservation, 100000), ticket(2L, reservation, 100000),
+                ticket(3L, reservation, 100000));
+        Payment payment = bookingFeePayment(reservation, original, 10001);
+        ArrayList<Ticket> active = new ArrayList<>(original);
+
+        for (int index : new int[]{first, second, third}) {
+            Ticket selected = original.get(index);
+            CancellationFeeCalculator.CancellationRefundCalculation calculation = CancellationFeeCalculator.calculate(
+                    reservation, payment, active, List.of(selected), List.of(), active.size() == 1, CANCELLED_AT);
+
+            assertThat(calculation.reservationFeeRefundAmount()).isEqualTo(index < 2 ? 3334 : 3333);
+            payment.applyCancellation(calculation.refundAmount(), calculation.cancellationFeeAmount(),
+                    calculation.reservationFeeRefundAmount());
+            active.remove(selected);
+        }
+
+        assertThat(payment.getRefundedAmount()).isEqualTo(310001);
+        assertThat(payment.getReservationFeeRefundedAmount()).isEqualTo(10001);
+        assertThat(payment.getRefundableAmount()).isZero();
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    @DisplayName("당일 일부 취소 후 다음 날 나머지를 취소하면 남은 좌석의 예매 수수료만 유지한다")
+    void keepOnlyNextDayTicketsBookingFees() {
+
+        Reservation reservation = reservation(CANCELLED_AT.minusHours(1), CANCELLED_AT.plusDays(10));
+        Ticket first = ticket(1L, reservation, 100000);
+        Ticket second = ticket(2L, reservation, 100000);
+        Payment payment = bookingFeePayment(reservation, List.of(first, second), 8000);
+        CancellationFeeCalculator.CancellationRefundCalculation today = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(first, second), List.of(first), List.of(), false, CANCELLED_AT);
+        payment.applyCancellation(today.refundAmount(), today.cancellationFeeAmount(), today.reservationFeeRefundAmount());
+
+        CancellationFeeCalculator.CancellationRefundCalculation tomorrow = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(second), List.of(second), List.of(), true, CANCELLED_AT.plusDays(1));
+        payment.applyCancellation(tomorrow.refundAmount(), tomorrow.cancellationFeeAmount(), tomorrow.reservationFeeRefundAmount());
+
+        assertThat(today.refundAmount()).isEqualTo(104000);
+        assertThat(tomorrow.refundAmount()).isEqualTo(100000);
+        assertThat(payment.getRefundedAmount()).isEqualTo(204000);
+        assertThat(payment.getReservationFeeRefundedAmount()).isEqualTo(4000);
+        assertThat(payment.getRefundableAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("당일 부분 환불에도 쿠폰 공제와 마지막 취소의 배송비 정산을 보존한다")
+    void sameDayCouponAndDeliverySettlementKeepsOriginalPaymentTotal() {
+
+        Reservation reservation = reservation(CANCELLED_AT.minusHours(1), CANCELLED_AT.plusDays(10));
+        Ticket first = ticket(1L, reservation, 180000);
+        Ticket second = ticket(2L, reservation, 180000);
+        Payment payment = Payment.builder().reservation(reservation).method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.PAID)
+                .snapshot(PaymentSnapshot.builder()
+                        .amount(361200).reservationFeeAmount(8000).deliveryFeeAmount(3200)
+                        .tickets(List.of(first, second)).build()).build();
+        List<ReservationDiscount> discounts = List.of(discount(reservation));
+        CancellationFeeCalculator.CancellationRefundCalculation partial = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(first, second), List.of(first), discounts, false, CANCELLED_AT);
+        payment.applyCancellation(partial.refundAmount(), partial.cancellationFeeAmount(), partial.reservationFeeRefundAmount());
+
+        CancellationFeeCalculator.CancellationRefundCalculation remaining = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(second), List.of(second), discounts, true, CANCELLED_AT);
+        payment.applyCancellation(remaining.refundAmount(), remaining.cancellationFeeAmount(), remaining.reservationFeeRefundAmount());
+
+        assertThat(partial.refundAmount()).isEqualTo(184000);
+        assertThat(remaining.refundAmount()).isEqualTo(177200);
+        assertThat(remaining.restoreCoupon()).isTrue();
+        assertThat(payment.getRefundedAmount()).isEqualTo(361200);
+        assertThat(payment.getRefundableAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("쿠폰 공제로 티켓 반환액이 0원이 되어도 당일 예매 수수료는 반환한다")
+    void returnBookingFeeEvenWhenCouponDeductionConsumesTheTicketRefund() {
+
+        Reservation reservation = reservation(CANCELLED_AT.minusHours(1), CANCELLED_AT.plusDays(10));
+        Ticket first = ticket(1L, reservation, 100000);
+        Ticket second = ticket(2L, reservation, 100000);
+        Payment payment = Payment.builder().reservation(reservation).method(PaymentMethod.CREDIT_CARD)
+                .status(PaymentStatus.PAID)
+                .snapshot(PaymentSnapshot.builder().amount(58000).reservationFeeAmount(8000)
+                        .tickets(List.of(first, second)).build()).build();
+        UserCoupon coupon = UserCoupon.builder().status(UserCouponStatus.USED)
+                .coupon(Coupon.builder().minOrderAmount(200000).build()).build();
+        ReservationDiscount discount = ReservationDiscount.builder().userCoupon(coupon).discountAmount(150000).build();
+
+        CancellationFeeCalculator.CancellationRefundCalculation calculation = CancellationFeeCalculator.calculate(
+                reservation, payment, List.of(first, second), List.of(first), List.of(discount), false, CANCELLED_AT);
+        payment.applyCancellation(calculation.refundAmount(), calculation.cancellationFeeAmount(),
+                calculation.reservationFeeRefundAmount());
+
+        assertThat(calculation.refundAmount()).isEqualTo(4000);
+        assertThat(calculation.reservationFeeRefundAmount()).isEqualTo(4000);
+        assertThat(calculation.restoreCoupon()).isTrue();
+        assertThat(payment.getRefundableAmount()).isEqualTo(50000);
+    }
+
+    private Payment bookingFeePayment(Reservation reservation, List<Ticket> tickets, int fee) {
+
+        return Payment.builder().reservation(reservation).method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.PAID)
+                .snapshot(PaymentSnapshot.builder()
+                        .amount(tickets.size() * 100000 + fee).reservationFeeAmount(fee).tickets(tickets).build()).build();
     }
 
     private Reservation reservation(LocalDateTime reservedAt, LocalDateTime eventDateTime) {

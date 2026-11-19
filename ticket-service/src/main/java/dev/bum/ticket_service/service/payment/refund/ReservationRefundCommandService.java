@@ -129,7 +129,8 @@ public class ReservationRefundCommandService {
         CancellationFeeCalculator.CancellationRefundCalculation calculation = CancellationFeeCalculator.calculate(
                 reservation, payment, available, selected, discounts.findByReservation(reservation), full, capturedAt);
         PaymentRefundProcess process = PaymentRefundProcess.create(payment, selected, calculation.refundAmount(),
-                calculation.cancellationFeeAmount(), full, account, capturedAt, calculation.restoreCoupon());
+                calculation.cancellationFeeAmount(), full, account, capturedAt, calculation.restoreCoupon(),
+                calculation.reservationFeeRefundAmount());
         if (account != null) {
             process.getRefund().getSnapshot().captureAccountCiphertext(cipher.encrypt(account.getAccountNumber()));
         }

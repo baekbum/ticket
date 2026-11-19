@@ -35,6 +35,11 @@ public class PaymentRefundSnapshot {
     @Column(nullable = false, updatable = false)
     private int cancellationFeeAmount;
 
+    // 최초 신청일이 한국 시간 예매일과 같을 때 반환하는 대상 좌석분의 예매 수수료.
+    // refundAmount에 포함된 금액이며 자정 이후 재시도에서도 변경하지 않는다.
+    @Column(nullable = false, updatable = false)
+    private int reservationFeeRefundAmount;
+
     // 전체 취소 여부.
     @Column(nullable = false, updatable = false)
     private boolean fullCancellation;
@@ -99,7 +104,6 @@ public class PaymentRefundSnapshot {
     }
 
     // 전달받은 값으로 환불 스냅샷 객체를 초기화한다.
-    @Builder
     public PaymentRefundSnapshot(
             Payment payment,
             List<Ticket> tickets,
@@ -111,6 +115,25 @@ public class PaymentRefundSnapshot {
             boolean restoreCoupon
     ) {
 
+        this(payment, tickets, refundAmount, cancellationFeeAmount, fullCancellation, refundAccount,
+                capturedAt, restoreCoupon, 0);
+    }
+
+    // 신규 신청의 예매 수수료 반환분도 불변 스냅샷에 저장한다.
+    @Builder
+    public PaymentRefundSnapshot(
+            Payment payment,
+            List<Ticket> tickets,
+            int refundAmount,
+            int cancellationFeeAmount,
+            boolean fullCancellation,
+            RefundAccountRequest refundAccount,
+            LocalDateTime capturedAt,
+            boolean restoreCoupon,
+            int reservationFeeRefundAmount
+    ) {
+
+        this.reservationFeeRefundAmount = reservationFeeRefundAmount;
         this.refundAmount = refundAmount;
         this.cancellationFeeAmount = cancellationFeeAmount;
         this.fullCancellation = fullCancellation;
@@ -120,7 +143,7 @@ public class PaymentRefundSnapshot {
             this.tickets.add(PaymentRefundSnapshotTicket.capture(this, ticket));
         ticketAmount = this.tickets.stream().mapToInt(PaymentRefundSnapshotTicket::getTicketPrice).sum();
         deliveryRefundAmount = fullCancellation ? payment.getDeliveryFeeAmount() : 0;
-        discountAmount = Math.max(0, ticketAmount + deliveryRefundAmount - refundAmount - cancellationFeeAmount);
+        discountAmount = Math.max(0, ticketAmount + deliveryRefundAmount + reservationFeeRefundAmount - refundAmount - cancellationFeeAmount);
         if (refundAccount != null) {
             refundBankCompany = refundAccount.getBankCompany();
             refundAccountNumberMasked = mask(refundAccount.getAccountNumber());

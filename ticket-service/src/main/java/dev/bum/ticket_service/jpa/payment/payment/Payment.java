@@ -112,6 +112,10 @@ public class Payment {
     @Column(name = "refunded_amount", nullable = false)
     private Integer refundedAmount = 0;
 
+    // 성공한 환불에 포함된 누적 예매 수수료. 미반환 수수료만 환불 가능 잔액에서 제외한다.
+    @Column(nullable = false)
+    private int reservationFeeRefundedAmount = 0;
+
     // 취소 과정에서 환불하지 않고 확정한 누적 취소 수수료.
     @Column(name = "cancellation_fee_amount", nullable = false)
     private Integer cancellationFeeAmount = 0;
@@ -557,17 +561,32 @@ public class Payment {
     // 취소 금액과 결제 상태를 반영한다.
     public void applyCancellation(Integer refundAmount, Integer cancellationFeeAmount) {
 
+        applyCancellation(refundAmount, cancellationFeeAmount, 0);
+    }
+
+    // 최초 환불 신청에 확정한 예매 수수료 반환분을 전체 환불액과 함께 한 번 반영한다.
+    public void applyCancellation(Integer refundAmount, Integer cancellationFeeAmount, int reservationFeeRefundAmount) {
+
         PaymentStatus before = status;
         int fee = cancellationFeeAmount != null ? cancellationFeeAmount : 0;
-        if (refundAmount == null || refundAmount < 0 || refundAmount + fee <= 0) {
+
+        if (refundAmount == null || refundAmount < 0 || (long) refundAmount + fee <= 0) {
             throw new IllegalArgumentException("환불 금액과 취소 수수료의 합은 0보다 커야 합니다.");
         }
 
-        if (refundAmount + fee > getRefundableAmount()) {
+        if (fee < 0 || reservationFeeRefundAmount < 0
+                || reservationFeeRefundAmount > getReservationFeeAmount() - reservationFeeRefundedAmount
+                || reservationFeeRefundAmount > refundAmount) {
+            throw new IllegalArgumentException("환불에 포함된 수수료 금액이 올바르지 않습니다.");
+        }
+
+        if ((long) refundAmount + fee > (long) getRefundableAmount() + reservationFeeRefundAmount) {
             throw new IllegalArgumentException("환불 금액과 취소 수수료가 남은 결제 금액을 초과했습니다.");
         }
+
         this.refundedAmount = getRefundedAmount() + refundAmount;
         this.cancellationFeeAmount = getCancellationFeeAmount() + fee;
+        this.reservationFeeRefundedAmount += reservationFeeRefundAmount;
         updateRefundStatus();
         record(PaymentHistoryType.REFUNDED, before, null);
     }
@@ -578,6 +597,7 @@ public class Payment {
         PaymentStatus before = status;
         this.status = PaymentStatus.READY;
         this.refundedAmount = 0;
+        this.reservationFeeRefundedAmount = 0;
         this.cancellationFeeAmount = 0;
         this.paidAt = null;
         this.expiresAt = null;
@@ -639,7 +659,7 @@ public class Payment {
         return getAmount()
                 - getRefundedAmount()
                 - getCancellationFeeAmount()
-                - getReservationFeeAmount();
+                - (getReservationFeeAmount() - reservationFeeRefundedAmount);
     }
 
     // 취소 수수료 금액 값을 반환한다.
