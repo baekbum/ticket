@@ -262,15 +262,41 @@ export default function MyTicketDetailDialog({ reservationId, request, onClose, 
           {isGatewayPayment && <section aria-label="환불 신청 이력"><h3>환불 신청 이력</h3>
             {applicationsError && <p role="alert">{applicationsError} <button type="button" onClick={() => setRetry((value) => value + 1)}>이력 다시 확인</button></p>}
             {applications.length === 0 && !applicationsError && <p>환불 신청 이력이 없습니다.</p>}
-            {applications.map((application) => <div key={application.paymentRefundProcessId} className="my-ticket-refund-application">
-              <p><strong>신청 #{application.paymentRefundProcessId}</strong> · {refundStatusLabels[application.status] || application.status}</p>
-              <p>대상: {application.selectedTicketIds.split(',').map((id) => detail.tickets.find((ticket) => ticket.ticketId === Number(id))).map((ticket) => ticket ? seatName(ticket) : '-').join(', ')} · 환불 {money(application.refundAmount)} · 수수료 {money(application.cancellationFeeAmount)}</p>
-              <p>{isBankTransfer ? [application.refundBankCompany, application.refundAccountNumberMasked].filter(Boolean).join(' ') : '결제한 카드로 취소·환불'} · {application.createdAt}</p>
-              {!finishedRefund(application.status) && <div className="my-ticket-refund-actions">
-                <button type="button" disabled={isProcessing} onClick={() => void runApplication(application, false)}>{application.status === 'WITHDRAW_REQUESTED' ? '철회 다시 확인' : '다시 시도'}</button>
-                <button type="button" disabled={isProcessing} onClick={() => void runApplication(application, true)}>환불 신청 취소</button>
-              </div>}
-            </div>)}
+            <div className="my-ticket-refund-applications">
+              {applications.map((application) => {
+                const seats = application.selectedTicketIds.split(',').map((id) => {
+                  const ticket = detail.tickets.find((item) => item.ticketId === Number(id));
+                  return ticket ? seatName(ticket) : '-';
+                });
+                const bankName = refundBanks.find(([code]) => code === application.refundBankCompany)?.[1]
+                  ?? application.refundBankCompany;
+                const refundMethod = isBankTransfer
+                  ? [bankName, application.refundAccountNumberMasked].filter(Boolean).join(' ') || '-'
+                  : '결제한 카드로 취소·환불';
+
+                return <article key={application.paymentRefundProcessId} className="my-ticket-refund-application">
+                  <header className="my-ticket-refund-card-header">
+                    <div>
+                      <h4>신청 #{application.paymentRefundProcessId}</h4>
+                      <time dateTime={application.createdAt}>{date(application.createdAt)}</time>
+                    </div>
+                    <span className="my-ticket-refund-status" data-status={application.status}>
+                      {refundStatusLabels[application.status] || application.status}
+                    </span>
+                  </header>
+                  <dl className="my-ticket-refund-card-details">
+                    <div><dt>환불 금액</dt><dd className="my-ticket-refund-card-amount">{money(application.refundAmount)}</dd></div>
+                    <div><dt>취소 수수료</dt><dd>{money(application.cancellationFeeAmount)}</dd></div>
+                    <div><dt>대상 좌석</dt><dd>{seats.join(', ')}</dd></div>
+                    <div><dt>환불 수단</dt><dd>{refundMethod}</dd></div>
+                  </dl>
+                  {!finishedRefund(application.status) && <div className="my-ticket-refund-actions">
+                    <button type="button" disabled={isProcessing} onClick={() => void runApplication(application, false)}>{application.status === 'WITHDRAW_REQUESTED' ? '철회 다시 확인' : '다시 시도'}</button>
+                    <button type="button" disabled={isProcessing} onClick={() => void runApplication(application, true)}>환불 신청 취소</button>
+                  </div>}
+                </article>;
+              })}
+            </div>
           </section>}
           {refundTicket && isBankTransfer && <form className="my-ticket-refund-form" onSubmit={(event) => requestRefund(refundTicket, event)}>
             <div><strong>환불 계좌 정보</strong><span>{selectionLabel || seatName(refundTicket)}</span></div>

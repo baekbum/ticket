@@ -144,6 +144,19 @@
 .my-ticket-detail-dialog .my-ticket-refund-button { padding: 7px 14px; border-color: #237344; border-radius: 6px; color: #237344; white-space: nowrap; }
 .my-ticket-detail-dialog .my-ticket-refund-button:hover:not(:disabled) { background: #237344; color: white; }
 .my-ticket-detail-dialog .my-ticket-refund-button:disabled { cursor: not-allowed; opacity: .45; }
+.my-ticket-refund-applications { display: grid; gap: 12px; }
+.my-ticket-refund-application { padding: 18px; border: 1px solid #d8e5dc; border-radius: 12px; background: #fcfdfa; }
+.my-ticket-refund-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.my-ticket-refund-card-header h4 { margin: 0 0 4px; font-size: 16px; }
+.my-ticket-refund-card-header time { color: #5b665e; font-size: 13px; }
+.my-ticket-refund-status { padding: 4px 10px; border-radius: 999px; background: #f6edd7; color: #684b16; font-size: 13px; font-weight: 600; }
+.my-ticket-refund-status[data-status="LOCAL_SUCCEEDED"] { background: #e7f3e9; color: #21613c; }
+.my-ticket-refund-status[data-status="WITHDRAWN"] { background: #ecefed; color: #505b54; }
+.my-ticket-refund-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 14px 0 0; padding-top: 14px; border-top: 1px solid #e0e9e1; }
+.my-ticket-refund-card-details dt { color: #5b665e; font-size: 13px; }
+.my-ticket-refund-card-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.my-ticket-refund-card-details .my-ticket-refund-card-amount { color: #237344; font-size: 20px; font-weight: 700; }
+.my-ticket-refund-application > .my-ticket-refund-actions { margin-top: 16px; flex-wrap: wrap; }
 .my-ticket-refund-form { display: grid; grid-template-columns: 1fr repeat(3, minmax(140px, 1fr)) auto; align-items: end; gap: 12px; margin-top: 16px; padding: 18px; border: 1px solid #d8e5dc; border-radius: 10px; background: #f5f8f4; }
 .my-ticket-refund-form > div:first-child { display: grid; gap: 6px; }
 .my-ticket-refund-form > div:first-child span, .my-ticket-refund-form label { color: #68716b; font-size: 13px; }
