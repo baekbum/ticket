@@ -1,5 +1,6 @@
 import MyTicketPage from './MyTicketPage';
 import SearchResultsPage from './SearchResultsPage';
+import EventDescription from './EventDescription';
 import { readSearch, type SearchQuery } from './searchQuery';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
@@ -2148,10 +2149,7 @@ function EventDetailPage({
         </div>
       </article>
 
-      <section className="event-description-panel">
-        <h2>공연 소개</h2>
-        <p>{eventDetail.description}</p>
-      </section>
+      <EventDescription description={eventDetail.description} posterUrl={eventDetail.posterUrl} />
 
       {isScheduleAlertOpen && (
         <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
