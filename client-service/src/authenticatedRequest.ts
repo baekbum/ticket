@@ -25,6 +25,12 @@ export class ActiveTokenExpiredError extends Error {
 type Tokens = { accessToken: string; refreshToken: string };
 export const SESSION_EXPIRED_EVENT = 'ticksy:session-expired';
 
+export function clearAuthenticationStorage(storage: Storage) {
+  storage.removeItem('ticksy.accessToken');
+  storage.removeItem('ticksy.refreshToken');
+  storage.removeItem('ticksy.userName');
+}
+
 type Dependencies = {
   storage: Storage;
   fetch: typeof fetch;
@@ -51,9 +57,7 @@ export function createAuthenticatedRequest(deps: Dependencies) {
 
   function expireLogin(): never {
     // 예매 active-token은 로그인 토큰과 수명이 다르므로 유지한다.
-    deps.storage.removeItem('ticksy.accessToken');
-    deps.storage.removeItem('ticksy.refreshToken');
-    deps.storage.removeItem('ticksy.userName');
+    clearAuthenticationStorage(deps.storage);
 
     const error = new SessionExpiredError();
     if (!expirationNotified) {

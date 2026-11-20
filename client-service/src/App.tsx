@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
-import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, clearAuthenticationStorage, createAuthenticatedRequest } from './authenticatedRequest';
 import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
@@ -69,6 +69,7 @@ type QueueEntryResponse = {
 type CustomAlertState = {
   message: string;
   closeWindowOnConfirm?: boolean;
+  returnToLoginOnDismiss?: boolean;
 };
 
 type FindUserIdResponse = {
@@ -423,8 +424,13 @@ function getPageFromLocation(): Page {
   return 'home';
 }
 
-function getUrlForPage(page: Page) {
-  const url = new URL(window.location.href);
+function getUrlForPage(page: Page, href = window.location.href) {
+  const url = new URL(href);
+
+  if (page !== 'bookingWindow') {
+    url.searchParams.delete('activeToken');
+    url.searchParams.delete('activeTokenExpiresAt');
+  }
 
   if (page !== 'search') {
     url.searchParams.delete('keyword');
@@ -454,6 +460,22 @@ function getUrlForPage(page: Page) {
   }
 
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function returnBookingOpenerToLogin() {
+  const opener: Window | null = window.opener;
+  if (!opener || opener.closed) return false;
+
+  try {
+    if (opener.location.origin !== window.location.origin) return false;
+
+    // 팝업의 sessionStorage는 메인 창과 별개다.
+    clearAuthenticationStorage(opener.sessionStorage);
+    opener.location.replace(getUrlForPage('login', opener.location.href));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function formatDateInput(date: Date) {
@@ -865,13 +887,35 @@ function App() {
     () => sessionStorage.getItem('ticksy.userName') || '',
   );
   const [customAlert, setCustomAlert] = useState<CustomAlertState | null>(null);
-  const handleSessionExpired = useCallback((message: string) => {
+  const returnToLogin = useCallback(() => {
     setLoginUserName('');
     setPage('login');
-    setCustomAlert({ message });
     window.history.replaceState({ page: 'login' }, '', getUrlForPage('login'));
   }, []);
+  const handleSessionExpired = useCallback((message: string) => {
+    if (getPageFromLocation() === 'bookingWindow') {
+      setCustomAlert({ message, returnToLoginOnDismiss: true });
+      return;
+    }
+
+    returnToLogin();
+    setCustomAlert({ message });
+  }, [returnToLogin]);
   useSessionExpiration(handleSessionExpired);
+
+  const dismissCustomAlert = useCallback((confirmCloseWindow: boolean) => {
+    if (customAlert?.returnToLoginOnDismiss) {
+      if (returnBookingOpenerToLogin()) {
+        window.close();
+        return;
+      }
+      returnToLogin();
+    } else if (confirmCloseWindow && customAlert?.closeWindowOnConfirm) {
+      window.close();
+    }
+
+    setCustomAlert(null);
+  }, [customAlert, returnToLogin]);
 
   const isFullAuthPage =
     page === 'login' ||
@@ -906,15 +950,13 @@ function App() {
   useEffect(() => {
     const nativeAlert = window.alert;
     window.alert = (message?: unknown) => {
-      if (message && typeof message === 'object' && 'message' in message) {
-        setCustomAlert((current) => current?.closeWindowOnConfirm ? current : ({
-          message: String((message as CustomAlertState).message ?? ''),
-          closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
-        }));
-        return;
-      }
-
-      setCustomAlert((current) => current?.closeWindowOnConfirm ? current : { message: String(message ?? '') });
+      const nextAlert = message && typeof message === 'object' && 'message' in message
+        ? {
+            message: String(message.message ?? ''),
+            closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
+          }
+        : { message: String(message ?? '') };
+      setCustomAlert((current) => current?.returnToLoginOnDismiss || current?.closeWindowOnConfirm ? current : nextAlert);
     };
 
     return () => {
@@ -929,13 +971,13 @@ function App() {
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setCustomAlert(null);
+        dismissCustomAlert(false);
       }
     }
 
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [customAlert]);
+  }, [customAlert, dismissCustomAlert]);
 
   function navigateToPage(nextPage: Page) {
     if (nextPage !== 'search') {
@@ -1088,7 +1130,7 @@ function App() {
           onLogin={() => navigateToPage('login')}
         />
       )}
-      {page === 'bookingWindow' && <BookingWindowPage />}
+      {page === 'bookingWindow' && !customAlert?.returnToLoginOnDismiss && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
@@ -1097,14 +1139,7 @@ function App() {
       {!isFullAuthPage && <TopButton />}
       <CustomAlertModal
         alert={customAlert}
-        onClose={() => {
-          const shouldCloseWindow = customAlert?.closeWindowOnConfirm;
-          setCustomAlert(null);
-
-          if (shouldCloseWindow) {
-            window.close();
-          }
-        }}
+        onClose={() => dismissCustomAlert(true)}
       />
     </main>
   );
@@ -2363,7 +2398,7 @@ function BookingWindowPage() {
       } catch (error) {
         if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
           setBookingLoadError(error.message);
-          alertSessionExpiredAndClose(error);
+          handleBookingSessionExpiration(error);
           return;
         }
 
@@ -2494,7 +2529,7 @@ function BookingWindowPage() {
     } catch (error) {
       setSeats([]);
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2539,11 +2574,11 @@ function BookingWindowPage() {
     return error instanceof Error ? error.message : fallbackMessage;
   }
 
-  function alertSessionExpiredAndClose(error: unknown) {
-    window.alert({
-      message: bookingErrorMessage(error, '세션이 만료되었습니다. 다시 시도해주세요.'),
-      closeWindowOnConfirm: error instanceof ActiveTokenExpiredError,
-    });
+  function handleBookingSessionExpiration(error: SessionExpiredError | ActiveTokenExpiredError) {
+    // 로그인 세션 만료 안내는 App에서 표시한다.
+    if (error instanceof ActiveTokenExpiredError) {
+      window.alert({ message: error.message, closeWindowOnConfirm: true });
+    }
   }
 
   useEffect(() => {
@@ -2557,7 +2592,7 @@ function BookingWindowPage() {
       return;
     }
 
-    alertSessionExpiredAndClose(new ActiveTokenExpiredError());
+    handleBookingSessionExpiration(new ActiveTokenExpiredError());
   }, [activeTokenRemainingSeconds, checkoutStep, completedPayment, cardPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
@@ -2629,7 +2664,7 @@ function BookingWindowPage() {
       setCheckoutStep('PRICE');
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2673,7 +2708,7 @@ function BookingWindowPage() {
     } catch (error) {
       setSelectedUserCouponId(null);
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2760,7 +2795,7 @@ function BookingWindowPage() {
       releaseActiveToken(selectedScheduleId, activeToken);
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
       } else {
         alert(bookingErrorMessage(error, '결제 준비에 실패했습니다. 다시 시도해주세요.'));
       }
@@ -2828,7 +2863,7 @@ function BookingWindowPage() {
       return true;
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return false;
       }
 
@@ -4749,9 +4784,7 @@ const request = createAuthenticatedRequest({
 });
 
 function clearLoginStorage() {
-  sessionStorage.removeItem('ticksy.accessToken');
-  sessionStorage.removeItem('ticksy.refreshToken');
-  sessionStorage.removeItem('ticksy.userName');
+  clearAuthenticationStorage(sessionStorage);
   clearQueueTokenStorage();
 }
 
