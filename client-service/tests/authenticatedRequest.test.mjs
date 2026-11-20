@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAuthenticatedRequest, ApiRequestError, ActiveTokenExpiredError, SessionExpiredError } from '../src/authenticatedRequest.ts';
+import { bindBookingLogin, createWindowAuthentication, startLoginSession } from '../src/bookingAuthentication.ts';
 
 function storage() {
   const values = new Map([
@@ -12,6 +13,14 @@ function storage() {
 }
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 const tokens = { accessToken: 'new-access', refreshToken: 'new-refresh' };
+
+function bookingWindows() {
+  const location = { origin: 'https://localhost' };
+  const main = { sessionStorage: storage(), location, crypto: globalThis.crypto };
+  const popup = { sessionStorage: storage(), location, opener: main };
+  bindBookingLogin(main, popup);
+  return { main, popup };
+}
 
 test('동시 401은 한 번 갱신하고 기존 본문과 active-token을 유지해 재전송한다', async () => {
   const saved = storage();
@@ -34,6 +43,89 @@ test('동시 401은 한 번 갱신하고 기존 본문과 active-token을 유지
   assert.equal(refreshCount, 1);
   assert.equal(retries, 3);
   assert.equal(saved.getItem('ticksy.activeToken.1'), 'active');
+});
+
+test('팝업을 연 뒤 메인 창에서 갱신한 토큰으로 첫 좌석 요청을 보낸다', async () => {
+  const { main, popup } = bookingWindows();
+  main.sessionStorage.setItem('ticksy.accessToken', tokens.accessToken);
+  main.sessionStorage.setItem('ticksy.refreshToken', tokens.refreshToken);
+
+  const request = createAuthenticatedRequest({
+    ...createWindowAuthentication(popup, () => true),
+    fetch: async (url, options) => {
+      assert.equal(url, '/ticket/api/v1/area/select');
+      assert.equal(new Headers(options.headers).get('Authorization'), 'Bearer new-access');
+      return json({ ok: true });
+    },
+  });
+
+  assert.equal(popup.sessionStorage.getItem('ticksy.accessToken'), 'old-access');
+  assert.deepEqual(await request('/ticket/api/v1/area/select', {}), { ok: true });
+});
+
+test('메인 창과 좌석 팝업의 동시 401은 재발급을 공유한다', async () => {
+  const { main, popup } = bookingWindows();
+  const calls = [];
+  let refreshCount = 0;
+  const fetch = async (url, options) => {
+    if (url === '/auth/api/v1/reissue') {
+      refreshCount++;
+      assert.equal(new Headers(options.headers).get('Authorization-Refresh'), 'Bearer refresh');
+      return refreshCount === 1 ? json(tokens) : json({ code: 'REFRESH_TOKEN_MISMATCH' }, 401);
+    }
+    const authorization = new Headers(options.headers).get('Authorization');
+    calls.push(authorization);
+    return authorization === 'Bearer new-access' ? json({ ok: true }) : json({}, 401);
+  };
+  const popupRequest = createAuthenticatedRequest({ ...createWindowAuthentication(popup, () => true), fetch });
+  const mainRequest = createAuthenticatedRequest({ ...createWindowAuthentication(main, () => false), fetch });
+
+  const results = await Promise.all([popupRequest('/checkout', {}), mainRequest('/my-ticket', {})]);
+  assert.deepEqual(results, [{ ok: true }, { ok: true }]);
+  assert.equal(refreshCount, 1);
+  assert.equal(calls.filter(token => token === 'Bearer new-access').length, 2);
+  assert.equal(main.sessionStorage.getItem('ticksy.refreshToken'), 'new-refresh');
+  assert.equal(popup.sessionStorage.getItem('ticksy.activeToken.1'), 'active');
+});
+
+test('다른 로그인 세션으로 바뀐 메인 창의 토큰을 기존 팝업에서 사용하거나 지우지 않는다', async () => {
+  const { main, popup } = bookingWindows();
+  const popupAuth = createWindowAuthentication(popup, () => true);
+  startLoginSession(main);
+  main.sessionStorage.setItem('ticksy.accessToken', 'other-access');
+  main.sessionStorage.setItem('ticksy.refreshToken', 'other-refresh');
+  const request = createAuthenticatedRequest({
+    ...popupAuth,
+    fetch: async () => { throw new Error('Old booking must not use the new login'); },
+  });
+
+  await assert.rejects(request('/checkout', {}), SessionExpiredError);
+  assert.equal(popupAuth.bookingOpener(), null);
+  assert.equal(main.sessionStorage.getItem('ticksy.accessToken'), 'other-access');
+  assert.equal(main.sessionStorage.getItem('ticksy.refreshToken'), 'other-refresh');
+});
+
+test('이전 로그인에서 보낸 요청에 늦게 도착한 401은 새 로그인으로 재시도하지 않는다', async () => {
+  const { main } = bookingWindows();
+  let respond;
+  let calls = 0;
+  const request = createAuthenticatedRequest({
+    ...createWindowAuthentication(main, () => false),
+    fetch: () => {
+      calls++;
+      return new Promise(resolve => { respond = resolve; });
+    },
+  });
+
+  const pending = request('/checkout', {});
+  startLoginSession(main);
+  main.sessionStorage.setItem('ticksy.accessToken', 'other-access');
+  main.sessionStorage.setItem('ticksy.refreshToken', 'other-refresh');
+  respond(json({}, 401));
+
+  await assert.rejects(pending, error => error instanceof ApiRequestError && error.status === 409);
+  assert.equal(calls, 1);
+  assert.equal(main.sessionStorage.getItem('ticksy.accessToken'), 'other-access');
 });
 
 test('갱신 중 503 또는 네트워크 오류가 발생해도 토큰을 지우지 않고 다시 시도할 수 있다', async () => {

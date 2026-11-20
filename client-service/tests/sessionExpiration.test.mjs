@@ -94,6 +94,8 @@ test('좌석 선택 팝업에서 세션 만료를 확인하면 메인 창으로 
       sessionStorage.setItem(key, value);
       mainStorage.setItem(key, value);
     }
+    mainStorage.setItem('ticksy.loginSessionId', 'booking-session');
+    sessionStorage.setItem('ticksy.loginSessionId', 'booking-session');
     const originalClose = window.close;
     window.close = () => actions.push('close');
     window.opener = openerAvailable ? {
@@ -116,7 +118,7 @@ test('좌석 선택 팝업에서 세션 만료를 확인하면 메인 창으로 
       assert.equal(new URLSearchParams(window.location.search).get('page'), 'bookingWindow');
       assert.equal(document.querySelector('input[type="password"]'), null);
       assert.deepEqual(actions, []);
-      assert.equal(mainStorage.getItem('ticksy.userName'), credentials['ticksy.userName']);
+      assert.equal(mainStorage.getItem('ticksy.userName'), openerAvailable ? null : credentials['ticksy.userName']);
 
       await act(async () => { alert.querySelector('button').click(); });
 

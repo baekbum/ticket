@@ -6,6 +6,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as 
 import './App.css';
 import './theme.css';
 import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, clearAuthenticationStorage, createAuthenticatedRequest } from './authenticatedRequest';
+import { bindBookingLogin, createWindowAuthentication, startLoginSession } from './bookingAuthentication';
 import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
@@ -463,13 +464,10 @@ function getUrlForPage(page: Page, href = window.location.href) {
 }
 
 function returnBookingOpenerToLogin() {
-  const opener: Window | null = window.opener;
-  if (!opener || opener.closed) return false;
+  const opener = authentication.bookingOpener();
+  if (!opener) return false;
 
   try {
-    if (opener.location.origin !== window.location.origin) return false;
-
-    // 팝업의 sessionStorage는 메인 창과 별개다.
     clearAuthenticationStorage(opener.sessionStorage);
     opener.location.replace(getUrlForPage('login', opener.location.href));
     return true;
@@ -714,7 +712,7 @@ function releaseActiveTokenWhenWindowCloses(
 }
 
 function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' | 'active') {
-  const accessToken = sessionStorage.getItem('ticksy.accessToken');
+  const accessToken = authentication.storage.getItem('ticksy.accessToken');
 
   if (!eventId || !token || !accessToken) {
     return;
@@ -1916,6 +1914,7 @@ function EventDetailPage({
     setQueueEntry(null);
 
     try {
+      bindBookingLogin(window, bookingWindow);
       let queueResponse = await enterBookingQueue(selectedScheduleId);
       if (queueResponse.status === 'SESSION_LIMIT_CONFIRM_REQUIRED') {
         const shouldContinue = window.confirm(
@@ -3885,6 +3884,7 @@ function LoginPage({
       });
 
       if (!tokens.accessToken || !tokens.refreshToken) throw new Error('로그인 정보를 받지 못했습니다.');
+      startLoginSession(window);
       sessionStorage.setItem('ticksy.accessToken', tokens.accessToken);
       sessionStorage.setItem('ticksy.refreshToken', tokens.refreshToken);
 
@@ -4777,8 +4777,10 @@ function TopButton() {
   );
 }
 
+const authentication = createWindowAuthentication(window, () => getPageFromLocation() === 'bookingWindow');
 const request = createAuthenticatedRequest({
-  storage: sessionStorage,
+  storage: authentication.storage,
+  refreshState: authentication.refreshState,
   fetch: window.fetch.bind(window),
   onSessionExpired: (message) => window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: message })),
 });

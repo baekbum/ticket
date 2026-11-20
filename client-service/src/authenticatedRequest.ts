@@ -24,16 +24,21 @@ export class ActiveTokenExpiredError extends Error {
 
 type Tokens = { accessToken: string; refreshToken: string };
 export const SESSION_EXPIRED_EVENT = 'ticksy:session-expired';
+export const LOGIN_SESSION_STORAGE_KEY = 'ticksy.loginSessionId';
 
-export function clearAuthenticationStorage(storage: Storage) {
+export type AuthenticationStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+export type TokenRefreshState = { pending?: { token: string; promise: Promise<void> } };
+
+export function clearAuthenticationStorage(storage: AuthenticationStorage) {
   storage.removeItem('ticksy.accessToken');
   storage.removeItem('ticksy.refreshToken');
   storage.removeItem('ticksy.userName');
 }
 
 type Dependencies = {
-  storage: Storage;
+  storage: AuthenticationStorage;
   fetch: typeof fetch;
+  refreshState?: () => TokenRefreshState;
   onSessionExpired?: (message: string) => void;
 };
 
@@ -52,7 +57,7 @@ async function isAuthenticationFailure(response: Response) {
 }
 
 export function createAuthenticatedRequest(deps: Dependencies) {
-  let refreshPromise: Promise<void> | null = null;
+  const localRefreshState: TokenRefreshState = {};
   let expirationNotified = false;
 
   function expireLogin(): never {
@@ -88,26 +93,45 @@ export function createAuthenticatedRequest(deps: Dependencies) {
     throw new ApiRequestError(response.status, getApiErrorMessage(response.status, text), code);
   }
 
-  async function refresh() {
-    const refreshToken = deps.storage.getItem('ticksy.refreshToken');
-    if (!refreshToken) expireLogin();
+  async function refresh(refreshToken: string) {
     const response = await fetchResponse('/auth/api/v1/reissue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization-Refresh': `Bearer ${refreshToken}` },
     });
-    if (response.status === 401 || response.status === 403) expireLogin();
+    if (response.status === 401 || response.status === 403) {
+      if (deps.storage.getItem('ticksy.refreshToken') === refreshToken) clearAuthenticationStorage(deps.storage);
+      return;
+    }
     if (!response.ok) return responseError(response);
     const tokens = await response.json() as Tokens;
     if (!tokens.accessToken || !tokens.refreshToken) {
       throw new ApiRequestError(502, '로그인 정보를 갱신하지 못했습니다. 잠시 후 다시 시도해주세요.');
     }
-    deps.storage.setItem('ticksy.accessToken', tokens.accessToken);
-    deps.storage.setItem('ticksy.refreshToken', tokens.refreshToken);
+    if (deps.storage.getItem('ticksy.refreshToken') === refreshToken) {
+      deps.storage.setItem('ticksy.accessToken', tokens.accessToken);
+      deps.storage.setItem('ticksy.refreshToken', tokens.refreshToken);
+    }
   }
 
   async function refreshOnce() {
-    if (!refreshPromise) refreshPromise = refresh().finally(() => { refreshPromise = null; });
-    await refreshPromise;
+    const refreshToken = deps.storage.getItem('ticksy.refreshToken');
+    if (!refreshToken) expireLogin();
+
+    const state = deps.refreshState?.() ?? localRefreshState;
+    if (state.pending?.token !== refreshToken) {
+      const promise = refresh(refreshToken).finally(() => {
+        if (state.pending?.promise === promise) delete state.pending;
+      });
+      state.pending = { token: refreshToken, promise };
+    }
+    await state.pending.promise;
+    if (!deps.storage.getItem('ticksy.accessToken')) expireLogin();
+  }
+
+  function checkLoginSession(loginSession: string | null) {
+    if (loginSession && deps.storage.getItem(LOGIN_SESSION_STORAGE_KEY) !== loginSession) {
+      throw new ApiRequestError(409, '로그인 상태가 변경되었습니다. 다시 시도해주세요.');
+    }
   }
 
   return async function request<T = unknown>(url: string, options: RequestInit): Promise<T> {
@@ -120,11 +144,13 @@ export function createAuthenticatedRequest(deps: Dependencies) {
       '/ticket/api/v1/event/', '/support/api/v1/notice/', '/support/api/v1/faq/',
     ];
     const useAuth = !publicPaths.includes(url) && !publicPrefixes.some((path) => url.startsWith(path));
+    const loginSession = useAuth ? deps.storage.getItem(LOGIN_SESSION_STORAGE_KEY) : null;
     let sentToken = deps.storage.getItem('ticksy.accessToken');
     if (useAuth && !sentToken) {
-      if (!deps.storage.getItem('ticksy.refreshToken')) expireLogin();
       await refreshOnce();
+      checkLoginSession(loginSession);
       sentToken = deps.storage.getItem('ticksy.accessToken');
+      if (!sentToken) expireLogin();
     }
 
     if (useAuth && sentToken) expirationNotified = false;
@@ -137,16 +163,18 @@ export function createAuthenticatedRequest(deps: Dependencies) {
     };
     let response = await send(sentToken);
     if (response.status === 401 && useAuth && sentToken) {
+      checkLoginSession(loginSession);
       // 동시에 발생한 401은 refresh를 공유하고, 늦게 도착한 401은 이미 갱신된 토큰을 사용한다.
       if (deps.storage.getItem('ticksy.accessToken') === sentToken) {
         await refreshOnce();
       }
 
+      checkLoginSession(loginSession);
       const refreshedToken = deps.storage.getItem('ticksy.accessToken');
       if (!refreshedToken) expireLogin();
       sentToken = refreshedToken;
       response = await send(sentToken);
-      if (response.status === 401) expireLogin();
+      if (response.status === 401 && deps.storage.getItem('ticksy.accessToken') === sentToken) expireLogin();
     }
 
     if (useAuth && await isAuthenticationFailure(response)) {
