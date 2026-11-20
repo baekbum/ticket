@@ -84,12 +84,19 @@ test('신규 PG 카드는 계좌 입력 없이 공통 신청 API로 환불한다
     return url.endsWith('/refunds') ? [] : payload;
   });
   try {
-    assert.ok(button(view.document, '환불 / 재시도'));
-    await act(async () => { button(view.document, '환불 / 재시도').click(); });
+    assert.equal(button(view.document, '취소 신청'), undefined);
+    assert.equal(view.document.querySelectorAll('.my-ticket-seat-table button').length, 0);
+    const checkboxes = view.document.querySelectorAll('.my-ticket-seat-table input[type="checkbox"]');
+    await act(async () => { checkboxes[0].click(); });
+    assert.ok(view.document.querySelector('.my-ticket-seat-heading .my-ticket-refund-button'));
+    await act(async () => { checkboxes[0].click(); });
+    assert.equal(button(view.document, '취소 신청'), undefined);
+    await act(async () => { checkboxes[0].click(); checkboxes[1].click(); });
+    await act(async () => { button(view.document, '취소 신청').click(); });
     assert.ok(!view.document.body.textContent.includes('환불 계좌 정보'));
     await act(async () => { button(view.document, '환불하기').click(); });
     assert.deepEqual(calls, [{ url: '/ticket/api/v1/reservation/1/refunds',
-      body: { eventId: 1, selectedTicketIdList: [1], refundAccount: null } }]);
+      body: { eventId: 1, selectedTicketIdList: [1, 2], refundAccount: null } }]);
     assert.ok(view.document.body.textContent.includes('환불이 완료되었습니다.'));
   } finally { await view.close(); }
 });
@@ -103,5 +110,25 @@ test('신규 PG 카드도 미완료 신청의 재시도와 철회 버튼을 표�
     assert.equal([...view.document.querySelectorAll('button')].filter((item) => item.textContent === '환불 신청 취소').length, 1);
     assert.ok(view.document.body.textContent.includes('결제한 카드로 취소·환불'));
     assert.ok(!view.document.body.textContent.includes('******7890'));
+  } finally { await view.close(); }
+});
+
+test('무통장 환불 선택을 모두 해제하면 신청 버튼과 기존 계좌 입력을 숨긴다', async () => {
+  const posts = [];
+  const view = await mount(async (url, options) => {
+    if (options.method === 'POST') posts.push(url);
+    return url.endsWith('/refunds') ? [] : detail();
+  });
+  try {
+    const checkbox = view.document.querySelector('.my-ticket-seat-table input[type="checkbox"]');
+    assert.equal(button(view.document, '취소 신청'), undefined);
+    await act(async () => { checkbox.click(); });
+    assert.equal(view.document.querySelectorAll('.my-ticket-seat-table input:checked').length, 1);
+    await act(async () => { view.document.querySelector('.my-ticket-seat-heading button').click(); });
+    assert.ok(view.document.querySelector('.my-ticket-refund-form'));
+    await act(async () => { checkbox.click(); });
+    assert.equal(button(view.document, '취소 신청'), undefined);
+    assert.equal(view.document.querySelector('.my-ticket-refund-form'), null);
+    assert.deepEqual(posts, []);
   } finally { await view.close(); }
 });

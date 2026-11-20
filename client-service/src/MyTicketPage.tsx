@@ -105,7 +105,7 @@ export default function MyTicketPage({ request, onWithdrawn, onPasswordChanged }
   }
 
   return <section className="my-ticket-page">
-    {expandedId != null && <MyTicketDetailDialog reservationId={expandedId} request={request} onClose={() => setExpandedId(null)} onRefunded={() => setRetry((n) => n + 1)} />}
+    {expandedId != null && <MyTicketDetailDialog reservationId={expandedId} request={request} onClose={() => setExpandedId(null)} onReservationChanged={() => setRetry((n) => n + 1)} />}
     {passwordOpen && <ChangePasswordDialog request={request} onClose={() => setPasswordOpen(false)} onPasswordChanged={onPasswordChanged} />}
     <div className="my-ticket-title"><h1>마이티켓</h1></div>
     <nav className="my-ticket-tabs" aria-label="마이티켓 메뉴">

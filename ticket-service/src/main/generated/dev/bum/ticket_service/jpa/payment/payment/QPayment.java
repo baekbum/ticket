@@ -58,6 +58,8 @@ public class QPayment extends EntityPathBase<Payment> {
 
     public final dev.bum.ticket_service.jpa.reservation.reservation.QReservation reservation;
 
+    public final NumberPath<Integer> reservationFeeRefundedAmount = createNumber("reservationFeeRefundedAmount", Integer.class);
+
     public final QPaymentSnapshot snapshot;
 
     public final EnumPath<dev.bum.common.service.ticket.payment.enums.PaymentStatus> status = createEnum("status", dev.bum.common.service.ticket.payment.enums.PaymentStatus.class);

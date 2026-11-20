@@ -75,6 +75,23 @@ class PaymentTest {
         assertThat(payment.getRefundableAmount()).isZero();
     }
 
+    @Test
+    @DisplayName("예매 수수료 중복 반환이나 환불액을 초과한 수수료 반환은 금액 반영 전에 거절한다")
+    void rejectInvalidBookingFeeRefundWithoutChangingBalances() {
+
+        Payment payment = Payment.builder().amount(208000).reservationFeeAmount(8000)
+                .method(PaymentMethod.CREDIT_CARD).status(PaymentStatus.PAID).build();
+        payment.applyCancellation(104000, 0, 4000);
+
+        assertThatThrownBy(() -> payment.applyCancellation(105000, 0, 5000))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> payment.applyCancellation(1000, 0, 4000))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(payment.getRefundedAmount()).isEqualTo(104000);
+        assertThat(payment.getReservationFeeRefundedAmount()).isEqualTo(4000);
+        assertThat(payment.getRefundableAmount()).isEqualTo(100000);
+    }
+
     private Payment payment(int amount) {
         return Payment.builder()
                 .paymentNo("PAY-1")

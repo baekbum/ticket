@@ -21,6 +21,8 @@ import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.service.ticket.TicketPurchaseCountService;
 import feign.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -73,6 +75,7 @@ class ReservationRefundIntegrationTest {
         registry.add("spring.datasource.password", () -> "");
     }
 
+    @MockitoSpyBean Clock clock;
     @Autowired ReservationRefundService service;
     @Autowired ReservationRefundCommandService commands;
     @Autowired ReservationJpaRepository reservations;
@@ -95,7 +98,7 @@ class ReservationRefundIntegrationTest {
 
     @BeforeEach void setup() {
         cardPayment = false;
-        reset(gateway, histories, counts);
+        reset(gateway, histories, counts, clock);
         new TransactionTemplate(transactions).executeWithoutResult(tx -> {
             histories.deleteAll(); processes.deleteAll(); payments.deleteAll(); tickets.deleteAll();
             reservations.deleteAll(); seats.deleteAll(); events.deleteAll();
@@ -224,6 +227,106 @@ class ReservationRefundIntegrationTest {
         assertThat(processes.findById(id).orElseThrow().getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
     }
 
+    // 기존 요청은 그대로 두고 신규 정책 검증용 결제만 수수료를 포함해 구성한다.
+    void useBookingFeePayment(PaymentMethod method) {
+
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            payments.deleteAll();
+            payments.flush();
+            Reservation reservation = reservations.findById(reservationId).orElseThrow();
+            Payment payment = Payment.builder().reservation(reservation).paymentNo("FEE-" + UUID.randomUUID())
+                    .method(method).status(PaymentStatus.PAID).amount(59200).reservationFeeAmount(16000)
+                    .deliveryFeeAmount(3200).idempotencyKey(UUID.randomUUID().toString())
+                    .requestedAt(LocalDateTime.of(2026,11,13,10,0))
+                    .expiresAt(LocalDateTime.of(2026,11,14,12,0)).build();
+
+            if (method == PaymentMethod.CREDIT_CARD) {
+                payment.planGatewayCard();
+            } else {
+                payment.planGatewayAccount(BankCompany.KB, LocalDateTime.of(2026,11,14,12,0));
+            }
+
+            payment.bindGatewayPayment("20261113" + UUID.randomUUID());
+            payments.saveAndFlush(payment);
+        });
+        cardPayment = method == PaymentMethod.CREDIT_CARD;
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void sameDayFullRefundIncludesBookingAndDeliveryFeesAndReplaysOnce(PaymentMethod method) {
+
+        useBookingFeePayment(method);
+        RefundActionResponse response = service.request("owner", reservationId, request(ticketIds));
+        long id = response.application().getPaymentRefundProcessId();
+
+        assertThat(response.application().getRefundAmount()).isEqualTo(59200);
+        assertThat(service.retry("owner", reservationId, id).outcome()).isEqualTo("SUCCEEDED");
+        assertThat(payments.findAll().getFirst().getRefundedAmount()).isEqualTo(59200);
+        assertThat(payments.findAll().getFirst().getReservationFeeRefundedAmount()).isEqualTo(16000);
+
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            PaymentRefundSnapshot snapshot = processes.findById(id).orElseThrow().getRefund().getSnapshot();
+            assertThat(snapshot.getReservationFeeRefundAmount()).isEqualTo(16000);
+            assertThat(snapshot.getDiscountAmount()).isZero();
+        });
+        verify(gateway, times(1)).refund(anyString(), eq(Long.toString(id)),
+                argThat(input -> input.amount().intValueExact() == 59200));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void lostResponseRetryAfterMidnightKeepsOriginalBookingFeeAndIdempotencyKey(PaymentMethod method) {
+
+        useBookingFeePayment(method);
+        doThrow(unavailable()).when(gateway).refund(anyString(), anyString(), any());
+        assertThatThrownBy(() -> service.request("owner", reservationId, request(ticketIds.subList(0,2))))
+                .isInstanceOf(FeignException.class);
+        long id = processes.findAll().getFirst().getPaymentRefundProcessId();
+        assertThat(payments.findAll().getFirst().getReservationFeeRefundedAmount()).isZero();
+
+        doReturn(Instant.parse("2026-11-13T15:01:00Z")).when(clock).instant();
+        doAnswer(inv -> result(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), "SUCCEEDED"))
+                .when(gateway).refund(anyString(), anyString(), any());
+        RefundActionResponse response = service.request("owner", reservationId, request(ticketIds.subList(0,2)));
+
+        assertThat(response.application().getPaymentRefundProcessId()).isEqualTo(id);
+        assertThat(response.application().getRefundAmount()).isEqualTo(28000);
+        verify(gateway, times(2)).refund(anyString(), eq(Long.toString(id)),
+                argThat(input -> input.amount().intValueExact() == 28000));
+
+        RefundActionResponse remaining = service.request("owner", reservationId, request(ticketIds.subList(2,4)));
+        assertThat(remaining.application().getRefundAmount()).isEqualTo(23200);
+        assertThat(payments.findAll().getFirst().getRefundedAmount()).isEqualTo(51200);
+        assertThat(payments.findAll().getFirst().getReservationFeeRefundedAmount()).isEqualTo(8000);
+        assertThat(payments.findAll().getFirst().getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    void bookingFeeCounterRollsBackWithLocalFailureAndRecoversOnce(PaymentMethod method) {
+
+        useBookingFeePayment(method);
+        doAnswer(inv -> {
+            PaymentRefundHistory history = inv.getArgument(0);
+            if (history.getEventType() == PaymentRefundHistoryType.LOCAL_APPLIED) {
+                throw new DataIntegrityViolationException("simulated local failure");
+            }
+            return inv.callRealMethod();
+        }).when(histories).save(any(PaymentRefundHistory.class));
+
+        assertThatThrownBy(() -> service.request("owner", reservationId, request(ticketIds)))
+                .isInstanceOf(RuntimeException.class);
+        long id = processes.findAll().getFirst().getPaymentRefundProcessId();
+        assertThat(payments.findAll().getFirst().getReservationFeeRefundedAmount()).isZero();
+        assertThat(payments.findAll().getFirst().getRefundedAmount()).isZero();
+
+        reset(histories);
+        assertThat(service.retry("owner", reservationId, id).outcome()).isEqualTo("SUCCEEDED");
+        assertThat(payments.findAll().getFirst().getReservationFeeRefundedAmount()).isEqualTo(16000);
+        verify(gateway, times(1)).refund(anyString(), eq(Long.toString(id)), any());
+    }
+
     FeignException unavailable() {
         return FeignException.errorStatus("refund", Response.builder().status(503).reason("unavailable")
                 .request(Request.create(Request.HttpMethod.POST, "http://pg", Map.of(), new byte[0], StandardCharsets.UTF_8, new RequestTemplate())).build());
@@ -323,8 +426,8 @@ class ReservationRefundIntegrationTest {
         assertThat(service.retry("owner",reservationId,id).outcome()).isEqualTo("SUCCEEDED");
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
+    @ParameterizedTest
+    @EnumSource(value = PaymentMethod.class, names = {"CREDIT_CARD", "BANK_TRANSFER"})
     @EnabledIfEnvironmentVariable(named="REFUND_TEST_POSTGRES_URL",matches="jdbc:postgresql:.*")
     void nowaitRejectsConcurrentWithdrawalWhileTheRefundTransactionWaitsForPg(PaymentMethod method) throws Exception {
         if (method == PaymentMethod.CREDIT_CARD) useCardPayment();
