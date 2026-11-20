@@ -86,6 +86,7 @@ type TicketingEvent = {
   artistName: string;
   title: string;
   posterUrl: string;
+  venue?: string;
   eventStartDate: string;
   eventEndDate: string;
 };
@@ -1302,7 +1303,7 @@ function Header({
               }}
             >
               <span>{selectedSearchFieldLabel}</span>
-              <span className="search-field-chevron" aria-hidden="true">⌄</span>
+              <span className="search-field-chevron" aria-hidden="true" />
             </button>
             {isSearchFieldOpen && (
               <div className="search-field-menu" role="listbox" aria-label="검색 조건 목록">
@@ -1325,45 +1326,44 @@ function Header({
               </div>
             )}
           </div>
-          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
-          <button className="search-submit" type="submit" aria-label="검색">
-            ⌕
-          </button>
+          <input aria-label="공연 검색" placeholder="공연·아티스트·장소 검색" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
+          <button className="search-submit" type="submit" aria-label="검색" />
         </form>
-        <span className="brand-note">일상을 넘어, 라이브 속으로 <span aria-hidden="true">↗</span></span>
       </div>
 
       <nav className="category-nav" aria-label="공연 카테고리">
-        {categories.map((category) => (
-          <button
-            className={
-              (currentPage === 'concertList' && category === '콘서트') ||
-              (currentPage === 'musicalPlayList' && category === '뮤지컬/연극') ||
-              (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅') ||
-              (currentPage === 'classicList' && category === '클래식') ||
-              (currentPage === 'exhibitionEventList' && category === '전시/행사')
-                ? 'active-category'
-                : ''
-            }
-            type="button"
-            key={category}
-            onClick={() => {
-              if (category === '콘서트') {
-                navigateFromHeader('concertList');
-              } else if (category === '뮤지컬/연극') {
-                navigateFromHeader('musicalPlayList');
-              } else if (category === '팬클럽/팬미팅') {
-                navigateFromHeader('fanclubFanmeetingList');
-              } else if (category === '클래식') {
-                navigateFromHeader('classicList');
-              } else if (category === '전시/행사') {
-                navigateFromHeader('exhibitionEventList');
+        <div className="category-links">
+          {categories.map((category) => (
+            <button
+              className={
+                (currentPage === 'concertList' && category === '콘서트') ||
+                (currentPage === 'musicalPlayList' && category === '뮤지컬/연극') ||
+                (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅') ||
+                (currentPage === 'classicList' && category === '클래식') ||
+                (currentPage === 'exhibitionEventList' && category === '전시/행사')
+                  ? 'active-category'
+                  : ''
               }
-            }}
-          >
-            {category}
-          </button>
-        ))}
+              type="button"
+              key={category}
+              onClick={() => {
+                if (category === '콘서트') {
+                  navigateFromHeader('concertList');
+                } else if (category === '뮤지컬/연극') {
+                  navigateFromHeader('musicalPlayList');
+                } else if (category === '팬클럽/팬미팅') {
+                  navigateFromHeader('fanclubFanmeetingList');
+                } else if (category === '클래식') {
+                  navigateFromHeader('classicList');
+                } else if (category === '전시/행사') {
+                  navigateFromHeader('exhibitionEventList');
+                }
+              }}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
         <button
           className={currentPage === 'myTicket' ? 'my-ticket active-category' : 'my-ticket'}
           type="button"
@@ -1438,12 +1438,12 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   useEffect(() => {
     function syncVisiblePosterCount() {
       if (window.innerWidth <= 640) {
-        setVisiblePosterCount(1);
+        setVisiblePosterCount(2);
         return;
       }
 
       if (window.innerWidth <= 1020) {
-        setVisiblePosterCount(2);
+        setVisiblePosterCount(3);
         return;
       }
 
@@ -1519,76 +1519,82 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   }
 
   const selectedHomeEventTab = homeEventTabs.find((tab) => tab.key === homeEventTab);
+  const featuredEvent = soonestOnSaleEvents.find((event) => event.posterUrl) ?? soonestOnSaleEvents[0];
+  const [featuredTitle, ...featuredSubtitle] = featuredEvent?.title.split(' - ') ?? [];
+  const featuredDetails = featuredEvent
+    ? [formatEventDateRange(featuredEvent), featuredEvent.venue].filter(Boolean)
+    : [];
 
   return (
     <>
-      <section className="live-hero" aria-labelledby="live-hero-title">
+      <section className={`live-hero${featuredEvent?.posterUrl ? '' : ' live-hero-without-poster'}`} aria-labelledby="live-hero-title">
         <div className="live-hero-copy">
-          <span className="live-eyebrow"><i aria-hidden="true" /> YOUR NEXT LIVE MOMENT</span>
-          <h1 id="live-hero-title">기다렸던 순간,<br /><em>가장 가까이.</em></h1>
-          <p>무대가 시작되는 설렘부터 마지막 앙코르까지.<br />잊지 못할 다음 순간을 Ticksy에서 만나보세요.</p>
-          <a className="live-hero-link" href="#live-events">지금 공연 둘러보기 <span aria-hidden="true">↗</span></a>
-          <div className="live-hero-caption"><span>CONCERT</span><span>MUSICAL</span><span>FESTIVAL</span><span>AND MORE</span></div>
+          {featuredEvent && <span className="live-eyebrow">예매 중</span>}
+          <h1 id="live-hero-title">
+            {featuredTitle || '공연 예매'}
+            {featuredSubtitle.length > 0 && <span>{featuredSubtitle.join(' - ')}</span>}
+          </h1>
+          {featuredDetails.length > 0 && (
+            <p className="live-hero-details">
+              {featuredDetails.map((detail) => <span key={detail}>{detail}</span>)}
+            </p>
+          )}
+          {featuredEvent ? (
+            <button className="live-hero-link" type="button" onClick={() => handlePosterClick(featuredEvent)}>
+              공연 상세 보기 <span aria-hidden="true">↗</span>
+            </button>
+          ) : (
+            <a className="live-hero-link" href="#live-events">공연 둘러보기 <span aria-hidden="true">↓</span></a>
+          )}
         </div>
-        <div className="live-art" aria-hidden="true">
-          <div className="live-orbit live-orbit-one" /><div className="live-orbit live-orbit-two" />
-          <span className="live-spark live-spark-one">✳</span><span className="live-spark live-spark-two">+</span>
-          <div className="live-ticket live-ticket-back"><span>MAKE SOME</span><strong>NOISE.</strong></div>
-          <div className="live-ticket live-ticket-front">
-            <div className="live-ticket-top"><b>Ticksy</b><span>ADMIT ONE ↗</span></div>
-            <span className="live-ticket-label">THIS IS YOUR</span><strong>NEXT<br />MOMENT.</strong>
-            <div className="live-ticket-bottom"><span>LIVE IT.<br />FEEL IT.</span><div className="live-barcode" /></div>
+        {featuredEvent?.posterUrl && (
+          <div className="live-hero-poster">
+            <img src={ticketAssetUrl(featuredEvent.posterUrl)} alt={`${featuredEvent.title} 포스터`} fetchPriority="high" />
           </div>
-          <span className="live-art-caption">LESS SCROLL. MORE ENCORE.</span>
-        </div>
+        )}
       </section>
-      <div className="live-ticker" aria-hidden="true"><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b></div>
-      <div className="live-section-heading" id="live-events"><div><span className="section-eyebrow">TAKE YOUR PICK</span><h2>지금, 주목할 공연<span>.</span></h2></div><p>당신의 플레이리스트를 무대 위에서</p></div>
-      <section className="poster-carousel" aria-label="주요 공연">
-        <button
-          className="carousel-arrow carousel-arrow-left"
-          type="button"
-          aria-label="이전 공연 보기"
-          disabled={soonestOnSaleEvents.length <= 1}
-          onClick={() => movePosters('prev')}
-        >
-          <ArrowIcon direction="left" />
-        </button>
+      <section className="poster-carousel" id="live-events" aria-labelledby="live-events-title">
+        <div className="live-section-heading">
+          <h2 id="live-events-title">지금 예매할 수 있는 공연</h2>
+          {soonestOnSaleEvents.length > activePosterCount && (
+            <div className="carousel-controls">
+              <button className="carousel-arrow" type="button" aria-label="이전 공연 보기" onClick={() => movePosters('prev')}>
+                <ArrowIcon direction="left" />
+              </button>
+              <button className="carousel-arrow" type="button" aria-label="다음 공연 보기" onClick={() => movePosters('next')}>
+                <ArrowIcon direction="right" />
+              </button>
+            </div>
+          )}
+        </div>
         <div className="poster-viewport">
           <div
             className={`poster-rail${isPosterSliding ? ' poster-rail-sliding' : ''}`}
             style={posterRailStyle}
           >
-          {visiblePosters.map((event) => (
-            <button
-              className="poster-card"
-              type="button"
-              key={event.eventGroupCode}
-              onClick={() => handlePosterClick(event)}
-              aria-label={`${event.title} 공연 상세 보기`}
-            >
-              <div className="poster-art">
-                <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
-              </div>
-              <strong>{event.title}</strong>
-              <p>{event.artistName}</p>
-              <small>{formatEventDateRange(event)}</small>
-            </button>
-          ))}
-          {visiblePosters.length === 0 && (
-            <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
-          )}
+            {visiblePosters.map((event, index) => (
+              <button
+                className="poster-card"
+                type="button"
+                key={event.eventGroupCode}
+                onClick={() => handlePosterClick(event)}
+                aria-label={`${event.title} 공연 상세 보기`}
+                aria-hidden={index >= activePosterCount || undefined}
+                tabIndex={index >= activePosterCount ? -1 : undefined}
+              >
+                <div className="poster-art">
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" decoding="async" loading="lazy" />
+                </div>
+                <strong>{event.title}</strong>
+                <p>{event.artistName}</p>
+                <small>{formatEventDateRange(event)}</small>
+              </button>
+            ))}
+            {visiblePosters.length === 0 && (
+              <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
+            )}
           </div>
         </div>
-        <button
-          className="carousel-arrow carousel-arrow-right"
-          type="button"
-          aria-label="다음 공연 보기"
-          disabled={soonestOnSaleEvents.length <= 1}
-          onClick={() => movePosters('next')}
-        >
-          <ArrowIcon direction="right" />
-        </button>
       </section>
 
       <section className="content-grid">
@@ -1606,7 +1612,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
             ))}
           </div>
           <div className="mini-poster-grid">
-            {homeTabEvents.map((event, index) => (
+            {homeTabEvents.map((event) => (
               <div className="mini-poster" key={event.eventGroupCode}>
                 <button
                   className="mini-poster-image"
@@ -1614,8 +1620,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
                   onClick={() => handlePosterClick(event)}
                   aria-label={`${event.title} 공연 상세 보기`}
                 >
-                  <img src={ticketAssetUrl(event.posterUrl)} alt="" />
-                  <span className="mini-poster-rank">{index + 1}</span>
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" decoding="async" loading="lazy" />
                 </button>
                 <strong>{event.title}</strong>
                 <span className="mini-poster-description">{event.artistName}</span>
@@ -1730,10 +1735,11 @@ function CategoryEventListPage({
     <section className="category-list-page">
       <div className="category-list-header">
         <h1>{config.label}</h1>
-        <div className="category-sort-tabs" aria-label={`${config.label} 정렬`}>
+        <div className="category-sort-tabs" role="group" aria-label={`${config.label} 정렬`}>
           <button
             className={eventSort === 'soonest' ? 'active-sort' : ''}
             type="button"
+            aria-pressed={eventSort === 'soonest'}
             onClick={() => changeEventSort('soonest')}
           >
             공연 임박순
@@ -1741,6 +1747,7 @@ function CategoryEventListPage({
           <button
             className={eventSort === 'latest' ? 'active-sort' : ''}
             type="button"
+            aria-pressed={eventSort === 'latest'}
             onClick={() => changeEventSort('latest')}
           >
             최신순
@@ -1749,7 +1756,7 @@ function CategoryEventListPage({
       </div>
 
       <div className="concert-list">
-        {isLoading && events.length === 0 && <p className="concert-list-empty">{config.label} 목록을 불러오는 중입니다.</p>}
+        {isLoading && events.length === 0 && <p className="concert-list-empty" role="status">{config.label} 목록을 불러오는 중입니다.</p>}
         {!isLoading && events.length === 0 && (
           <p className="concert-list-empty">{config.emptyMessage}</p>
         )}
@@ -1761,16 +1768,22 @@ function CategoryEventListPage({
             onClick={() => onSelectEvent(event.eventGroupCode)}
           >
             <span className="concert-list-poster">
-              <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
+              {event.posterUrl && <img src={ticketAssetUrl(event.posterUrl)} alt="" loading="lazy" decoding="async" />}
             </span>
             <span className="concert-list-info">
               <strong>{event.title}</strong>
-              <span>{event.artistName}</span>
-              <small>{formatTicketingEventRange(event)}</small>
+              <span className="concert-list-artist">{event.artistName}</span>
+              <span className="concert-list-footer">
+                <span className="concert-list-meta">
+                  <small>{formatTicketingEventRange(event)}</small>
+                  {event.venue && <small>{event.venue}</small>}
+                </span>
+                <span className="concert-list-arrow" aria-hidden="true">↗</span>
+              </span>
             </span>
           </button>
         ))}
-        <div className="concert-list-loader" ref={eventLoaderRef}>
+        <div className="concert-list-loader" ref={eventLoaderRef} role="status">
           {isLoading && events.length > 0 && `${config.label} 공연을 더 불러오는 중입니다.`}
         </div>
       </div>
@@ -2022,7 +2035,7 @@ function EventDetailPage({
           </div>
 
           <div className="event-detail-info">
-            <h2>{eventDetail.title}</h2>
+            <h2>공연 정보</h2>
             <dl>
               <div>
                 <dt>아티스트</dt>
@@ -4765,9 +4778,19 @@ function SiteFooter({
 }
 
 function TopButton() {
+  const [isVisible, setIsVisible] = useState(() => window.scrollY >= 280);
+
+  useEffect(() => {
+    const updateVisibility = () => setIsVisible(window.scrollY >= 280);
+    window.addEventListener('scroll', updateVisibility, { passive: true });
+    return () => window.removeEventListener('scroll', updateVisibility);
+  }, []);
+
   function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
+
+  if (!isVisible) return null;
 
   return (
     <button className="top-button" type="button" onClick={scrollToTop} aria-label="맨 위로 이동">
