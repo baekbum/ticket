@@ -251,5 +251,13 @@
     getTotalPages: () => serverTotalPages
   });
 
-  loadReservationDeliveryList(0);
+  window.addEventListener('admin:fragment-loaded', event => {
+    if (event.detail?.menuName !== 'reservationDelivery') return;
+    const reservationId = Number(event.detail.context?.reservationId);
+    if (Number.isSafeInteger(reservationId) && reservationId > 0) {
+      currentSearchFilters.reservationId = reservationId;
+      setValue('delivery-search-reservation-id', reservationId);
+    }
+    loadReservationDeliveryList(0);
+  });
 })();

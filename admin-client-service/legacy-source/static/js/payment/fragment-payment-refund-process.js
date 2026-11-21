@@ -291,6 +291,11 @@
 
   window.addEventListener('admin:fragment-loaded', event => {
     if (event.detail?.menuName !== 'paymentRefundProcess') return;
+    const reservationId = Number(event.detail.context?.reservationId);
+    if (Number.isSafeInteger(reservationId) && reservationId > 0) {
+      currentSearchFilters.reservationId = reservationId;
+      setValue('refund-process-search-reservation-id', reservationId);
+    }
     if (event.detail.context?.status === 'FAILED') {
       currentSearchFilters.status = 'FAILED';
       setValue('refund-process-search-status', 'FAILED');
