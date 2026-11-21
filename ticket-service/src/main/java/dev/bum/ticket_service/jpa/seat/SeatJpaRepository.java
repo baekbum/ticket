@@ -29,6 +29,19 @@ public interface SeatJpaRepository extends JpaRepository<Seat, Long> {
 
     List<Seat> findByEventEventId(long eventId);
 
+    @Query("""
+            select a.areaId as areaId, s.zone as zone, s.seatRow as seatRow, s.seatCol as seatCol
+            from Seat s left join s.area a where s.event.eventId = :eventId
+            """)
+    List<SeatCoordinates> findCoordinatesByEventId(@Param("eventId") Long eventId);
+
+    interface SeatCoordinates {
+        Long getAreaId();
+        String getZone();
+        Integer getSeatRow();
+        Integer getSeatCol();
+    }
+
     List<Seat> findByAreaAreaId(long areaId);
 
     long countByAreaAreaId(Long areaId);

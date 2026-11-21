@@ -11,6 +11,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatReadinessResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.dto.UpdateSeatRequest;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
@@ -92,6 +93,11 @@ public class SeatManagementController {
     ) {
 
         return ResponseEntity.ok(seatManagementService.inspectEventSeatCache(eventId, zone, row, col, limit, mode));
+    }
+
+    @GetMapping("/readiness/event/{eventId}")
+    public ResponseEntity<SeatReadinessResponse> inspectEventReadiness(@PathVariable("eventId") Long eventId) {
+        return ResponseEntity.ok(seatManagementService.inspectEventReadiness(eventId));
     }
 
     @PostMapping("/cache/sync-failures/select")

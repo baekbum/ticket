@@ -150,6 +150,30 @@ class SeatRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("오픈 점검은 구역이 없는 좌석도 회차의 좌석 좌표에 포함한다")
+    void preflight_coordinates_include_unassigned_seats() {
+        seatJpaRepository.saveAndFlush(Seat.builder()
+                .event(event)
+                .zone("UNASSIGNED")
+                .seatRow(1)
+                .seatCol(1)
+                .grade(SeatGrade.VIP)
+                .price(150000)
+                .status(SeatStatus.AVAILABLE)
+                .build());
+
+        var seats = seatJpaRepository.findCoordinatesByEventId(event.getEventId());
+
+        assertThat(seats).hasSize(5);
+        assertThat(seats).filteredOn(seat -> seat.getAreaId() == null).singleElement().satisfies(seat -> {
+            assertThat(seat.getZone()).isEqualTo("UNASSIGNED");
+            assertThat(seat.getSeatRow()).isEqualTo(1);
+            assertThat(seat.getSeatCol()).isEqualTo(1);
+        });
+        assertThat(seatJpaRepository.findCoordinatesByEventId(-1L)).isEmpty();
+    }
+
+    @Test
     @DisplayName("좌석 목록 조회")
     void seat_select_by_seat_list() {
         List<Seat> savedSeats = seatJpaRepository.findAll();

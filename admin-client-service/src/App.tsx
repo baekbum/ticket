@@ -2,12 +2,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { adminFetch, clearTokens, getAccessToken, loadCurrentUser, login, logout, type AdminUser } from './api';
 import VirtualAccountReconciliation from './VirtualAccountReconciliation';
 import OperationsHome from './OperationsHome';
+import EventPreflight from './EventPreflight';
 
 type Menu = { key: string; label: string; icon: string };
 const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '사용자', icon: 'users', items: [{ key: 'user', label: '사용자 관리', icon: 'user-cog' }] },
   { label: '공연', icon: 'calendar-event', items: [
     { key: 'event', label: '이벤트 관리', icon: 'calendar-event' },
+    { key: 'eventPreflight', label: '공연 오픈 전 점검', icon: 'list-check' },
     { key: 'area', label: '구역/좌석 관리', icon: 'armchair' },
   ] },
   { label: '예매', icon: 'calendar-stats', items: [
@@ -421,6 +423,8 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
       <main className="admin-main" inert={mobileMenuOpen}>
         {menu === 'operationsHome'
           ? <OperationsHome onOpenList={chooseMenu} />
+          : menu === 'eventPreflight'
+          ? <EventPreflight key={String(menuContext.eventId ?? '')} initialEventId={Number(menuContext.eventId)} onOpenAreas={eventId => chooseMenu('area', { eventId: String(eventId) })} />
           : menu === 'virtualAccountReconciliation'
           ? <VirtualAccountReconciliation />
           : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={activeItem?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}

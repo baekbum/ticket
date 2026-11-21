@@ -13,6 +13,7 @@ import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository.SeatCoordinates;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 import dev.bum.ticket_service.jpa.ticket.TicketRepository;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
@@ -30,6 +31,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -43,6 +45,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,6 +91,43 @@ class SeatCacheServiceTest {
                 org.mockito.Mockito.mock(dev.bum.ticket_service.service.event.event.EventBookingGuard.class)
         );
         lenient().when(seatRedisTemplate.opsForValue()).thenReturn(valueOperations);
+    }
+
+    @Test
+    @DisplayName("오픈 점검은 등록 좌석의 실제 Redis 키만 읽고 중복과 미적재를 구분한다")
+    void preflight_counts_distinct_keys_with_recognized_values() {
+        SeatCoordinates first = coordinates(1);
+        SeatCoordinates second = coordinates(2);
+        SeatCoordinates third = coordinates(3);
+        SeatCoordinates fourth = coordinates(4);
+        given(valueOperations.multiGet(List.of(FIRST_SEAT_KEY, SECOND_SEAT_KEY,
+                "event:1:seat:VIP:1:3", "event:1:seat:VIP:1:4")))
+                .willReturn(Arrays.asList("LOCKED:test", null, "INVALID", "RESERVED"));
+
+        var result = seatCacheService.inspectCacheCoverage(EVENT_ID, List.of(first, first, second, third, fourth));
+
+        assertThat(result.expectedKeys()).isEqualTo(4);
+        assertThat(result.readyKeys()).isEqualTo(2);
+        then(valueOperations).should(never()).set(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Redis 조회 실패는 캐시가 비어 있는 상태와 구분한다")
+    void preflight_returns_unknown_when_redis_is_unavailable() {
+        given(valueOperations.multiGet(List.of(FIRST_SEAT_KEY))).willThrow(new DataAccessException("Redis unavailable") {});
+
+        var result = seatCacheService.inspectCacheCoverage(EVENT_ID, List.of(coordinates(1)));
+
+        assertThat(result.expectedKeys()).isEqualTo(1);
+        assertThat(result.readyKeys()).isNull();
+    }
+
+    private SeatCoordinates coordinates(int column) {
+        SeatCoordinates seat = mock(SeatCoordinates.class);
+        given(seat.getZone()).willReturn("VIP");
+        given(seat.getSeatRow()).willReturn(1);
+        given(seat.getSeatCol()).willReturn(column);
+        return seat;
     }
 
     @Test
