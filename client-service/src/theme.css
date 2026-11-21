@@ -774,6 +774,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .booking-side-panel { top: 76px; }
 .booking-layout-map.large { min-height: 300px; height: clamp(300px, 50vw, 490px); border-radius: 11px; }
 .booking-schedule-strip, .booking-seat-panel { border-radius: 11px; }
+.booking-seat-confirm-summary, .booking-seat-zoom { display: none; }
 
 .my-ticket-tabs { border: 0; gap: 8px; }
 .my-ticket-tabs button { border: 1px solid var(--live-line); border-radius: 10px; }
@@ -827,6 +828,70 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .booking-layout-panel { padding: 14px; }
   .booking-side-panel { position: static; gap: 0; }
   .booking-layout-map.large { min-height: 0; height: auto; aspect-ratio: 1 / 1; }
+
+  .booking-window-body.seat-selection-mode {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .booking-seat-confirm { display: none; }
+
+  .seat-selection-mode .booking-seat-confirm {
+    position: fixed;
+    z-index: 25;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--live-line);
+    background: #fff;
+    box-shadow: 0 -4px 14px #18271f12;
+  }
+
+  .booking-seat-confirm-summary {
+    display: grid;
+    gap: 2px;
+    color: var(--live-muted);
+    font-size: 12px;
+  }
+
+  .booking-seat-confirm-summary strong { color: var(--live-ink); font-size: 17px; }
+  .booking-seat-confirm .booking-next-button { min-height: 44px; margin: 0; padding-inline: 13px; font-size: 14px; }
+
+  .booking-seat-panel-title { flex-wrap: wrap; gap: 7px; padding: 8px 10px; }
+  .booking-seat-panel-title .booking-seat-hint { display: none; }
+
+  .booking-seat-zoom {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--live-green);
+  }
+
+  .booking-seat-zoom button {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--live-line);
+    border-radius: 8px;
+    background: var(--live-soft);
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .booking-seat-zoom button:disabled { color: var(--live-muted); background: var(--live-paper); cursor: default; }
+  .booking-seat-zoom span { min-width: 37px; text-align: center; }
+
+  .booking-seat-viewport {
+    max-height: max(220px, 55svh);
+    overflow: auto;
+    border-radius: 0 0 10px 10px;
+  }
+
+  .booking-seat-scale { width: var(--seat-map-width); }
+  .booking-seat-map { min-height: 0; }
 }
 
 @media (max-width: 640px) {

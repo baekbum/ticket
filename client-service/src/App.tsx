@@ -2,7 +2,7 @@ import MyTicketPage from './MyTicketPage';
 import SearchResultsPage from './SearchResultsPage';
 import EventDescription from './EventDescription';
 import { readSearch, type SearchQuery } from './searchQuery';
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
@@ -2269,7 +2269,10 @@ function BookingWindowPage() {
   const deliveryFeeAmount = deliveryMethod === 'DELIVERY' ? checkoutFees.deliveryFee : 0;
   const basePaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
   const finalPaymentAmount = basePaymentAmount + reservationFeeAmount + deliveryFeeAmount;
-  const layoutMarkup = buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId);
+  const layoutMarkup = useMemo(
+    () => buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId),
+    [layoutSvgText, areas, selectedAreaId],
+  );
   const areaPrices = getDistinctAreaPrices(areas);
   const sideLayoutStyle = {
     '--layout-scale': sideLayoutScale,
@@ -3003,7 +3006,7 @@ function BookingWindowPage() {
         />
       )}
 
-      <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : ''}`}>
+      <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : selectedArea ? ' seat-selection-mode' : ''}`}>
         <section className="booking-layout-panel">
           {checkoutStep === 'SEAT' && eventDetail && eventDetail.schedules.length > 1 && (
             <div className="booking-schedule-strip">
@@ -3030,7 +3033,7 @@ function BookingWindowPage() {
               <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
               <p>
                 {selectedArea
-                  ? '오른쪽 작은 배치도에서 다른 구역을 다시 선택할 수 있습니다.'
+                  ? '작은 구역 배치도에서 다른 구역을 선택할 수 있습니다.'
                   : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
               </p>
             </div>
@@ -3066,6 +3069,7 @@ function BookingWindowPage() {
               {selectedArea && checkoutStep === 'SEAT' && (
                 <div className="booking-seat-selection-grid">
                   <BookingSeatMap
+                    key={selectedArea.areaId}
                     isSeatLoading={isSeatLoading}
                     seats={seats}
                     selectedArea={selectedArea}
@@ -3175,14 +3179,20 @@ function BookingWindowPage() {
                   <span><i className="selected" />선택 좌석</span>
                   <span><i className="disabled" />선택 불가</span>
                 </div>
-                <button
-                  className="booking-next-button"
-                  type="button"
-                  disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
-                  onClick={prepareCheckout}
-                >
-                  {isCheckoutPreparing ? '예매 준비 중' : '좌석 선택 완료'}
-                </button>
+                <div className="booking-seat-confirm">
+                  <div className="booking-seat-confirm-summary" aria-live="polite">
+                    <span>선택 좌석 {selectedSeats.length}매</span>
+                    <strong>{selectedSeatAmount.toLocaleString()}원</strong>
+                  </div>
+                  <button
+                    className="booking-next-button"
+                    type="button"
+                    disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
+                    onClick={prepareCheckout}
+                  >
+                    {isCheckoutPreparing ? '예매 준비 중' : '좌석 선택 완료'}
+                  </button>
+                </div>
               </section>
             </>
           ) : (
@@ -3703,11 +3713,43 @@ function BookingSeatMap({
   selectedSeatIds: number[];
   onToggleSeat: (seat: SeatResponse) => void;
 }) {
+  const [zoom, setZoom] = useState(100);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const zoomCenter = useRef<{ x: number; y: number } | null>(null);
+
+  function changeZoom(nextZoom: number) {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    zoomCenter.current = {
+      x: (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth,
+      y: (viewport.scrollTop + viewport.clientHeight / 2) / viewport.scrollHeight,
+    };
+    setZoom(nextZoom);
+  }
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const center = zoomCenter.current;
+    if (!viewport || !center) return;
+
+    viewport.scrollLeft = center.x * viewport.scrollWidth - viewport.clientWidth / 2;
+    viewport.scrollTop = center.y * viewport.scrollHeight - viewport.clientHeight / 2;
+    zoomCenter.current = null;
+  }, [zoom]);
+
   return (
     <div className="booking-seat-panel expanded">
       <div className="booking-seat-panel-title">
         <strong>{selectedArea.areaName} 구역 좌석 배치도</strong>
-        <span>좌석을 선택해 주세요.</span>
+        <span className="booking-seat-hint">좌석을 선택해 주세요.</span>
+        {!isSeatLoading && seats.length > 0 && (
+          <div className="booking-seat-zoom" role="group" aria-label="좌석 배치도 확대·축소">
+            <button type="button" aria-label="좌석 배치도 축소" disabled={zoom === 100} onClick={() => changeZoom(zoom - 50)}>−</button>
+            <span>{zoom}%</span>
+            <button type="button" aria-label="좌석 배치도 확대" disabled={zoom === 400} onClick={() => changeZoom(zoom + 50)}>+</button>
+          </div>
+        )}
       </div>
 
       {isSeatLoading && <div className="booking-state-box compact">좌석을 불러오는 중입니다.</div>}
@@ -3715,11 +3757,15 @@ function BookingSeatMap({
         <div className="booking-state-box compact">표시할 좌석 정보가 없습니다.</div>
       )}
       {!isSeatLoading && seats.length > 0 && (
-        <BookingSeatSvg
-          seats={seats}
-          selectedSeatIds={selectedSeatIds}
-          onToggleSeat={onToggleSeat}
-        />
+        <div className="booking-seat-viewport" ref={viewportRef}>
+          <div className="booking-seat-scale" style={{ '--seat-map-width': `${zoom}%` } as CSSProperties}>
+            <BookingSeatSvg
+              seats={seats}
+              selectedSeatIds={selectedSeatIds}
+              onToggleSeat={onToggleSeat}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
