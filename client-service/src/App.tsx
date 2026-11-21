@@ -1,11 +1,13 @@
 import MyTicketPage from './MyTicketPage';
 import SearchResultsPage from './SearchResultsPage';
+import EventDescription from './EventDescription';
 import { readSearch, type SearchQuery } from './searchQuery';
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import './App.css';
 import './theme.css';
-import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, createAuthenticatedRequest } from './authenticatedRequest';
+import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, SessionExpiredError, clearAuthenticationStorage, createAuthenticatedRequest } from './authenticatedRequest';
+import { bindBookingLogin, createWindowAuthentication, startLoginSession } from './bookingAuthentication';
 import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
 import { CARD_COMPANIES } from './cardPayment';
@@ -69,6 +71,7 @@ type QueueEntryResponse = {
 type CustomAlertState = {
   message: string;
   closeWindowOnConfirm?: boolean;
+  returnToLoginOnDismiss?: boolean;
 };
 
 type FindUserIdResponse = {
@@ -84,6 +87,7 @@ type TicketingEvent = {
   artistName: string;
   title: string;
   posterUrl: string;
+  venue?: string;
   eventStartDate: string;
   eventEndDate: string;
 };
@@ -423,8 +427,13 @@ function getPageFromLocation(): Page {
   return 'home';
 }
 
-function getUrlForPage(page: Page) {
-  const url = new URL(window.location.href);
+function getUrlForPage(page: Page, href = window.location.href) {
+  const url = new URL(href);
+
+  if (page !== 'bookingWindow') {
+    url.searchParams.delete('activeToken');
+    url.searchParams.delete('activeTokenExpiresAt');
+  }
 
   if (page !== 'search') {
     url.searchParams.delete('keyword');
@@ -454,6 +463,19 @@ function getUrlForPage(page: Page) {
   }
 
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function returnBookingOpenerToLogin() {
+  const opener = authentication.bookingOpener();
+  if (!opener) return false;
+
+  try {
+    clearAuthenticationStorage(opener.sessionStorage);
+    opener.location.replace(getUrlForPage('login', opener.location.href));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function formatDateInput(date: Date) {
@@ -692,7 +714,7 @@ function releaseActiveTokenWhenWindowCloses(
 }
 
 function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' | 'active') {
-  const accessToken = sessionStorage.getItem('ticksy.accessToken');
+  const accessToken = authentication.storage.getItem('ticksy.accessToken');
 
   if (!eventId || !token || !accessToken) {
     return;
@@ -865,13 +887,35 @@ function App() {
     () => sessionStorage.getItem('ticksy.userName') || '',
   );
   const [customAlert, setCustomAlert] = useState<CustomAlertState | null>(null);
-  const handleSessionExpired = useCallback((message: string) => {
+  const returnToLogin = useCallback(() => {
     setLoginUserName('');
     setPage('login');
-    setCustomAlert({ message });
     window.history.replaceState({ page: 'login' }, '', getUrlForPage('login'));
   }, []);
+  const handleSessionExpired = useCallback((message: string) => {
+    if (getPageFromLocation() === 'bookingWindow') {
+      setCustomAlert({ message, returnToLoginOnDismiss: true });
+      return;
+    }
+
+    returnToLogin();
+    setCustomAlert({ message });
+  }, [returnToLogin]);
   useSessionExpiration(handleSessionExpired);
+
+  const dismissCustomAlert = useCallback((confirmCloseWindow: boolean) => {
+    if (customAlert?.returnToLoginOnDismiss) {
+      if (returnBookingOpenerToLogin()) {
+        window.close();
+        return;
+      }
+      returnToLogin();
+    } else if (confirmCloseWindow && customAlert?.closeWindowOnConfirm) {
+      window.close();
+    }
+
+    setCustomAlert(null);
+  }, [customAlert, returnToLogin]);
 
   const isFullAuthPage =
     page === 'login' ||
@@ -906,15 +950,13 @@ function App() {
   useEffect(() => {
     const nativeAlert = window.alert;
     window.alert = (message?: unknown) => {
-      if (message && typeof message === 'object' && 'message' in message) {
-        setCustomAlert((current) => current?.closeWindowOnConfirm ? current : ({
-          message: String((message as CustomAlertState).message ?? ''),
-          closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
-        }));
-        return;
-      }
-
-      setCustomAlert((current) => current?.closeWindowOnConfirm ? current : { message: String(message ?? '') });
+      const nextAlert = message && typeof message === 'object' && 'message' in message
+        ? {
+            message: String(message.message ?? ''),
+            closeWindowOnConfirm: Boolean((message as CustomAlertState).closeWindowOnConfirm),
+          }
+        : { message: String(message ?? '') };
+      setCustomAlert((current) => current?.returnToLoginOnDismiss || current?.closeWindowOnConfirm ? current : nextAlert);
     };
 
     return () => {
@@ -929,13 +971,13 @@ function App() {
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setCustomAlert(null);
+        dismissCustomAlert(false);
       }
     }
 
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [customAlert]);
+  }, [customAlert, dismissCustomAlert]);
 
   function navigateToPage(nextPage: Page) {
     if (nextPage !== 'search') {
@@ -1088,7 +1130,7 @@ function App() {
           onLogin={() => navigateToPage('login')}
         />
       )}
-      {page === 'bookingWindow' && <BookingWindowPage />}
+      {page === 'bookingWindow' && !customAlert?.returnToLoginOnDismiss && <BookingWindowPage />}
       {page === 'login' && <LoginPage onLoginSuccess={setLoginUserName} onNavigate={navigateToPage} />}
       {page === 'signup' && <SignupPage onNavigate={navigateToPage} />}
       {page === 'findId' && <FindIdPage onNavigate={navigateToPage} />}
@@ -1097,14 +1139,7 @@ function App() {
       {!isFullAuthPage && <TopButton />}
       <CustomAlertModal
         alert={customAlert}
-        onClose={() => {
-          const shouldCloseWindow = customAlert?.closeWindowOnConfirm;
-          setCustomAlert(null);
-
-          if (shouldCloseWindow) {
-            window.close();
-          }
-        }}
+        onClose={() => dismissCustomAlert(true)}
       />
     </main>
   );
@@ -1269,7 +1304,7 @@ function Header({
               }}
             >
               <span>{selectedSearchFieldLabel}</span>
-              <span className="search-field-chevron" aria-hidden="true">⌄</span>
+              <span className="search-field-chevron" aria-hidden="true" />
             </button>
             {isSearchFieldOpen && (
               <div className="search-field-menu" role="listbox" aria-label="검색 조건 목록">
@@ -1292,45 +1327,44 @@ function Header({
               </div>
             )}
           </div>
-          <input aria-label="공연 검색" placeholder="공연, 아티스트, 장소를 검색하세요" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
-          <button className="search-submit" type="submit" aria-label="검색">
-            ⌕
-          </button>
+          <input aria-label="공연 검색" placeholder="공연·아티스트·장소 검색" value={keyword} maxLength={100} onChange={(event) => setKeyword(event.target.value)} />
+          <button className="search-submit" type="submit" aria-label="검색" />
         </form>
-        <span className="brand-note">일상을 넘어, 라이브 속으로 <span aria-hidden="true">↗</span></span>
       </div>
 
       <nav className="category-nav" aria-label="공연 카테고리">
-        {categories.map((category) => (
-          <button
-            className={
-              (currentPage === 'concertList' && category === '콘서트') ||
-              (currentPage === 'musicalPlayList' && category === '뮤지컬/연극') ||
-              (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅') ||
-              (currentPage === 'classicList' && category === '클래식') ||
-              (currentPage === 'exhibitionEventList' && category === '전시/행사')
-                ? 'active-category'
-                : ''
-            }
-            type="button"
-            key={category}
-            onClick={() => {
-              if (category === '콘서트') {
-                navigateFromHeader('concertList');
-              } else if (category === '뮤지컬/연극') {
-                navigateFromHeader('musicalPlayList');
-              } else if (category === '팬클럽/팬미팅') {
-                navigateFromHeader('fanclubFanmeetingList');
-              } else if (category === '클래식') {
-                navigateFromHeader('classicList');
-              } else if (category === '전시/행사') {
-                navigateFromHeader('exhibitionEventList');
+        <div className="category-links">
+          {categories.map((category) => (
+            <button
+              className={
+                (currentPage === 'concertList' && category === '콘서트') ||
+                (currentPage === 'musicalPlayList' && category === '뮤지컬/연극') ||
+                (currentPage === 'fanclubFanmeetingList' && category === '팬클럽/팬미팅') ||
+                (currentPage === 'classicList' && category === '클래식') ||
+                (currentPage === 'exhibitionEventList' && category === '전시/행사')
+                  ? 'active-category'
+                  : ''
               }
-            }}
-          >
-            {category}
-          </button>
-        ))}
+              type="button"
+              key={category}
+              onClick={() => {
+                if (category === '콘서트') {
+                  navigateFromHeader('concertList');
+                } else if (category === '뮤지컬/연극') {
+                  navigateFromHeader('musicalPlayList');
+                } else if (category === '팬클럽/팬미팅') {
+                  navigateFromHeader('fanclubFanmeetingList');
+                } else if (category === '클래식') {
+                  navigateFromHeader('classicList');
+                } else if (category === '전시/행사') {
+                  navigateFromHeader('exhibitionEventList');
+                }
+              }}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
         <button
           className={currentPage === 'myTicket' ? 'my-ticket active-category' : 'my-ticket'}
           type="button"
@@ -1405,12 +1439,12 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   useEffect(() => {
     function syncVisiblePosterCount() {
       if (window.innerWidth <= 640) {
-        setVisiblePosterCount(1);
+        setVisiblePosterCount(2);
         return;
       }
 
       if (window.innerWidth <= 1020) {
-        setVisiblePosterCount(2);
+        setVisiblePosterCount(3);
         return;
       }
 
@@ -1486,76 +1520,82 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
   }
 
   const selectedHomeEventTab = homeEventTabs.find((tab) => tab.key === homeEventTab);
+  const featuredEvent = soonestOnSaleEvents.find((event) => event.posterUrl) ?? soonestOnSaleEvents[0];
+  const [featuredTitle, ...featuredSubtitle] = featuredEvent?.title.split(' - ') ?? [];
+  const featuredDetails = featuredEvent
+    ? [formatEventDateRange(featuredEvent), featuredEvent.venue].filter(Boolean)
+    : [];
 
   return (
     <>
-      <section className="live-hero" aria-labelledby="live-hero-title">
+      <section className={`live-hero${featuredEvent?.posterUrl ? '' : ' live-hero-without-poster'}`} aria-labelledby="live-hero-title">
         <div className="live-hero-copy">
-          <span className="live-eyebrow"><i aria-hidden="true" /> YOUR NEXT LIVE MOMENT</span>
-          <h1 id="live-hero-title">기다렸던 순간,<br /><em>가장 가까이.</em></h1>
-          <p>무대가 시작되는 설렘부터 마지막 앙코르까지.<br />잊지 못할 다음 순간을 Ticksy에서 만나보세요.</p>
-          <a className="live-hero-link" href="#live-events">지금 공연 둘러보기 <span aria-hidden="true">↗</span></a>
-          <div className="live-hero-caption"><span>CONCERT</span><span>MUSICAL</span><span>FESTIVAL</span><span>AND MORE</span></div>
+          {featuredEvent && <span className="live-eyebrow">예매 중</span>}
+          <h1 id="live-hero-title">
+            {featuredTitle || '공연 예매'}
+            {featuredSubtitle.length > 0 && <span>{featuredSubtitle.join(' - ')}</span>}
+          </h1>
+          {featuredDetails.length > 0 && (
+            <p className="live-hero-details">
+              {featuredDetails.map((detail) => <span key={detail}>{detail}</span>)}
+            </p>
+          )}
+          {featuredEvent ? (
+            <button className="live-hero-link" type="button" onClick={() => handlePosterClick(featuredEvent)}>
+              공연 상세 보기 <span aria-hidden="true">↗</span>
+            </button>
+          ) : (
+            <a className="live-hero-link" href="#live-events">공연 둘러보기 <span aria-hidden="true">↓</span></a>
+          )}
         </div>
-        <div className="live-art" aria-hidden="true">
-          <div className="live-orbit live-orbit-one" /><div className="live-orbit live-orbit-two" />
-          <span className="live-spark live-spark-one">✳</span><span className="live-spark live-spark-two">+</span>
-          <div className="live-ticket live-ticket-back"><span>MAKE SOME</span><strong>NOISE.</strong></div>
-          <div className="live-ticket live-ticket-front">
-            <div className="live-ticket-top"><b>Ticksy</b><span>ADMIT ONE ↗</span></div>
-            <span className="live-ticket-label">THIS IS YOUR</span><strong>NEXT<br />MOMENT.</strong>
-            <div className="live-ticket-bottom"><span>LIVE IT.<br />FEEL IT.</span><div className="live-barcode" /></div>
+        {featuredEvent?.posterUrl && (
+          <div className="live-hero-poster">
+            <img src={ticketAssetUrl(featuredEvent.posterUrl)} alt={`${featuredEvent.title} 포스터`} fetchPriority="high" />
           </div>
-          <span className="live-art-caption">LESS SCROLL. MORE ENCORE.</span>
-        </div>
+        )}
       </section>
-      <div className="live-ticker" aria-hidden="true"><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b><span>FEEL THE LIVE</span><b>✳</b><span>MAKE IT A MOMENT</span><b>✳</b></div>
-      <div className="live-section-heading" id="live-events"><div><span className="section-eyebrow">TAKE YOUR PICK</span><h2>지금, 주목할 공연<span>.</span></h2></div><p>당신의 플레이리스트를 무대 위에서</p></div>
-      <section className="poster-carousel" aria-label="주요 공연">
-        <button
-          className="carousel-arrow carousel-arrow-left"
-          type="button"
-          aria-label="이전 공연 보기"
-          disabled={soonestOnSaleEvents.length <= 1}
-          onClick={() => movePosters('prev')}
-        >
-          <ArrowIcon direction="left" />
-        </button>
+      <section className="poster-carousel" id="live-events" aria-labelledby="live-events-title">
+        <div className="live-section-heading">
+          <h2 id="live-events-title">지금 예매할 수 있는 공연</h2>
+          {soonestOnSaleEvents.length > activePosterCount && (
+            <div className="carousel-controls">
+              <button className="carousel-arrow" type="button" aria-label="이전 공연 보기" onClick={() => movePosters('prev')}>
+                <ArrowIcon direction="left" />
+              </button>
+              <button className="carousel-arrow" type="button" aria-label="다음 공연 보기" onClick={() => movePosters('next')}>
+                <ArrowIcon direction="right" />
+              </button>
+            </div>
+          )}
+        </div>
         <div className="poster-viewport">
           <div
             className={`poster-rail${isPosterSliding ? ' poster-rail-sliding' : ''}`}
             style={posterRailStyle}
           >
-          {visiblePosters.map((event) => (
-            <button
-              className="poster-card"
-              type="button"
-              key={event.eventGroupCode}
-              onClick={() => handlePosterClick(event)}
-              aria-label={`${event.title} 공연 상세 보기`}
-            >
-              <div className="poster-art">
-                <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
-              </div>
-              <strong>{event.title}</strong>
-              <p>{event.artistName}</p>
-              <small>{formatEventDateRange(event)}</small>
-            </button>
-          ))}
-          {visiblePosters.length === 0 && (
-            <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
-          )}
+            {visiblePosters.map((event, index) => (
+              <button
+                className="poster-card"
+                type="button"
+                key={event.eventGroupCode}
+                onClick={() => handlePosterClick(event)}
+                aria-label={`${event.title} 공연 상세 보기`}
+                aria-hidden={index >= activePosterCount || undefined}
+                tabIndex={index >= activePosterCount ? -1 : undefined}
+              >
+                <div className="poster-art">
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" decoding="async" loading="lazy" />
+                </div>
+                <strong>{event.title}</strong>
+                <p>{event.artistName}</p>
+                <small>{formatEventDateRange(event)}</small>
+              </button>
+            ))}
+            {visiblePosters.length === 0 && (
+              <div className="poster-empty">판매 중인 예정 공연이 없습니다.</div>
+            )}
           </div>
         </div>
-        <button
-          className="carousel-arrow carousel-arrow-right"
-          type="button"
-          aria-label="다음 공연 보기"
-          disabled={soonestOnSaleEvents.length <= 1}
-          onClick={() => movePosters('next')}
-        >
-          <ArrowIcon direction="right" />
-        </button>
       </section>
 
       <section className="content-grid">
@@ -1573,7 +1613,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
             ))}
           </div>
           <div className="mini-poster-grid">
-            {homeTabEvents.map((event, index) => (
+            {homeTabEvents.map((event) => (
               <div className="mini-poster" key={event.eventGroupCode}>
                 <button
                   className="mini-poster-image"
@@ -1581,8 +1621,7 @@ function HomePage({ onSelectEvent }: { onSelectEvent: (eventGroupCode: string) =
                   onClick={() => handlePosterClick(event)}
                   aria-label={`${event.title} 공연 상세 보기`}
                 >
-                  <img src={ticketAssetUrl(event.posterUrl)} alt="" />
-                  <span className="mini-poster-rank">{index + 1}</span>
+                  <img src={ticketAssetUrl(event.posterUrl)} alt="" decoding="async" loading="lazy" />
                 </button>
                 <strong>{event.title}</strong>
                 <span className="mini-poster-description">{event.artistName}</span>
@@ -1697,10 +1736,11 @@ function CategoryEventListPage({
     <section className="category-list-page">
       <div className="category-list-header">
         <h1>{config.label}</h1>
-        <div className="category-sort-tabs" aria-label={`${config.label} 정렬`}>
+        <div className="category-sort-tabs" role="group" aria-label={`${config.label} 정렬`}>
           <button
             className={eventSort === 'soonest' ? 'active-sort' : ''}
             type="button"
+            aria-pressed={eventSort === 'soonest'}
             onClick={() => changeEventSort('soonest')}
           >
             공연 임박순
@@ -1708,6 +1748,7 @@ function CategoryEventListPage({
           <button
             className={eventSort === 'latest' ? 'active-sort' : ''}
             type="button"
+            aria-pressed={eventSort === 'latest'}
             onClick={() => changeEventSort('latest')}
           >
             최신순
@@ -1716,7 +1757,7 @@ function CategoryEventListPage({
       </div>
 
       <div className="concert-list">
-        {isLoading && events.length === 0 && <p className="concert-list-empty">{config.label} 목록을 불러오는 중입니다.</p>}
+        {isLoading && events.length === 0 && <p className="concert-list-empty" role="status">{config.label} 목록을 불러오는 중입니다.</p>}
         {!isLoading && events.length === 0 && (
           <p className="concert-list-empty">{config.emptyMessage}</p>
         )}
@@ -1728,16 +1769,22 @@ function CategoryEventListPage({
             onClick={() => onSelectEvent(event.eventGroupCode)}
           >
             <span className="concert-list-poster">
-              <img src={ticketAssetUrl(event.posterUrl)} alt={`${event.title} 포스터`} />
+              {event.posterUrl && <img src={ticketAssetUrl(event.posterUrl)} alt="" loading="lazy" decoding="async" />}
             </span>
             <span className="concert-list-info">
               <strong>{event.title}</strong>
-              <span>{event.artistName}</span>
-              <small>{formatTicketingEventRange(event)}</small>
+              <span className="concert-list-artist">{event.artistName}</span>
+              <span className="concert-list-footer">
+                <span className="concert-list-meta">
+                  <small>{formatTicketingEventRange(event)}</small>
+                  {event.venue && <small>{event.venue}</small>}
+                </span>
+                <span className="concert-list-arrow" aria-hidden="true">↗</span>
+              </span>
             </span>
           </button>
         ))}
-        <div className="concert-list-loader" ref={eventLoaderRef}>
+        <div className="concert-list-loader" ref={eventLoaderRef} role="status">
           {isLoading && events.length > 0 && `${config.label} 공연을 더 불러오는 중입니다.`}
         </div>
       </div>
@@ -1881,6 +1928,7 @@ function EventDetailPage({
     setQueueEntry(null);
 
     try {
+      bindBookingLogin(window, bookingWindow);
       let queueResponse = await enterBookingQueue(selectedScheduleId);
       if (queueResponse.status === 'SESSION_LIMIT_CONFIRM_REQUIRED') {
         const shouldContinue = window.confirm(
@@ -1988,7 +2036,7 @@ function EventDetailPage({
           </div>
 
           <div className="event-detail-info">
-            <h2>{eventDetail.title}</h2>
+            <h2>공연 정보</h2>
             <dl>
               <div>
                 <dt>아티스트</dt>
@@ -2101,10 +2149,7 @@ function EventDetailPage({
         </div>
       </article>
 
-      <section className="event-description-panel">
-        <h2>공연 소개</h2>
-        <p>{eventDetail.description}</p>
-      </section>
+      <EventDescription description={eventDetail.description} posterUrl={eventDetail.posterUrl} />
 
       {isScheduleAlertOpen && (
         <div className="signup-alert-backdrop" role="alertdialog" aria-modal="true">
@@ -2224,7 +2269,10 @@ function BookingWindowPage() {
   const deliveryFeeAmount = deliveryMethod === 'DELIVERY' ? checkoutFees.deliveryFee : 0;
   const basePaymentAmount = Math.max(0, selectedSeatAmount - couponDiscountAmount);
   const finalPaymentAmount = basePaymentAmount + reservationFeeAmount + deliveryFeeAmount;
-  const layoutMarkup = buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId);
+  const layoutMarkup = useMemo(
+    () => buildBookingLayoutSvg(layoutSvgText, areas, selectedAreaId),
+    [layoutSvgText, areas, selectedAreaId],
+  );
   const areaPrices = getDistinctAreaPrices(areas);
   const sideLayoutStyle = {
     '--layout-scale': sideLayoutScale,
@@ -2363,7 +2411,7 @@ function BookingWindowPage() {
       } catch (error) {
         if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
           setBookingLoadError(error.message);
-          alertSessionExpiredAndClose(error);
+          handleBookingSessionExpiration(error);
           return;
         }
 
@@ -2494,7 +2542,7 @@ function BookingWindowPage() {
     } catch (error) {
       setSeats([]);
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2539,11 +2587,11 @@ function BookingWindowPage() {
     return error instanceof Error ? error.message : fallbackMessage;
   }
 
-  function alertSessionExpiredAndClose(error: unknown) {
-    window.alert({
-      message: bookingErrorMessage(error, '세션이 만료되었습니다. 다시 시도해주세요.'),
-      closeWindowOnConfirm: error instanceof ActiveTokenExpiredError,
-    });
+  function handleBookingSessionExpiration(error: SessionExpiredError | ActiveTokenExpiredError) {
+    // 로그인 세션 만료 안내는 App에서 표시한다.
+    if (error instanceof ActiveTokenExpiredError) {
+      window.alert({ message: error.message, closeWindowOnConfirm: true });
+    }
   }
 
   useEffect(() => {
@@ -2557,7 +2605,7 @@ function BookingWindowPage() {
       return;
     }
 
-    alertSessionExpiredAndClose(new ActiveTokenExpiredError());
+    handleBookingSessionExpiration(new ActiveTokenExpiredError());
   }, [activeTokenRemainingSeconds, checkoutStep, completedPayment, cardPayment, isPaymentSubmitting]);
 
   function selectedSeatInfoList() {
@@ -2629,7 +2677,7 @@ function BookingWindowPage() {
       setCheckoutStep('PRICE');
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2673,7 +2721,7 @@ function BookingWindowPage() {
     } catch (error) {
       setSelectedUserCouponId(null);
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return;
       }
 
@@ -2760,7 +2808,7 @@ function BookingWindowPage() {
       releaseActiveToken(selectedScheduleId, activeToken);
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
       } else {
         alert(bookingErrorMessage(error, '결제 준비에 실패했습니다. 다시 시도해주세요.'));
       }
@@ -2828,7 +2876,7 @@ function BookingWindowPage() {
       return true;
     } catch (error) {
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
-        alertSessionExpiredAndClose(error);
+        handleBookingSessionExpiration(error);
         return false;
       }
 
@@ -2958,7 +3006,7 @@ function BookingWindowPage() {
         />
       )}
 
-      <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : ''}`}>
+      <main className={`booking-window-body${checkoutStep !== 'SEAT' ? ' checkout-mode' : selectedArea ? ' seat-selection-mode' : ''}`}>
         <section className="booking-layout-panel">
           {checkoutStep === 'SEAT' && eventDetail && eventDetail.schedules.length > 1 && (
             <div className="booking-schedule-strip">
@@ -2985,7 +3033,7 @@ function BookingWindowPage() {
               <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
               <p>
                 {selectedArea
-                  ? '오른쪽 작은 배치도에서 다른 구역을 다시 선택할 수 있습니다.'
+                  ? '작은 구역 배치도에서 다른 구역을 선택할 수 있습니다.'
                   : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
               </p>
             </div>
@@ -3021,6 +3069,7 @@ function BookingWindowPage() {
               {selectedArea && checkoutStep === 'SEAT' && (
                 <div className="booking-seat-selection-grid">
                   <BookingSeatMap
+                    key={selectedArea.areaId}
                     isSeatLoading={isSeatLoading}
                     seats={seats}
                     selectedArea={selectedArea}
@@ -3130,14 +3179,20 @@ function BookingWindowPage() {
                   <span><i className="selected" />선택 좌석</span>
                   <span><i className="disabled" />선택 불가</span>
                 </div>
-                <button
-                  className="booking-next-button"
-                  type="button"
-                  disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
-                  onClick={prepareCheckout}
-                >
-                  {isCheckoutPreparing ? '예매 준비 중' : '좌석 선택 완료'}
-                </button>
+                <div className="booking-seat-confirm">
+                  <div className="booking-seat-confirm-summary" aria-live="polite">
+                    <span>선택 좌석 {selectedSeats.length}매</span>
+                    <strong>{selectedSeatAmount.toLocaleString()}원</strong>
+                  </div>
+                  <button
+                    className="booking-next-button"
+                    type="button"
+                    disabled={selectedSeatIds.length === 0 || isCheckoutPreparing}
+                    onClick={prepareCheckout}
+                  >
+                    {isCheckoutPreparing ? '예매 준비 중' : '좌석 선택 완료'}
+                  </button>
+                </div>
               </section>
             </>
           ) : (
@@ -3658,11 +3713,43 @@ function BookingSeatMap({
   selectedSeatIds: number[];
   onToggleSeat: (seat: SeatResponse) => void;
 }) {
+  const [zoom, setZoom] = useState(100);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const zoomCenter = useRef<{ x: number; y: number } | null>(null);
+
+  function changeZoom(nextZoom: number) {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    zoomCenter.current = {
+      x: (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth,
+      y: (viewport.scrollTop + viewport.clientHeight / 2) / viewport.scrollHeight,
+    };
+    setZoom(nextZoom);
+  }
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const center = zoomCenter.current;
+    if (!viewport || !center) return;
+
+    viewport.scrollLeft = center.x * viewport.scrollWidth - viewport.clientWidth / 2;
+    viewport.scrollTop = center.y * viewport.scrollHeight - viewport.clientHeight / 2;
+    zoomCenter.current = null;
+  }, [zoom]);
+
   return (
     <div className="booking-seat-panel expanded">
       <div className="booking-seat-panel-title">
         <strong>{selectedArea.areaName} 구역 좌석 배치도</strong>
-        <span>좌석을 선택해 주세요.</span>
+        <span className="booking-seat-hint">좌석을 선택해 주세요.</span>
+        {!isSeatLoading && seats.length > 0 && (
+          <div className="booking-seat-zoom" role="group" aria-label="좌석 배치도 확대·축소">
+            <button type="button" aria-label="좌석 배치도 축소" disabled={zoom === 100} onClick={() => changeZoom(zoom - 50)}>−</button>
+            <span>{zoom}%</span>
+            <button type="button" aria-label="좌석 배치도 확대" disabled={zoom === 400} onClick={() => changeZoom(zoom + 50)}>+</button>
+          </div>
+        )}
       </div>
 
       {isSeatLoading && <div className="booking-state-box compact">좌석을 불러오는 중입니다.</div>}
@@ -3670,11 +3757,15 @@ function BookingSeatMap({
         <div className="booking-state-box compact">표시할 좌석 정보가 없습니다.</div>
       )}
       {!isSeatLoading && seats.length > 0 && (
-        <BookingSeatSvg
-          seats={seats}
-          selectedSeatIds={selectedSeatIds}
-          onToggleSeat={onToggleSeat}
-        />
+        <div className="booking-seat-viewport" ref={viewportRef}>
+          <div className="booking-seat-scale" style={{ '--seat-map-width': `${zoom}%` } as CSSProperties}>
+            <BookingSeatSvg
+              seats={seats}
+              selectedSeatIds={selectedSeatIds}
+              onToggleSeat={onToggleSeat}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -3850,6 +3941,7 @@ function LoginPage({
       });
 
       if (!tokens.accessToken || !tokens.refreshToken) throw new Error('로그인 정보를 받지 못했습니다.');
+      startLoginSession(window);
       sessionStorage.setItem('ticksy.accessToken', tokens.accessToken);
       sessionStorage.setItem('ticksy.refreshToken', tokens.refreshToken);
 
@@ -4730,9 +4822,19 @@ function SiteFooter({
 }
 
 function TopButton() {
+  const [isVisible, setIsVisible] = useState(() => window.scrollY >= 280);
+
+  useEffect(() => {
+    const updateVisibility = () => setIsVisible(window.scrollY >= 280);
+    window.addEventListener('scroll', updateVisibility, { passive: true });
+    return () => window.removeEventListener('scroll', updateVisibility);
+  }, []);
+
   function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
+
+  if (!isVisible) return null;
 
   return (
     <button className="top-button" type="button" onClick={scrollToTop} aria-label="맨 위로 이동">
@@ -4742,16 +4844,16 @@ function TopButton() {
   );
 }
 
+const authentication = createWindowAuthentication(window, () => getPageFromLocation() === 'bookingWindow');
 const request = createAuthenticatedRequest({
-  storage: sessionStorage,
+  storage: authentication.storage,
+  refreshState: authentication.refreshState,
   fetch: window.fetch.bind(window),
   onSessionExpired: (message) => window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: message })),
 });
 
 function clearLoginStorage() {
-  sessionStorage.removeItem('ticksy.accessToken');
-  sessionStorage.removeItem('ticksy.refreshToken');
-  sessionStorage.removeItem('ticksy.userName');
+  clearAuthenticationStorage(sessionStorage);
   clearQueueTokenStorage();
 }
 

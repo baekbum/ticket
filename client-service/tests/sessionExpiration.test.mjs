@@ -1,16 +1,20 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL, URLSearchParams } from 'node:url';
 import test from 'node:test';
 import ts from 'typescript';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost/?page=myTicket' });
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.sessionStorage = dom.window.sessionStorage;
+const { window } = dom;
+const { document, sessionStorage } = window;
+const { DOMException, Response } = globalThis;
+globalThis.window = window;
+globalThis.document = document;
+globalThis.sessionStorage = sessionStorage;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.CustomEvent = dom.window.CustomEvent;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -70,6 +74,68 @@ test('마이티켓 인증 실패 시 사용자명을 지우고 로그인 화면�
       assert.doesNotMatch(document.body.textContent, /아이유님 환영합니다/);
     } finally {
       await act(async () => { root.unmount(); });
+    }
+  }
+});
+
+test('좌석 선택 팝업에서 세션 만료를 확인하면 메인 창으로 돌아간다', async () => {
+  for (const openerAvailable of [true, false]) {
+    const mainDom = new JSDOM('', { url: 'https://localhost/?page=eventDetail&eventGroupCode=concert' });
+    const mainStorage = mainDom.window.sessionStorage;
+    const credentials = {
+      'ticksy.accessToken': 'expired',
+      'ticksy.refreshToken': 'rejected',
+      'ticksy.userName': '아이유',
+    };
+    const actions = [];
+    window.history.replaceState({}, '', '/?page=bookingWindow&eventId=1&activeToken=active&activeTokenExpiresAt=2099-01-01');
+    sessionStorage.clear();
+    for (const [key, value] of Object.entries(credentials)) {
+      sessionStorage.setItem(key, value);
+      mainStorage.setItem(key, value);
+    }
+    mainStorage.setItem('ticksy.loginSessionId', 'booking-session');
+    sessionStorage.setItem('ticksy.loginSessionId', 'booking-session');
+    const originalClose = window.close;
+    window.close = () => actions.push('close');
+    window.opener = openerAvailable ? {
+      closed: false,
+      sessionStorage: mainStorage,
+      location: {
+        origin: mainDom.window.location.origin,
+        href: mainDom.window.location.href,
+        replace: (url) => actions.push(url),
+      },
+    } : null;
+    window.fetch = async () => new Response('{}', { status: 401 });
+
+    const root = createRoot(document.getElementById('root'));
+    try {
+      const App = (await import(appModule())).default;
+      await act(async () => { root.render(React.createElement(App)); });
+      const alert = document.querySelector('[role="alertdialog"]');
+      assert.match(alert.textContent, /세션이 만료되었습니다\. 다시 로그인해주세요\./);
+      assert.equal(new URLSearchParams(window.location.search).get('page'), 'bookingWindow');
+      assert.equal(document.querySelector('input[type="password"]'), null);
+      assert.deepEqual(actions, []);
+      assert.equal(mainStorage.getItem('ticksy.userName'), openerAvailable ? null : credentials['ticksy.userName']);
+
+      await act(async () => { alert.querySelector('button').click(); });
+
+      if (openerAvailable) {
+        assert.deepEqual(actions, ['/?page=login', 'close']);
+        for (const key of Object.keys(credentials)) assert.equal(mainStorage.getItem(key), null);
+        assert.equal(document.querySelector('input[type="password"]'), null);
+      } else {
+        assert.deepEqual(actions, []);
+        assert.equal(window.location.search, '?page=login');
+        assert.ok(document.querySelector('input[type="password"]'));
+      }
+    } finally {
+      await act(async () => { root.unmount(); });
+      window.close = originalClose;
+      window.opener = null;
+      mainDom.window.close();
     }
   }
 });
