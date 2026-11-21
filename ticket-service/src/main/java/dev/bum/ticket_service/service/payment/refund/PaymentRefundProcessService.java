@@ -414,6 +414,10 @@ public class PaymentRefundProcessService {
                         cb.equal(
                                 root.get("status"),
                                 PaymentRefundProcessStatus.valueOf(cond.getStatus())));
+            } else if (cond.getStatuses() != null && !cond.getStatuses().isEmpty()) {
+                predicates.add(root.get("status").in(cond.getStatuses().stream()
+                        .map(PaymentRefundProcessStatus::valueOf)
+                        .toList()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

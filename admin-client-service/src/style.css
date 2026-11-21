@@ -156,6 +156,7 @@ button { cursor: pointer; }
 }
 
 .admin-sidebar-title { margin: 0 0 14px; padding: 0 11px; color: #a3bdad; font-size: 11px; font-weight: 750; }
+.admin-sidebar > button { margin-bottom: 8px; }
 .admin-sidebar section + section { margin-top: 4px; }
 .admin-sidebar button {
   position: relative;
@@ -208,6 +209,24 @@ button { cursor: pointer; }
 }
 
 .admin-main > iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--admin-panel); }
+.operations-home { height: 100%; overflow: auto; padding: clamp(16px, 3vw, 34px); }
+.operations-home h1 { margin: 0 0 8px; font-size: clamp(25px, 3vw, 36px); letter-spacing: -.04em; }
+.operations-home header p { margin: 0; color: var(--admin-muted); font-size: 14px; }
+.operations-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 14px; margin-top: 26px; }
+.operations-card { display: flex; flex-direction: column; min-width: 0; padding: clamp(14px, 2vw, 22px); border: 1px solid var(--admin-line); border-radius: 13px; }
+.operations-card-body { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-height: 90px; }
+.operations-card h2 { margin: 0 0 8px; font-size: 16px; }
+.operations-card strong { display: block; font-size: 30px; line-height: 1.18; font-variant-numeric: tabular-nums; }
+.operations-card strong:not([data-state="ready"]) { font-size: 15px; color: var(--admin-muted); }
+.operations-card-icon { display: grid; flex: none; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--admin-soft); color: var(--admin-green); font-size: 24px; }
+.operations-card-icon.refund { background: #fff2d5; color: #81530a; }
+.operations-card-icon.deposit { background: #fae5e7; color: #962d3c; }
+.dark-mode .operations-card-icon.refund { background: #47351f; color: #ffd28c; }
+.dark-mode .operations-card-icon.deposit { background: #48292c; color: #ffb4bd; }
+.operations-card > :is(button, p) { margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--admin-line); background: transparent; color: var(--admin-muted); font-size: 13px; text-align: left; }
+.operations-card > button { display: flex; align-items: center; gap: 8px; color: var(--admin-green); font-weight: 750; }
+.operations-card > button:hover { text-decoration: underline; }
+
 .embed-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
 .embed-window { position: absolute; top: var(--embed-top, var(--embed-start-top, 12px)); left: var(--embed-left, var(--embed-start-left, 12px)); display: flex; flex-direction: column; width: var(--embed-width, min(700px, max(50%, 480px), calc(100% - var(--embed-start-left, 12px) - 12px))); max-width: 100%; height: var(--embed-height, var(--embed-start-height, calc(100% - 24px))); overflow: hidden; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-panel); box-shadow: 0 18px 50px #101c1640; pointer-events: auto; }
 .embed-window.maximized { top: 12px; left: 12px; width: calc(100% - 24px); height: calc(100% - 24px); }

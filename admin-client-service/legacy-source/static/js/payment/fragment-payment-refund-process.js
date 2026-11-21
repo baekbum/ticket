@@ -84,7 +84,8 @@
     if (currentSearchFilters.reservationId) cond.reservationId = currentSearchFilters.reservationId;
     if (currentSearchFilters.paymentNo) cond.paymentNo = currentSearchFilters.paymentNo;
     if (currentSearchFilters.method) cond.method = currentSearchFilters.method;
-    if (currentSearchFilters.status) cond.status = currentSearchFilters.status;
+    if (currentSearchFilters.status === 'FAILED') cond.statuses = ['GATEWAY_FAILED', 'LOCAL_FAILED'];
+    else if (currentSearchFilters.status) cond.status = currentSearchFilters.status;
     return cond;
   }
 
@@ -288,5 +289,12 @@
     getTotalPages: () => serverTotalPages
   });
 
-  loadPaymentRefundProcessList(0);
+  window.addEventListener('admin:fragment-loaded', event => {
+    if (event.detail?.menuName !== 'paymentRefundProcess') return;
+    if (event.detail.context?.status === 'FAILED') {
+      currentSearchFilters.status = 'FAILED';
+      setValue('refund-process-search-status', 'FAILED');
+    }
+    loadPaymentRefundProcessList(0);
+  });
 })();

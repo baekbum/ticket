@@ -32,6 +32,8 @@ public class PaymentRefundProcessCondRequest {
     // 결제 환불 처리 상태.
     private String status;
 
+    private List<String> statuses;
+
     // 조회할 페이지.
     @Builder.Default
     private Integer page = 0;

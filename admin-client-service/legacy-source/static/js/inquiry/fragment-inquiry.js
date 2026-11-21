@@ -212,5 +212,9 @@
     load: window.loadInquiryList,
     getTotalPages: () => serverTotalPages
   });
-  loadInquiryList(0);
+  window.addEventListener('admin:fragment-loaded', event => {
+    if (event.detail?.menuName !== 'inquiry') return;
+    if (event.detail.context?.status === 'WAITING') byId('inquiry-search-status').value = 'WAITING';
+    loadInquiryList(0);
+  });
 })();
