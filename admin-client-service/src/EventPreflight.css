@@ -64,6 +64,23 @@
 .preflight-report { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--admin-line); }
 .preflight-report-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .preflight-report h2 { margin: 0 0 4px; font-size: 21px; overflow-wrap: anywhere; }
+.preflight-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.preflight-report-actions .preflight-guide-toggle { display: inline-flex; align-items: center; gap: 5px; }
+.preflight-guide-toggle[aria-expanded="true"] { border-color: var(--admin-focus); color: var(--admin-green); }
+.preflight-summary-guide {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.preflight-summary-guide h3 { margin: 0 0 10px; font-size: 15px; }
+.preflight-summary-guide dl { display: grid; gap: 10px; margin: 0; }
+.preflight-summary-guide dt { font-weight: 750; }
+.preflight-summary-guide dt span { margin-inline-start: 5px; color: var(--admin-green); }
+.preflight-summary-guide dd { margin: 2px 0 0; color: var(--admin-muted); overflow-wrap: anywhere; }
 .preflight-dialog {
   width: min(1050px, calc(100% - 24px));
   max-height: calc(100dvh - 24px);
@@ -113,8 +130,13 @@
   background: var(--admin-soft);
 }
 
-.preflight-issue-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.preflight-issue-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.preflight-issue-title-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .preflight-issue-heading h2 { margin: 0; font-size: clamp(17px, 2vw, 23px); letter-spacing: -.025em; }
+.preflight-issue-heading .preflight-issue-refresh { display: inline-flex; align-items: center; gap: 5px; color: var(--admin-green); }
+.preflight-issue-refresh:not(:disabled):hover { border-color: var(--admin-focus); }
+.preflight-issue-notice { margin: 0 0 12px; color: var(--admin-muted); font-size: 14px; }
+.preflight-issue-notice:last-child { margin-bottom: 0; }
 .preflight-issue-heading p {
   flex: none;
   margin: 0;

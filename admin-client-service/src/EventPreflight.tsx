@@ -11,7 +11,7 @@ export type EventSchedule = {
   saleStartAt: string | null;
   posterUrl?: string | null;
 };
-type EventPage = { content: EventSchedule[]; page: { totalPages: number } };
+type EventPage = { content: EventSchedule[]; page: { totalPages: number; totalElements: number } };
 type Area = { areaId: number; areaName: string; layoutKey: string; status: string; seatCount: number };
 type SeatReadiness = {
   totalSeats: number;
@@ -23,7 +23,17 @@ type Layout = { state: 'ready'; shapes: Element[] } | { state: 'missing' | 'unkn
 type Report = { seats: SeatReadiness; layout: Layout };
 
 const number = (value: number) => value.toLocaleString('ko-KR');
+const eventPageSize = 20;
+const issueSampleSize = 10;
 const dateTime = (value: string | null) => value?.replace(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}).*$/, '$1 $2') || '미정';
+const areaNameCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+function compareAreas(left: Area, right: Area) {
+  const leftName = left.areaName.trim();
+  const rightName = right.areaName.trim();
+  const groupOrder = Number(/^\d/.test(leftName)) - Number(/^\d/.test(rightName));
+  return groupOrder || areaNameCollator.compare(leftName, rightName);
+}
 
 function normalizeLayoutKey(value: string) {
   return value.trim().replace(/^area-(?:2f-|1f-|vip-|floor-)?/, '');
@@ -69,26 +79,24 @@ function getLayoutLinks(areas: Area[], layout: Layout) {
   return { linked, unused };
 }
 
-async function* loadEventPages(title: string, signal: AbortSignal, sort = ['eventId-desc']) {
-  let totalPages = 1;
-  for (let page = 0; page < totalPages; page++) {
-    signal.throwIfAborted();
-    const response = await adminFetch('/ticket/api/v1/manage/event/select', {
-      method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page, size: 20, sort, title: title || null }),
-    });
-    if (!response.ok) throw new Error('회차 목록 조회 실패');
-    const data = await response.json() as EventPage;
-    totalPages = data.page.totalPages;
-    yield data.content;
-  }
+async function loadEventPage(page: number, signal: AbortSignal, title = '', sort = ['eventId-desc']): Promise<EventPage> {
+  const response = await adminFetch('/ticket/api/v1/manage/event/select', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ page, size: eventPageSize, sort, title: title || null }),
+  });
+  if (!response.ok) throw new Error('회차 목록 조회 실패');
+  return response.json() as Promise<EventPage>;
 }
 
 async function loadPerformanceGroups(title: string, signal: AbortSignal) {
   const groups = new Map<string, EventSchedule[]>();
   const seen = new Set<number>();
-  for await (const events of loadEventPages(title, signal, ['eventDateTime-asc', 'eventId-asc'])) {
-    for (const event of events) {
+  let totalPages = 1;
+  for (let page = 0; page < totalPages; page++) {
+    signal.throwIfAborted();
+    const { content, page: metadata } = await loadEventPage(page, signal, title, ['eventDateTime-asc', 'eventId-asc']);
+    totalPages = metadata.totalPages;
+    for (const event of content) {
       if (seen.has(event.eventId)) continue;
       seen.add(event.eventId);
       const code = event.eventGroupCode?.trim();
@@ -122,26 +130,37 @@ function analyzeReport({ seats, layout }: Report) {
   return { linked, unused, empty, duplicateKeys, missingKeys, flagged };
 }
 
-async function inspectSearch(title: string, signal: AbortSignal, onProgress: (checked: number) => void) {
+async function inspectRandomEvents(signal: AbortSignal) {
+  const firstPage = await loadEventPage(0, signal);
+  const total = firstPage.page.totalElements;
+  const positions = new Set<number>();
+  while (positions.size < Math.min(total, issueSampleSize)) {
+    positions.add(Math.floor(Math.random() * total));
+  }
+
+  const pageNumbers = new Set([...positions].map(position => Math.floor(position / eventPageSize)));
+  pageNumbers.delete(0);
+  const pages = new Map([[0, firstPage.content]]);
+  await Promise.all([...pageNumbers].map(async page => {
+    pages.set(page, (await loadEventPage(page, signal)).content);
+  }));
+  const candidates = new Map<number, EventSchedule>();
+  for (const position of positions) {
+    const event = pages.get(Math.floor(position / eventPageSize))?.[position % eventPageSize];
+    if (event) candidates.set(event.eventId, event);
+  }
+
   const issues: EventSchedule[] = [];
-  const seen = new Set<number>();
+  const events = [...candidates.values()];
   let unreadable = 0;
-  for await (const events of loadEventPages(title, signal)) {
-    for (let offset = 0; offset < events.length; offset += 3) {
-      signal.throwIfAborted();
-      const batch = events.slice(offset, offset + 3).filter(event => {
-        if (seen.has(event.eventId)) return false;
-        seen.add(event.eventId);
-        return true;
-      });
-      const results = await Promise.allSettled(batch.map(event => loadReport(event.eventId, signal)));
-      signal.throwIfAborted();
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') unreadable++;
-        else if (analyzeReport(result.value).flagged) issues.push(batch[index]);
-      });
-      onProgress(seen.size);
-    }
+  for (let offset = 0; offset < events.length; offset += 3) {
+    signal.throwIfAborted();
+    const batch = events.slice(offset, offset + 3);
+    const results = await Promise.allSettled(batch.map(event => loadReport(event.eventId, signal)));
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') unreadable++;
+      else if (analyzeReport(result.value).flagged) issues.push(batch[index]);
+    });
   }
   return { issues, unreadable };
 }
@@ -160,9 +179,9 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
   const [error, setError] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [issueEvents, setIssueEvents] = useState<EventSchedule[]>([]);
-  const [batch, setBatch] = useState<{ title: string } | null>({ title: '' });
-  const [batchProgress, setBatchProgress] = useState(0);
-  const [batchNotice, setBatchNotice] = useState('');
+  const [sampleRequest, setSampleRequest] = useState(0);
+  const [sampleLoading, setSampleLoading] = useState(true);
+  const [sampleNotice, setSampleNotice] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const showPopup = inspection !== null;
 
@@ -224,10 +243,9 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
       .then(result => {
         if (signal.aborted) return;
         setReport(result);
-        const flagged = analyzeReport(result).flagged;
-        setIssueEvents(previous => previous.some(item => item.eventId === event.eventId)
-          ? flagged ? previous : previous.filter(item => item.eventId !== event.eventId)
-          : flagged ? [...previous, event] : previous);
+        if (!analyzeReport(result).flagged) {
+          setIssueEvents(previous => previous.filter(item => item.eventId !== event.eventId));
+        }
       })
       .catch(() => { if (!signal.aborted) setError(true); })
       .finally(() => { if (!signal.aborted) setLoading(false); });
@@ -235,41 +253,37 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
   }, [inspection]);
 
   useEffect(() => {
-    if (!batch) return;
     const controller = new AbortController();
     const { signal } = controller;
-    inspectSearch(batch.title, signal, checked => setBatchProgress(checked))
+    inspectRandomEvents(signal)
       .then(({ issues, unreadable }) => {
         if (signal.aborted) return;
         setIssueEvents(issues);
-        setBatchNotice(unreadable > 0
+        setSampleNotice(unreadable > 0
           ? `좌석 조회에 실패한 회차가 ${number(unreadable)}개 있습니다.`
-          : issues.length === 0 ? '확인이 필요한 회차가 없습니다.' : '');
+          : '');
       })
-      .catch(() => { if (!signal.aborted) setBatchNotice('전체 점검을 완료하지 못했습니다. 다시 시도해 주세요.'); })
-      .finally(() => { if (!signal.aborted) setBatch(null); });
+      .catch(() => { if (!signal.aborted) setSampleNotice('점검 목록을 불러오지 못했습니다. 새로고침해 주세요.'); })
+      .finally(() => { if (!signal.aborted) setSampleLoading(false); });
     return () => controller.abort();
-  }, [batch]);
+  }, [sampleRequest]);
 
   return <section className="event-preflight" aria-labelledby="event-preflight-title">
     <header>
       <h1 id="event-preflight-title">공연 오픈 전 점검</h1>
       <p>회차별 좌석, 구역 배치도 연결, Redis 캐시 적재 상태를 확인합니다.</p>
     </header>
-    {batch && <p role="status">공연 회차 점검 중 · {number(batchProgress)}회차 완료</p>}
-    {batchNotice && <p role="status">{batchNotice}</p>}
-    {issueEvents.length > 0 && <PreflightIssueCarousel events={issueEvents} selectedId={inspection?.eventId} onSelect={runInspection} />}
-    {(batch || batchNotice || issueEvents.length > 0) && <hr className="preflight-divider" />}
+    <PreflightIssueCarousel events={issueEvents} selectedId={inspection?.eventId} onSelect={runInspection}
+      loading={sampleLoading} notice={sampleNotice} onRefresh={() => {
+        setSampleLoading(true);
+        setSampleNotice('');
+        setIssueEvents([]);
+        setSampleRequest(request => request + 1);
+      }} />
+    <hr className="preflight-divider" />
     <form className="preflight-tools" onSubmit={event => { event.preventDefault(); setQuery({ title: search.trim() }); }}>
       <label>공연명 <input value={search} onChange={event => setSearch(event.target.value)} placeholder="공연명 검색" /></label>
       <button type="submit">검색</button>
-      <button type="button" disabled={!!batch || (!!query?.title && (listLoading || !groups?.length))} onClick={() => {
-        setBatchProgress(0);
-        setBatchNotice('');
-        setIssueEvents([]);
-        setBatch({ title: query?.title ?? '' });
-      }}>{query?.title ? '검색 결과 전체 점검' : '전체 점검'}</button>
-      {batch && <button type="button" onClick={() => { setBatch(null); setBatchNotice('전체 점검을 중단했습니다.'); }}>중단</button>}
     </form>
     {query?.title && <div className="preflight-search-results">
       {listLoading && <p role="status">공연 회차를 조회하는 중입니다…</p>}
@@ -316,8 +330,30 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
 function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
   event: EventSchedule; report: Report; onOpenAreas: (eventId: number) => void;
 }) {
+  const [showGuide, setShowGuide] = useState(false);
   const { linked, unused, empty, duplicateKeys, missingKeys, flagged } = analyzeReport({ seats, layout });
   const layoutStatus = layout.state === 'missing' ? '미등록' : layout.state === 'invalid' ? 'SVG 확인 필요' : '조회 불가';
+  const summary = [
+    {
+      label: '등록 좌석', value: `${number(seats.totalSeats)}석`,
+      note: `구역 미지정 ${number(seats.unassignedSeats)}석`,
+      meaning: '이 회차에 등록된 전체 좌석 수입니다. 구역 미지정은 그중 어느 구역에도 연결되지 않은 좌석 수입니다.',
+    },
+    {
+      label: '빈 구역', value: `${number(empty)}개`, note: `전체 구역 ${number(seats.areas.length)}개`,
+      meaning: '등록 좌석이 한 석도 없는 구역 수입니다. 전체 구역이 65개라면 0개일 때는 모든 구역에 좌석이 있고, 65개일 때는 모든 구역이 비어 있습니다.',
+    },
+    {
+      label: '배치도 연결', value: layout.state === 'ready' ? `${number(linked.size)} / ${number(seats.areas.length)}개` : layoutStatus,
+      note: layout.state === 'ready' ? '연결된 구역 / 전체 구역' : '회차에 등록한 SVG를 확인해 주세요.',
+      meaning: '배치도 SVG에 연결된 구역 수 / 등록된 전체 구역 수입니다. 미등록, SVG 확인 필요, 조회 불가는 연결 수를 계산할 수 없는 상태입니다.',
+    },
+    {
+      label: '좌석 캐시', value: seats.cache.readyKeys === null ? '조회 불가' : `${number(seats.cache.readyKeys)} / ${number(seats.cache.expectedKeys)}개`,
+      note: missingKeys === null ? 'Redis 응답을 확인해 주세요.' : seats.totalSeats === 0 ? '점검할 좌석 없음' : `미적재 또는 상태 이상 ${number(missingKeys)}개`,
+      meaning: 'Redis에 유효한 상태로 저장된 좌석 키 수 / 필요한 좌석 키 수입니다. 조회 불가는 Redis에서 키 상태를 확인할 수 없다는 뜻입니다.',
+    },
+  ];
 
   return <section className="preflight-report" aria-labelledby="preflight-report-title">
     <div className="preflight-report-header">
@@ -325,15 +361,24 @@ function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
         <h2 id="preflight-report-title">{event.title}</h2>
         <p>공연 {dateTime(event.eventDateTime)} · 예매 오픈 {dateTime(event.saleStartAt)} · 회차 #{event.eventId}</p>
       </div>
-      <button type="button" onClick={() => onOpenAreas(event.eventId)}>구역/좌석 관리</button>
+      <div className="preflight-report-actions">
+        <button type="button" onClick={() => onOpenAreas(event.eventId)}>구역/좌석 관리</button>
+        <button type="button" className="preflight-guide-toggle" aria-expanded={showGuide} aria-controls="preflight-summary-guide"
+          onClick={() => setShowGuide(open => !open)}>
+          <i className="ti ti-info-circle" aria-hidden="true" /> 참고
+        </button>
+      </div>
+    </div>
+    <div id="preflight-summary-guide" className="preflight-summary-guide" hidden={!showGuide}>
+      <h3>점검 항목 안내</h3>
+      <dl>{summary.map(({ label, value, meaning }) => <div key={label}>
+        <dt>{label} <span>{value}</span></dt>
+        <dd>{meaning}</dd>
+      </div>)}</dl>
     </div>
     {!flagged && <p role="status" className="preflight-verdict">점검 항목이 모두 정상입니다.</p>}
     <dl className="preflight-summary">
-      <div><dt>등록 좌석</dt><dd>{number(seats.totalSeats)}석</dd><small>구역 미지정 {number(seats.unassignedSeats)}석</small></div>
-      <div><dt>빈 구역</dt><dd>{number(empty)}개</dd><small>전체 구역 {number(seats.areas.length)}개</small></div>
-      <div><dt>배치도 연결</dt><dd>{layout.state === 'ready' ? `${number(linked.size)} / ${number(seats.areas.length)}개` : layoutStatus}</dd><small>{layout.state === 'ready' ? '연결된 구역 / 전체 구역' : '회차에 등록한 SVG를 확인해 주세요.'}</small></div>
-      <div><dt>좌석 캐시</dt><dd>{seats.cache.readyKeys === null ? '조회 불가' : `${number(seats.cache.readyKeys)} / ${number(seats.cache.expectedKeys)}개`}</dd>
-        <small>{missingKeys === null ? 'Redis 응답을 확인해 주세요.' : seats.totalSeats === 0 ? '점검할 좌석 없음' : `미적재 또는 상태 이상 ${number(missingKeys)}개`}</small></div>
+      {summary.map(({ label, value, note }) => <div key={label}><dt>{label}</dt><dd>{value}</dd><small>{note}</small></div>)}
     </dl>
     {duplicateKeys > 0 && <p className="preflight-warning">좌석 {number(duplicateKeys)}석이 다른 좌석과 같은 Redis 키를 사용합니다.</p>}
     {unused.size > 0 && <p className="preflight-warning">SVG에만 있는 구역 키 · {[...unused].join(', ')}</p>}
@@ -341,7 +386,7 @@ function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
     {seats.areas.length === 0 ? <p>등록된 구역이 없습니다.</p> : <div className="preflight-table-wrap" tabIndex={0} role="region" aria-label="구역별 점검 결과">
       <table>
         <thead><tr><th scope="col">구역</th><th scope="col">상태</th><th scope="col">등록 좌석</th><th scope="col">SVG 연결</th></tr></thead>
-        <tbody>{seats.areas.map(area => <tr key={area.areaId}>
+        <tbody>{[...seats.areas].sort(compareAreas).map(area => <tr key={area.areaId}>
           <th scope="row">{area.areaName}</th><td>{area.status === 'ACTIVE' ? '활성' : '비활성'}</td>
           <td data-warning={area.seatCount === 0}>{number(area.seatCount)}석</td>
           <td data-warning={layout.state !== 'ready' || !linked.has(area.areaId)}>{layout.state !== 'ready' ? layoutStatus : linked.has(area.areaId) ? '연결됨' : '연결 안 됨'}</td>
