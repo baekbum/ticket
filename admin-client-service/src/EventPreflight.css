@@ -7,10 +7,10 @@
 .event-preflight h1 { margin: 0 0 8px; font-size: clamp(25px, 3vw, 36px); letter-spacing: -.04em; }
 .event-preflight header p, .preflight-report-header p { margin: 0; color: var(--admin-muted); font-size: 14px; line-height: 1.55; }
 .event-preflight header { margin-bottom: 24px; }
+.preflight-divider { margin: 24px 0; border: 0; border-top: 1px solid var(--admin-line); }
 .preflight-tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; }
 .preflight-tools label { display: grid; gap: 6px; width: min(310px, 100%); font-size: 13px; font-weight: 700; }
-.preflight-tools .preflight-schedule { width: min(630px, 100%); min-width: 0; }
-.preflight-tools input, .preflight-tools select, .event-preflight button {
+.preflight-tools input, .event-preflight button {
   min-height: 40px;
   border: 1px solid var(--admin-line);
   border-radius: 8px;
@@ -21,14 +21,74 @@
   font-size: 13px;
 }
 
-.preflight-tools input, .preflight-tools select { width: 100%; min-width: 0; }
+.preflight-tools input { width: 100%; min-width: 0; }
 .event-preflight button { font-weight: 750; }
 .event-preflight button:disabled { opacity: .52; cursor: default; }
-.event-preflight .preflight-primary { background: var(--admin-green); color: var(--admin-on-green); border-color: transparent; }
-.preflight-pages { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--admin-muted); font-size: 13px; }
+.preflight-search-results { display: grid; gap: 14px; margin-top: 20px; }
+.preflight-performance {
+  display: grid;
+  grid-template-columns: minmax(0, 170px) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(14px, 3vw, 24px);
+  padding: clamp(14px, 3vw, 22px);
+  border: 1px solid var(--admin-line);
+  border-radius: 15px;
+  background: var(--admin-soft);
+}
+.preflight-performance h2 { margin: 0 0 12px; font-size: clamp(17px, 2vw, 21px); overflow-wrap: anywhere; }
+.preflight-session-list {
+  display: grid;
+  gap: 8px;
+  max-height: 166px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  list-style: none;
+}
+.preflight-session-list::-webkit-scrollbar { display: none; }
+.preflight-session-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+}
+.preflight-session-list button:hover, .preflight-session-list button:focus-visible { border-color: var(--admin-focus); }
+.preflight-session-info { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.preflight-session-info small { color: var(--admin-muted); font-size: 12px; font-weight: 500; }
+.preflight-session-action { display: inline-flex; align-items: center; gap: 4px; color: var(--admin-green); }
 .preflight-report { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--admin-line); }
 .preflight-report-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .preflight-report h2 { margin: 0 0 4px; font-size: 21px; overflow-wrap: anywhere; }
+.preflight-dialog {
+  width: min(1050px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 16px;
+  background: var(--admin-panel);
+  color: var(--admin-ink);
+  box-shadow: 0 20px 60px #0005;
+}
+.preflight-dialog[open] { display: flex; flex-direction: column; }
+.preflight-dialog::backdrop { background: #08130eb3; }
+.preflight-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px clamp(14px, 3vw, 24px);
+  border-bottom: 1px solid var(--admin-line);
+}
+.preflight-dialog-header h2 { margin: 0; font-size: 17px; }
+.preflight-dialog-content { overflow: auto; overscroll-behavior: contain; padding: clamp(14px, 3vw, 24px); }
+.preflight-dialog-content .preflight-report { margin: 0; padding: 0; border: 0; }
+.preflight-dialog-content .preflight-summary { margin-top: 16px; }
 .preflight-verdict { padding: 10px 12px; border-radius: 8px; background: var(--admin-soft); color: var(--admin-green); font-size: 14px; font-weight: 750; }
 .preflight-warning { color: #805017; background: #fff3dc; }
 .dark-mode .preflight-warning { background: #46351e; color: #ffd391; }
@@ -47,7 +107,6 @@
 .dark-mode .preflight-table-wrap td[data-warning="true"] { color: #ffd391; }
 
 .preflight-issues {
-  margin-top: 22px;
   padding: clamp(12px, 2vw, 22px);
   border: 1px solid var(--admin-line);
   border-radius: 15px;
@@ -114,6 +173,8 @@
 }
 
 @media (max-width: 540px) {
-  .preflight-tools label, .preflight-tools .preflight-schedule { width: 100%; }
+  .preflight-tools label { width: 100%; }
+  .preflight-performance { grid-template-columns: minmax(0, 1fr); }
+  .preflight-performance > .preflight-poster { width: min(150px, 100%); }
   .preflight-carousel .preflight-arrow { width: 28px; }
 }

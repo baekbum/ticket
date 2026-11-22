@@ -1,12 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { EventSchedule } from './EventPreflight';
 
-function EventPoster({ url }: { url?: string | null }) {
-  const [broken, setBroken] = useState(false);
+export function EventPoster({ url }: { url?: string | null }) {
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
   const safeUrl = url && (/^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url)) ? url : null;
   return <span className="preflight-poster">
-    {safeUrl && !broken
-      ? <img src={safeUrl} alt="" decoding="async" onError={() => setBroken(true)} />
+    {safeUrl && brokenUrl !== safeUrl
+      ? <img src={safeUrl} alt="" decoding="async" onError={() => setBrokenUrl(safeUrl)} />
       : <i className="ti ti-photo" aria-hidden="true" />}
   </span>;
 }
@@ -51,6 +51,7 @@ export default function PreflightIssueCarousel({ events, selectedId, onSelect }:
       <div ref={trackRef} className="preflight-carousel-track" style={{ gridTemplateColumns: `repeat(${visible}, minmax(0, 1fr))` }}>
         {events.slice(start, start + visible).map(event => <button key={event.eventId} type="button" className="preflight-event-card"
           title={event.title} aria-current={event.eventId === selectedId ? 'true' : undefined}
+          aria-haspopup="dialog"
           aria-label={`${event.title} · ${event.eventDateTime?.replace('T', ' ')} · 회차 ${event.eventId}`}
           onClick={() => onSelect(event)}>
           <EventPoster url={event.posterUrl} />

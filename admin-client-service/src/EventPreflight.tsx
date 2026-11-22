@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from './api';
-import PreflightIssueCarousel from './PreflightIssueCarousel';
+import PreflightIssueCarousel, { EventPoster } from './PreflightIssueCarousel';
 import './EventPreflight.css';
 
-export type EventSchedule = { eventId: number; title: string; eventDateTime: string; saleStartAt: string | null; posterUrl?: string | null };
+export type EventSchedule = {
+  eventId: number;
+  title: string;
+  eventGroupCode?: string | null;
+  eventDateTime: string | null;
+  saleStartAt: string | null;
+  posterUrl?: string | null;
+};
 type EventPage = { content: EventSchedule[]; page: { totalPages: number } };
 type Area = { areaId: number; areaName: string; layoutKey: string; status: string; seatCount: number };
 type SeatReadiness = {
@@ -16,7 +23,7 @@ type Layout = { state: 'ready'; shapes: Element[] } | { state: 'missing' | 'unkn
 type Report = { seats: SeatReadiness; layout: Layout };
 
 const number = (value: number) => value.toLocaleString('ko-KR');
-const dateTime = (value: string | null) => value?.replace('T', ' ').slice(0, 16) || '미정';
+const dateTime = (value: string | null) => value?.replace(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}).*$/, '$1 $2') || '미정';
 
 function normalizeLayoutKey(value: string) {
   return value.trim().replace(/^area-(?:2f-|1f-|vip-|floor-)?/, '');
@@ -62,13 +69,36 @@ function getLayoutLinks(areas: Area[], layout: Layout) {
   return { linked, unused };
 }
 
-async function loadEvents(title: string, page: number, signal: AbortSignal): Promise<EventPage> {
-  const response = await adminFetch('/ticket/api/v1/manage/event/select', {
-    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ page, size: 20, sort: ['eventId-desc'], title: title || null }),
-  });
-  if (!response.ok) throw new Error('회차 목록 조회 실패');
-  return response.json() as Promise<EventPage>;
+async function* loadEventPages(title: string, signal: AbortSignal, sort = ['eventId-desc']) {
+  let totalPages = 1;
+  for (let page = 0; page < totalPages; page++) {
+    signal.throwIfAborted();
+    const response = await adminFetch('/ticket/api/v1/manage/event/select', {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page, size: 20, sort, title: title || null }),
+    });
+    if (!response.ok) throw new Error('회차 목록 조회 실패');
+    const data = await response.json() as EventPage;
+    totalPages = data.page.totalPages;
+    yield data.content;
+  }
+}
+
+async function loadPerformanceGroups(title: string, signal: AbortSignal) {
+  const groups = new Map<string, EventSchedule[]>();
+  const seen = new Set<number>();
+  for await (const events of loadEventPages(title, signal, ['eventDateTime-asc', 'eventId-asc'])) {
+    for (const event of events) {
+      if (seen.has(event.eventId)) continue;
+      seen.add(event.eventId);
+      const code = event.eventGroupCode?.trim();
+      const key = code && code !== 'DEFAULT_EVENT_GROUP' ? `group:${code}` : `title:${event.title}`;
+      const group = groups.get(key);
+      if (group) group.push(event);
+      else groups.set(key, [event]);
+    }
+  }
+  return [...groups];
 }
 
 async function loadReport(eventId: number, signal: AbortSignal): Promise<Report> {
@@ -96,13 +126,10 @@ async function inspectSearch(title: string, signal: AbortSignal, onProgress: (ch
   const issues: EventSchedule[] = [];
   const seen = new Set<number>();
   let unreadable = 0;
-  let pages = 1;
-  for (let page = 0; page < pages; page++) {
-    const events = await loadEvents(title, page, signal);
-    pages = events.page.totalPages;
-    for (let offset = 0; offset < events.content.length; offset += 3) {
+  for await (const events of loadEventPages(title, signal)) {
+    for (let offset = 0; offset < events.length; offset += 3) {
       signal.throwIfAborted();
-      const batch = events.content.slice(offset, offset + 3).filter(event => {
+      const batch = events.slice(offset, offset + 3).filter(event => {
         if (seen.has(event.eventId)) return false;
         seen.add(event.eventId);
         return true;
@@ -124,36 +151,50 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
   onOpenAreas: (eventId: number) => void;
 }) {
   const [search, setSearch] = useState('');
-  const [query, setQuery] = useState({ title: '', page: 0 });
-  const [events, setEvents] = useState<EventPage | null>(null);
-  const [listLoading, setListLoading] = useState(true);
+  const [query, setQuery] = useState<{ title: string } | null>(null);
+  const [groups, setGroups] = useState<[string, EventSchedule[]][] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<EventSchedule | null>(null);
-  const [inspection, setInspection] = useState<{ event: EventSchedule } | null>(null);
+  const [inspection, setInspection] = useState<EventSchedule | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [issueEvents, setIssueEvents] = useState<EventSchedule[]>([]);
-  const [batch, setBatch] = useState<{ title: string } | null>(null);
+  const [batch, setBatch] = useState<{ title: string } | null>({ title: '' });
   const [batchProgress, setBatchProgress] = useState(0);
   const [batchNotice, setBatchNotice] = useState('');
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const showPopup = inspection !== null;
 
   function runInspection(event: EventSchedule) {
-    setSelectedEvent(event);
     setReport(null);
     setError(false);
     setLoading(true);
-    setInspection({ event });
+    setInspection(event);
+  }
+
+  function closePopup() {
+    dialogRef.current?.close();
+    setInspection(null);
+    setReport(null);
+    setError(false);
+    setLoading(false);
   }
 
   useEffect(() => {
+    const dialog = dialogRef.current;
+    if (showPopup && dialog && !dialog.open) dialog.showModal();
+  }, [showPopup]);
+
+  useEffect(() => {
+    if (!query?.title) return;
     const controller = new AbortController();
     const { signal } = controller;
     setListLoading(true);
     setListError(false);
-    loadEvents(query.title, query.page, signal).then(data => {
-      if (!signal.aborted) setEvents(data);
-    }).catch(() => { if (!signal.aborted) { setListError(true); setEvents(null); } })
+    loadPerformanceGroups(query.title, signal).then(data => {
+      if (!signal.aborted) setGroups(data);
+    }).catch(() => { if (!signal.aborted) { setListError(true); setGroups(null); } })
       .finally(() => { if (!signal.aborted) setListLoading(false); });
     return () => controller.abort();
   }, [query]);
@@ -166,7 +207,9 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
       .then(async response => {
         if (!response.ok) return;
         const event = await response.json() as EventSchedule;
-        if (!signal.aborted) setSelectedEvent(current => current ?? event);
+        if (signal.aborted || !event.title.trim()) return;
+        setSearch(current => current || event.title);
+        setQuery(current => current ?? { title: event.title });
       })
       .catch(() => {});
     return () => controller.abort();
@@ -176,7 +219,7 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
     if (!inspection) return;
     const controller = new AbortController();
     const { signal } = controller;
-    const event = inspection.event;
+    const event = inspection;
     loadReport(event.eventId, signal)
       .then(result => {
         if (signal.aborted) return;
@@ -208,62 +251,65 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
     return () => controller.abort();
   }, [batch]);
 
-  const options = selectedEvent && !events?.content.some(event => event.eventId === selectedEvent.eventId)
-    ? [selectedEvent, ...(events?.content ?? [])]
-    : events?.content ?? [];
-
   return <section className="event-preflight" aria-labelledby="event-preflight-title">
     <header>
       <h1 id="event-preflight-title">공연 오픈 전 점검</h1>
       <p>회차별 좌석, 구역 배치도 연결, Redis 캐시 적재 상태를 확인합니다.</p>
     </header>
-    <form className="preflight-tools" onSubmit={event => { event.preventDefault(); setQuery({ title: search.trim(), page: 0 }); }}>
+    {batch && <p role="status">공연 회차 점검 중 · {number(batchProgress)}회차 완료</p>}
+    {batchNotice && <p role="status">{batchNotice}</p>}
+    {issueEvents.length > 0 && <PreflightIssueCarousel events={issueEvents} selectedId={inspection?.eventId} onSelect={runInspection} />}
+    {(batch || batchNotice || issueEvents.length > 0) && <hr className="preflight-divider" />}
+    <form className="preflight-tools" onSubmit={event => { event.preventDefault(); setQuery({ title: search.trim() }); }}>
       <label>공연명 <input value={search} onChange={event => setSearch(event.target.value)} placeholder="공연명 검색" /></label>
-      <button type="submit" disabled={listLoading}>검색</button>
-    </form>
-    <div className="preflight-tools">
-      <label className="preflight-schedule">공연 회차
-        <select value={selectedEvent?.eventId ?? ''} onChange={event => {
-          setSelectedEvent(options.find(option => option.eventId === Number(event.target.value)) ?? null);
-          setInspection(null);
-          setReport(null);
-          setError(false);
-          setLoading(false);
-        }}>
-          <option value="">회차 선택</option>
-          {options.map(event => <option key={event.eventId} value={event.eventId}>{event.title} · {dateTime(event.eventDateTime)} (#{event.eventId})</option>)}
-        </select>
-      </label>
-      <button type="button" className="preflight-primary" disabled={!selectedEvent || loading || !!batch} onClick={() => {
-        if (selectedEvent) runInspection(selectedEvent);
-      }}>점검 실행</button>
-      <button type="button" disabled={listLoading || loading || !!batch || !events?.content.length} onClick={() => {
+      <button type="submit">검색</button>
+      <button type="button" disabled={!!batch || (!!query?.title && (listLoading || !groups?.length))} onClick={() => {
         setBatchProgress(0);
         setBatchNotice('');
         setIssueEvents([]);
-        setReport(null);
-        setInspection(null);
-        setError(false);
-        setBatch({ title: query.title });
-      }}>검색 결과 전체 점검</button>
+        setBatch({ title: query?.title ?? '' });
+      }}>{query?.title ? '검색 결과 전체 점검' : '전체 점검'}</button>
       {batch && <button type="button" onClick={() => { setBatch(null); setBatchNotice('전체 점검을 중단했습니다.'); }}>중단</button>}
-    </div>
-    <div className="preflight-pages">
-      {events && events.page.totalPages > 1 && <>
-        <button type="button" disabled={listLoading || query.page === 0} onClick={() => setQuery({ ...query, page: query.page - 1 })}>이전</button>
-        <span>{query.page + 1} / {events.page.totalPages}</span>
-        <button type="button" disabled={listLoading || query.page + 1 >= events.page.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>다음</button>
-      </>}
-      {listLoading && <span role="status">회차 목록 조회 중…</span>}
-      {listError && <span role="alert">회차 목록을 조회하지 못했습니다. 검색을 다시 시도해 주세요.</span>}
-      {!listLoading && events?.content.length === 0 && <span>검색 결과가 없습니다.</span>}
-    </div>
-    {loading && <p role="status">좌석과 배치도를 점검하는 중입니다…</p>}
-    {batch && <p role="status">검색 결과 점검 중 · {number(batchProgress)}회차 완료</p>}
-    {batchNotice && <p role="status">{batchNotice}</p>}
-    {error && <p role="alert">좌석 점검 결과를 조회하지 못했습니다. 다시 점검해 주세요.</p>}
-    {issueEvents.length > 0 && <PreflightIssueCarousel events={issueEvents} selectedId={inspection?.event.eventId} onSelect={runInspection} />}
-    {report && inspection && <PreflightReport event={inspection.event} report={report} onOpenAreas={onOpenAreas} />}
+    </form>
+    {query?.title && <div className="preflight-search-results">
+      {listLoading && <p role="status">공연 회차를 조회하는 중입니다…</p>}
+      {!listLoading && listError && <p role="alert">회차 목록을 조회하지 못했습니다. 검색을 다시 시도해 주세요.</p>}
+      {!listLoading && groups?.length === 0 && <p role="status">검색 결과가 없습니다.</p>}
+      {!listLoading && groups?.map(([key, schedules]) => <article key={key} className="preflight-performance">
+        <EventPoster url={schedules.find(event => event.posterUrl)?.posterUrl} />
+        <div className="preflight-performance-schedules">
+          <h2>{schedules[0].title}</h2>
+          <ul className="preflight-session-list" aria-label="공연 회차">
+            {schedules.map((event, index) => <li key={event.eventId}>
+              <button type="button" aria-haspopup="dialog" onClick={() => runInspection(event)}>
+                <span className="preflight-session-info">
+                  <strong>{index + 1}회차 · {dateTime(event.eventDateTime)}</strong>
+                  <small>예매 오픈 {dateTime(event.saleStartAt)}</small>
+                </span>
+                <span className="preflight-session-action">점검 <i className="ti ti-chevron-right" aria-hidden="true" /></span>
+              </button>
+            </li>)}
+          </ul>
+        </div>
+      </article>)}
+    </div>}
+    <dialog ref={dialogRef} className="preflight-dialog" aria-labelledby="preflight-dialog-title" onCancel={event => {
+      event.preventDefault();
+      closePopup();
+    }}>
+      <div className="preflight-dialog-header">
+        <h2 id="preflight-dialog-title">공연 점검 상세</h2>
+        <button type="button" onClick={closePopup}>닫기</button>
+      </div>
+      {inspection && <div className="preflight-dialog-content">
+        {loading && <p role="status">좌석과 배치도를 점검하는 중입니다…</p>}
+        {error && <p role="alert">좌석 점검 결과를 조회하지 못했습니다. 다시 점검해 주세요.</p>}
+        {report && <PreflightReport event={inspection} report={report} onOpenAreas={eventId => {
+          closePopup();
+          onOpenAreas(eventId);
+        }} />}
+      </div>}
+    </dialog>
   </section>;
 }
 
