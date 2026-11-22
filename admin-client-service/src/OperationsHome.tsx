@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from './api';
 
 type Count = { state: 'loading' | 'error' } | { state: 'ready'; value: number };
+
+const refreshIntervals = [
+  { seconds: 5, label: '5초' },
+  { seconds: 10, label: '10초' },
+  { seconds: 30, label: '30초' },
+  { seconds: 60, label: '1분' },
+  { seconds: 300, label: '5분' },
+  { seconds: 600, label: '10분' },
+];
 
 async function loadCount(url: string, options: RequestInit): Promise<Count> {
   try {
@@ -27,25 +36,66 @@ export default function OperationsHome({ onOpenList }: {
 }) {
   const [inquiry, setInquiry] = useState<Count>({ state: 'loading' });
   const [refund, setRefund] = useState<Count>({ state: 'loading' });
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshSeconds, setRefreshSeconds] = useState(30);
+  const initialLoadComplete = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    void loadCount('/support/api/v1/manage/inquiry/select?status=WAITING&page=0&size=1', { signal })
-      .then(result => { if (!signal.aborted) setInquiry(result); });
-    void loadCount('/ticket/api/v1/manage/payment/refund-process/select', {
-      signal,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: 0, size: 1, statuses: ['GATEWAY_FAILED', 'LOCAL_FAILED'] }),
-    }).then(result => { if (!signal.aborted) setRefund(result); });
-    return () => controller.abort();
-  }, []);
+    let timer: number | undefined;
+
+    function scheduleRefresh() {
+      timer = window.setTimeout(() => { void refreshCounts(); }, refreshSeconds * 1000);
+    }
+
+    async function refreshCounts() {
+      const [nextInquiry, nextRefund] = await Promise.all([
+        loadCount('/support/api/v1/manage/inquiry/select?status=WAITING&page=0&size=1', { signal }),
+        loadCount('/ticket/api/v1/manage/payment/refund-process/select', {
+          signal,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 0, size: 1, statuses: ['GATEWAY_FAILED', 'LOCAL_FAILED'] }),
+        }),
+      ]);
+      if (signal.aborted) return;
+
+      setInquiry(nextInquiry);
+      setRefund(nextRefund);
+      initialLoadComplete.current = true;
+      if (autoRefresh) scheduleRefresh();
+    }
+
+    if (!initialLoadComplete.current) void refreshCounts();
+    else if (autoRefresh) scheduleRefresh();
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [autoRefresh, refreshSeconds]);
 
   return <section className="operations-home" aria-labelledby="operations-home-title">
-    <header>
-      <h1 id="operations-home-title">처리할 일</h1>
-      <p>확인이 필요한 운영 업무를 한눈에 확인하세요.</p>
+    <header className="operations-heading">
+      <div>
+        <h1 id="operations-home-title">처리할 일</h1>
+        <p>확인이 필요한 운영 업무를 한눈에 확인하세요.</p>
+      </div>
+      <div className="operations-refresh">
+        <button type="button" className="operations-refresh-toggle" role="switch" aria-checked={autoRefresh}
+          onClick={() => setAutoRefresh(enabled => !enabled)}>
+          <i className="ti ti-refresh operations-refresh-icon" aria-hidden="true" />
+          <span className="operations-refresh-track" aria-hidden="true" />
+          자동 새로고침
+        </button>
+        <label className="operations-refresh-period">
+          갱신 주기
+          <select value={refreshSeconds} disabled={!autoRefresh} onChange={event => setRefreshSeconds(Number(event.target.value))}>
+            {refreshIntervals.map(({ seconds, label }) => <option key={seconds} value={seconds}>{label}</option>)}
+          </select>
+        </label>
+      </div>
     </header>
     <div className="operations-cards">
       <article className="operations-card">
