@@ -212,7 +212,7 @@ button { cursor: pointer; }
 .operations-home { height: 100%; overflow: auto; padding: clamp(16px, 3vw, 34px); }
 .operations-home h1 { margin: 0 0 8px; font-size: clamp(25px, 3vw, 36px); letter-spacing: -.04em; }
 .operations-home header p { margin: 0; color: var(--admin-muted); font-size: 14px; }
-.operations-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 14px; margin-top: 26px; }
+.operations-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
 .operations-card { display: flex; flex-direction: column; min-width: 0; padding: clamp(14px, 2vw, 22px); border: 1px solid var(--admin-line); border-radius: 13px; }
 .operations-card-body { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-height: 90px; }
 .operations-card h2 { margin: 0 0 8px; font-size: 16px; }
@@ -220,11 +220,8 @@ button { cursor: pointer; }
 .operations-card strong:not([data-state="ready"]) { font-size: 15px; color: var(--admin-muted); }
 .operations-card-icon { display: grid; flex: none; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--admin-soft); color: var(--admin-green); font-size: 24px; }
 .operations-card-icon.refund { background: #fff2d5; color: #81530a; }
-.operations-card-icon.deposit { background: #fae5e7; color: #962d3c; }
 .dark-mode .operations-card-icon.refund { background: #47351f; color: #ffd28c; }
-.dark-mode .operations-card-icon.deposit { background: #48292c; color: #ffb4bd; }
-.operations-card > :is(button, p) { margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--admin-line); background: transparent; color: var(--admin-muted); font-size: 13px; text-align: left; }
-.operations-card > button { display: flex; align-items: center; gap: 8px; color: var(--admin-green); font-weight: 750; }
+.operations-card > button { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--admin-line); background: transparent; color: var(--admin-green); font-size: 13px; font-weight: 750; text-align: left; }
 .operations-card > button:hover { text-decoration: underline; }
 
 .embed-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
@@ -296,6 +293,7 @@ button { cursor: pointer; }
   .header-actions { gap: 2px; }
   .header-actions button { padding: 0 5px; min-width: 36px; }
   .admin-main { margin: 8px; border-radius: 12px; }
+  .operations-cards { grid-template-columns: minmax(0, 1fr); }
   .embed-window, .embed-window.maximized { inset: 4px; width: auto; height: auto; }
   .embed-window .embed-resize-handle, .embed-toolbar button[aria-label="팝업 크기 복원"], .embed-toolbar button[aria-label="팝업 최대화"] { display: none; }
   .embed-toolbar { cursor: default; }

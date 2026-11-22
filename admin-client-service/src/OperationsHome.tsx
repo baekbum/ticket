@@ -68,16 +68,6 @@ export default function OperationsHome({ onOpenList }: {
         </div>
         <button type="button" onClick={() => onOpenList('paymentRefundProcess', { status: 'FAILED' })}>환불 목록 보기 <i className="ti ti-arrow-right" aria-hidden="true" /></button>
       </article>
-      <article className="operations-card">
-        <div className="operations-card-body">
-          <span className="operations-card-icon deposit"><i className="ti ti-receipt" aria-hidden="true" /></span>
-          <div>
-            <h2>입금 반영 실패</h2>
-            <strong data-state="unavailable">조회 불가</strong>
-          </div>
-        </div>
-        <p>입금 반영 상태를 조회할 수 없습니다.</p>
-      </article>
     </div>
   </section>;
 }
