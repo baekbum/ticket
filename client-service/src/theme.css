@@ -826,7 +826,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
   .booking-layout-panel, .booking-side-panel { min-height: 0; }
   .booking-layout-panel { padding: 14px; }
-  .booking-side-panel { position: static; gap: 0; }
+  .booking-side-panel { position: static; grid-template-rows: auto; gap: 0; }
+  .booking-side-layout-section { display: none; }
+  .booking-side-layout-section + .booking-side-price-section { border-top: 0; }
   .booking-layout-map.large { min-height: 0; height: auto; aspect-ratio: 1 / 1; }
 
   .booking-window-body.seat-selection-mode {
@@ -977,7 +979,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .booking-window-header-meta { gap: 6px; }
   .booking-window-header-meta span { display: none; }
   .booking-window-header-meta em { min-width: auto; padding-inline: 9px; white-space: nowrap; }
-  .booking-panel-title { align-items: flex-start; flex-direction: column; gap: 7px; }
   .booking-payment-methods, .booking-payment-form-grid { grid-template-columns: minmax(0, 1fr); }
 
   .my-ticket-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }

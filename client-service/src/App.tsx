@@ -2254,6 +2254,7 @@ function BookingWindowPage() {
   const [isCheckoutPreparing, setIsCheckoutPreparing] = useState(false);
   const occupiedSeatsRef = useRef<SeatOccupyResponse | null>(null);
   const checkoutPreparingRef = useRef(false);
+  const seatRequestRef = useRef<AbortController | null>(null);
   const [bookingLoadError, setBookingLoadError] = useState('');
   const [bookingReloadCount, setBookingReloadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -2382,6 +2383,7 @@ function BookingWindowPage() {
       }
 
       setIsLoading(true);
+      setIsSeatLoading(false);
       setBookingLoadError('');
       setSelectedAreaId(null);
       setSeats([]);
@@ -2424,6 +2426,7 @@ function BookingWindowPage() {
     }
 
     loadBookingData();
+    return () => seatRequestRef.current?.abort();
   }, [selectedScheduleId, bookingReloadCount]);
 
   function changeSchedule(schedule: EventSchedule) {
@@ -2438,6 +2441,8 @@ function BookingWindowPage() {
   }
 
   function showFullLayout() {
+    seatRequestRef.current?.abort();
+    setIsSeatLoading(false);
     setSelectedAreaId(null);
     setSeats([]);
     setSelectedSeatIds([]);
@@ -2522,6 +2527,9 @@ function BookingWindowPage() {
   }
 
   async function selectArea(area: AreaResponse, resetCheckout = true) {
+    seatRequestRef.current?.abort();
+    const controller = new AbortController();
+    seatRequestRef.current = controller;
     setSelectedAreaId(area.areaId);
     setSelectedSeatIds([]);
     if (resetCheckout) {
@@ -2534,12 +2542,14 @@ function BookingWindowPage() {
         `/ticket/api/v1/seat/select?eventId=${selectedScheduleId}&areaId=${area.areaId}&page=0&size=10000&sort=seatRow-asc&sort=seatCol-asc`,
         {
           method: 'GET',
+          signal: controller.signal,
           headers: { 'X-Active-Token': activeToken },
         },
       );
 
-      setSeats(seatResponse.content || []);
+      if (!controller.signal.aborted) setSeats(seatResponse.content || []);
     } catch (error) {
+      if (controller.signal.aborted) return;
       setSeats([]);
       if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
         handleBookingSessionExpiration(error);
@@ -2548,7 +2558,10 @@ function BookingWindowPage() {
 
       alert(bookingErrorMessage(error, '좌석 정보를 불러오지 못했습니다.'));
     } finally {
-      setIsSeatLoading(false);
+      if (!controller.signal.aborted) {
+        seatRequestRef.current = null;
+        setIsSeatLoading(false);
+      }
     }
   }
 
@@ -3031,9 +3044,12 @@ function BookingWindowPage() {
           {checkoutStep === 'SEAT' && (
             <div className="booking-panel-title">
               <h1>{selectedArea ? '좌석 선택' : '구역 선택'}</h1>
+              <button className="booking-full-layout-button" type="button" disabled={isCheckoutPreparing} onClick={showFullLayout}>
+                좌석도 전체보기
+              </button>
               <p>
                 {selectedArea
-                  ? '작은 구역 배치도에서 다른 구역을 선택할 수 있습니다.'
+                  ? '다른 구역을 보려면 좌석도 전체보기를 눌러 주세요.'
                   : '원하는 구역을 선택하면 해당 구역의 좌석 배치도가 표시됩니다.'}
               </p>
             </div>
@@ -3120,7 +3136,7 @@ function BookingWindowPage() {
               <section className="booking-side-section booking-side-layout-section">
                 <div className="booking-side-title">
                   <strong>구역 배치도</strong>
-                  <button type="button" onClick={showFullLayout}>
+                  <button className="booking-full-layout-button" type="button" disabled={isCheckoutPreparing} onClick={showFullLayout}>
                     좌석도 전체보기
                   </button>
                 </div>
