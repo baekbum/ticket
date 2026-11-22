@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from './api';
 import PreflightIssueCarousel, { EventPoster } from './PreflightIssueCarousel';
+import SeatCacheWarmupDialog from './SeatCacheWarmupDialog';
 import './EventPreflight.css';
 
 export type EventSchedule = {
@@ -178,6 +179,7 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
+  const [warmupMessage, setWarmupMessage] = useState('');
   const [issueEvents, setIssueEvents] = useState<EventSchedule[]>([]);
   const [sampleRequest, setSampleRequest] = useState(0);
   const [sampleLoading, setSampleLoading] = useState(true);
@@ -187,6 +189,7 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
 
   function runInspection(event: EventSchedule) {
     setReport(null);
+    setWarmupMessage('');
     setError(false);
     setLoading(true);
     setInspection(event);
@@ -318,7 +321,13 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
       {inspection && <div className="preflight-dialog-content">
         {loading && <p role="status">좌석과 배치도를 점검하는 중입니다…</p>}
         {error && <p role="alert">좌석 점검 결과를 조회하지 못했습니다. 다시 점검해 주세요.</p>}
-        {report && <PreflightReport event={inspection} report={report} onOpenAreas={eventId => {
+        {warmupMessage && <p role="status" className="preflight-verdict">{warmupMessage}</p>}
+        {report && <PreflightReport event={inspection} report={report} refreshing={loading} onWarmupComplete={message => {
+          setWarmupMessage(message);
+          setLoading(true);
+          setError(false);
+          setInspection({ ...inspection });
+        }} onOpenAreas={eventId => {
           closePopup();
           onOpenAreas(eventId);
         }} />}
@@ -327,10 +336,15 @@ export default function EventPreflight({ initialEventId, onOpenAreas }: {
   </section>;
 }
 
-function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
-  event: EventSchedule; report: Report; onOpenAreas: (eventId: number) => void;
+function PreflightReport({ event, report: { seats, layout }, refreshing, onWarmupComplete, onOpenAreas }: {
+  event: EventSchedule;
+  report: Report;
+  refreshing: boolean;
+  onWarmupComplete: (message: string) => void;
+  onOpenAreas: (eventId: number) => void;
 }) {
   const [showGuide, setShowGuide] = useState(false);
+  const [showWarmup, setShowWarmup] = useState(false);
   const { linked, unused, empty, duplicateKeys, missingKeys, flagged } = analyzeReport({ seats, layout });
   const layoutStatus = layout.state === 'missing' ? '미등록' : layout.state === 'invalid' ? 'SVG 확인 필요' : '조회 불가';
   const summary = [
@@ -350,6 +364,7 @@ function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
     },
     {
       label: '좌석 캐시', value: seats.cache.readyKeys === null ? '조회 불가' : `${number(seats.cache.readyKeys)} / ${number(seats.cache.expectedKeys)}개`,
+      warmup: true,
       note: missingKeys === null ? 'Redis 응답을 확인해 주세요.' : seats.totalSeats === 0 ? '점검할 좌석 없음' : `미적재 또는 상태 이상 ${number(missingKeys)}개`,
       meaning: 'Redis에 유효한 상태로 저장된 좌석 키 수 / 필요한 좌석 키 수입니다. 조회 불가는 Redis에서 키 상태를 확인할 수 없다는 뜻입니다.',
     },
@@ -377,9 +392,19 @@ function PreflightReport({ event, report: { seats, layout }, onOpenAreas }: {
       </div>)}</dl>
     </div>
     {!flagged && <p role="status" className="preflight-verdict">점검 항목이 모두 정상입니다.</p>}
-    <dl className="preflight-summary">
-      {summary.map(({ label, value, note }) => <div key={label}><dt>{label}</dt><dd>{value}</dd><small>{note}</small></div>)}
-    </dl>
+    <div className="preflight-summary">
+      {summary.map(({ label, value, note, warmup }) => warmup
+        ? <button key={label} type="button" className="preflight-summary-card preflight-cache-card" aria-haspopup="dialog"
+            disabled={refreshing} onClick={() => setShowWarmup(true)}>
+            <span className="preflight-summary-label">{label} <span className="preflight-cache-action">캐시 적재 <i className="ti ti-chevron-right" aria-hidden="true" /></span></span>
+            <strong className="preflight-summary-value">{value}</strong><small>{note}</small>
+          </button>
+        : <dl key={label} className="preflight-summary-card">
+            <dt className="preflight-summary-label">{label}</dt>
+            <dd className="preflight-summary-value">{value}</dd><dd className="preflight-summary-note">{note}</dd>
+          </dl>)}
+    </div>
+    {showWarmup && <SeatCacheWarmupDialog eventId={event.eventId} onClose={() => setShowWarmup(false)} onComplete={onWarmupComplete} />}
     {duplicateKeys > 0 && <p className="preflight-warning">좌석 {number(duplicateKeys)}석이 다른 좌석과 같은 Redis 키를 사용합니다.</p>}
     {unused.size > 0 && <p className="preflight-warning">SVG에만 있는 구역 키 · {[...unused].join(', ')}</p>}
     <h3>구역별 결과</h3>
