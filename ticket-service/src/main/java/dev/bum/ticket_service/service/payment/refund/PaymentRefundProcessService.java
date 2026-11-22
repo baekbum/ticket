@@ -1,6 +1,7 @@
 package dev.bum.ticket_service.service.payment.refund;
 
 import dev.bum.common.feign.dto.CustomPageResponse;
+import dev.bum.common.service.paymentgateway.refund.PaymentRefundResult;
 import dev.bum.common.service.ticket.coupon.coupon.enums.UserCouponStatus;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessCondRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
@@ -35,6 +36,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
@@ -75,6 +77,10 @@ public class PaymentRefundProcessService {
     private final SeatCacheService seatCacheService;
     // 티켓 구매 수량 업무 처리를 담당하는 서비스.
     private final TicketPurchaseCountService ticketPurchaseCountService;
+    private final RefundAccountCipher refundAccountCipher;
+
+    @Value("${app.payment-gateway.merchant-id:1}")
+    private long merchantId;
 
     /**
      * 검색 조건에 맞는 결제 환불 처리 정보를 조회한다.
@@ -122,21 +128,7 @@ public class PaymentRefundProcessService {
             targetType = "PAYMENT_REFUND_PROCESS")
     @Transactional
     public PaymentRefundProcessResponse completeLocal(Long paymentRefundProcessId) {
-
-        Long reservationId = paymentRefundProcessJpaRepository.findReservationIdById(paymentRefundProcessId)
-                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
-
-        // 프로세스나 티켓을 읽기 전에 사용자·관리자 취소와 같은 예매 행을 잠근다.
-        try {
-            reservationJpaRepository.findByIdForUpdateNowait(reservationId)
-                    .orElseThrow(() -> new IllegalArgumentException("예매 정보를 찾을 수 없습니다."));
-        } catch (PessimisticLockingFailureException e) {
-            throw new ReservationCancellationInProgressException(e);
-        }
-
-        PaymentRefundProcess process = paymentRefundProcessJpaRepository.findById(paymentRefundProcessId)
-                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
-
+        PaymentRefundProcess process = lockProcess(paymentRefundProcessId);
         trackRollback(process);
 
         if (process.getStatus() != PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
@@ -149,6 +141,76 @@ public class PaymentRefundProcessService {
         completeLocal(process, true);
         AuditDataMapper.setFieldChange("status", beforeStatus, process.getStatus());
         return process.toResponse();
+    }
+
+    @Transactional(readOnly = true)
+    public GatewayCheckTarget gatewayCheckTarget(Long processId) {
+        PaymentRefundProcess process = findProcess(processId);
+        requireReconciliationStatus(process.getStatus());
+        return new GatewayCheckTarget(process.getPayment().getPgPaymentId(),
+                process.getStatus() == PaymentRefundProcessStatus.LOCAL_SUCCEEDED, process.getRefundAmount() == 0);
+    }
+
+    public record GatewayCheckTarget(String pgPaymentId, boolean alreadyApplied, boolean zeroRefund) {}
+
+    @AuditLog(action = "PAYMENT_REFUND_PROCESS_GATEWAY_RECONCILE", targetType = "PAYMENT_REFUND_PROCESS")
+    @Transactional
+    public void applyVerifiedGatewayRefund(Long processId, PaymentRefundResult result) {
+        PaymentRefundProcess process = lockProcess(processId);
+        var beforeStatus = process.getStatus();
+        requireReconciliationStatus(beforeStatus);
+        if (beforeStatus == PaymentRefundProcessStatus.LOCAL_SUCCEEDED) return;
+
+        if (process.getRefundAmount() == 0) {
+            if (result != null || beforeStatus == PaymentRefundProcessStatus.GATEWAY_FAILED) {
+                throw new IllegalArgumentException("금융 요청 없이 완료 가능한 환불인지 확인할 수 없습니다.");
+            }
+        } else {
+            var request = RefundGatewayRequestFactory.from(process, merchantId, refundAccountCipher);
+            String paymentId = process.getPayment().getPgPaymentId();
+            String requestId = processId.toString();
+            boolean matches = result != null && "SUCCEEDED".equals(result.outcome())
+                    && switch (process.getPayment().getMethod()) {
+                        case CREDIT_CARD -> result.matches(request.toCard(paymentId, requestId));
+                        case BANK_TRANSFER -> result.matches(request.toBank(paymentId, requestId));
+                        default -> false;
+                    };
+            if (!matches) throw new IllegalArgumentException("PG 환불 성공 결과가 원래 신청과 일치하지 않습니다.");
+        }
+
+        trackRollback(process);
+        if (beforeStatus == PaymentRefundProcessStatus.GATEWAY_FAILED) process.gatewaySucceeded();
+        completeLocal(process, true);
+        AuditDataMapper.setFieldChange("status", beforeStatus, process.getStatus());
+    }
+
+    private void requireReconciliationStatus(PaymentRefundProcessStatus status) {
+        if (status != PaymentRefundProcessStatus.GATEWAY_FAILED
+                && status != PaymentRefundProcessStatus.GATEWAY_SUCCEEDED
+                && status != PaymentRefundProcessStatus.LOCAL_FAILED
+                && status != PaymentRefundProcessStatus.LOCAL_SUCCEEDED) {
+            throw new IllegalArgumentException("PG 결과 확인이 필요한 환불 상태가 아닙니다.");
+        }
+    }
+
+    private PaymentRefundProcess lockProcess(Long paymentRefundProcessId) {
+        Long reservationId = paymentRefundProcessJpaRepository.findReservationIdById(paymentRefundProcessId)
+                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
+
+        // 프로세스나 티켓을 읽기 전에 사용자·관리자 취소와 같은 예매 행을 잠근다.
+        try {
+            reservationJpaRepository.findByIdForUpdateNowait(reservationId)
+                    .orElseThrow(() -> new IllegalArgumentException("예매 정보를 찾을 수 없습니다."));
+        } catch (PessimisticLockingFailureException e) {
+            throw new ReservationCancellationInProgressException(e);
+        }
+
+        return findProcess(paymentRefundProcessId);
+    }
+
+    private PaymentRefundProcess findProcess(Long processId) {
+        return paymentRefundProcessJpaRepository.findById(processId)
+                .orElseThrow(() -> new IllegalArgumentException("환불 처리 현황을 찾을 수 없습니다."));
     }
 
     /**

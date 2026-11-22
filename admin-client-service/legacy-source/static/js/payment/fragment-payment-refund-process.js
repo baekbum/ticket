@@ -220,16 +220,12 @@
       detailItem('수정일', currentDetailProcess.updatedAt)
     ].join('');
 
-    const isGatewayFailed = currentDetailProcess.status === 'GATEWAY_FAILED';
-    const isLocalCompletable = currentDetailProcess.status === 'GATEWAY_SUCCEEDED' || currentDetailProcess.status === 'LOCAL_FAILED';
-    const gatewayRetryGuide = isGatewayFailed
-      ? detailItem('처리 안내', 'gateway 실패 건은 사용자가 환불 계좌 정보를 포함해 취소 요청을 다시 보내야 합니다.')
-      : '';
-
-    if (gatewayRetryGuide) {
-      document.getElementById('refund-process-status-grid').insertAdjacentHTML('beforeend', gatewayRetryGuide);
+    const canReconcile = ['GATEWAY_FAILED', 'LOCAL_FAILED', 'GATEWAY_SUCCEEDED'].includes(currentDetailProcess.status);
+    if (canReconcile) {
+      document.getElementById('refund-process-status-grid').insertAdjacentHTML('beforeend',
+        detailItem('처리 안내', 'PG에서 환불 성공이 확인되면 Ticksy에도 반영합니다.'));
     }
-    document.getElementById('refund-process-local-complete-btn').style.display = isLocalCompletable ? 'inline-flex' : 'none';
+    document.getElementById('refund-process-reconcile-btn').style.display = canReconcile ? 'inline-flex' : 'none';
 
     document.getElementById('refund-process-detail-modal').style.display = 'flex';
   };
@@ -239,15 +235,36 @@
     currentDetailProcess = null;
   };
 
-  window.completeRefundProcessLocal = async function () {
-    if (!currentDetailProcess) return;
-    if (!confirm('gateway 재호출 없이 로컬 상태만 완료 처리합니다. 계속 진행할까요?')) return;
-
-    await processManualAction(
-      `${REFUND_PROCESS_URL}/local-complete/id/${currentDetailProcess.paymentRefundProcessId}`,
-      null,
-      '로컬 반영 완료 처리를 완료했습니다.'
-    );
+  window.reconcileRefundProcess = async function () {
+    const button = document.getElementById('refund-process-reconcile-btn');
+    if (!currentDetailProcess || button.disabled) return;
+    const processId = currentDetailProcess.paymentRefundProcessId;
+    button.disabled = true;
+    button.querySelector('span').textContent = '확인 중…';
+    try {
+      const response = await Fetch(`${REFUND_PROCESS_URL}/reconcile/id/${processId}`, { method: 'POST', headers });
+      if (!response.ok) throw new Error();
+      const { outcome } = await response.json();
+      if (outcome === 'APPLIED') {
+        if (currentDetailProcess?.paymentRefundProcessId === processId) closeRefundProcessDetailModal();
+        showToast('Ticksy에 환불 결과가 반영됐습니다.');
+        loadPaymentRefundProcessList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
+        return;
+      }
+      const messages = {
+        NOT_FOUND: 'PG에서 이 환불 신청을 찾지 못했습니다.',
+        REQUESTED: 'PG에서 접수했으며 환불 결과는 아직 확정되지 않았습니다.',
+        WITHDRAWN: 'PG에서 철회 완료로 확인됐습니다.',
+        NO_GATEWAY_PAYMENT: '이 신청에는 조회할 PG 결제 번호가 없습니다.'
+      };
+      if (!Object.hasOwn(messages, outcome)) throw new Error();
+      showToast(messages[outcome]);
+    } catch {
+      showToast('PG 결과 확인 또는 Ticksy 반영에 실패했습니다. 다시 시도해 주세요.', true);
+    } finally {
+      button.disabled = false;
+      button.querySelector('span').textContent = 'PG 결과 확인·반영';
+    }
   };
 
   window.openRefundProcessAuditLog = function () {
@@ -263,26 +280,6 @@
       }
     });
   };
-
-  async function processManualAction(url, payload, successMessage) {
-    try {
-      const options = { method: 'PUT', headers };
-      if (payload) {
-        options.body = JSON.stringify(payload);
-      }
-      const res = await Fetch(url, options);
-      if (!res.ok) {
-        showToast('환불 처리 작업에 실패했습니다.', true);
-        return;
-      }
-      closeRefundProcessDetailModal();
-      showToast(successMessage);
-      loadPaymentRefundProcessList(Math.max(parseInt(document.getElementById('pagination-current').value, 10) - 1, 0));
-    } catch (e) {
-      console.error('Refund process manual action failed', e);
-      showToast('환불 처리 작업 통신 오류가 발생했습니다.', true);
-    }
-  }
 
   window.Pagination.register({
     load: window.loadPaymentRefundProcessList,

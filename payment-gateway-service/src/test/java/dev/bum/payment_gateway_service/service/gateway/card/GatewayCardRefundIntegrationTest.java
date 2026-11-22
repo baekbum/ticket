@@ -171,6 +171,21 @@ class GatewayCardRefundIntegrationTest {
 
     BigDecimal used() { return cards.findById(ledger.getDummyCardId()).orElseThrow().getCurrentMonthUsedAmount(); }
 
+    @Test void refundStatusOnlyReadsTheOwnedOriginalRequest() {
+        var merchant = new AuthenticatedMerchant(first.getMerchantId());
+        assertThat(service.findStatus(merchant, paymentId, "one")).isEmpty();
+        assertThat(faults.calls.get()).isZero();
+
+        PaymentRefundResult result = call("one", "40", false);
+        int financialCalls = faults.calls.get();
+
+        assertThat(service.findStatus(merchant, paymentId, "one")).contains(result);
+        assertThatThrownBy(() -> service.findStatus(new AuthenticatedMerchant(second.getMerchantId()), paymentId, "one"))
+                .isInstanceOf(dev.bum.payment_gateway_service.exception.GatewayPaymentNotFoundException.class);
+        assertThat(faults.calls.get()).isEqualTo(financialCalls);
+        assertThat(used()).isEqualByComparingTo("60");
+    }
+
     @Test void partialThenRemainingFullRefundAndDuplicateRequestsRestoreTheLimitOnce() {
         PaymentRefundResult partial = call("one", "40", false);
         assertThat(call("one", "40.00", false)).isEqualTo(partial);

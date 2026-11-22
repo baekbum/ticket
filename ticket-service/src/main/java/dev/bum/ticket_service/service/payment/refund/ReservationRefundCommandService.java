@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -192,11 +191,7 @@ public class ReservationRefundCommandService {
             return response(process, withdraw);
         }
 
-        PaymentRefundSnapshot snapshot = process.getRefund().getSnapshot();
-        GatewayPaymentRefundRequest request = new GatewayPaymentRefundRequest(merchantId, reservation.getUserId(),
-                BigDecimal.valueOf(snapshot.getRefundAmount()), snapshot.getRefundBankCompany(),
-                payment.getMethod() == PaymentMethod.BANK_TRANSFER
-                        ? cipher.decrypt(snapshot.getRefundAccountCiphertext()) : null, snapshot.getRefundAccountHolder());
+        GatewayPaymentRefundRequest request = RefundGatewayRequestFactory.from(process, merchantId, cipher);
         String key = Long.toString(processId);
         PaymentRefundResult result = withdraw ? gateway.withdraw(payment.getPgPaymentId(), key, request)
                 : gateway.refund(payment.getPgPaymentId(), key, request);

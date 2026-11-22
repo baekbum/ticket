@@ -11,6 +11,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(propagation = Propagation.NEVER)
@@ -22,6 +24,27 @@ public class GatewayPaymentRefundService {
     private final GatewayBankRefundService bank;
 
     private final GatewayCardRefundService card;
+    private final GatewayBankRefundJpaRepository bankRefunds;
+    private final GatewayCardRefundJpaRepository cardRefunds;
+
+    @Transactional(readOnly = true)
+    public Optional<PaymentRefundResult> findStatus(
+            AuthenticatedMerchant merchant, String pgPaymentId, String refundRequestId
+    ) {
+        if (merchant == null || merchant.merchantId() == null) {
+            throw new AccessDeniedException("환불 가맹점이 일치하지 않습니다.");
+        }
+        String id = GatewayPaymentIdNormalizer.normalize(pgPaymentId);
+        GatewayPayment payment = payments.findByPgPaymentIdAndMerchantMerchantId(id, merchant.merchantId())
+                .orElseThrow(GatewayPaymentNotFoundException::new);
+        return switch (payment.getPaymentMethod()) {
+            case CREDIT_CARD -> cardRefunds.findByPaymentPgPaymentIdAndRefundRequestId(id, refundRequestId)
+                    .map(GatewayCardRefund::result);
+            case BANK_TRANSFER -> bankRefunds.findByPaymentPgPaymentIdAndRefundRequestId(id, refundRequestId)
+                    .map(refund -> PaymentRefundResult.from(refund.result()));
+            default -> throw new GatewayPaymentConflictException("환불을 지원하지 않는 결제수단입니다.");
+        };
+    }
 
     public PaymentRefundResult execute(
             AuthenticatedMerchant merchant,

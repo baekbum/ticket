@@ -13,6 +13,7 @@ import dev.bum.ticket_service.controller.payment.PaymentRefundProcessManagementC
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundReconciliationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +55,26 @@ class PaymentRefundProcessManagementControllerTest {
     @MockitoBean
     private PaymentRefundProcessService paymentRefundProcessService;
 
+    @MockitoBean
+    private PaymentRefundReconciliationService reconciliation;
+
     private final String baseUrl = "/api/v1/manage/payment/refund-process";
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void administrator_can_check_refund_outcome() throws Exception {
+        given(reconciliation.reconcile(1L)).willReturn(PaymentRefundReconciliationService.Outcome.REQUESTED);
+        mockMvc.perform(post(baseUrl + "/reconcile/id/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("REQUESTED"));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void user_cannot_reconcile_refund() throws Exception {
+        mockMvc.perform(post(baseUrl + "/reconcile/id/1")).andExpect(status().isForbidden());
+        then(reconciliation).shouldHaveNoInteractions();
+    }
 
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     @Test

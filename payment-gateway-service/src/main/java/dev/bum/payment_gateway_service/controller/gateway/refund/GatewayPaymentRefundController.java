@@ -5,6 +5,7 @@ import dev.bum.payment_gateway_service.security.merchant.AuthenticatedMerchant;
 import dev.bum.payment_gateway_service.service.gateway.refund.GatewayPaymentRefundService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,17 @@ import org.springframework.web.bind.annotation.*;
 public class GatewayPaymentRefundController {
 
     private final GatewayPaymentRefundService refunds;
+
+    @GetMapping
+    public ResponseEntity<PaymentRefundResult> status(
+            @AuthenticationPrincipal AuthenticatedMerchant merchant,
+            @PathVariable String pgPaymentId,
+            @PathVariable String refundRequestId
+    ) {
+        return refunds.findStatus(merchant, pgPaymentId, refundRequestId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
 
     @PostMapping
     public PaymentRefundResult refund(
