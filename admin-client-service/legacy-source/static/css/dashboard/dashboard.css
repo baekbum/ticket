@@ -1527,6 +1527,96 @@
     .header-welcome { padding: 8px 10px; }
   }
 
+  /* The embedded management pages share the React console's palette. */
+  #embed-content {
+    --workspace-gutter: clamp(14px, 2.4vw, 30px);
+    --purple: #285d43;
+    --purple-hover: #1b4833;
+    --purple-dim: #e8f1e9;
+    --purple-ring: #285d4330;
+    --bg: #f1f5f1;
+    --card-bg: #fff;
+    --border: #d9e4dc;
+    --text-primary: #182b21;
+    --text-secondary: #54675b;
+    --text-muted: #607568;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-family: Pretendard, 'Noto Sans KR', 'Malgun Gothic', Inter, system-ui, sans-serif;
+  }
+
+  .dark-mode #embed-content {
+    --purple: #97d6ab;
+    --purple-hover: #b2e9c3;
+    --purple-dim: #263f32;
+    --purple-ring: #97d6ab33;
+    --bg: #203128;
+    --card-bg: #17241e;
+    --surface-raised: #203128;
+    --surface-soft: #1d2d24;
+    --surface-hover: #283d31;
+    --border: #33483c;
+    --border-strong: #486657;
+    --text-primary: #edf6ee;
+    --text-secondary: #b2c6b8;
+    --text-muted: #a3b9ab;
+  }
+
+  #embed-content .frag-header { flex: none; padding: 24px var(--workspace-gutter) 0; margin-bottom: 20px; }
+  #embed-content .frag-header::before { content: none; }
+  #embed-content .frag-header h2 { font-size: clamp(21px, 2.4vw, 28px); color: var(--text-primary); }
+  #embed-content .sub-txt { color: var(--text-secondary); }
+  #embed-content :is(.toolbar, .notice-toolbar, .faq-toolbar, .inquiry-toolbar) { flex: none; flex-wrap: wrap; gap: 10px; padding-inline: var(--workspace-gutter); }
+  #embed-content :is(.toolbar-left, .toolbar-right, .notice-toolbar-left, .faq-toolbar-left) { max-width: 100%; flex-wrap: wrap; }
+  #embed-content :is(.toolbar, .notice-toolbar, .faq-toolbar, .inquiry-toolbar) :is(input, select) { max-width: 100%; }
+
+  #embed-content .toolbar .btn:not(.btn-outline, .btn-secondary, .btn-danger, .btn-danger-solid, .btn-warning) {
+    background: var(--purple);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  .dark-mode #embed-content .toolbar .btn:not(.btn-outline, .btn-secondary, .btn-danger, .btn-danger-solid, .btn-warning) { color: #14251b; }
+  #embed-content .toolbar .btn:not(.btn-outline, .btn-secondary, .btn-danger, .btn-danger-solid, .btn-warning):hover { background: var(--purple-hover); }
+  #embed-content :where(button, input, select):focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+
+  #embed-content :is(.table-wrap, .notice-table-wrap, .faq-table-wrap, .inquiry-table-wrap) {
+    min-block-size: 160px;
+    margin-inline: var(--workspace-gutter);
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    box-shadow: none;
+  }
+
+  #embed-content :is(.table-wrap, .notice-table-wrap, .faq-table-wrap, .inquiry-table-wrap) thead th {
+    border-color: var(--border) !important;
+    background: var(--bg) !important;
+    color: var(--text-secondary) !important;
+  }
+
+  #embed-content :is(.table-wrap, .notice-table-wrap, .faq-table-wrap, .inquiry-table-wrap) tbody td { border-color: var(--border) !important; color: var(--text-primary) !important; }
+  .dark-mode #embed-content .table-wrap tbody td { background: var(--card-bg); }
+  .dark-mode #embed-content .table-wrap tbody tr:nth-child(even) td { background: var(--surface-soft); }
+  #embed-content .table-wrap tbody tr:hover { background: var(--purple-dim) !important; box-shadow: none; }
+  .dark-mode #embed-content .table-wrap tbody tr:hover td { background: var(--surface-hover) !important; }
+
+  #embed-content .table-pagination { flex: none; padding-inline: var(--workspace-gutter); }
+
+  @media (max-width: 850px) {
+    #embed-content .table-wrap > .user-table { min-width: 790px; }
+  }
+
+  @media (max-width: 540px) {
+    #embed-content .frag-header { padding-top: 18px; margin-bottom: 16px; }
+    #embed-content :is(.admin-hub-header, .admin-hub-grid) { padding-inline: var(--workspace-gutter); }
+    #embed-content .admin-hub-grid { grid-template-columns: minmax(0, 1fr); align-content: start; }
+    #embed-content .admin-hub-card { min-height: 140px; padding: 16px; }
+    #embed-content .table-pagination { display: flex; flex-wrap: wrap; justify-content: space-between; }
+    #embed-content .f-modal-content { max-width: calc(100% - 24px); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
   }

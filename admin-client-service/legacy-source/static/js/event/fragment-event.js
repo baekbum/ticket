@@ -285,6 +285,7 @@ tr.innerHTML = `
 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.openModalForUpdate('${ev.eventId}')">수정</button>
 <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation(); window.openConfirmModalFromRow('${ev.eventId}')">삭제</button>
 <button class="btn btn-sm btn-seat"    onclick="event.stopPropagation(); window.openAreaMenu(${ev.eventId})"><i class="ti ti-armchair"></i>구역</button>
+<button class="btn btn-sm btn-seat" onclick="event.stopPropagation(); window.switchMenuWithContext('eventPreflight', { eventId: '${Number(ev.eventId)}' })"><i class="ti ti-list-check"></i>오픈 점검</button>
 <button class="btn btn-sm btn-layout"  onclick="event.stopPropagation(); window.openLayoutPreview(${ev.eventId})"><i class="ti ti-map"></i>배치도</button>
 </td>
 `;

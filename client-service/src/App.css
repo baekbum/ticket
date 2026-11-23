@@ -1055,10 +1055,10 @@ button {
 }
 
 .booking-panel-title {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
   padding-bottom: 14px;
   border-bottom: 2px solid #222222;
 }
@@ -1071,6 +1071,7 @@ button {
 }
 
 .booking-panel-title p {
+  grid-column: 1 / -1;
   margin: 0;
   color: #777777;
   font-size: 13px;
@@ -1353,7 +1354,7 @@ button {
   font-weight: 950;
 }
 
-.booking-side-title button {
+.booking-full-layout-button {
   border: 1px solid #00c73c;
   border-radius: 999px;
   padding: 7px 10px;
@@ -1361,7 +1362,13 @@ button {
   color: #00a832;
   font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.booking-full-layout-button:disabled {
+  opacity: .55;
+  cursor: default;
 }
 
 .booking-price-list {

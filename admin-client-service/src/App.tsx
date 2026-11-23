@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { adminFetch, clearTokens, getAccessToken, loadCurrentUser, login, logout, type AdminUser } from './api';
 import VirtualAccountReconciliation from './VirtualAccountReconciliation';
+import OperationsHome from './OperationsHome';
+import EventPreflight from './EventPreflight';
 
 type Menu = { key: string; label: string; icon: string };
 const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '사용자', icon: 'users', items: [{ key: 'user', label: '사용자 관리', icon: 'user-cog' }] },
   { label: '공연', icon: 'calendar-event', items: [
     { key: 'event', label: '이벤트 관리', icon: 'calendar-event' },
+    { key: 'eventPreflight', label: '공연 오픈 전 점검', icon: 'list-check' },
     { key: 'area', label: '구역/좌석 관리', icon: 'armchair' },
   ] },
   { label: '예매', icon: 'calendar-stats', items: [
@@ -39,7 +42,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   ] },
   { label: '개발/테스트', icon: 'flask', items: [{ key: 'testHub', label: '테스트', icon: 'flask' }] },
 ];
-const allowedMenus = new Set(menuGroups.flatMap(group => group.items.map(item => item.key)));
+const allowedMenus = new Set(['operationsHome', ...menuGroups.flatMap(group => group.items.map(item => item.key))]);
 const embedMenus = new Map([
   ['seatRedis', 'Seat Redis'],
   ['queueRedis', 'Queue Redis'],
@@ -176,10 +179,10 @@ function Profile({ user, onClose, onUpdate }: { user: AdminUser; onClose: () => 
 }
 
 function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; onLogout: () => void; dark: boolean; onToggleTheme: () => void }) {
-  const initial = new URLSearchParams(window.location.search).get('menu') || 'user';
-  const [menu, setMenu] = useState(allowedMenus.has(initial) ? initial : 'user');
+  const initial = new URLSearchParams(window.location.search).get('menu') || 'operationsHome';
+  const [menu, setMenu] = useState(allowedMenus.has(initial) ? initial : 'operationsHome');
   const [openGroups, setOpenGroups] = useState(() => new Set([
-    menuGroups.find(group => group.items.some(item => item.key === menu))?.label || '사용자',
+    ...menuGroups.filter(group => group.items.some(item => item.key === menu)).map(group => group.label),
   ]));
   const [embeds, setEmbeds] = useState<EmbeddedWindow[]>([]);
   const mainFrameRef = useRef<HTMLIFrameElement>(null);
@@ -191,6 +194,28 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
   const [menuContext, setMenuContext] = useState<Record<string, unknown>>(initialMenuContext);
   const [profile, setProfile] = useState(false);
   const [currentUser, setCurrentUser] = useState(user);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const sidebar = sidebarRef.current;
+    const activeItem = sidebar?.querySelector<HTMLButtonElement>('[aria-current="page"]');
+    const initialFocus = activeItem?.getClientRects().length ? activeItem : sidebar?.querySelector('button');
+    initialFocus?.focus();
+
+    const wideScreen = window.matchMedia('(min-width: 901px)');
+    const handleResize = () => { if (wideScreen.matches) setMobileMenuOpen(false); };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeMobileMenu(); };
+    wideScreen.addEventListener('change', handleResize);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      wideScreen.removeEventListener('change', handleResize);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
@@ -229,6 +254,17 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
       else next.add(label);
       return next;
     });
+  }
+
+  function closeMobileMenu() {
+    setMobileMenuOpen(false);
+    menuToggleRef.current?.focus();
+  }
+
+  function chooseMenu(key: string, context: Record<string, unknown> = {}) {
+    setMenuContext(context);
+    setMenu(key);
+    if (mobileMenuOpen) closeMobileMenu();
   }
 
   function focusEmbed(id: number) {
@@ -344,14 +380,33 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
   }, [menu, menuContext]);
 
   const frontEmbedZIndex = Math.max(0, ...embeds.filter(item => !item.minimized).map(item => item.zIndex));
+  const activeGroup = menuGroups.find(group => group.items.some(item => item.key === menu));
+  const activeItem = activeGroup?.items.find(item => item.key === menu);
+  const displayName = currentUser.name || currentUser.userId;
 
   return <div className="admin-shell">
     <header className="admin-header">
-      <div className="brand"><span className="brand-mark"><Icon name="ticket" /></span> Ticket <small>Admin Console</small></div>
-      <div className="header-actions"><button onClick={() => setProfile(true)}><Icon name="user" /> {currentUser.name || currentUser.userId}</button><button onClick={onToggleTheme} aria-label={dark ? '라이트 모드로 전환' : '다크 모드로 전환'} aria-pressed={dark}><Icon name={dark ? 'sun' : 'moon'} /></button><button onClick={onLogout}><Icon name="logout" /> 로그아웃</button></div>
+      <div className="admin-header-start">
+        <button className="admin-menu-toggle" type="button" ref={menuToggleRef} aria-label={mobileMenuOpen ? '관리 메뉴 닫기' : '관리 메뉴 열기'} aria-expanded={mobileMenuOpen} aria-controls="admin-sidebar" onClick={() => mobileMenuOpen ? closeMobileMenu() : setMobileMenuOpen(true)}>
+          <span aria-hidden="true" />
+        </button>
+        <div className="brand"><span className="brand-mark" aria-hidden="true" />Ticksy <small>관리자</small></div>
+        <div className="admin-location">{activeGroup && <><span>{activeGroup.label}</span><Icon name="chevron-right" /></>}<strong>{activeItem?.label ?? '처리할 일'}</strong></div>
+      </div>
+      <div className="header-actions">
+        <button className="admin-icon-button" type="button" onClick={onToggleTheme} aria-label={dark ? '라이트 모드로 전환' : '다크 모드로 전환'} aria-pressed={dark}><Icon name={dark ? 'sun' : 'moon'} /></button>
+        <button className="admin-account-button" type="button" onClick={() => setProfile(true)} aria-label={`${displayName} · 내 정보`}>
+          <span className="admin-avatar" aria-hidden="true">{Array.from(displayName)[0]?.toUpperCase()}</span>
+          <span className="admin-account-name">{displayName}</span>
+        </button>
+        <button className="admin-logout-button" type="button" onClick={onLogout} aria-label="로그아웃"><Icon name="logout" /><span>로그아웃</span></button>
+      </div>
     </header>
     <div className="admin-layout">
-      <nav className="admin-sidebar" aria-label="관리 메뉴">
+      {mobileMenuOpen && <div className="admin-menu-backdrop" aria-hidden="true" onClick={closeMobileMenu} />}
+      <nav id="admin-sidebar" ref={sidebarRef} className={`admin-sidebar${mobileMenuOpen ? ' is-open' : ''}`} aria-label="관리 메뉴">
+        <p className="admin-sidebar-title">관리 메뉴</p>
+        <button type="button" className={menu === 'operationsHome' ? 'selected' : undefined} aria-current={menu === 'operationsHome' ? 'page' : undefined} onClick={() => chooseMenu('operationsHome')}><Icon name="inbox" /> 처리할 일</button>
         {menuGroups.map((group, index) => {
           const isOpen = openGroups.has(group.label);
           const itemsId = `admin-menu-group-${index}`;
@@ -360,15 +415,19 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
               <span><Icon name={group.icon} /> {group.label}</span><Icon name="chevron-down" />
             </button>
             <div id={itemsId} className="group-items" hidden={!isOpen}>{group.items.map(item =>
-              <button type="button" key={item.key} className={`menu-item${menu === item.key ? ' selected' : ''}`} aria-current={menu === item.key ? 'page' : undefined} onClick={() => { setMenuContext({}); setMenu(item.key); }}><Icon name={item.icon} /> {item.label}</button>
+              <button type="button" key={item.key} className={`menu-item${menu === item.key ? ' selected' : ''}`} aria-current={menu === item.key ? 'page' : undefined} onClick={() => chooseMenu(item.key)}><Icon name={item.icon} /> {item.label}</button>
             )}</div>
           </section>;
         })}
       </nav>
-      <main className="admin-main">
-        {menu === 'virtualAccountReconciliation'
+      <main className="admin-main" inert={mobileMenuOpen}>
+        {menu === 'operationsHome'
+          ? <OperationsHome onOpenList={chooseMenu} />
+          : menu === 'eventPreflight'
+          ? <EventPreflight key={String(menuContext.eventId ?? '')} initialEventId={Number(menuContext.eventId)} onOpenAreas={eventId => chooseMenu('area', { eventId: String(eventId) })} />
+          : menu === 'virtualAccountReconciliation'
           ? <VirtualAccountReconciliation />
-          : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={menuGroups.flatMap(group => group.items).find(item => item.key === menu)?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}
+          : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={activeItem?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}
         {embeds.length > 0 && <div className="embed-layer">
           {embeds.map(embed => {
             const offset = ((embed.id - 1) % 5) * 36;

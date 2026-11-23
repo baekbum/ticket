@@ -4,6 +4,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisEntryResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatRedisInspectResponse;
+import dev.bum.common.service.ticket.seat.dto.SeatReadinessResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatCacheWarmUpMode;
 import dev.bum.common.service.ticket.seat.enums.SeatRedisInspectMode;
@@ -16,6 +17,7 @@ import dev.bum.ticket_service.exception.ticket.TicketLimitExceededException;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository.SeatCoordinates;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 
 import io.micrometer.observation.annotation.Observed;
@@ -289,6 +291,33 @@ public class SeatCacheService {
         }
 
         return seats;
+    }
+
+    SeatReadinessResponse.Cache inspectCacheCoverage(Long eventId, List<SeatCoordinates> seats) {
+        List<String> keys = seats.stream()
+                .map(seat -> buildSeatRedisKey(eventId, seat.getZone(), seat.getSeatRow(), seat.getSeatCol()))
+                .distinct()
+                .toList();
+        int ready = 0;
+        try {
+            for (int offset = 0; offset < keys.size(); offset += 500) {
+                List<String> batch = keys.subList(offset, Math.min(offset + 500, keys.size()));
+                List<String> values = seatRedisTemplate.opsForValue().multiGet(batch);
+                if (values == null || values.size() != batch.size()) {
+                    return new SeatReadinessResponse.Cache(keys.size(), null);
+                }
+                ready += (int) values.stream().filter(value -> value != null && (
+                        SeatStatus.AVAILABLE.name().equals(value)
+                                || SeatStatus.RESERVED.name().equals(value)
+                                || SeatStatus.LOCKED.name().equals(value)
+                                || value.startsWith("LOCKED:")
+                )).count();
+            }
+            return new SeatReadinessResponse.Cache(keys.size(), ready);
+        } catch (DataAccessException e) {
+            log.warn("좌석 캐시 준비 상태를 조회할 수 없습니다. eventId={}", eventId, e);
+            return new SeatReadinessResponse.Cache(keys.size(), null);
+        }
     }
 
     /**

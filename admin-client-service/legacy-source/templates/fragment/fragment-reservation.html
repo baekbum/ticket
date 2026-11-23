@@ -125,6 +125,29 @@
     </div>
 
     <div id="reservation-detail-body" style="display:none;">
+      <section class="reservation-links" aria-labelledby="reservation-links-heading">
+        <div class="reservation-links-heading">
+          <h3 id="reservation-links-heading">관련 거래 바로가기</h3>
+          <span id="reservation-links-reference"></span>
+        </div>
+        <div class="reservation-links-grid">
+          <button class="reservation-link-card" id="reservation-payment-link" type="button">
+            <span class="reservation-link-mark"><i class="ti ti-credit-card" aria-hidden="true"></i></span>
+            <span><strong>결제 내역</strong><span class="reservation-link-state" id="reservation-payment-link-state"></span><small id="reservation-payment-link-meta"></small></span>
+            <i class="ti ti-chevron-right reservation-link-arrow" aria-hidden="true"></i>
+          </button>
+          <button class="reservation-link-card refund" id="reservation-refund-link" type="button">
+            <span class="reservation-link-mark"><i class="ti ti-refresh-alert" aria-hidden="true"></i></span>
+            <span><strong>환불 처리 현황</strong><span class="reservation-link-state" id="reservation-refund-link-state"></span><small id="reservation-refund-link-meta" aria-live="polite"></small></span>
+            <i class="ti ti-chevron-right reservation-link-arrow" aria-hidden="true"></i>
+          </button>
+          <button class="reservation-link-card delivery" id="reservation-delivery-link" type="button">
+            <span class="reservation-link-mark"><i class="ti ti-truck-delivery" aria-hidden="true"></i></span>
+            <span><strong>배송 관리</strong><span class="reservation-link-state" id="reservation-delivery-link-state"></span><small id="reservation-delivery-link-meta"></small></span>
+            <i class="ti ti-chevron-right reservation-link-arrow" aria-hidden="true"></i>
+          </button>
+        </div>
+      </section>
       <section class="detail-section">
         <div class="detail-section-head">
           <h3>기본 예매 정보</h3>
@@ -226,7 +249,7 @@
 
       <section class="detail-section">
         <div class="detail-section-head">
-          <h3>결제 정보 요약</h3>
+          <h3 id="reservation-payment-heading" tabindex="-1">결제 정보 요약</h3>
           <span id="detail-payment-summary">-</span>
         </div>
         <div class="reservation-detail-grid" id="detail-payment-grid"></div>

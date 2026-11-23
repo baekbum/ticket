@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.*;
         configuration = {PaymentGatewayMerchantFeignConfig.class, PaymentGatewayRefundFeignConfig.class})
 public interface PaymentGatewayRefundApplicationClient {
 
+    @GetMapping("/api/v1/payments/gateway/{pgPaymentId}/refunds/{refundRequestId}")
+    PaymentRefundResult status(@PathVariable String pgPaymentId, @PathVariable String refundRequestId);
+
     @PostMapping("/api/v1/payments/gateway/{pgPaymentId}/refunds/{refundRequestId}")
     PaymentRefundResult refund(
             @PathVariable String pgPaymentId,

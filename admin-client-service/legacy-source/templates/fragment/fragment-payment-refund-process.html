@@ -23,6 +23,7 @@
       <option value="REQUESTED">REQUESTED</option>
       <option value="GATEWAY_SUCCEEDED">GATEWAY_SUCCEEDED</option>
       <option value="GATEWAY_FAILED">GATEWAY_FAILED</option>
+      <option value="FAILED">처리 실패 전체</option>
       <option value="LOCAL_SUCCEEDED">LOCAL_SUCCEEDED</option>
       <option value="LOCAL_FAILED">LOCAL_FAILED</option>
     </select>
@@ -94,8 +95,8 @@
       <button class="btn btn-outline" id="refund-process-audit-log-btn" onclick="openRefundProcessAuditLog()">
         <i class="ti ti-history"></i>감사 로그 보기
       </button>
-      <button class="btn" id="refund-process-local-complete-btn" onclick="completeRefundProcessLocal()">
-        <i class="ti ti-check"></i>로컬 반영 완료 처리
+      <button class="btn" id="refund-process-reconcile-btn" type="button" onclick="reconcileRefundProcess()">
+        <i class="ti ti-refresh" aria-hidden="true"></i><span>PG 결과 확인·반영</span>
       </button>
     </div>
   </div>

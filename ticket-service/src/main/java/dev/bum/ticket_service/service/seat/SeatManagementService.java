@@ -14,6 +14,7 @@ import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
+import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.seat.SeatRepository;
 
 import io.micrometer.observation.annotation.Observed;
@@ -30,7 +31,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -40,6 +44,7 @@ public class SeatManagementService {
 
     // 좌석 데이터를 조회하고 저장하는 레포지토리.
     private final SeatRepository repository;
+    private final SeatJpaRepository seatJpaRepository;
     // 공연 데이터를 조회하고 저장하는 레포지토리.
     private final EventRepository eventRepository;
     // 좌석 구역 데이터를 조회하고 저장하는 레포지토리.
@@ -170,6 +175,24 @@ public class SeatManagementService {
     ) {
 
         return seatCacheService.inspectEventSeatCache(eventId, zone, row, col, limit, mode);
+    }
+
+    @Transactional(readOnly = true)
+    public SeatReadinessResponse inspectEventReadiness(Long eventId) {
+        eventRepository.selectById(eventId);
+        List<SeatJpaRepository.SeatCoordinates> seats = seatJpaRepository.findCoordinatesByEventId(eventId);
+        Map<Long, Long> seatsByArea = new HashMap<>();
+        for (SeatJpaRepository.SeatCoordinates seat : seats) {
+            seatsByArea.merge(seat.getAreaId(), 1L, Long::sum);
+        }
+        List<SeatReadinessResponse.Area> areas = areaJpaRepository.findByEvent_EventIdIn(List.of(eventId)).stream()
+                .sorted(Comparator.comparing(Area::getAreaId))
+                .map(area -> new SeatReadinessResponse.Area(area.getAreaId(), area.getAreaName(), area.getLayoutKey(),
+                        area.getStatus(), seatsByArea.getOrDefault(area.getAreaId(), 0L)))
+                .toList();
+        int assignedSeats = (int) areas.stream().mapToLong(SeatReadinessResponse.Area::seatCount).sum();
+        return new SeatReadinessResponse(seats.size(), seats.size() - assignedSeats, areas,
+                seatCacheService.inspectCacheCoverage(eventId, seats));
     }
 
     /**

@@ -2,6 +2,7 @@
   const RESERVATION_URL = `${base()}/admin/api/${API.VERSION}/reservation`;
   const TICKET_URL = `${base()}/admin/api/${API.VERSION}/ticket`;
   const SEAT_URL = `${base()}/admin/api/${API.VERSION}/seat`;
+  const REFUND_PROCESS_URL = `${base()}/admin/api/${API.VERSION}/payment/refund-process`;
   const headers = { 'Content-Type': 'application/json' };
 
   let currentReservationList = [];
@@ -16,6 +17,7 @@
   let currentSortFilters = { reservationId: 'desc' };
   let serverTotalPages = 1;
   let currentStatusAdjustDetail = null;
+  let detailRequest = null;
 
   function inputValue(id) {
     return document.getElementById(id)?.value?.trim() || '';
@@ -309,20 +311,28 @@
   }
 
   window.openReservationDetailModal = async function (reservationId) {
+    detailRequest?.abort();
+    detailRequest = new AbortController();
+    const { signal } = detailRequest;
     document.getElementById('reservation-detail-loading').style.display = 'flex';
     document.getElementById('reservation-detail-body').style.display = 'none';
     document.getElementById('reservation-detail-modal').style.display = 'flex';
 
     try {
-      const res = await Fetch(`${RESERVATION_URL}/select/detail/${reservationId}`, { method: 'GET' });
+      const res = await Fetch(`${RESERVATION_URL}/select/detail/${reservationId}`, { method: 'GET', signal });
+      if (signal.aborted) return;
       if (!res.ok) {
         showToast('예매 상세 조회에 실패했습니다.', true);
         closeReservationDetailModal();
         return;
       }
 
-      renderReservationDetail(await res.json());
+      const detail = await res.json();
+      if (signal.aborted) return;
+      renderReservationDetail(detail);
+      renderReservationLinks(detail, signal);
     } catch (e) {
+      if (signal.aborted) return;
       console.error('Reservation detail load failed', e);
       showToast('예매 상세 통신 오류가 발생했습니다.', true);
       closeReservationDetailModal();
@@ -330,8 +340,70 @@
   };
 
   window.closeReservationDetailModal = function () {
+    detailRequest?.abort();
+    detailRequest = null;
     document.getElementById('reservation-detail-modal').style.display = 'none';
   };
+
+  function updateReservationLink(name, status, meta) {
+    document.getElementById(`reservation-${name}-link-state`).textContent = status;
+    document.getElementById(`reservation-${name}-link-meta`).textContent = meta;
+  }
+
+  function renderReservationLinks(detail, signal) {
+    const reservationId = Number(detail?.reservation?.reservationId);
+    const validId = Number.isSafeInteger(reservationId) && reservationId > 0;
+    const reference = validId ? `예매 ID #${reservationId}` : '';
+    const { payment, delivery } = detail ?? {};
+    document.getElementById('reservation-links-reference').textContent = reference;
+
+    const paymentLink = document.getElementById('reservation-payment-link');
+    paymentLink.disabled = !payment;
+    paymentLink.onclick = () => {
+      const heading = document.getElementById('reservation-payment-heading');
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView({ block: 'start' });
+    };
+    updateReservationLink('payment', payment ? paymentStatusLabel(payment.status) : '결제 정보 없음',
+      payment?.paymentNo ? `결제번호 ${payment.paymentNo}` : '');
+
+    const refundLink = document.getElementById('reservation-refund-link');
+    const deliveryLink = document.getElementById('reservation-delivery-link');
+    refundLink.disabled = !validId;
+    deliveryLink.disabled = !validId || !delivery;
+    refundLink.onclick = () => window.switchMenuWithContext('paymentRefundProcess', { reservationId });
+    deliveryLink.onclick = () => window.switchMenuWithContext('reservationDelivery', { reservationId });
+    updateReservationLink('delivery', delivery ? deliveryStatusLabel(delivery.status) : '배송 정보 없음', delivery ? reference : '');
+    updateReservationLink('refund', validId ? '조회 중…' : '조회 불가', '');
+    if (validId) void loadRelatedRefunds(reservationId, signal);
+  }
+
+  async function loadRelatedRefunds(reservationId, signal) {
+    const labels = {
+      REQUESTED: '처리 중',
+      GATEWAY_SUCCEEDED: '반영 대기',
+      GATEWAY_FAILED: '확인 필요',
+      LOCAL_SUCCEEDED: '환불 완료',
+      LOCAL_FAILED: '반영 실패',
+      WITHDRAW_REQUESTED: '철회 확인 중',
+      WITHDRAWN: '철회 완료'
+    };
+    try {
+      const response = await Fetch(`${REFUND_PROCESS_URL}/select`, {
+        method: 'POST', headers, signal,
+        body: JSON.stringify({ reservationId, page: 0, size: 1, sort: ['paymentRefundProcessId-desc'] })
+      });
+      if (!response.ok) throw new Error('환불 신청 조회 실패');
+      const { content, page } = await response.json();
+      if (signal.aborted) return;
+      const count = page?.totalElements;
+      if (!Number.isSafeInteger(count) || count < 0) throw new Error('환불 신청 건수 확인 실패');
+      const status = content?.[0]?.status;
+      updateReservationLink('refund', count === 0 ? '신청 없음' : labels[status] || '목록에서 확인', `환불 신청 ${count.toLocaleString('ko-KR')}건`);
+    } catch {
+      if (!signal.aborted) updateReservationLink('refund', '조회 불가', '환불 처리 현황에서 확인');
+    }
+  }
 
   function renderReservationDetail(detail) {
     const reservation = detail?.reservation || {};

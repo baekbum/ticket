@@ -1,5 +1,13 @@
 package dev.bum.ticket_service.service.payment.refund;
 
+import dev.bum.common.service.paymentgateway.refund.CardRefundCommand;
+import dev.bum.common.service.paymentgateway.refund.PaymentRefundResult;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.math.BigDecimal;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -91,6 +99,34 @@ class PaymentRefundProcessServiceTest {
     @AfterEach
     void tearDown() {
         AuditContext.clear();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PaymentRefundProcessStatus.class, names = {"GATEWAY_FAILED", "LOCAL_FAILED"})
+    void applies_only_matching_pg_success_and_only_once(PaymentRefundProcessStatus status) {
+        Reservation reservation = reservation(ReservationStatus.PAID);
+        Payment payment = cardPayment(reservation);
+        ReflectionTestUtils.setField(payment, "pgPaymentId", "pg-test");
+        Ticket first = ticket(1L, reservation, TicketStatus.PAID);
+        Ticket second = ticket(2L, reservation, TicketStatus.PAID);
+        var process = refundProcess(1L, payment, List.of(first, second), 250000, true, status);
+        given(paymentRefundProcessJpaRepository.findReservationIdById(1L)).willReturn(Optional.of(1L));
+        given(reservationJpaRepository.findByIdForUpdateNowait(1L)).willReturn(Optional.of(reservation));
+        given(paymentRefundProcessJpaRepository.findById(1L)).willReturn(Optional.of(process));
+        given(ticketJpaRepository.findAllByTicketIdIn(List.of(1L, 2L))).willReturn(List.of(first, second));
+        var command = new CardRefundCommand("pg-test", "1", BigDecimal.valueOf(250000));
+        var wrong = new PaymentRefundResult("pg-test", "1", command.amount(), "SUCCEEDED", LocalDateTime.now(), "wrong");
+        assertThatThrownBy(() -> paymentRefundProcessService.applyVerifiedGatewayRefund(1L, wrong))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(process.getStatus()).isEqualTo(status);
+
+        var success = new PaymentRefundResult("pg-test", "1", command.amount(), "SUCCEEDED", LocalDateTime.now(), command.fingerprint());
+        paymentRefundProcessService.applyVerifiedGatewayRefund(1L, success);
+        paymentRefundProcessService.applyVerifiedGatewayRefund(1L, success);
+        assertThat(process.getStatus()).isEqualTo(PaymentRefundProcessStatus.LOCAL_SUCCEEDED);
+        assertThat(payment.getRefundedAmount()).isEqualTo(250000);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        then(paymentRefundHistoryJpaRepository).should().save(any(PaymentRefundHistory.class));
     }
 
     @Test

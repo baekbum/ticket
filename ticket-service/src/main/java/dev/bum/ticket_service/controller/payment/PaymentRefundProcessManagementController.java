@@ -4,6 +4,7 @@ import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessCondRequest;
 import dev.bum.common.service.ticket.payment.dto.PaymentRefundProcessResponse;
 import dev.bum.ticket_service.service.payment.refund.PaymentRefundProcessService;
+import dev.bum.ticket_service.service.payment.refund.PaymentRefundReconciliationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentRefundProcessManagementController {
 
     private final PaymentRefundProcessService paymentRefundProcessService;
+    private final PaymentRefundReconciliationService reconciliation;
 
     @PostMapping("/select")
     public ResponseEntity<CustomPageResponse<PaymentRefundProcessResponse>> selectByCond(
@@ -37,4 +39,11 @@ public class PaymentRefundProcessManagementController {
 
         return ResponseEntity.ok(paymentRefundProcessService.completeLocal(paymentRefundProcessId));
     }
+
+    @PostMapping("/reconcile/id/{paymentRefundProcessId}")
+    public GatewayCheckResponse reconcile(@PathVariable("paymentRefundProcessId") Long processId) {
+        return new GatewayCheckResponse(reconciliation.reconcile(processId));
+    }
+
+    public record GatewayCheckResponse(PaymentRefundReconciliationService.Outcome outcome) {}
 }
