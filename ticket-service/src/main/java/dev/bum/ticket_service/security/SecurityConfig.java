@@ -104,6 +104,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/*/coupon/**").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/event/**").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/area/**").hasAnyRole(ROLE_ADMIN_OR_USER)
+                        .requestMatchers("/api/*/captcha/**").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/seat/**").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/checkout/**").hasAnyRole(ROLE_ADMIN_OR_USER)
                         .requestMatchers("/api/*/reservation/**").hasAnyRole(ROLE_ADMIN_OR_USER)

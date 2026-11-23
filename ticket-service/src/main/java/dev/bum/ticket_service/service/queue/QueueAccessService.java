@@ -60,9 +60,12 @@ public class QueueAccessService {
     @Observed(name = "ticket.queue.validate", contextualName = "ticket queue validate")
     public void validate(Long eventId, String userId, String activeToken) {
 
-        if (!properties.enabled()) {
-            return;
+        if (properties.enabled()) {
+            validateActiveToken(eventId, userId, activeToken);
         }
+    }
+
+    public void validateActiveToken(Long eventId, String userId, String activeToken) {
 
         if (eventId == null) {
             throw new QueueAccessDeniedException("대기열 검증을 위한 이벤트 ID가 필요합니다.");

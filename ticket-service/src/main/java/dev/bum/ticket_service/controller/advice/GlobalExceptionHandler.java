@@ -2,6 +2,7 @@ package dev.bum.ticket_service.controller.advice;
 
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
+import dev.bum.ticket_service.exception.captcha.CaptchaUnavailableException;
 import dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException;
 import dev.bum.ticket_service.exception.payment.GatewayCardPreparationUnconfirmedException;
 import dev.bum.ticket_service.exception.payment.GatewayMethodChangeUnconfirmedException;
@@ -233,6 +234,12 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE, ex.getMessage()));
+    }
+
+    @ExceptionHandler(CaptchaUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaUnavailable() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_UNAVAILABLE));
     }
 
     private ErrorCode resolveNotFoundErrorCode(RuntimeException ex) {
