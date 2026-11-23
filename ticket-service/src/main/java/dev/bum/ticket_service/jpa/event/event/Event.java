@@ -194,6 +194,7 @@ public class Event {
                 .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
                 .maxTicketsPerPerson(this.maxTicketsPerPerson)
                 .ticketLimitScope(this.ticketLimitScope)
+                .captchaEnabled(this.captchaEnabled)
                 .genre(this.genre)
                 .region(this.region)
                 .theme(this.theme)
@@ -244,6 +245,8 @@ public class Event {
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
 
         if (info.getTicketLimitScope() != null) this.ticketLimitScope = info.getTicketLimitScope();
+
+        if (info.getCaptchaEnabled() != null) this.captchaEnabled = info.getCaptchaEnabled();
 
         if (info.getGenre() != null) this.genre = info.getGenre();
 

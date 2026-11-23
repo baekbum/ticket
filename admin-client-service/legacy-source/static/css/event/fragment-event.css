@@ -964,6 +964,97 @@
     gap: 0.6rem;
   }
 
+  .event-captcha-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fafafa;
+  }
+
+  .event-captcha-title {
+    display: block;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .event-captcha-setting p {
+    margin: 0.2rem 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .event-captcha-control {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .event-captcha-control input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .event-captcha-status {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .event-captcha-status span:last-child,
+  .event-captcha-control input:checked ~ .event-captcha-status span:first-child { display: none; }
+
+  .event-captcha-control input:checked ~ .event-captcha-status span:last-child {
+    display: inline;
+    color: var(--purple);
+  }
+
+  .event-captcha-track {
+    display: flex;
+    align-items: center;
+    width: 46px;
+    height: 26px;
+    padding: 3px;
+    border-radius: 99px;
+    background: var(--text-muted);
+  }
+
+  .event-captcha-track::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .dark-mode .event-captcha-track {
+    background: color-mix(in srgb, var(--text-muted) 62%, var(--card-bg));
+  }
+
+  .event-captcha-control input:checked ~ .event-captcha-track { background: var(--purple); }
+  .event-captcha-control input:checked ~ .event-captcha-track::before {
+    margin-inline-start: auto;
+    background: var(--card-bg);
+  }
+
+  .event-captcha-control input:focus-visible ~ .event-captcha-track {
+    outline: 2px solid var(--purple);
+    outline-offset: 3px;
+  }
+
+  .event-captcha-control:has(input:disabled) { cursor: default; }
+
   #event-modal #modal-action-row {
     margin-top: 0.85rem !important;
   }

@@ -61,6 +61,9 @@ public class InsertEventCommonRequest {
     // 구매 수량 제한 적용 범위.
     private TicketLimitScope ticketLimitScope;
 
+    // 새로 등록하는 모든 회차의 예매 캡챠 사용 여부.
+    private boolean captchaEnabled;
+
     // 공연 장르.
     @NotNull
     private EventGenre genre;

@@ -1349,6 +1349,7 @@
   body.dark-mode .main-content input:not([type='checkbox']):not([type='radio']),
   body.dark-mode .main-content select,
   body.dark-mode .main-content textarea,
+  body.dark-mode .main-content .event-captcha-setting,
   body.dark-mode .d-modal input,
   body.dark-mode .d-modal select {
     border-color: #34415a !important;

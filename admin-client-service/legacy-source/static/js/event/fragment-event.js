@@ -347,6 +347,7 @@ _set('m-event-date-time',  formatToDatetimeLocal(ev.eventDateTime));
 _set('m-sale-start-at',    formatToDatetimeLocal(ev.saleStartAt));
 _set('m-sale-end-at',      formatToDatetimeLocal(ev.saleEndAt));
 _set('m-queue-admission-size', ev.queueAdmissionSize ?? DEFAULT_QUEUE_ADMISSION_SIZE);
+setCaptchaEnabled(ev.captchaEnabled === true);
 _set('m-cancel-deadline-at', formatToDatetimeLocal(ev.cancelDeadlineAt));
 _set('m-running-minutes',  ev.runningMinutes);
 _set('m-age-limit',        ev.ageLimit);
@@ -360,9 +361,16 @@ const el = document.getElementById(id);
 if (el) el.value = (val !== undefined && val !== null) ? val : '';
 }
 
+function setCaptchaEnabled(enabled) {
+const input = document.getElementById('m-captcha-enabled');
+input.defaultChecked = enabled;
+input.checked = enabled;
+}
+
 function _setAllInputsState(disabled) {
 document.querySelectorAll('#event-modal input, #event-modal select, #event-modal textarea').forEach(el => {
 el.disabled        = disabled;
+if (el.type === 'checkbox') return;
 el.style.background = disabled ? 'var(--bg)' : '#fafafa';
 el.style.color      = disabled ? 'var(--text-muted)' : 'var(--text-primary)';
 el.style.cursor     = disabled ? 'not-allowed' : 'text';
@@ -445,10 +453,6 @@ wrapper.innerHTML = `
       <label>판매 마감 #${rowId}</label>
       <input type="datetime-local" class="m-extra-sale-end-at">
     </div>
-    <div class="form-group">
-      <label>동시 예매 허용 인원 #${rowId}</label>
-      <input type="number" class="m-extra-queue-admission-size" min="1" max="2147483647" step="1" value="${DEFAULT_QUEUE_ADMISSION_SIZE}">
-    </div>
     ${actionButtons}
   </div>
 `;
@@ -473,8 +477,7 @@ return;
 ['.m-extra-event-date-time', '.m-extra-event-date-time'],
 ['.m-extra-cancel-deadline-at', '.m-extra-cancel-deadline-at'],
 ['.m-extra-sale-start-at', '.m-extra-sale-start-at'],
-['.m-extra-sale-end-at', '.m-extra-sale-end-at'],
-['.m-extra-queue-admission-size', '.m-extra-queue-admission-size']
+['.m-extra-sale-end-at', '.m-extra-sale-end-at']
 ].forEach(([sourceSelector, targetSelector]) => {
 const source = firstRow.querySelector(sourceSelector);
 const target = targetRow.querySelector(targetSelector);
@@ -490,7 +493,6 @@ return bulkRows.map(row => ({
 eventDateTime: row.querySelector('.m-extra-event-date-time')?.value || '',
 saleStartAt: row.querySelector('.m-extra-sale-start-at')?.value || '',
 saleEndAt: row.querySelector('.m-extra-sale-end-at')?.value || '',
-queueAdmissionSize: Number(row.querySelector('.m-extra-queue-admission-size')?.value ?? DEFAULT_QUEUE_ADMISSION_SIZE),
 cancelDeadlineAt: row.querySelector('.m-extra-cancel-deadline-at')?.value || ''
 }));
 }
@@ -499,7 +501,6 @@ return [{
 eventDateTime: document.getElementById('m-event-date-time').value,
 saleStartAt: document.getElementById('m-sale-start-at').value,
 saleEndAt: document.getElementById('m-sale-end-at').value,
-queueAdmissionSize: Number(document.getElementById('m-queue-admission-size').value),
 cancelDeadlineAt: document.getElementById('m-cancel-deadline-at').value
 }];
 }
@@ -723,6 +724,7 @@ const posterInput = document.getElementById('m-poster-image');
 if (posterInput) posterInput.value = '';
 _set('m-status',      'ON_SALE');
 _set('m-queue-admission-size', DEFAULT_QUEUE_ADMISSION_SIZE);
+setCaptchaEnabled(false);
 _set('m-max-tickets', '2');
 _set('m-ticket-limit-scope', 'PER_EVENT');
 _set('m-genre',       'CONCERT');
@@ -771,13 +773,15 @@ const runningMinutesVal = parseInt(document.getElementById('m-running-minutes').
 const ageLimitVal = parseInt(document.getElementById('m-age-limit').value, 10);
 const maxTicketsVal= parseInt(document.getElementById('m-max-tickets').value, 10);
 const ticketLimitScopeVal = document.getElementById('m-ticket-limit-scope').value;
+const queueAdmissionSize = Number(document.getElementById('m-queue-admission-size').value);
+const captchaInput = document.getElementById('m-captcha-enabled');
 const genreVal     = document.getElementById('m-genre').value;
 const regionVal    = document.getElementById('m-region').value;
 const themeVal     = document.getElementById('m-theme').value;
 const descVal      = document.getElementById('m-description-text').value.trim();
 const posterFile = document.getElementById('m-poster-image')?.files?.[0];
 const schedules = collectEventSchedules();
-if (schedules.some(schedule => !Number.isSafeInteger(schedule.queueAdmissionSize) || schedule.queueAdmissionSize < 1 || schedule.queueAdmissionSize > MAX_QUEUE_ADMISSION_SIZE)) {
+if (!Number.isSafeInteger(queueAdmissionSize) || queueAdmissionSize < 1 || queueAdmissionSize > MAX_QUEUE_ADMISSION_SIZE) {
 showToast('동시 예매 허용 인원은 1명 이상 2,147,483,647명 이하의 정수로 입력해주세요.', true); return;
 }
 const missingFields = [];
@@ -826,7 +830,7 @@ posterUrl: posterUrlVal || null,
 eventDateTime: datetimeInput + ':00',
 saleStartAt: saleStartInput + ':00',
 saleEndAt: saleEndInput + ':00',
-queueAdmissionSize: Number(document.getElementById('m-queue-admission-size').value),
+queueAdmissionSize,
 cancelDeadlineAt: cancelDeadlineInput + ':00',
 runningMinutes: runningMinutesVal,
 ageLimit: ageLimitVal,
@@ -853,6 +857,7 @@ ageLimit: ageLimitVal,
 totalSeats: seatsVal,
 maxTicketsPerPerson: maxTicketsVal,
 ticketLimitScope: ticketLimitScopeVal,
+captchaEnabled: captchaInput.checked,
 genre: genreVal,
 region: regionVal,
 theme: themeVal
@@ -861,7 +866,7 @@ schedules: schedules.map(schedule => ({
 eventDateTime: schedule.eventDateTime + ':00',
 saleStartAt: schedule.saleStartAt + ':00',
 saleEndAt: schedule.saleEndAt + ':00',
-queueAdmissionSize: schedule.queueAdmissionSize,
+queueAdmissionSize,
 cancelDeadlineAt: schedule.cancelDeadlineAt + ':00'
 }))
 }
@@ -872,6 +877,7 @@ const method = mode === 'CREATE' ? 'POST' : 'PUT';
 if (mode !== 'CREATE') {
 body.status = document.getElementById('m-status').value;
 if (!Number.isNaN(availableSeatsVal)) body.availableSeats = availableSeatsVal;
+if (captchaInput.checked !== captchaInput.defaultChecked) body.captchaEnabled = captchaInput.checked;
 }
 
 try {
