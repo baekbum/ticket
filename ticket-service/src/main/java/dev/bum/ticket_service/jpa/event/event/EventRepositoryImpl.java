@@ -88,6 +88,7 @@ public class EventRepositoryImpl implements EventRepository {
                 .status(EventStatus.ON_SALE)
                 .maxTicketsPerPerson(info.getMaxTicketsPerPerson())
                 .ticketLimitScope(info.getTicketLimitScope() != null ? info.getTicketLimitScope() : TicketLimitScope.PER_EVENT)
+                .captchaEnabled(info.isCaptchaEnabled())
                 .genre(info.getGenre() != null ? info.getGenre() : EventGenre.CONCERT)
                 .region(info.getRegion() != null ? info.getRegion() : EventRegion.SEOUL)
                 .theme(info.getTheme() != null ? info.getTheme() : EventTheme.IDOL)

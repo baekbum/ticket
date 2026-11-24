@@ -76,6 +76,9 @@ public class EventResponse {
     // 구매 수량 제한 적용 범위.
     private TicketLimitScope ticketLimitScope;
 
+    // 공연 예매 시 캡챠 사용 여부.
+    private boolean captchaEnabled;
+
     // 공연 장르.
     private EventGenre genre;
 

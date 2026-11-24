@@ -108,7 +108,7 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "waiting:" + waitingToken)).isNull();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + ready.token())).isNotNull();
         QueueValidateRequest request = new QueueValidateRequest(event, user, ready.token());
-        assertThat(value(queue.validate(request))).isEqualTo(new QueueValidateResponse(true, "OK"));
+        assertThat(value(queue.validate(request))).isEqualTo(new QueueValidateResponse(true, "OK", ready.activeTokenExpiresAt()));
         assertThat(value(queue.complete(event, user, ready.token()))).isTrue();
         assertThat(value(queue.complete(event, user, ready.token()))).isFalse();
         assertThat(value(queue.validate(request)).reason()).isEqualTo("INVALID_QUEUE_TOKEN");

@@ -14,9 +14,10 @@ import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
 import dev.bum.ticket_service.controller.seat.SeatController;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
-import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.security.SecurityConfig;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,7 +65,7 @@ class SeatControllerTest {
     private SeatService seatService;
 
     @MockitoBean
-    private QueueAccessService queueAccessService;
+    private CaptchaChallengeService captchaChallengeService;
 
     private final String baseUrl = "/api/v1/seat";
 
@@ -152,6 +154,24 @@ class SeatControllerTest {
                 .andExpect(jsonPath("$.userId").value("user01"));
 
         then(seatService).should().occupySeat(expected);
+    }
+
+    @Test
+    @DisplayName("캡차 통과 상태가 없으면 좌석을 점유하지 않는다")
+    void occupy_requires_captcha_pass() throws Exception {
+        willThrow(new CaptchaRequiredException()).given(captchaChallengeService)
+                .validateSeatOccupation(1L, "user01", "active-token");
+
+        mockMvc.perform(post(baseUrl + "/occupy")
+                        .with(authentication(userAuthentication("user01")))
+                        .header("X-Active-Token", "active-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventId\":1}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CAPTCHA_REQUIRED"))
+                .andExpect(jsonPath("$.message").value("비정상적인 접근입니다."));
+
+        then(seatService).shouldHaveNoInteractions();
     }
 
     private SeatResponse seatResponse(Long seatId, String zone, Integer row, Integer col) {

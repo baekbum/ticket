@@ -30,6 +30,8 @@ public class QEvent extends EntityPathBase<Event> {
 
     public final DateTimePath<java.time.LocalDateTime> cancelDeadlineAt = createDateTime("cancelDeadlineAt", java.time.LocalDateTime.class);
 
+    public final BooleanPath captchaEnabled = createBoolean("captchaEnabled");
+
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
     public final StringPath description = createString("description");

@@ -2,6 +2,12 @@ package dev.bum.ticket_service.controller.advice;
 
 import dev.bum.common.error.ErrorCode;
 import dev.bum.common.error.ErrorResponse;
+import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
+import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
+import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
+import dev.bum.ticket_service.exception.captcha.CaptchaRefreshRateLimitedException;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
+import dev.bum.ticket_service.exception.captcha.CaptchaUnavailableException;
 import dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException;
 import dev.bum.ticket_service.exception.payment.GatewayCardPreparationUnconfirmedException;
 import dev.bum.ticket_service.exception.payment.GatewayMethodChangeUnconfirmedException;
@@ -233,6 +239,42 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.QUEUE_UNAVAILABLE, ex.getMessage()));
+    }
+
+    @ExceptionHandler(CaptchaUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaUnavailable() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_UNAVAILABLE));
+    }
+
+    @ExceptionHandler(CaptchaChallengeExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaChallengeExpired() {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_CHALLENGE_EXPIRED));
+    }
+
+    @ExceptionHandler(CaptchaChallengeChangedException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaChallengeChanged() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_CHALLENGE_CHANGED));
+    }
+
+    @ExceptionHandler(CaptchaAttemptLimitException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaAttemptLimit() {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_ATTEMPT_LIMIT_REACHED));
+    }
+
+    @ExceptionHandler(CaptchaRefreshRateLimitedException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaRefreshRateLimited() {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_REFRESH_RATE_LIMITED));
+    }
+
+    @ExceptionHandler(CaptchaRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaRequired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_REQUIRED));
     }
 
     private ErrorCode resolveNotFoundErrorCode(RuntimeException ex) {

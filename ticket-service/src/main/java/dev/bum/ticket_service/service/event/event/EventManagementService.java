@@ -222,6 +222,7 @@ public class EventManagementService {
                 .totalSeats(common.getTotalSeats())
                 .maxTicketsPerPerson(common.getMaxTicketsPerPerson())
                 .ticketLimitScope(common.getTicketLimitScope())
+                .captchaEnabled(common.isCaptchaEnabled())
                 .genre(common.getGenre())
                 .region(common.getRegion())
                 .theme(common.getTheme())

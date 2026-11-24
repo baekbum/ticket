@@ -10,6 +10,7 @@ import { ActiveTokenExpiredError, ApiRequestError, SESSION_EXPIRED_EVENT, Sessio
 import { bindBookingLogin, createWindowAuthentication, startLoginSession } from './bookingAuthentication';
 import { useSessionExpiration } from './useSessionExpiration';
 import CardPaymentDialog from './CardPaymentDialog';
+import BookingCaptchaDialog, { type BookingCaptchaChallenge } from './BookingCaptchaDialog';
 import { CARD_COMPANIES } from './cardPayment';
 import type { CardApprovalResponse, CardCompany } from './cardPayment';
 import CustomerServicePage from './CustomerServicePage';
@@ -728,6 +729,14 @@ function releaseQueueToken(eventId: number, token: string, tokenType: 'waiting' 
     },
     keepalive: true,
   }).catch(() => undefined);
+
+  if (tokenType === 'active') {
+    fetch(`/ticket/api/v1/captcha/events/${eventId}/session/close`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Token': token },
+      keepalive: true,
+    }).catch(() => undefined);
+  }
 }
 
 function buildBookingWindowUrl(eventId: number, eventGroupCode: string, activeToken: string, activeTokenExpiresAt?: string | null) {
@@ -911,6 +920,7 @@ function App() {
       }
       returnToLogin();
     } else if (confirmCloseWindow && customAlert?.closeWindowOnConfirm) {
+      releaseActiveToken(getBookingEventIdFromLocation(), getBookingActiveTokenFromLocation());
       window.close();
     }
 
@@ -965,7 +975,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!customAlert) {
+    if (!customAlert || customAlert.closeWindowOnConfirm) {
       return;
     }
 
@@ -1157,7 +1167,7 @@ function CustomAlertModal({
   }
 
   return (
-    <div className="custom-alert-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="custom-alert-backdrop" role="presentation" onMouseDown={alert.closeWindowOnConfirm ? undefined : onClose}>
       <section
         className="custom-alert-modal"
         role="alertdialog"
@@ -2208,6 +2218,8 @@ function BookingWindowPage() {
   const [eventDetail, setEventDetail] = useState<EventDetail | null>(null);
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [layoutSvgText, setLayoutSvgText] = useState('');
+  const [captchaChallenge, setCaptchaChallenge] = useState<BookingCaptchaChallenge | null>(null);
+  const captchaApprovedSchedule = useRef<number | null>(null);
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
   const [seats, setSeats] = useState<SeatResponse[]>([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState<number[]>([]);
@@ -2375,6 +2387,7 @@ function BookingWindowPage() {
   }, [eventGroupCode, selectedScheduleId, bookingReloadCount]);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadBookingData() {
       if (!selectedScheduleId) {
         alert('예매할 공연 회차 정보가 없습니다.');
@@ -2385,32 +2398,54 @@ function BookingWindowPage() {
       setIsLoading(true);
       setIsSeatLoading(false);
       setBookingLoadError('');
+      setCaptchaChallenge(null);
+      setAreas([]);
+      setLayoutSvgText('');
       setSelectedAreaId(null);
       setSeats([]);
       setSelectedSeatIds([]);
       resetCheckoutState();
 
       try {
+        const headers = { 'X-Active-Token': activeToken };
+        if (captchaApprovedSchedule.current !== selectedScheduleId && !savedCardCheckout(activeToken)) {
+          const challenge = await request<BookingCaptchaChallenge | undefined>(
+            `/ticket/api/v1/captcha/events/${selectedScheduleId}/challenge`,
+            { method: 'POST', headers, signal: controller.signal },
+          );
+          if (controller.signal.aborted) return;
+          if (challenge) {
+            setCaptchaChallenge(challenge);
+            return;
+          }
+          captchaApprovedSchedule.current = selectedScheduleId;
+        }
+
         const [areaResponse, layoutResponse] = await Promise.all([
           request<PageResponse<AreaResponse>>(
             `/ticket/api/v1/area/select?eventId=${selectedScheduleId}&page=0&size=500&sort=areaId-asc`,
             {
               method: 'GET',
-              headers: { 'X-Active-Token': activeToken },
+              headers,
+              signal: controller.signal,
             },
           ),
           request<EventLayoutResponse | undefined>(
             `/ticket/api/v1/area/layout/event/${selectedScheduleId}`,
             {
               method: 'GET',
-              headers: { 'X-Active-Token': activeToken },
+              headers,
+              signal: controller.signal,
             },
           ),
         ]);
 
-        setAreas(areaResponse.content || []);
-        setLayoutSvgText(layoutResponse?.svgText || '');
+        if (!controller.signal.aborted) {
+          setAreas(areaResponse.content || []);
+          setLayoutSvgText(layoutResponse?.svgText || '');
+        }
       } catch (error) {
+        if (controller.signal.aborted) return;
         if (error instanceof SessionExpiredError || error instanceof ActiveTokenExpiredError) {
           setBookingLoadError(error.message);
           handleBookingSessionExpiration(error);
@@ -2421,13 +2456,16 @@ function BookingWindowPage() {
         setBookingLoadError(message);
         alert(message);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
 
     loadBookingData();
-    return () => seatRequestRef.current?.abort();
-  }, [selectedScheduleId, bookingReloadCount]);
+    return () => {
+      controller.abort();
+      seatRequestRef.current?.abort();
+    };
+  }, [activeToken, selectedScheduleId, bookingReloadCount]);
 
   function changeSchedule(schedule: EventSchedule) {
     if (schedule.eventId === selectedScheduleId || schedule.status !== 'ON_SALE') {
@@ -2696,6 +2734,11 @@ function BookingWindowPage() {
 
       if (error instanceof ApiRequestError && error.code === 'SEAT_ALREADY_OCCUPIED' && selectedArea) {
         await selectArea(selectedArea);
+      }
+
+      if (error instanceof ApiRequestError && error.code === 'CAPTCHA_REQUIRED') {
+        window.alert({ message: error.message, closeWindowOnConfirm: true });
+        return;
       }
 
       alert(bookingErrorMessage(error, '예매 준비에 실패했습니다.'));
@@ -3010,6 +3053,29 @@ function BookingWindowPage() {
         </div>
       </header>
 
+      {captchaChallenge && activeTokenRemainingSeconds !== 0 && (
+        <BookingCaptchaDialog
+          key={captchaChallenge.challengeId}
+          initialChallenge={captchaChallenge}
+          eventId={selectedScheduleId}
+          activeToken={activeToken}
+          request={request}
+          onPassed={() => {
+            captchaApprovedSchedule.current = selectedScheduleId;
+            setCaptchaChallenge(null);
+            setBookingReloadCount((count) => count + 1);
+          }}
+          onCancel={() => {
+            releaseActiveToken(selectedScheduleId, activeToken);
+            window.close();
+          }}
+          onSessionExpired={(error) => {
+            setCaptchaChallenge(null);
+            handleBookingSessionExpiration(error);
+          }}
+        />
+      )}
+
       {cardPayment && (
         <CardPaymentDialog
           payment={cardPayment}
@@ -3055,7 +3121,7 @@ function BookingWindowPage() {
             </div>
           )}
 
-          {isLoading && <div className="booking-state-box">구역 정보를 불러오는 중입니다.</div>}
+          {(isLoading || captchaChallenge) && <div className="booking-state-box">{captchaChallenge ? '보안문자를 확인하면 구역 정보가 표시됩니다.' : '구역 정보를 불러오는 중입니다.'}</div>}
           {!isLoading && bookingLoadError && (
             <div className="booking-state-box" role="status">
               <p>{bookingLoadError}</p>
@@ -3063,7 +3129,7 @@ function BookingWindowPage() {
             </div>
           )}
 
-          {!isLoading && (
+          {!isLoading && !captchaChallenge && (
             <>
               {!selectedArea && (
                 layoutMarkup ? (

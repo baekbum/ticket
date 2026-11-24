@@ -385,10 +385,6 @@
         <label>판매 마감</label>
         <input type="datetime-local" id="m-sale-end-at">
       </div>
-      <div class="form-group">
-        <label>동시 예매 허용 인원</label>
-        <input type="number" id="m-queue-admission-size" min="1" max="2147483647" step="1" value="1000">
-      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -442,12 +438,27 @@
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>예매 제한 범위</label>
+        <label for="m-ticket-limit-scope">예매 제한 범위</label>
         <select id="m-ticket-limit-scope">
           <option value="PER_EVENT">공연별 제한</option>
           <option value="PER_GROUP">그룹 전체 제한</option>
         </select>
       </div>
+      <div class="form-group">
+        <label for="m-queue-admission-size">동시 예매 허용 인원</label>
+        <input type="number" id="m-queue-admission-size" min="1" max="2147483647" step="1" value="1000">
+      </div>
+    </div>
+    <div class="event-captcha-setting">
+      <div>
+        <label class="event-captcha-title" id="m-captcha-title" for="m-captcha-enabled">예매 캡챠</label>
+        <p id="m-captcha-description">대기열 통과 후 좌석 배치도를 열기 전에 확인합니다.</p>
+      </div>
+      <label class="event-captcha-control" for="m-captcha-enabled">
+        <input type="checkbox" role="switch" id="m-captcha-enabled" aria-labelledby="m-captcha-title" aria-describedby="m-captcha-description">
+        <span class="event-captcha-status" aria-hidden="true"><span>미사용</span><span>사용</span></span>
+        <span class="event-captcha-track" aria-hidden="true"></span>
+      </label>
     </div>
     <div class="form-group" style="margin-top:0.25rem;">
       <label>공연 상세 설명</label>

@@ -28,6 +28,7 @@ import dev.bum.ticket_service.jpa.reservation.reservationDiscount.ReservationDis
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.jpa.ticket.Ticket;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.checkout.CheckoutIdempotencyKeyGenerator;
 import dev.bum.ticket_service.service.checkout.CheckoutTransactionService;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
@@ -87,6 +88,9 @@ class CheckoutTransactionServiceTest {
     private QueueAccessService queueAccessService;
 
     @Mock
+    private CaptchaChallengeService captchaChallengeService;
+
+    @Mock
     private ReservationRepository reservationRepository;
 
     @Mock
@@ -115,6 +119,7 @@ class CheckoutTransactionServiceTest {
 
     @BeforeEach
     void prepareStorage() {
+        Mockito.lenient().when(eventBookingGuard.requireBookable(1L, true)).thenReturn(event());
         AtomicReference<CheckoutAttempt> inserted = new AtomicReference<>();
         Mockito.lenient().when(checkoutAttemptJpaRepository.insertIfAbsent(ArgumentMatchers.any()))
                 .thenAnswer(invocation -> {

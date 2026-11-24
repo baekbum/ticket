@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.event.event.dto.InsertEventScheduleRequest;
 import dev.bum.common.service.ticket.event.event.dto.UpdateEventRequest;
 import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
+import dev.bum.ticket_service.audit.AuditContext;
 import dev.bum.ticket_service.config.QuerydslConfig;
 import dev.bum.ticket_service.jpa.area.Area;
 import dev.bum.ticket_service.jpa.area.AreaJpaRepository;
@@ -66,6 +67,7 @@ class EventManagementPolicyIntegrationTest {
 
         assertThat(events.count()).isEqualTo(2);
         assertThat(outbox.count()).isEqualTo(2);
+        assertThat(responses).allSatisfy(response -> assertThat(response.isCaptchaEnabled()).isFalse());
         for (EventResponse response : responses) {
             Event event = events.findById(response.getEventId()).orElseThrow();
             assertThat(policies(event.getEventId())).singleElement().satisfies(policy -> {
@@ -77,6 +79,27 @@ class EventManagementPolicyIntegrationTest {
                 assertThat(policy.isPublished()).isFalse();
             });
         }
+    }
+
+    @Test
+    void bulk_insert_applies_captcha_setting_and_updates_preserve_it_when_omitted() {
+        InsertEventBulkRequest request = bulkRequest();
+        request.getCommon().setCaptchaEnabled(true);
+        List<EventResponse> responses = service.insertBulk(request, null);
+        List<Long> ids = responses.stream().map(EventResponse::getEventId).toList();
+
+        assertThat(responses).allSatisfy(response -> assertThat(response.isCaptchaEnabled()).isTrue());
+        assertThat(events.findAllById(ids)).allSatisfy(event -> assertThat(event.isCaptchaEnabled()).isTrue());
+
+        Long first = ids.getFirst();
+        service.update(first, UpdateEventRequest.builder().title("변경된 제목").build());
+        assertThat(service.selectById(first).isCaptchaEnabled()).isTrue();
+
+        service.update(first, UpdateEventRequest.builder().captchaEnabled(false).build(), null);
+        assertThat(AuditContext.getBeforeData()).containsEntry("captchaEnabled", true);
+        assertThat(AuditContext.getAfterData()).containsEntry("captchaEnabled", false);
+        assertThat(service.selectById(first).isCaptchaEnabled()).isFalse();
+        assertThat(service.selectById(ids.getLast()).isCaptchaEnabled()).isTrue();
     }
 
     @Test

@@ -80,7 +80,13 @@ public final class AuditDataMapper {
     private static Object getPropertyValue(Object target, String fieldName) {
 
         try {
-            Method getter = target.getClass().getMethod("get" + capitalize(fieldName));
+            String property = capitalize(fieldName);
+            Method getter;
+            try {
+                getter = target.getClass().getMethod("get" + property);
+            } catch (NoSuchMethodException e) {
+                getter = target.getClass().getMethod("is" + property);
+            }
             return getter.invoke(target);
         } catch (Exception e) {
             return null;

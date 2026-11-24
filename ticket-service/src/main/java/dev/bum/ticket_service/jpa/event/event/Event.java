@@ -134,6 +134,10 @@ public class Event {
     @Builder.Default
     private EventTheme theme = EventTheme.IDOL;
 
+    // 공연 예매 시 캡차 사용 여부.
+    @Column(name = "captcha_enabled", nullable = false, columnDefinition = "boolean default false")
+    private boolean captchaEnabled;
+
     // 생성 시각.
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -190,6 +194,7 @@ public class Event {
                 .status(this.status != null ? EventStatus.valueOf(this.status.name()) : null)
                 .maxTicketsPerPerson(this.maxTicketsPerPerson)
                 .ticketLimitScope(this.ticketLimitScope)
+                .captchaEnabled(this.captchaEnabled)
                 .genre(this.genre)
                 .region(this.region)
                 .theme(this.theme)
@@ -240,6 +245,8 @@ public class Event {
         if (info.getMaxTicketsPerPerson() != null) this.maxTicketsPerPerson = info.getMaxTicketsPerPerson();
 
         if (info.getTicketLimitScope() != null) this.ticketLimitScope = info.getTicketLimitScope();
+
+        if (info.getCaptchaEnabled() != null) this.captchaEnabled = info.getCaptchaEnabled();
 
         if (info.getGenre() != null) this.genre = info.getGenre();
 

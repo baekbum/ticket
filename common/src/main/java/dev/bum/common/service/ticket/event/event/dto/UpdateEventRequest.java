@@ -73,6 +73,9 @@ public class UpdateEventRequest {
     // 구매 수량 제한 적용 범위.
     private TicketLimitScope ticketLimitScope;
 
+    // 예매 캡챠 사용 여부. 생략하면 기존 값을 유지한다.
+    private Boolean captchaEnabled;
+
     // 공연 장르.
     private EventGenre genre;
 
