@@ -37,14 +37,16 @@ public class ReactiveActiveQueueService {
      * 입장 토큰의 소유자와 유효 기간을 확인한다.
      */
     public Mono<Boolean> isActiveTokenValid(Long eventId, String userId, String token) {
+        return activeTokenExpiresAt(eventId, userId, token).hasElement();
+    }
 
+    public Mono<Instant> activeTokenExpiresAt(Long eventId, String userId, String token) {
         return Mono.defer(() -> {
-            if (!StringUtils.hasText(token)) return Mono.just(false);
+            if (!StringUtils.hasText(token)) return Mono.empty();
             return redis.opsForValue().get(keys.activeTokenKey(token))
                     .filter(value -> tokenValue(eventId, userId).equals(value))
-                    .flatMap(value -> redis.opsForZSet().score(keys.activeKey(eventId), token)
-                            .hasElement())
-                    .defaultIfEmpty(false);
+                    .flatMap(value -> redis.opsForZSet().score(keys.activeKey(eventId), token))
+                    .map(score -> Instant.ofEpochMilli(score.longValue()));
         });
     }
 

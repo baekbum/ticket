@@ -65,7 +65,11 @@ public enum ErrorCode {
     QUEUE_ACCESS_DENIED("대기열 접근 권한이 없습니다."),
     ACTIVE_TOKEN_EXPIRED("좌석 선택 시간이 초과되었습니다. 예매를 다시 시작해주세요."),
     QUEUE_UNAVAILABLE("예매 가능 여부를 일시적으로 확인하지 못했습니다. 잠시 후 다시 시도해주세요."),
-    CAPTCHA_UNAVAILABLE("예매 캡차를 일시적으로 발급할 수 없습니다. 잠시 후 다시 시도해주세요."),
+    CAPTCHA_UNAVAILABLE("예매 캡차를 일시적으로 처리할 수 없습니다. 잠시 후 다시 시도해주세요."),
+    CAPTCHA_CHALLENGE_EXPIRED("예매 캡차가 만료되었습니다. 새 이미지를 발급받아 주세요."),
+    CAPTCHA_CHALLENGE_CHANGED("예매 캡차가 바뀌었습니다. 현재 표시된 이미지의 문자를 입력해주세요."),
+    CAPTCHA_ATTEMPT_LIMIT_REACHED("예매 캡차 입력 횟수를 초과했습니다. 예매를 다시 시작해주세요."),
+    CAPTCHA_REFRESH_RATE_LIMITED("새 이미지 요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요."),
 
     // 공통으로 사용
     UNAUTHORIZED("인증이 필요합니다."),

@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+
 @Slf4j
 @Service
 public class QueueAccessService {
@@ -65,7 +67,7 @@ public class QueueAccessService {
         }
     }
 
-    public void validateActiveToken(Long eventId, String userId, String activeToken) {
+    public Instant validateActiveToken(Long eventId, String userId, String activeToken) {
 
         if (eventId == null) {
             throw new QueueAccessDeniedException("대기열 검증을 위한 이벤트 ID가 필요합니다.");
@@ -101,5 +103,6 @@ public class QueueAccessService {
         if (!response.allowed()) {
             throw new QueueAccessDeniedException("대기열을 통과한 사용자만 티켓팅을 진행할 수 있습니다.");
         }
+        return response.activeTokenExpiresAt();
     }
 }
