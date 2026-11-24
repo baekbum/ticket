@@ -9,14 +9,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
@@ -41,6 +43,7 @@ import static org.mockito.Mockito.mock;
 @SpringJUnitConfig(TicketingDetectionLogConsumerIntegrationTest.Config.class)
 @TestPropertySource(properties = {
         "spring.datasource.username=postgres",
+        "spring.jpa.hibernate.ddl-auto=validate",
         "spring.kafka.admin.auto-create=false",
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
@@ -55,9 +58,11 @@ class TicketingDetectionLogConsumerIntegrationTest {
 
     @Configuration
     @EnableTransactionManagement
-    @ImportAutoConfiguration({DataSourceAutoConfiguration.class, DataSourceTransactionManagerAutoConfiguration.class,
+    @EntityScan(basePackageClasses = TicketingDetectionLogEntity.class)
+    @EnableJpaRepositories(basePackageClasses = TicketingDetectionLogJpaRepository.class)
+    @ImportAutoConfiguration({DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class,
             JdbcTemplateAutoConfiguration.class, JacksonAutoConfiguration.class, KafkaAutoConfiguration.class})
-    @Import({KafkaConsumerConfig.class, TicketingDetectionLogConsumer.class, TicketingDetectionLogInsertRepository.class})
+    @Import({KafkaConsumerConfig.class, TicketingDetectionLogConsumer.class, TicketingDetectionLogPersistenceService.class})
     static class Config {
         @Bean
         KafkaDltSlackNotifier kafkaDltSlackNotifier() {

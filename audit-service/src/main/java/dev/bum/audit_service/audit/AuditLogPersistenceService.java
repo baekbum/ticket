@@ -1,5 +1,7 @@
 package dev.bum.audit_service.audit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.service.audit.dto.AuditLogCondRequest;
@@ -16,6 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -23,10 +26,9 @@ public class AuditLogPersistenceService {
 
     // 감사 로그 데이터를 조회하고 저장하는 레포지토리.
     private final AuditLogJpaRepository repository;
-    // 감사 로그 데이터를 조회하고 저장하는 레포지토리.
-    private final AuditLogInsertRepository insertRepository;
     // 감사 로그의 중복 여부를 판별할 지문 생성 도구.
     private final AuditLogFingerprint fingerprint;
+    private final ObjectMapper objectMapper;
     // 조회 요청에서 생략한 페이지 번호의 기본값.
     private static final int DEFAULT_PAGE = 0;
     // 조회 요청에서 생략한 페이지 크기의 기본값.
@@ -49,7 +51,9 @@ public class AuditLogPersistenceService {
         }
 
         String requestHash = fingerprint.calculate(event);
-        int inserted = insertRepository.insertIfAbsent(AuditLogEntity.from(event, requestHash));
+        AuditLogEntity entry = AuditLogEntity.from(event, requestHash);
+        int inserted = repository.insertIfAbsent(entry,
+                serializeJson(entry.getBeforeData()), serializeJson(entry.getAfterData()), serializeJson(entry.getMetadata()));
         if (inserted == 1) return AuditLogSaveResult.SAVED;
 
         // 동시 최초 요청도 UNIQUE 검사에서 선행 트랜잭션의 종료를 기다린 뒤 이 경로로 진입한다.
@@ -98,6 +102,16 @@ public class AuditLogPersistenceService {
                 page.getTotalElements(),
                 page.getTotalPages()
         );
+    }
+
+    private String serializeJson(Map<String, Object> data) {
+
+        if (data == null) return null;
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("감사 이벤트 데이터를 저장할 수 없습니다.");
+        }
     }
 
     /**

@@ -1,7 +1,6 @@
 package dev.bum.audit_service.kafka;
 
-import dev.bum.audit_service.ticketing.TicketingDetectionLogEntity;
-import dev.bum.audit_service.ticketing.TicketingDetectionLogInsertRepository;
+import dev.bum.audit_service.ticketing.TicketingDetectionLogPersistenceService;
 import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,7 +10,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TicketingDetectionLogConsumer {
 
-    private final TicketingDetectionLogInsertRepository repository;
+    private final TicketingDetectionLogPersistenceService persistenceService;
 
     @KafkaListener(
             topics = "${topic.ticketing.detection.log.name}",
@@ -21,6 +20,6 @@ public class TicketingDetectionLogConsumer {
     )
     public void consume(TicketingDetectionLogEvent event) {
 
-        repository.insertIfAbsent(TicketingDetectionLogEntity.from(event));
+        persistenceService.save(event);
     }
 }
