@@ -66,6 +66,8 @@ app:
   kafka:
     login-log:
       group-id: ${KAFKA_LOGIN_LOG_GROUP_ID:audit-login-log-group}
+    ticketing-detection-log:
+      group-id: ${KAFKA_TICKETING_DETECTION_LOG_GROUP_ID:audit-ticketing-detection-log-group}
   kafka-dlt:
     slack:
       enabled: ${APP_KAFKA_DLT_SLACK_ENABLED:true}
