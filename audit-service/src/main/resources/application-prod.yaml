@@ -45,6 +45,10 @@ topic:
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}
+  ticketing:
+    detection:
+      log:
+        name: ${TOPIC_TICKETING_DETECTION_LOG_NAME:ticketing-detection-log}
 
 management:
   endpoints:

@@ -44,6 +44,10 @@ topic:
   audit:
     log:
       name: audit-log
+  ticketing:
+    detection:
+      log:
+        name: ticketing-detection-log
 
 token:
   secret: ticket-project-secret-value-is-made-by-random
