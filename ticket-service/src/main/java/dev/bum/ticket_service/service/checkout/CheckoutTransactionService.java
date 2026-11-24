@@ -33,6 +33,7 @@ import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVi
 import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
 import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
@@ -75,6 +76,7 @@ public class CheckoutTransactionService {
     private final SeatJpaRepository seatJpaRepository;
     // 대기열 업무 처리를 담당하는 서비스.
     private final QueueAccessService queueAccessService;
+    private final CaptchaChallengeService captchaChallengeService;
     // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationRepository reservationRepository;
     // 예매 배송 데이터를 조회하고 저장하는 레포지토리.
@@ -267,7 +269,11 @@ public class CheckoutTransactionService {
         validatePrepareMatchesAttempt(currentUserId, request, requestedSeatIds, checkoutAttempt);
         validatePreparedAttempt(checkoutAttempt);
         Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
-        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        if (event.isCaptchaEnabled()) {
+            captchaChallengeService.requirePassed(request.getEventId(), currentUserId, activeToken);
+        } else {
+            queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        }
         seatCacheService.validateOccupiedSeat(request.getEventId(), currentUserId, request.getOrderId(), seats);
         validatePreparedAttempt(checkoutAttempt);
         eventBookingGuard.validate(event, true);

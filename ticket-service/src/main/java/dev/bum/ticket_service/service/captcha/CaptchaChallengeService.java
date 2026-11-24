@@ -6,6 +6,7 @@ import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaRefreshRateLimitedException;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaUnavailableException;
 import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
 import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
@@ -17,6 +18,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -129,6 +131,45 @@ public class CaptchaChallengeService {
 
     public Optional<CaptchaChallengeResponse> refresh(Long eventId, String userId, String activeToken) {
         return getChallenge(eventId, userId, activeToken, true);
+    }
+
+    public void validateSeatOccupation(Long eventId, String userId, String activeToken) {
+        if (eventId != null && events.selectById(eventId).isCaptchaEnabled()) {
+            requirePassed(eventId, userId, activeToken);
+            return;
+        }
+
+        queueAccessService.validate(eventId, userId, activeToken);
+    }
+
+    public void requirePassed(Long eventId, String userId, String activeToken) {
+        if (!StringUtils.hasText(activeToken)) {
+            throw new CaptchaRequiredException();
+        }
+
+        queueAccessService.validateActiveToken(eventId, userId, activeToken);
+
+        try {
+            if (!Boolean.TRUE.equals(redis.hasKey(passedKey(issuedKey(eventId, userId, activeToken))))) {
+                throw new CaptchaRequiredException();
+            }
+        } catch (DataAccessException e) {
+            log.warn("캡차 통과 상태 확인 실패: eventId={}, errorType={}", eventId, e.getClass().getSimpleName());
+            throw new CaptchaUnavailableException();
+        }
+    }
+
+    public void closeSession(Long eventId, String userId, String activeToken) {
+        if (!StringUtils.hasText(userId) || !StringUtils.hasText(activeToken)) {
+            return;
+        }
+        String issuedKey = issuedKey(eventId, userId, activeToken);
+        try {
+            redis.delete(List.of(issuedKey, passedKey(issuedKey)));
+        } catch (DataAccessException e) {
+            log.warn("캡차 세션 정리 실패: eventId={}, errorType={}", eventId, e.getClass().getSimpleName());
+            throw new CaptchaUnavailableException();
+        }
     }
 
     private Optional<CaptchaChallengeResponse> getChallenge(

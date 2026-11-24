@@ -70,6 +70,7 @@ public enum ErrorCode {
     CAPTCHA_CHALLENGE_CHANGED("예매 캡차가 바뀌었습니다. 현재 표시된 이미지의 문자를 입력해주세요."),
     CAPTCHA_ATTEMPT_LIMIT_REACHED("예매 캡차 입력 횟수를 초과했습니다. 예매를 다시 시작해주세요."),
     CAPTCHA_REFRESH_RATE_LIMITED("새 이미지 요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요."),
+    CAPTCHA_REQUIRED("비정상적인 접근입니다."),
 
     // 공통으로 사용
     UNAUTHORIZED("인증이 필요합니다."),

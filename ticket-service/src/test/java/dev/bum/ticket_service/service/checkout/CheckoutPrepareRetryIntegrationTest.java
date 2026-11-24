@@ -8,6 +8,7 @@ import dev.bum.common.service.ticket.event.event.enums.EventStatus;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.common.service.ticket.seat.enums.SeatStatus;
 import dev.bum.common.service.ticket.seat.vo.SeatInfo;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttempt;
 import dev.bum.ticket_service.jpa.checkout.CheckoutAttemptJpaRepository;
 import dev.bum.ticket_service.jpa.event.event.Event;
@@ -15,6 +16,7 @@ import dev.bum.ticket_service.jpa.event.event.EventJpaRepository;
 import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
@@ -93,6 +95,7 @@ class CheckoutPrepareRetryIntegrationTest {
 
     @MockitoBean SeatCacheService seatCache;
     @MockitoBean QueueAccessService queue;
+    @MockitoBean CaptchaChallengeService captcha;
     @MockitoBean ReservationRepository reservations;
     @MockitoBean CheckoutPaymentService payments;
     @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService virtualAccounts;
@@ -150,6 +153,26 @@ class CheckoutPrepareRetryIntegrationTest {
                 attempts.findByOrderIdForUpdate("order-1").orElseThrow());
         assertThat(saved.getCreatedAt()).isEqualTo(first.getPreparedAt());
         assertThat(saved.getExpiresAt()).isEqualTo(first.getExpiresAt());
+    }
+
+    @Test
+    void captcha_pass_is_required_and_reused_when_preparing_again() {
+        Long eventId = event.getEventId();
+        jdbc.update("update events set captcha_enabled = true where event_id = ?", eventId);
+        doThrow(new CaptchaRequiredException()).doNothing()
+                .when(captcha).requirePassed(eventId, "user01", "active-token");
+
+        assertThatThrownBy(() -> prepare(request("order-1", selectedSeats)))
+                .isInstanceOf(CaptchaRequiredException.class);
+        assertThat(attempts.count()).isZero();
+
+        CheckoutPrepareResponse first = prepare(request("order-1", selectedSeats));
+        CheckoutPrepareResponse repeated = prepare(request("order-2", selectedSeats));
+
+        assertThat(first.isPrepared()).isTrue();
+        assertThat(repeated.isPrepared()).isTrue();
+        verify(captcha, times(3)).requirePassed(eventId, "user01", "active-token");
+        verifyNoInteractions(queue);
     }
 
     @ParameterizedTest

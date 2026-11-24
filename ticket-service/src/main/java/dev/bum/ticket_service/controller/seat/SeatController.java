@@ -5,7 +5,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatCondRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
-import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SeatController {
 
     private final SeatService seatService;
-    private final QueueAccessService queueAccessService;
+    private final CaptchaChallengeService captchaChallengeService;
 
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(
@@ -36,7 +36,7 @@ public class SeatController {
             @RequestBody SeatOccupyRequest request
     ) {
 
-        queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
+        captchaChallengeService.validateSeatOccupation(request.getEventId(), currentUserId, activeToken);
         request.setUserId(currentUserId);
         return ResponseEntity.ok(seatService.occupySeat(request));
     }

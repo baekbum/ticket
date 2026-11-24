@@ -7,6 +7,7 @@ import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.ticket_service.config.CaptchaPoolProperties;
 import dev.bum.ticket_service.config.QueueAccessProperties;
 import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaRefreshRateLimitedException;
@@ -219,6 +220,16 @@ class CaptchaChallengeServiceTest {
                     .isCloseTo(activeExpiry.toEpochMilli() - System.currentTimeMillis(), org.assertj.core.data.Offset.offset(1000L));
             assertThat(service.issue(1L, "user01", "active-one")).isEmpty();
             assertThat(service.refresh(1L, "user01", "active-one")).isEmpty();
+            long passedTtl = redis.getExpire(firstKey + ":passed", TimeUnit.MILLISECONDS);
+            service.requirePassed(1L, "user01", "active-one");
+            service.requirePassed(1L, "user01", "active-one");
+            assertThat(redis.getExpire(firstKey + ":passed", TimeUnit.MILLISECONDS)).isBetween(1L, passedTtl);
+            assertThatThrownBy(() -> service.requirePassed(1L, "user01", "different-token"))
+                    .isInstanceOf(CaptchaRequiredException.class);
+            service.closeSession(1L, "user01", "active-one");
+            assertThat(redis.hasKey(firstKey + ":passed")).isFalse();
+            assertThatThrownBy(() -> service.requirePassed(1L, "user01", "active-one"))
+                    .isInstanceOf(CaptchaRequiredException.class);
 
             CaptchaChallengeResponse secondUser = service.issue(1L, "user02", "active-two").orElseThrow();
             for (int i = 0; i < 4; i++) {

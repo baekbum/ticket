@@ -1,0 +1,74 @@
+.booking-captcha-dialog {
+  width: min(462px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 28px;
+  border: 1px solid var(--live-line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--live-ink);
+  box-shadow: 0 20px 64px #17291f38;
+}
+
+.booking-captcha-dialog::backdrop { background: #14231bb3; }
+.booking-captcha-dialog h2 { margin: 0; font-size: 25px; font-weight: 850; letter-spacing: -.04em; }
+.booking-captcha-dialog header p { margin: 7px 0 0; color: var(--live-muted); font-size: 14px; line-height: 1.55; }
+.booking-captcha-form { display: grid; gap: 16px; margin-top: 21px; }
+
+.booking-captcha-sample {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 92px;
+  padding: 10px 13px;
+  border: 1px solid #dbe3eb;
+  border-radius: 10px;
+  background: #f4f7fa;
+}
+
+.booking-captcha-sample img { display: block; width: min(62%, 220px); height: auto; object-fit: contain; }
+.booking-captcha-sample-actions { display: grid; justify-items: center; gap: 6px; flex: none; }
+.booking-captcha-sample-actions span { color: var(--live-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.booking-captcha-secondary {
+  min-height: 39px;
+  padding: 8px 12px;
+  border: 1px solid var(--live-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--live-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.booking-captcha-secondary:hover:not(:disabled) { border-color: var(--live-green); background: var(--live-paper); }
+.booking-captcha-secondary:disabled { opacity: .55; cursor: default; }
+.booking-captcha-form label { display: grid; gap: 7px; font-size: 13px; font-weight: 750; }
+.booking-captcha-form input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cdd9cf;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--live-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.booking-captcha-form input::placeholder { color: #78857d; }
+.booking-captcha-form input:focus-visible { border-color: var(--live-green); outline: 2px solid #34875355; outline-offset: 1px; }
+.booking-captcha-form footer { display: grid; grid-template-columns: 112px 1fr; gap: 8px; }
+.booking-captcha-form footer button { min-height: 45px; margin: 0; }
+.booking-captcha-form .booking-next-button { border-radius: 8px; }
+.booking-captcha-error { margin: 0; color: #a42a30; font-size: 13px; line-height: 1.5; }
+
+@media (max-width: 380px) {
+  .booking-captcha-dialog { padding: 19px; }
+  .booking-captcha-sample { padding-inline: 7px; gap: 3px; }
+  .booking-captcha-sample .booking-captcha-secondary { padding-inline: 7px; }
+  .booking-captcha-form footer { grid-template-columns: 90px 1fr; }
+}

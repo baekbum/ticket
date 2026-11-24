@@ -58,6 +58,16 @@ public class CaptchaController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
 
+    @PostMapping("/session/close")
+    public ResponseEntity<Void> closeSession(
+            @PathVariable("eventId") Long eventId,
+            @AuthenticationPrincipal String currentUserId,
+            @RequestHeader("X-Active-Token") String activeToken
+    ) {
+        captchaChallengeService.closeSession(eventId, currentUserId, activeToken);
+        return ResponseEntity.noContent().build();
+    }
+
     private ResponseEntity<CaptchaChallengeResponse> challengeResponse(Optional<CaptchaChallengeResponse> response) {
         return response
                 .map(challenge -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(challenge))

@@ -33,6 +33,7 @@ import dev.bum.ticket_service.service.payment.notification.CardPaymentNotificati
 import dev.bum.ticket_service.service.payment.payment.*;
 import dev.bum.ticket_service.service.payment.virtualAccount.*;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import feign.*;
 import org.junit.jupiter.api.*;
@@ -98,6 +99,7 @@ class CheckoutMethodChangeIntegrationTest {
     @MockitoBean PaymentGatewayTransactionClient gateway;
     @MockitoBean ReservationRepository reservationRepository;
     @MockitoBean QueueAccessService queue;
+    @MockitoBean CaptchaChallengeService captcha;
     @MockitoBean EventBookingGuard guard;
     @MockitoBean CheckoutIdempotencyKeyGenerator keys;
     @MockitoBean VirtualAccountCancelOutboxService cancellations;

@@ -6,6 +6,7 @@ import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaRefreshRateLimitedException;
+import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaUnavailableException;
 import dev.bum.ticket_service.exception.payment.GatewayAccountIssueUnconfirmedException;
 import dev.bum.ticket_service.exception.payment.GatewayCardPreparationUnconfirmedException;
@@ -268,6 +269,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleCaptchaRefreshRateLimited() {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(ErrorResponse.of(ErrorCode.CAPTCHA_REFRESH_RATE_LIMITED));
+    }
+
+    @ExceptionHandler(CaptchaRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleCaptchaRequired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(ErrorCode.CAPTCHA_REQUIRED));
     }
 
     private ErrorCode resolveNotFoundErrorCode(RuntimeException ex) {
