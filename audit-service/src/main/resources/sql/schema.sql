@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS ticketing_detection_log (
     user_id VARCHAR(50) NOT NULL,
     session_key_hash VARCHAR(64) NOT NULL,
     detection_type VARCHAR(50) NOT NULL,
-    request_id VARCHAR(100),
+    trace_id VARCHAR(100),
     evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

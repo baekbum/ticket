@@ -64,8 +64,8 @@ public class TicketingDetectionLogEntity {
     @Column(name = "detection_type", nullable = false, length = 50)
     private TicketingDetectionType detectionType;
 
-    @Column(name = "request_id", length = 100)
-    private String requestId;
+    @Column(name = "trace_id", length = 100)
+    private String traceId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
@@ -87,7 +87,7 @@ public class TicketingDetectionLogEntity {
             String userId,
             String sessionKeyHash,
             TicketingDetectionType detectionType,
-            String requestId,
+            String traceId,
             Map<String, Object> evidence,
             Instant occurredAt
     ) {
@@ -95,7 +95,7 @@ public class TicketingDetectionLogEntity {
         this.userId = userId;
         this.sessionKeyHash = sessionKeyHash;
         this.detectionType = detectionType;
-        this.requestId = requestId;
+        this.traceId = traceId;
         this.evidence = evidence == null ? Map.of() : new LinkedHashMap<>(evidence);
         this.occurredAt = occurredAt == null ? Instant.now() : occurredAt;
     }
@@ -113,7 +113,7 @@ public class TicketingDetectionLogEntity {
                 .userId(event.getUserId())
                 .sessionKeyHash(event.getSessionKeyHash().toLowerCase(Locale.ROOT))
                 .detectionType(event.getDetectionType())
-                .requestId(event.getRequestId())
+                .traceId(event.getTraceId())
                 .occurredAt(event.getOccurredAt())
                 .evidence(event.getEvidence())
                 .build();

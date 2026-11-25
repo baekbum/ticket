@@ -85,20 +85,21 @@ class TicketingDetectionLogConsumerIntegrationTest {
         TicketingDetectionType captchaLimit = TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED;
         TicketingDetectionType seatActivity = TicketingDetectionType.SEAT_ACTIVITY_SUSPECTED;
         Instant occurredAt = Instant.parse("2026-11-24T12:34:56Z");
-        publish(0, detection(userId, captchaLimit, occurredAt, "first-request", Map.of("attempts", 5)));
+        String firstTraceId = "ab".repeat(16);
+        publish(0, detection(userId, captchaLimit, occurredAt, firstTraceId, Map.of("attempts", 5)));
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(1));
 
-        publish(1, detection(userId, captchaLimit, occurredAt.plusSeconds(1), "repeat-request", Map.of("attempts", 6)));
-        publish(1, detection(userId, seatActivity, occurredAt.plusSeconds(2), "seat-request", Map.of()));
+        publish(1, detection(userId, captchaLimit, occurredAt.plusSeconds(1), "cd".repeat(16), Map.of("attempts", 6)));
+        publish(1, detection(userId, seatActivity, occurredAt.plusSeconds(2), null, Map.of()));
 
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(2));
         assertThat(jdbc.queryForList("select detection_type from ticketing_detection_log where user_id = ?",
                 String.class, userId)).containsExactlyInAnyOrder(captchaLimit.name(), seatActivity.name());
         jdbc.queryForObject("""
-                select request_id, occurred_at, cast(evidence ->> 'attempts' as integer) as attempts
+                select trace_id, occurred_at, cast(evidence ->> 'attempts' as integer) as attempts
                 from ticketing_detection_log where user_id = ? and detection_type = ?
                 """, (row, index) -> {
-            assertThat(row.getString("request_id")).isEqualTo("first-request");
+            assertThat(row.getString("trace_id")).isEqualTo(firstTraceId);
             assertThat(row.getObject("occurred_at", OffsetDateTime.class).toInstant()).isEqualTo(occurredAt);
             assertThat(row.getInt("attempts")).isEqualTo(5);
             return true;
@@ -114,7 +115,7 @@ class TicketingDetectionLogConsumerIntegrationTest {
     }
 
     private TicketingDetectionLogEvent detection(
-            String userId, TicketingDetectionType detectionType, Instant occurredAt, String requestId,
+            String userId, TicketingDetectionType detectionType, Instant occurredAt, String traceId,
             Map<String, Object> evidence
     ) {
         return TicketingDetectionLogEvent.builder()
@@ -122,7 +123,7 @@ class TicketingDetectionLogConsumerIntegrationTest {
                 .userId(userId)
                 .sessionKeyHash("a".repeat(64))
                 .detectionType(detectionType)
-                .requestId(requestId)
+                .traceId(traceId)
                 .occurredAt(occurredAt)
                 .evidence(evidence)
                 .build();

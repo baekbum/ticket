@@ -18,7 +18,7 @@ public class TicketingDetectionLogEvent {
     private String userId;
     private String sessionKeyHash;
     private TicketingDetectionType detectionType;
-    private String requestId;
+    private String traceId;
     private Instant occurredAt;
     private Map<String, Object> evidence;
 }

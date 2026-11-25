@@ -2,6 +2,8 @@ package dev.bum.ticket_service.service.captcha;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
+import dev.bum.common.kafka.ticketing.TicketingDetectionType;
 import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
@@ -11,7 +13,11 @@ import dev.bum.ticket_service.exception.captcha.CaptchaUnavailableException;
 import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
 import dev.bum.ticket_service.exception.queue.QueueUnavailableException;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
+import dev.bum.ticket_service.kafka.ticketing.TicketingDetectionLogProducer;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -27,6 +33,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,6 +46,7 @@ public class CaptchaChallengeService {
     private static final Duration REFRESH_WINDOW = Duration.ofMinutes(1);
     private static final int MAX_REFRESHES_PER_WINDOW = 5;
     private static final int MAX_ATTEMPTS_PER_TOKEN = 5;
+    private static final String ISSUED_KEY_PREFIX = "ticket:captcha:issued:v1:";
 
     // 발급 상태 저장과 준비 목록 제거를 함께 처리한다.
     private static final DefaultRedisScript<String> SAVE_CHALLENGE = new DefaultRedisScript<>("""
@@ -91,6 +99,12 @@ public class CaptchaChallengeService {
                 return 'TOKEN_EXPIRED'
             end
 
+            local attempts = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local maxAttempts = tonumber(ARGV[4])
+            if attempts >= maxAttempts then
+                return 'ATTEMPT_LIMIT'
+            end
+
             local issued = redis.call('GET', KEYS[1])
             if not issued then
                 return 'EXPIRED'
@@ -100,17 +114,11 @@ public class CaptchaChallengeService {
                 return 'CHANGED'
             end
 
-            local attempts = tonumber(redis.call('GET', KEYS[3]) or '0')
-            local maxAttempts = tonumber(ARGV[4])
-            if attempts >= maxAttempts then
-                return 'ATTEMPT_LIMIT'
-            end
-
             if captcha.answer ~= ARGV[2] then
                 attempts = attempts + 1
                 redis.call('SET', KEYS[3], attempts, 'PXAT', ARGV[3])
                 if attempts >= maxAttempts then
-                    return 'ATTEMPT_LIMIT'
+                    return 'ATTEMPT_LIMIT_REACHED'
                 end
                 return 'INCORRECT'
             end
@@ -124,6 +132,8 @@ public class CaptchaChallengeService {
     private final QueueAccessService queueAccessService;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final TicketingDetectionLogProducer detectionLogProducer;
+    private final Optional<Tracer> tracer;
 
     public Optional<CaptchaChallengeResponse> issue(Long eventId, String userId, String activeToken) {
         return getChallenge(eventId, userId, activeToken, false);
@@ -217,24 +227,43 @@ public class CaptchaChallengeService {
         }
 
         Instant expiresAt = queueAccessService.validateActiveToken(eventId, userId, activeToken);
+
         if (expiresAt == null) {
             throw new QueueUnavailableException();
         }
-        String issuedKey = issuedKey(eventId, userId, activeToken);
+
+        String sessionKeyHash = sessionKeyHash(eventId, userId, activeToken);
+        String issuedKey = ISSUED_KEY_PREFIX + sessionKeyHash;
+
         try {
+
             String result = redis.execute(VERIFY_CHALLENGE,
                     List.of(issuedKey, passedKey(issuedKey), issuedKey + ":attempts"),
                     challengeId.toString(), answer, Long.toString(expiresAt.toEpochMilli()),
                     Integer.toString(MAX_ATTEMPTS_PER_TOKEN));
+
             return switch (result) {
                 case "PASSED" -> new CaptchaVerificationResponse(true);
                 case "INCORRECT" -> new CaptchaVerificationResponse(false);
                 case "CHANGED" -> throw new CaptchaChallengeChangedException();
                 case "EXPIRED" -> throw new CaptchaChallengeExpiredException();
+                case "ATTEMPT_LIMIT_REACHED" -> {
+                    detectionLogProducer.send(TicketingDetectionLogEvent.builder()
+                            .eventId(eventId)
+                            .userId(userId)
+                            .sessionKeyHash(sessionKeyHash)
+                            .detectionType(TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED)
+                            .traceId(tracer.map(Tracer::currentSpan).map(Span::context).map(TraceContext::traceId).orElse(null))
+                            .occurredAt(Instant.now())
+                            .evidence(Map.of("attempts", MAX_ATTEMPTS_PER_TOKEN))
+                            .build());
+                    throw new CaptchaAttemptLimitException();
+                }
                 case "ATTEMPT_LIMIT" -> throw new CaptchaAttemptLimitException();
                 case "TOKEN_EXPIRED" -> throw new ActiveTokenExpiredException();
                 default -> throw new CaptchaUnavailableException();
             };
+
         } catch (DataAccessException e) {
             log.warn("캡차 검증 실패: eventId={}, errorType={}", eventId, e.getClass().getSimpleName());
             throw new CaptchaUnavailableException();
@@ -246,11 +275,15 @@ public class CaptchaChallengeService {
     }
 
     static String issuedKey(Long eventId, String userId, String activeToken) {
+        return ISSUED_KEY_PREFIX + sessionKeyHash(eventId, userId, activeToken);
+    }
+
+    private static String sessionKeyHash(Long eventId, String userId, String activeToken) {
         String binding = eventId + "\0" + userId + "\0" + activeToken;
 
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(binding.getBytes(StandardCharsets.UTF_8));
-            return "ticket:captcha:issued:v1:" + HexFormat.of().formatHex(digest);
+            return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is unavailable", e);
         }

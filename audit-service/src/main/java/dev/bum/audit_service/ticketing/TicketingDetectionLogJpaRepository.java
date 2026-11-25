@@ -12,9 +12,9 @@ public interface TicketingDetectionLogJpaRepository extends JpaRepository<Ticket
     @Modifying
     @Query(value = """
             insert into ticketing_detection_log (
-                event_id, user_id, session_key_hash, detection_type, request_id, evidence, occurred_at
+                event_id, user_id, session_key_hash, detection_type, trace_id, evidence, occurred_at
             ) values (
-                :eventId, :userId, :sessionKeyHash, :detectionType, :requestId, cast(:evidence as jsonb), :occurredAt
+                :eventId, :userId, :sessionKeyHash, :detectionType, :traceId, cast(:evidence as jsonb), :occurredAt
             ) on conflict (event_id, user_id, session_key_hash, detection_type) do nothing
             """, nativeQuery = true)
     void insertIfAbsent(
@@ -22,7 +22,7 @@ public interface TicketingDetectionLogJpaRepository extends JpaRepository<Ticket
             @Param("userId") String userId,
             @Param("sessionKeyHash") String sessionKeyHash,
             @Param("detectionType") String detectionType,
-            @Param("requestId") String requestId,
+            @Param("traceId") String traceId,
             @Param("evidence") String evidence,
             @Param("occurredAt") OffsetDateTime occurredAt
     );

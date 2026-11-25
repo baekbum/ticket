@@ -27,7 +27,7 @@ public class TicketingDetectionLogPersistenceService {
                 entry.getUserId(),
                 entry.getSessionKeyHash(),
                 entry.getDetectionType().name(),
-                entry.getRequestId(),
+                entry.getTraceId(),
                 serializeEvidence(entry.getEvidence()),
                 OffsetDateTime.ofInstant(entry.getOccurredAt(), ZoneOffset.UTC)
         );
