@@ -36,7 +36,6 @@ app:
       user-event.DLT: user-event
       audit-log.DLT: audit-log
       login-log.DLT: login-log
-      payment-completed.DLT: payment-completed
       virtual-account-expired.DLT: virtual-account-expired
   kafka-dlt:
     slack:

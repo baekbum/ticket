@@ -61,9 +61,6 @@ token:
   secret: ${TOKEN_SECRET}
 
 topic:
-  payment:
-    completed:
-      name: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
   audit:
     log:
       name: ${TOPIC_AUDIT_LOG_NAME:audit-log}

@@ -7,7 +7,7 @@
 
 | 영역 | 대상 |
 | --- | --- |
-| Kafka | `user-event`, `audit-log`, `payment-completed` |
+| Kafka | `user-event`, `audit-log` |
 | Redis | `auth-service` Refresh Token Redis, `ticket-service` Seat Redis, `queue-service` Queue Redis |
 | HTTP 호출 | Feign 기반 서비스 간 호출, 특히 `ticket-service -> queue-service` |
 | 운영 복구 | DLQ 재처리, Redis 복구, 타임아웃/재시도 기준 |
@@ -28,10 +28,6 @@
 | --- | --- | --- | --- |
 | `user-event` | `user-service` | `auth-service` | 1초 간격 최대 3회 재시도 후 `user-event.DLT` 이동, Slack 알림 |
 | `audit-log` | `common` `AuditLogProducer` | `audit-service` | 1초 간격 최대 3회 재시도 후 `audit-log.DLT` 이동, Slack 알림 |
-| `payment-completed` | `ticket-service` | 없음 | Producer는 있으나 결제 완료 흐름에서 비활성화 |
-
-`ticket-service`에는 `DefaultErrorHandler`와 `DeadLetterPublishingRecoverer` 설정이 존재한다.
-하지만 실제 Consumer가 없는 상태이므로 현재는 `payment-completed.DLT` topic과 정책만 준비되어 있다.
 
 ### 목표 정책
 
@@ -53,7 +49,6 @@ DLQ Topic:
 | --- | --- |
 | `user-event` | `user-event.DLT` |
 | `audit-log` | `audit-log.DLT` |
-| `payment-completed` | `payment-completed.DLT` |
 
 DLT topic 보관 정책:
 
@@ -95,18 +90,6 @@ DLT topic은 장애 분석과 재처리를 위해 일반 topic보다 길게 보�
 3. DB 일시 오류는 재시도한다.
 4. 스키마 불일치, 필수 필드 누락은 DLQ로 보낸다.
 5. 감사 로그 유실은 서비스 본 요청 실패로 전파하지 않는다. Producer 실패는 경고 로그로 남긴다.
-
-#### `payment-completed`
-
-현재는 Consumer가 없으므로 발행도 비활성화되어 있다.
-알림, 정산, 배송 연동 Consumer가 생기는 시점에 다시 활성화한다.
-
-처리 규칙:
-
-1. 결제 완료 이벤트 key는 `paymentNo`로 고정한다.
-2. Consumer는 `paymentNo` 기준으로 멱등 처리한다.
-3. 후속 처리가 실패해도 결제 DB 트랜잭션은 되돌리지 않는다.
-4. 후속 처리 실패는 재시도 후 DLQ로 이동시키고 운영 복구 대상으로 남긴다.
 
 ## Kafka DLQ 재처리
 
@@ -154,7 +137,7 @@ DLQ 메시지는 바로 원본 topic으로 되돌리지 않는다. 아래 정보
 ```
 
 `admin-service`는 허용된 DLT mapping만 처리한다.
-현재 허용 mapping은 `user-event.DLT -> user-event`, `audit-log.DLT -> audit-log`, `payment-completed.DLT -> payment-completed`다.
+현재 허용 mapping은 `user-event`, `audit-log`, `login-log`, `virtual-account-expired`의 DLT를 각 원본 토픽에 연결한다.
 재발행은 payload를 byte 단위로 읽어 원본 topic에 다시 publish한다.
 prod 환경에서는 topic 환경변수 변경 시 DLT key와 원본 topic value가 함께 바뀌도록 `app.kafka-dlq.entries`를 사용할 수 있다.
 
@@ -299,9 +282,8 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 | --- | --- |
 | 감사 로그 Producer | 본 요청을 실패시키지 않고 경고 로그만 남긴다. |
 | 사용자 이벤트 Producer | 회원 변경과 Outbox를 함께 커밋한 뒤 즉시 발행을 시도한다. 실패·중단된 PENDING 이벤트는 스케줄러가 재발행한다. |
-| 결제 완료 Producer | Consumer 도입 후 DB 커밋 이후 발행한다. 실패 시 outbox 또는 재발행 대상에 남긴다. |
 
-`user-event`의 저장·발행·재시도와 검증 범위는 [회원 이벤트 Outbox](./user-event-outbox.md)를 따른다. `payment-completed`의 outbox 전환은 별도 작업이다.
+`user-event`의 저장·발행·재시도와 검증 범위는 [회원 이벤트 Outbox](./user-event-outbox.md)를 따른다.
 
 ## 운영 알림 기준
 
@@ -333,14 +315,12 @@ POST 자동 재시도를 기본 금지하는 이유는 중복 결제, 중복 예
 2. `queue-service-client`는 짧은 timeout을 별도로 적용한다.
 3. Redis 장애 로그에 key prefix, eventId, userId, orderId 같은 복구 단서를 포함한다.
 4. 좌석 DB 변경과 Outbox 기록을 함께 커밋하고, 미완료 Redis 동기화를 자동 재처리한다.
-5. `payment-completed` 후속 Consumer가 생기면 실제 DLT 재처리 통합 테스트를 추가한다.
 
 ## 우선순위
 
 1. Feign timeout 명시
 2. Redis 장애 시 사용자 응답 정책 정리 및 예외 메시지 통일
-3. `payment-completed` 후속 Consumer 도입 시 DLQ 처리 검증
-4. Outbox 패턴 도입
+3. Outbox 패턴 도입
 
 ## 좌석 배치도 상태 표시
 

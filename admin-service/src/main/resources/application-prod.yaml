@@ -36,8 +36,6 @@ app:
         target-topic: ${TOPIC_AUDIT_LOG_NAME:audit-log}
       - dlt-topic: ${TOPIC_LOGIN_LOG_NAME:login-log}.DLT
         target-topic: ${TOPIC_LOGIN_LOG_NAME:login-log}
-      - dlt-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}.DLT
-        target-topic: ${TOPIC_PAYMENT_COMPLETED_NAME:payment-completed}
       - dlt-topic: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_EXPIRED_NAME:virtual-account-expired}.DLT
         target-topic: ${TOPIC_PAYMENT_VIRTUAL_ACCOUNT_EXPIRED_NAME:virtual-account-expired}
   kafka-dlt:
