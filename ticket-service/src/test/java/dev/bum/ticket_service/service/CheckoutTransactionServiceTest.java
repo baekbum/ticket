@@ -34,6 +34,7 @@ import dev.bum.ticket_service.service.checkout.CheckoutTransactionService;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -89,6 +90,9 @@ class CheckoutTransactionServiceTest {
 
     @Mock
     private CaptchaChallengeService captchaChallengeService;
+
+    @Mock
+    private SeatActivityTracker seatActivityTracker;
 
     @Mock
     private ReservationRepository reservationRepository;

@@ -17,6 +17,7 @@ import dev.bum.ticket_service.jpa.reservation.reservation.ReservationRepository;
 import dev.bum.ticket_service.jpa.seat.Seat;
 import dev.bum.ticket_service.jpa.seat.SeatJpaRepository;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
@@ -96,6 +97,7 @@ class CheckoutPrepareRetryIntegrationTest {
     @MockitoBean SeatCacheService seatCache;
     @MockitoBean QueueAccessService queue;
     @MockitoBean CaptchaChallengeService captcha;
+    @MockitoBean SeatActivityTracker seatActivityTracker;
     @MockitoBean ReservationRepository reservations;
     @MockitoBean CheckoutPaymentService payments;
     @MockitoBean dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVirtualAccountService virtualAccounts;
@@ -159,8 +161,8 @@ class CheckoutPrepareRetryIntegrationTest {
     void captcha_pass_is_required_and_reused_when_preparing_again() {
         Long eventId = event.getEventId();
         jdbc.update("update events set captcha_enabled = true where event_id = ?", eventId);
-        doThrow(new CaptchaRequiredException()).doNothing()
-                .when(captcha).requirePassed(eventId, "user01", "active-token");
+        when(captcha.requirePassed(eventId, "user01", "active-token"))
+                .thenThrow(new CaptchaRequiredException()).thenReturn(Instant.now().plusSeconds(60));
 
         assertThatThrownBy(() -> prepare(request("order-1", selectedSeats)))
                 .isInstanceOf(CaptchaRequiredException.class);

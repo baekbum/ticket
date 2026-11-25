@@ -35,6 +35,7 @@ import dev.bum.ticket_service.service.payment.virtualAccount.*;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import feign.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,6 +101,7 @@ class CheckoutMethodChangeIntegrationTest {
     @MockitoBean ReservationRepository reservationRepository;
     @MockitoBean QueueAccessService queue;
     @MockitoBean CaptchaChallengeService captcha;
+    @MockitoBean SeatActivityTracker seatActivityTracker;
     @MockitoBean EventBookingGuard guard;
     @MockitoBean CheckoutIdempotencyKeyGenerator keys;
     @MockitoBean VirtualAccountCancelOutboxService cancellations;

@@ -18,6 +18,7 @@ import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -66,6 +68,9 @@ class SeatControllerTest {
 
     @MockitoBean
     private CaptchaChallengeService captchaChallengeService;
+
+    @MockitoBean
+    private SeatActivityTracker seatActivityTracker;
 
     private final String baseUrl = "/api/v1/seat";
 
@@ -105,6 +110,7 @@ class SeatControllerTest {
 
         mockMvc.perform(get(baseUrl + "/select")
                         .with(authentication(userAuthentication("user01")))
+                        .header("X-Active-Token", "active-token")
                         .param("eventId", "1")
                         .param("grade", "VIP")
                         .param("page", "0")
@@ -112,6 +118,7 @@ class SeatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].seatId").value(1L));
 
+        then(seatActivityTracker).should().recordSeatQuery(1L, "user01", "active-token");
         then(seatService).should().selectByCond(SeatCondRequest.builder()
                 .eventId(1L)
                 .grade(SeatGrade.VIP)
@@ -143,16 +150,20 @@ class SeatControllerTest {
                 .expiresAt(LocalDateTime.of(2026, 1, 1, 12, 0))
                 .build();
 
+        Instant activeExpiresAt = Instant.now().plusSeconds(60);
+        given(captchaChallengeService.validateSeatOccupation(1L, "user01", "active-token")).willReturn(activeExpiresAt);
         given(seatService.occupySeat(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/occupy")
                         .with(authentication(userAuthentication("user01")))
+                        .header("X-Active-Token", "active-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value("order-id"))
                 .andExpect(jsonPath("$.userId").value("user01"));
 
+        then(seatActivityTracker).should().recordSeatOccupation(1L, "user01", "active-token", activeExpiresAt);
         then(seatService).should().occupySeat(expected);
     }
 
@@ -172,6 +183,7 @@ class SeatControllerTest {
                 .andExpect(jsonPath("$.message").value("비정상적인 접근입니다."));
 
         then(seatService).shouldHaveNoInteractions();
+        then(seatActivityTracker).shouldHaveNoInteractions();
     }
 
     private SeatResponse seatResponse(Long seatId, String zone, Integer row, Integer col) {
