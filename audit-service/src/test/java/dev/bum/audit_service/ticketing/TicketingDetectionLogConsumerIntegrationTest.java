@@ -2,9 +2,12 @@ package dev.bum.audit_service.ticketing;
 
 import dev.bum.audit_service.config.KafkaConsumerConfig;
 import dev.bum.audit_service.kafka.TicketingDetectionLogConsumer;
+import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import dev.bum.common.kafka.ticketing.TicketingDetectionType;
+import dev.bum.common.service.audit.dto.TicketingDetectionLogCondRequest;
+import dev.bum.common.service.audit.dto.TicketingDetectionLogListResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
@@ -28,16 +32,19 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 
@@ -79,6 +86,7 @@ class TicketingDetectionLogConsumerIntegrationTest {
 
     @Autowired KafkaTemplate<Object, Object> kafkaTemplate;
     @Autowired JdbcTemplate jdbc;
+    @Autowired TicketingDetectionLogPersistenceService persistenceService;
 
     @Test
     void repeatedDeliveryKeepsTheOriginalLogAndOtherDetectionTypesAreRecorded() throws Exception {
@@ -114,6 +122,46 @@ class TicketingDetectionLogConsumerIntegrationTest {
             assertThat(row.getInt("attempts")).isEqualTo(5);
             return true;
         }, userId, captchaLimit.name());
+    }
+
+    @Test
+    void list_filters_inclusive_dates_and_pages_in_a_stable_newest_first_order() {
+        String buyer = UUID.randomUUID().toString();
+        TicketingDetectionType type = TicketingDetectionType.PREPARE_TOO_FAST;
+        Instant from = Instant.parse("2026-11-24T12:34:56Z");
+        Instant to = from.plusSeconds(60);
+        long oldest = insertLog(301L, buyer, type, from);
+        long firstAtUpperBound = insertLog(301L, buyer, type, to);
+        long secondAtUpperBound = insertLog(301L, buyer, type, to);
+        insertLog(301L, buyer, type, from.minusSeconds(1));
+        insertLog(301L, buyer, type, to.plusSeconds(1));
+        insertLog(302L, buyer, type, to);
+        insertLog(301L, buyer + "-other", type, to);
+        insertLog(301L, buyer, TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED, to);
+
+        CustomPageResponse<TicketingDetectionLogListResponse> first = persistenceService.selectByCond(
+                new TicketingDetectionLogCondRequest(301L, " " + buyer + " ", type, from, to, 0, 2));
+        CustomPageResponse<TicketingDetectionLogListResponse> second = persistenceService.selectByCond(
+                new TicketingDetectionLogCondRequest(301L, buyer, type, from, to, 1, 2));
+
+        assertThat(first.getContent()).extracting(TicketingDetectionLogListResponse::id)
+                .containsExactly(secondAtUpperBound, firstAtUpperBound);
+        assertThat(first.getPage().getTotalElements()).isEqualTo(3);
+        assertThat(first.getPage().getTotalPages()).isEqualTo(2);
+        assertThat(second.getContent()).extracting(TicketingDetectionLogListResponse::id).containsExactly(oldest);
+        assertThat(second.getPage().getNumber()).isEqualTo(1);
+        assertThatThrownBy(() -> persistenceService.selectByCond(
+                new TicketingDetectionLogCondRequest(301L, buyer, type, to, from, 0, 2)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    private long insertLog(Long eventId, String userId, TicketingDetectionType type, Instant occurredAt) {
+        return jdbc.queryForObject("""
+                insert into ticketing_detection_log (event_id, user_id, detection_type, session_key_hash, occurred_at)
+                values (?, ?, ?, ?, ?) returning id
+                """, Long.class, eventId, userId, type.name(), UUID.randomUUID().toString().replace("-", "").repeat(2),
+                OffsetDateTime.ofInstant(occurredAt, ZoneOffset.UTC));
     }
 
     private void publish(int partition, TicketingDetectionLogEvent event) throws Exception {
