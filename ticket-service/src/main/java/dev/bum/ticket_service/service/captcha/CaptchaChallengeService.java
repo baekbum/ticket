@@ -16,6 +16,8 @@ import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.kafka.ticketing.TicketingDetectionLogProducer;
 import dev.bum.ticket_service.service.queue.BookingSessionKey;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
@@ -131,6 +133,7 @@ public class CaptchaChallengeService {
     private final ObjectMapper objectMapper;
     private final TicketingDetectionLogProducer detectionLogProducer;
     private final Optional<Tracer> tracer;
+    private final SeatActivityTracker seatActivityTracker;
 
     public Optional<CaptchaChallengeResponse> issue(Long eventId, String userId, String activeToken) {
         return getChallenge(eventId, userId, activeToken, false);
@@ -140,7 +143,7 @@ public class CaptchaChallengeService {
         return getChallenge(eventId, userId, activeToken, true);
     }
 
-    public Instant validateSeatOccupation(Long eventId, String userId, String activeToken) {
+    public ActiveSession validateSeatOccupation(Long eventId, String userId, String activeToken) {
 
         if (eventId != null && events.selectById(eventId).isCaptchaEnabled()) {
             return requirePassed(eventId, userId, activeToken);
@@ -149,18 +152,18 @@ public class CaptchaChallengeService {
         return queueAccessService.validate(eventId, userId, activeToken);
     }
 
-    public Instant requirePassed(Long eventId, String userId, String activeToken) {
+    public ActiveSession requirePassed(Long eventId, String userId, String activeToken) {
         if (!StringUtils.hasText(activeToken)) {
             throw new CaptchaRequiredException();
         }
 
-        Instant expiresAt = queueAccessService.validateActiveToken(eventId, userId, activeToken);
+        ActiveSession session = queueAccessService.validateActiveSession(eventId, userId, activeToken);
 
         try {
             if (!Boolean.TRUE.equals(redis.hasKey(passedKey(issuedKey(eventId, userId, activeToken))))) {
                 throw new CaptchaRequiredException();
             }
-            return expiresAt;
+            return session;
         } catch (DataAccessException e) {
             log.warn("캡차 통과 상태 확인 실패: eventId={}, errorType={}", eventId, e.getClass().getSimpleName());
             throw new CaptchaUnavailableException();
@@ -224,7 +227,8 @@ public class CaptchaChallengeService {
             return new CaptchaVerificationResponse(true);
         }
 
-        Instant expiresAt = queueAccessService.validateActiveToken(eventId, userId, activeToken);
+        ActiveSession session = queueAccessService.validateActiveSession(eventId, userId, activeToken);
+        Instant expiresAt = session.expiresAt();
 
         if (expiresAt == null) {
             throw new QueueUnavailableException();
@@ -241,7 +245,10 @@ public class CaptchaChallengeService {
                     Integer.toString(MAX_ATTEMPTS_PER_TOKEN));
 
             return switch (result) {
-                case "PASSED" -> new CaptchaVerificationResponse(true);
+                case "PASSED" -> {
+                    seatActivityTracker.recordCaptchaPassed(eventId, userId, activeToken, session);
+                    yield new CaptchaVerificationResponse(true);
+                }
                 case "INCORRECT" -> new CaptchaVerificationResponse(false);
                 case "CHANGED" -> throw new CaptchaChallengeChangedException();
                 case "EXPIRED" -> throw new CaptchaChallengeExpiredException();

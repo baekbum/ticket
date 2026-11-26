@@ -69,6 +69,13 @@ public class QueueRedisKeys {
     }
 
     /**
+     * 입장 토큰 발급 시각을 저장할 Redis 키를 구성한다.
+     */
+    public String activeTokenIssuedAtKey(String activeToken) {
+        return "queue:active-token-issued-at:" + activeToken;
+    }
+
+    /**
      * 대기 토큰에서 입장 토큰을 찾을 Redis 키를 구성한다.
      */
     public String waitingActiveMappingKey(String waitingToken) {

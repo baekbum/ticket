@@ -21,6 +21,7 @@ import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.checkout.payment.CheckoutPaymentService;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -161,8 +162,9 @@ class CheckoutPrepareRetryIntegrationTest {
     void captcha_pass_is_required_and_reused_when_preparing_again() {
         Long eventId = event.getEventId();
         jdbc.update("update events set captcha_enabled = true where event_id = ?", eventId);
+        Instant issuedAt = Instant.now();
         when(captcha.requirePassed(eventId, "user01", "active-token"))
-                .thenThrow(new CaptchaRequiredException()).thenReturn(Instant.now().plusSeconds(60));
+                .thenThrow(new CaptchaRequiredException()).thenReturn(new ActiveSession(issuedAt, issuedAt.plusSeconds(60)));
 
         assertThatThrownBy(() -> prepare(request("order-1", selectedSeats)))
                 .isInstanceOf(CaptchaRequiredException.class);

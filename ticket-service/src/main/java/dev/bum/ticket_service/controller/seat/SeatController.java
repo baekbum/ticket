@@ -6,6 +6,7 @@ import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatService;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.time.Instant;
 
 @Slf4j
 @RequestMapping("/api/v1/seat")
@@ -40,10 +39,12 @@ public class SeatController {
             @RequestBody SeatOccupyRequest request
     ) {
 
-        Instant activeExpiresAt = captchaChallengeService.validateSeatOccupation(request.getEventId(), currentUserId, activeToken);
-        seatActivityTracker.recordSeatOccupation(request.getEventId(), currentUserId, activeToken, activeExpiresAt);
+        ActiveSession session = captchaChallengeService.validateSeatOccupation(request.getEventId(), currentUserId, activeToken);
+        seatActivityTracker.recordSeatOccupation(request.getEventId(), currentUserId, activeToken, session);
         request.setUserId(currentUserId);
-        return ResponseEntity.ok(seatService.occupySeat(request));
+        SeatOccupyResponse response = seatService.occupySeat(request);
+        seatActivityTracker.recordSeatOccupied(request.getEventId(), currentUserId, activeToken, session);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/select/id/{seatId}")

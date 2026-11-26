@@ -19,6 +19,8 @@ import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.jpa.event.event.EventRepository;
 import dev.bum.ticket_service.kafka.ticketing.TicketingDetectionLogProducer;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
@@ -60,7 +62,7 @@ class CaptchaChallengeServiceTest {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
 
         CaptchaChallengeService service = new CaptchaChallengeService(events, queue, redis, new ObjectMapper(),
-                mock(TicketingDetectionLogProducer.class), Optional.empty());
+                mock(TicketingDetectionLogProducer.class), Optional.empty(), mock(SeatActivityTracker.class));
 
         assertThat(service.issue(1L, "user01", null)).isEmpty();
         verifyNoInteractions(queue, redis);
@@ -89,7 +91,7 @@ class CaptchaChallengeServiceTest {
                     .willReturn(new QueueValidateResponse(true, "OK"));
             CaptchaChallengeService service = new CaptchaChallengeService(
                     events, new QueueAccessService(new QueueAccessProperties(), queue), redis, mapper,
-                    mock(TicketingDetectionLogProducer.class), Optional.empty());
+                    mock(TicketingDetectionLogProducer.class), Optional.empty(), mock(SeatActivityTracker.class));
 
             assertThatThrownBy(() -> service.issue(1L, "user01", "invalid"))
                     .isInstanceOf(ActiveTokenExpiredException.class);
@@ -144,7 +146,7 @@ class CaptchaChallengeServiceTest {
             given(events.selectById(1L)).willReturn(Event.builder().captchaEnabled(true).build());
             QueueAccessService queue = mock(QueueAccessService.class);
             CaptchaChallengeService service = new CaptchaChallengeService(events, queue, redis, mapper,
-                    mock(TicketingDetectionLogProducer.class), Optional.empty());
+                    mock(TicketingDetectionLogProducer.class), Optional.empty(), mock(SeatActivityTracker.class));
             CaptchaChallengeResponse initial = service.issue(1L, "user01", "active-token").orElseThrow();
 
             assertThatThrownBy(() -> service.refresh(1L, "user01", "active-token"))
@@ -208,6 +210,9 @@ class CaptchaChallengeServiceTest {
             Instant activeExpiry = Instant.now().plusSeconds(90);
             given(queue.validateActiveToken(1L, "user01", "active-one")).willReturn(activeExpiry);
             given(queue.validateActiveToken(1L, "user02", "active-two")).willReturn(activeExpiry);
+            ActiveSession session = new ActiveSession(activeExpiry.minusSeconds(120), activeExpiry);
+            given(queue.validateActiveSession(1L, "user01", "active-one")).willReturn(session);
+            given(queue.validateActiveSession(1L, "user02", "active-two")).willReturn(session);
             KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
             String detectionTopic = "ticketing-detection-log";
             given(kafka.send(eq(detectionTopic), anyString(), anyString())).willReturn(CompletableFuture.completedFuture(null));
@@ -221,8 +226,9 @@ class CaptchaChallengeServiceTest {
             ConcurrentLinkedQueue<Runnable> pendingPublications = new ConcurrentLinkedQueue<>();
             TicketingDetectionLogProducer producer = new TicketingDetectionLogProducer(
                     kafka, mapper, pendingPublications::add, mock(TaskScheduler.class), detectionTopic);
+            SeatActivityTracker tracker = mock(SeatActivityTracker.class);
             CaptchaChallengeService service = new CaptchaChallengeService(events, queue, redis, mapper, producer,
-                    Optional.of(tracer));
+                    Optional.of(tracer), tracker);
 
             String firstKey = CaptchaChallengeService.issuedKey(1L, "user01", "active-one");
             CaptchaChallengeResponse oldChallenge = service.issue(1L, "user01", "active-one").orElseThrow();
@@ -247,6 +253,7 @@ class CaptchaChallengeServiceTest {
                         .containsExactlyInAnyOrder(true, false);
             }
             assertThat(redis.hasKey(firstKey)).isFalse();
+            verify(tracker).recordCaptchaPassed(1L, "user01", "active-one", session);
             assertThat(redis.opsForValue().get(firstKey + ":passed")).isEqualTo(current.challengeId().toString());
             assertThat(redis.getExpire(firstKey + ":passed", TimeUnit.MILLISECONDS))
                     .isCloseTo(activeExpiry.toEpochMilli() - System.currentTimeMillis(), org.assertj.core.data.Offset.offset(1000L));

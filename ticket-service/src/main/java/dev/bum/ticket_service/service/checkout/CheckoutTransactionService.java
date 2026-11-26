@@ -33,6 +33,7 @@ import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVi
 import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
 import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
 import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
@@ -273,13 +274,13 @@ public class CheckoutTransactionService {
         validatePrepareMatchesAttempt(currentUserId, request, requestedSeatIds, checkoutAttempt);
         validatePreparedAttempt(checkoutAttempt);
         Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
-        Instant activeExpiresAt = event.isCaptchaEnabled()
+        ActiveSession session = event.isCaptchaEnabled()
                 ? captchaChallengeService.requirePassed(request.getEventId(), currentUserId, activeToken)
                 : queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         seatCacheService.validateOccupiedSeat(request.getEventId(), currentUserId, request.getOrderId(), seats);
         validatePreparedAttempt(checkoutAttempt);
         eventBookingGuard.validate(event, true);
-        seatActivityTracker.recordPrepare(request.getEventId(), currentUserId, activeToken, prepareRequestedAt, activeExpiresAt);
+        seatActivityTracker.recordPrepare(request.getEventId(), currentUserId, activeToken, prepareRequestedAt, session);
 
         return CheckoutPrepareResponse.builder()
                 .eventId(checkoutAttempt.getEventId())

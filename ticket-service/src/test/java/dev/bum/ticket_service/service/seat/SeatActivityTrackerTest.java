@@ -2,6 +2,7 @@ package dev.bum.ticket_service.service.seat;
 
 import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
@@ -33,8 +34,10 @@ class SeatActivityTrackerTest {
             StringRedisTemplate redis = new StringRedisTemplate(connection);
             HashOperations<String, String, String> hashes = redis.opsForHash();
             Instant expiresAt = Instant.now().plusSeconds(120);
+            Instant issuedAt = expiresAt.minusSeconds(125);
+            ActiveSession session = new ActiveSession(issuedAt, expiresAt);
             QueueAccessService queue = mock(QueueAccessService.class);
-            given(queue.validate(1L, "buyer", "active")).willReturn(expiresAt);
+            given(queue.validate(1L, "buyer", "active")).willReturn(session);
             given(queue.validate(1L, "buyer", "invalid")).willThrow(new ActiveTokenExpiredException());
             SeatActivityTracker tracker = new SeatActivityTracker(redis, queue);
             String key = SeatActivityTracker.activityKey(1L, "buyer", "active");
@@ -43,21 +46,34 @@ class SeatActivityTrackerTest {
             assertThat(redis.hasKey(SeatActivityTracker.activityKey(1L, "buyer", "invalid"))).isFalse();
             tracker.recordSeatQuery(1L, "buyer", "active");
             Instant firstQuery = Instant.ofEpochMilli(Long.parseLong(hashes.get(key, "firstSeatQueryAt")));
+            tracker.recordCaptchaPassed(1L, "buyer", "active", session);
             hashes.put(key, "seatQueryWindow", "0");
             hashes.put(key, "seatQueryCount", "15");
             tracker.recordSeatQuery(1L, "buyer", "active");
-            tracker.recordSeatOccupation(1L, "buyer", "active", expiresAt);
-            tracker.recordSeatOccupation(1L, "buyer", "active", expiresAt);
-            tracker.recordPrepare(1L, "buyer", "active", firstQuery.plusMillis(400), expiresAt);
-            tracker.recordPrepare(1L, "buyer", "active", firstQuery.plusMillis(800), expiresAt);
+            tracker.recordSeatOccupation(1L, "buyer", "active", session);
+            tracker.recordSeatOccupation(1L, "buyer", "active", session);
+            tracker.recordSeatOccupied(1L, "buyer", "active", session);
+            Instant prepareRequestedAt = Instant.now();
+            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt, session);
+            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt.plusMillis(400), session);
 
+            long elapsed = prepareRequestedAt.toEpochMilli() - issuedAt.toEpochMilli();
             verify(queue).validate(1L, "buyer", "active");
+            verify(queue).validate(1L, "buyer", "invalid");
             assertThat(hashes.entries(key)).containsEntry("seatQueryCount", "1")
                     .containsEntry("firstSeatQueryAt", Long.toString(firstQuery.toEpochMilli()))
+                    .containsEntry("activeTokenIssuedAt", Long.toString(issuedAt.toEpochMilli()))
+                    .containsKeys("captchaPassedAt", "firstSeatOccupiedAt")
                     .containsEntry("seatOccupyAttempts", "2")
-                    .containsEntry("firstPrepareElapsedMs", "400");
+                    .containsEntry("firstPrepareRequestedAt", Long.toString(prepareRequestedAt.toEpochMilli()))
+                    .containsEntry("firstPrepareElapsedMs", Long.toString(elapsed));
             assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isCloseTo(
                     expiresAt.toEpochMilli() - System.currentTimeMillis(), offset(1000L));
+
+            String legacyKey = SeatActivityTracker.activityKey(1L, "buyer", "legacy");
+            hashes.put(legacyKey, "firstPrepareElapsedMs", "400");
+            tracker.recordPrepare(1L, "buyer", "legacy", prepareRequestedAt, new ActiveSession(null, expiresAt));
+            assertThat(hashes.entries(legacyKey)).containsKey("firstPrepareRequestedAt").doesNotContainKey("firstPrepareElapsedMs");
         } finally {
             connection.destroy();
         }

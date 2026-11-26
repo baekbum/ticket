@@ -18,6 +18,7 @@ import dev.bum.ticket_service.exception.captcha.CaptchaRequiredException;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatService;
 import org.junit.jupiter.api.DisplayName;
@@ -150,8 +151,9 @@ class SeatControllerTest {
                 .expiresAt(LocalDateTime.of(2026, 1, 1, 12, 0))
                 .build();
 
-        Instant activeExpiresAt = Instant.now().plusSeconds(60);
-        given(captchaChallengeService.validateSeatOccupation(1L, "user01", "active-token")).willReturn(activeExpiresAt);
+        Instant issuedAt = Instant.now();
+        ActiveSession session = new ActiveSession(issuedAt, issuedAt.plusSeconds(60));
+        given(captchaChallengeService.validateSeatOccupation(1L, "user01", "active-token")).willReturn(session);
         given(seatService.occupySeat(any())).willReturn(response);
 
         mockMvc.perform(post(baseUrl + "/occupy")
@@ -163,7 +165,8 @@ class SeatControllerTest {
                 .andExpect(jsonPath("$.orderId").value("order-id"))
                 .andExpect(jsonPath("$.userId").value("user01"));
 
-        then(seatActivityTracker).should().recordSeatOccupation(1L, "user01", "active-token", activeExpiresAt);
+        then(seatActivityTracker).should().recordSeatOccupation(1L, "user01", "active-token", session);
+        then(seatActivityTracker).should().recordSeatOccupied(1L, "user01", "active-token", session);
         then(seatService).should().occupySeat(expected);
     }
 

@@ -1,5 +1,5 @@
 -- 스크립트가 사용하는 모든 키는 KEYS로 전달한다. 쓰기 전에 타입을 검증한다.
-local expected = {'zset', 'zset', 'string', 'zset', 'string', 'zset', 'string', 'string', 'string', 'string', 'hash'}
+local expected = {'zset', 'zset', 'string', 'zset', 'string', 'zset', 'string', 'string', 'string', 'string', 'hash', 'string'}
 for index, key in ipairs(KEYS) do
     local actual = redis.call('TYPE', key).ok
     if actual ~= 'none' and actual ~= expected[index] then
@@ -74,6 +74,7 @@ end
 
 local expiresAt = now + activeTtlMillis
 redis.call('SET', newActiveTokenKey, tokenValue, 'PXAT', expiresAt)
+redis.call('SET', KEYS[12], now, 'PXAT', expiresAt)
 redis.call('SET', waitingActiveMappingKey, newActiveToken, 'PXAT', expiresAt)
 redis.call('SET', newActiveWaitingMappingKey, waitingToken, 'PXAT', expiresAt)
 redis.call('ZADD', activeKey, expiresAt, newActiveToken)

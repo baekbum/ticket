@@ -8,9 +8,14 @@ public record QueueValidateResponse(
 
         // 처리 사유.
         String reason,
-        Instant activeTokenExpiresAt
+        Instant activeTokenExpiresAt,
+        Instant activeTokenIssuedAt
 ) {
     public QueueValidateResponse(boolean allowed, String reason) {
-        this(allowed, reason, null);
+        this(allowed, reason, null, null);
+    }
+
+    public QueueValidateResponse(boolean allowed, String reason, Instant activeTokenExpiresAt) {
+        this(allowed, reason, activeTokenExpiresAt, null);
     }
 }
