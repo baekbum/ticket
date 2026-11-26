@@ -19,6 +19,7 @@ import org.springframework.scheduling.TaskScheduler;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -53,7 +54,8 @@ class TicketingDetectionLogProducerTest {
 
     @BeforeEach
     void setUp() {
-        producer = new TicketingDetectionLogProducer(kafkaTemplate, objectMapper, new SyncTaskExecutor(), scheduler, TOPIC);
+        producer = new TicketingDetectionLogProducer(kafkaTemplate, objectMapper, new SyncTaskExecutor(), scheduler, TOPIC,
+                Optional.empty());
     }
 
     @Test

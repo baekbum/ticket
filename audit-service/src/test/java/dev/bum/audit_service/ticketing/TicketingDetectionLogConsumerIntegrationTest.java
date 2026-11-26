@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -84,6 +85,11 @@ class TicketingDetectionLogConsumerIntegrationTest {
         String userId = UUID.randomUUID().toString();
         TicketingDetectionType captchaLimit = TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED;
         TicketingDetectionType seatActivity = TicketingDetectionType.SEAT_ACTIVITY_SUSPECTED;
+        List<TicketingDetectionType> additionalTypes = List.of(
+                TicketingDetectionType.AREA_LAYOUT_ACTIVE_TOKEN_MISSING,
+                TicketingDetectionType.AREA_LAYOUT_REFRESH_LIMIT_REACHED,
+                TicketingDetectionType.SEAT_OCCUPATION_CAPTCHA_NOT_PASSED,
+                TicketingDetectionType.PREPARE_TOO_FAST);
         Instant occurredAt = Instant.parse("2026-11-24T12:34:56Z");
         String firstTraceId = "ab".repeat(16);
         publish(0, detection(userId, captchaLimit, occurredAt, firstTraceId, Map.of("attempts", 5)));
@@ -91,10 +97,14 @@ class TicketingDetectionLogConsumerIntegrationTest {
 
         publish(1, detection(userId, captchaLimit, occurredAt.plusSeconds(1), "cd".repeat(16), Map.of("attempts", 6)));
         publish(1, detection(userId, seatActivity, occurredAt.plusSeconds(2), null, Map.of()));
+        for (TicketingDetectionType type : additionalTypes) {
+            publish(1, detection(userId, type, occurredAt.plusSeconds(2), null, Map.of()));
+        }
 
-        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(2));
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(6));
         assertThat(jdbc.queryForList("select detection_type from ticketing_detection_log where user_id = ?",
-                String.class, userId)).containsExactlyInAnyOrder(captchaLimit.name(), seatActivity.name());
+                String.class, userId)).contains(captchaLimit.name(), seatActivity.name())
+                .containsAll(additionalTypes.stream().map(Enum::name).toList());
         jdbc.queryForObject("""
                 select trace_id, occurred_at, cast(evidence ->> 'attempts' as integer) as attempts
                 from ticketing_detection_log where user_id = ? and detection_type = ?

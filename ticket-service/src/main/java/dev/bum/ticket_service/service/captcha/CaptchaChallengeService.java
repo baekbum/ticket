@@ -2,7 +2,6 @@ package dev.bum.ticket_service.service.captcha;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import dev.bum.common.kafka.ticketing.TicketingDetectionType;
 import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
@@ -18,9 +17,6 @@ import dev.bum.ticket_service.service.queue.BookingSessionKey;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
 import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.seat.SeatActivityTracker;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -132,7 +128,6 @@ public class CaptchaChallengeService {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final TicketingDetectionLogProducer detectionLogProducer;
-    private final Optional<Tracer> tracer;
     private final SeatActivityTracker seatActivityTracker;
 
     public Optional<CaptchaChallengeResponse> issue(Long eventId, String userId, String activeToken) {
@@ -146,13 +141,17 @@ public class CaptchaChallengeService {
     public ActiveSession validateSeatOccupation(Long eventId, String userId, String activeToken) {
 
         if (eventId != null && events.selectById(eventId).isCaptchaEnabled()) {
-            return requirePassed(eventId, userId, activeToken);
+            return requirePassed(eventId, userId, activeToken, true);
         }
 
         return queueAccessService.validate(eventId, userId, activeToken);
     }
 
     public ActiveSession requirePassed(Long eventId, String userId, String activeToken) {
+        return requirePassed(eventId, userId, activeToken, false);
+    }
+
+    private ActiveSession requirePassed(Long eventId, String userId, String activeToken, boolean seatOccupation) {
         if (!StringUtils.hasText(activeToken)) {
             throw new CaptchaRequiredException();
         }
@@ -161,6 +160,10 @@ public class CaptchaChallengeService {
 
         try {
             if (!Boolean.TRUE.equals(redis.hasKey(passedKey(issuedKey(eventId, userId, activeToken))))) {
+                if (seatOccupation) {
+                    detectionLogProducer.report(eventId, userId, activeToken,
+                            TicketingDetectionType.SEAT_OCCUPATION_CAPTCHA_NOT_PASSED, Instant.now(), Map.of());
+                }
                 throw new CaptchaRequiredException();
             }
             return session;
@@ -253,15 +256,8 @@ public class CaptchaChallengeService {
                 case "CHANGED" -> throw new CaptchaChallengeChangedException();
                 case "EXPIRED" -> throw new CaptchaChallengeExpiredException();
                 case "ATTEMPT_LIMIT_REACHED" -> {
-                    detectionLogProducer.send(TicketingDetectionLogEvent.builder()
-                            .eventId(eventId)
-                            .userId(userId)
-                            .sessionKeyHash(sessionKeyHash)
-                            .detectionType(TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED)
-                            .traceId(tracer.map(Tracer::currentSpan).map(Span::context).map(TraceContext::traceId).orElse(null))
-                            .occurredAt(Instant.now())
-                            .evidence(Map.of("attempts", MAX_ATTEMPTS_PER_TOKEN))
-                            .build());
+                    detectionLogProducer.report(eventId, userId, activeToken, TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED,
+                            Instant.now(), Map.of("attempts", MAX_ATTEMPTS_PER_TOKEN));
                     throw new CaptchaAttemptLimitException();
                 }
                 case "ATTEMPT_LIMIT" -> throw new CaptchaAttemptLimitException();

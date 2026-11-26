@@ -3,6 +3,11 @@ package dev.bum.ticket_service.kafka.ticketing;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
+import dev.bum.common.kafka.ticketing.TicketingDetectionType;
+import dev.bum.ticket_service.service.queue.BookingSessionKey;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.errors.RetriableException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -13,6 +18,8 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.RejectedExecutionException;
 
 @Slf4j
@@ -26,19 +33,35 @@ public class TicketingDetectionLogProducer {
     private final TaskExecutor executor;
     private final TaskScheduler scheduler;
     private final String topic;
+    private final Optional<Tracer> tracer;
 
     public TicketingDetectionLogProducer(
             KafkaTemplate<String, String> kafkaTemplate,
             ObjectMapper objectMapper,
             @Qualifier("applicationTaskExecutor") TaskExecutor executor,
             @Qualifier("taskScheduler") TaskScheduler scheduler,
-            @Value("${topic.ticketing.detection.log.name:ticketing-detection-log}") String topic
+            @Value("${topic.ticketing.detection.log.name:ticketing-detection-log}") String topic,
+            Optional<Tracer> tracer
     ) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
         this.executor = executor;
         this.scheduler = scheduler;
         this.topic = topic;
+        this.tracer = tracer;
+    }
+
+    public void report(Long eventId, String userId, String activeToken, TicketingDetectionType detectionType,
+                       Instant occurredAt, Map<String, Object> evidence) {
+        send(TicketingDetectionLogEvent.builder()
+                .eventId(eventId)
+                .userId(userId)
+                .sessionKeyHash(BookingSessionKey.hash(eventId, userId, activeToken))
+                .detectionType(detectionType)
+                .traceId(tracer.map(Tracer::currentSpan).map(Span::context).map(TraceContext::traceId).orElse(null))
+                .occurredAt(occurredAt)
+                .evidence(evidence)
+                .build());
     }
 
     public void send(TicketingDetectionLogEvent event) {
