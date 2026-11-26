@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import dev.bum.common.service.audit.dto.TicketingDetectionLogCondRequest;
+import dev.bum.common.service.audit.dto.TicketingDetectionLogDetailResponse;
 import dev.bum.common.service.audit.dto.TicketingDetectionLogListResponse;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,14 @@ public class TicketingDetectionLogPersistenceService {
                 serializeEvidence(entry.getEvidence()),
                 OffsetDateTime.ofInstant(entry.getOccurredAt(), ZoneOffset.UTC)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public TicketingDetectionLogDetailResponse selectById(Long id) {
+        TicketingDetectionLogEntity log = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 티켓팅 탐지 로그가 존재하지 않습니다."));
+        return new TicketingDetectionLogDetailResponse(log.getId(), log.getEventId(), log.getUserId(),
+                log.getDetectionType(), log.getOccurredAt(), log.getTraceId(), log.getSessionKeyHash(), log.getEvidence());
     }
 
     @Transactional(readOnly = true)

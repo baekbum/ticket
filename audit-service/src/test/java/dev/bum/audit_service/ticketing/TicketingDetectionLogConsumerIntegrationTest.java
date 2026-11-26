@@ -7,6 +7,7 @@ import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import dev.bum.common.kafka.ticketing.TicketingDetectionType;
 import dev.bum.common.service.audit.dto.TicketingDetectionLogCondRequest;
+import dev.bum.common.service.audit.dto.TicketingDetectionLogDetailResponse;
 import dev.bum.common.service.audit.dto.TicketingDetectionLogListResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -38,7 +39,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -93,11 +93,11 @@ class TicketingDetectionLogConsumerIntegrationTest {
         String userId = UUID.randomUUID().toString();
         TicketingDetectionType captchaLimit = TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED;
         TicketingDetectionType seatActivity = TicketingDetectionType.SEAT_ACTIVITY_SUSPECTED;
-        List<TicketingDetectionType> additionalTypes = List.of(
-                TicketingDetectionType.AREA_LAYOUT_ACTIVE_TOKEN_MISSING,
-                TicketingDetectionType.AREA_LAYOUT_REFRESH_LIMIT_REACHED,
-                TicketingDetectionType.SEAT_OCCUPATION_CAPTCHA_NOT_PASSED,
-                TicketingDetectionType.PREPARE_TOO_FAST);
+        Map<TicketingDetectionType, Map<String, Object>> additionalEvidence = Map.of(
+                TicketingDetectionType.AREA_LAYOUT_ACTIVE_TOKEN_MISSING, Map.of(),
+                TicketingDetectionType.AREA_LAYOUT_REFRESH_LIMIT_REACHED, Map.of("refreshCount", 30, "windowMs", 60_000),
+                TicketingDetectionType.SEAT_OCCUPATION_CAPTCHA_NOT_PASSED, Map.of(),
+                TicketingDetectionType.PREPARE_TOO_FAST, Map.of("elapsedMs", 3600, "limitMs", 5000));
         Instant occurredAt = Instant.parse("2026-11-24T12:34:56Z");
         String firstTraceId = "ab".repeat(16);
         publish(0, detection(userId, captchaLimit, occurredAt, firstTraceId, Map.of("attempts", 5)));
@@ -105,23 +105,34 @@ class TicketingDetectionLogConsumerIntegrationTest {
 
         publish(1, detection(userId, captchaLimit, occurredAt.plusSeconds(1), "cd".repeat(16), Map.of("attempts", 6)));
         publish(1, detection(userId, seatActivity, occurredAt.plusSeconds(2), null, Map.of()));
-        for (TicketingDetectionType type : additionalTypes) {
-            publish(1, detection(userId, type, occurredAt.plusSeconds(2), null, Map.of()));
+        for (Map.Entry<TicketingDetectionType, Map<String, Object>> entry : additionalEvidence.entrySet()) {
+            publish(1, detection(userId, entry.getKey(), occurredAt.plusSeconds(2), null, entry.getValue()));
         }
 
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(6));
         assertThat(jdbc.queryForList("select detection_type from ticketing_detection_log where user_id = ?",
                 String.class, userId)).contains(captchaLimit.name(), seatActivity.name())
-                .containsAll(additionalTypes.stream().map(Enum::name).toList());
-        jdbc.queryForObject("""
-                select trace_id, occurred_at, cast(evidence ->> 'attempts' as integer) as attempts
-                from ticketing_detection_log where user_id = ? and detection_type = ?
-                """, (row, index) -> {
-            assertThat(row.getString("trace_id")).isEqualTo(firstTraceId);
-            assertThat(row.getObject("occurred_at", OffsetDateTime.class).toInstant()).isEqualTo(occurredAt);
-            assertThat(row.getInt("attempts")).isEqualTo(5);
-            return true;
-        }, userId, captchaLimit.name());
+                .containsAll(additionalEvidence.keySet().stream().map(Enum::name).toList());
+
+        TicketingDetectionLogDetailResponse captchaDetail = selectDetail(userId, captchaLimit);
+        assertThat(captchaDetail.traceId()).isEqualTo(firstTraceId);
+        assertThat(captchaDetail.occurredAt()).isEqualTo(occurredAt);
+        assertThat(captchaDetail.sessionKeyHash()).isEqualTo("a".repeat(64));
+        assertThat(captchaDetail.evidence()).containsExactlyEntriesOf(Map.of("attempts", 5));
+        additionalEvidence.forEach((type, evidence) -> {
+            TicketingDetectionLogDetailResponse detail = selectDetail(userId, type);
+            assertThat(detail.detectionType()).isEqualTo(type);
+            assertThat(detail.evidence()).containsExactlyInAnyOrderEntriesOf(evidence);
+        });
+        assertThatThrownBy(() -> persistenceService.selectById(Long.MAX_VALUE))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    private TicketingDetectionLogDetailResponse selectDetail(String userId, TicketingDetectionType type) {
+        Long id = jdbc.queryForObject("select id from ticketing_detection_log where user_id = ? and detection_type = ?",
+                Long.class, userId, type.name());
+        return persistenceService.selectById(id);
     }
 
     @Test
