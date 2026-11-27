@@ -149,9 +149,9 @@ class TicketingDetectionLogConsumerIntegrationTest {
         insertLog(301L, buyer, TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED, to);
 
         CustomPageResponse<TicketingDetectionLogListResponse> first = persistenceService.selectByCond(
-                new TicketingDetectionLogCondRequest(301L, " " + buyer + " ", type, from, to, 0, 2));
+                new TicketingDetectionLogCondRequest(301L, " " + buyer + " ", null, type, from, to, 0, 2));
         CustomPageResponse<TicketingDetectionLogListResponse> second = persistenceService.selectByCond(
-                new TicketingDetectionLogCondRequest(301L, buyer, type, from, to, 1, 2));
+                new TicketingDetectionLogCondRequest(301L, buyer, null, type, from, to, 1, 2));
 
         assertThat(first.getContent()).extracting(TicketingDetectionLogListResponse::id)
                 .containsExactly(secondAtUpperBound, firstAtUpperBound);
@@ -159,8 +159,12 @@ class TicketingDetectionLogConsumerIntegrationTest {
         assertThat(first.getPage().getTotalPages()).isEqualTo(2);
         assertThat(second.getContent()).extracting(TicketingDetectionLogListResponse::id).containsExactly(oldest);
         assertThat(second.getPage().getNumber()).isEqualTo(1);
+        String sessionKeyHash = persistenceService.selectById(secondAtUpperBound).sessionKeyHash();
+        CustomPageResponse<TicketingDetectionLogListResponse> session = persistenceService.selectByCond(
+                new TicketingDetectionLogCondRequest(301L, buyer, sessionKeyHash, type, from, to, 0, 20));
+        assertThat(session.getContent()).extracting(TicketingDetectionLogListResponse::id).containsExactly(secondAtUpperBound);
         assertThatThrownBy(() -> persistenceService.selectByCond(
-                new TicketingDetectionLogCondRequest(301L, buyer, type, to, from, 0, 2)))
+                new TicketingDetectionLogCondRequest(301L, buyer, null, type, to, from, 0, 2)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
     }

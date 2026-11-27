@@ -49,15 +49,15 @@ class TicketingDetectionLogControllerTest {
         authenticate("admin", "ROLE_ADMIN");
         Instant from = Instant.parse("2026-11-24T00:00:00Z");
         TicketingDetectionType type = TicketingDetectionType.PREPARE_TOO_FAST;
-        TicketingDetectionLogCondRequest criteria = new TicketingDetectionLogCondRequest(101L, "buyer", type,
+        TicketingDetectionLogCondRequest criteria = new TicketingDetectionLogCondRequest(101L, "buyer", "a".repeat(64), type,
                 from, null, 0, 20);
         given(persistenceService.selectByCond(criteria)).willReturn(CustomPageResponse.of(
                 List.of(new TicketingDetectionLogListResponse(7L, 101L, "buyer", type, from)), 20, 0, 1, 1));
 
         mvc.perform(post(URL).header("Authorization", "Bearer admin").contentType(MediaType.APPLICATION_JSON).content("""
                         {"eventId":101,"userId":"buyer","detectionType":"PREPARE_TOO_FAST",
-                         "occurredFrom":"2026-11-24T09:00:00+09:00","page":0,"size":20}
-                        """))
+                         "sessionKeyHash":"%s","occurredFrom":"2026-11-24T09:00:00+09:00","page":0,"size":20}
+                        """.formatted("a".repeat(64))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(7))
                 .andExpect(jsonPath("$.content[0].eventId").value(101))

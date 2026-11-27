@@ -85,15 +85,15 @@ class SeatActivityTrackerTest {
 
             String burstKey = SeatActivityTracker.activityKey(1L, "buyer", "burst");
             tracker.recordAreaLayoutQuery(1L, "buyer", "burst", session);
-            for (int i = 0; i < 29; i++) tracker.recordAreaLayoutQuery(1L, "buyer", "burst", session);
-            assertThat(hashes.get(burstKey, "areaLayoutRefreshCount")).isEqualTo("29");
+            for (int i = 0; i < 59; i++) tracker.recordAreaLayoutQuery(1L, "buyer", "burst", session);
+            assertThat(hashes.get(burstKey, "areaLayoutRefreshCount")).isEqualTo("59");
             verifyNoInteractions(producer);
 
             tracker.recordAreaLayoutQuery(1L, "buyer", "burst", session);
             tracker.recordAreaLayoutQuery(1L, "buyer", "burst", session);
             verify(producer).report(eq(1L), eq("buyer"), eq("burst"), eq(TicketingDetectionType.AREA_LAYOUT_REFRESH_LIMIT_REACHED),
-                    any(Instant.class), eq(Map.of("refreshCount", 30L, "windowMs", 60_000L)));
-            assertThat(hashes.get(burstKey, "areaLayoutRefreshCount")).isEqualTo("31");
+                    any(Instant.class), eq(Map.of("refreshCount", 60L, "windowMs", 60_000L)));
+            assertThat(hashes.get(burstKey, "areaLayoutRefreshCount")).isEqualTo("61");
 
             Instant exactLimit = issuedAt.plusMillis(5000);
             for (String token : new String[]{"fast", "slow", "no-captcha"}) {

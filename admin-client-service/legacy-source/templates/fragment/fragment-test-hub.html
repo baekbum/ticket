@@ -94,5 +94,10 @@
       <strong>DLT Slack 알림 테스트</strong>
       <span>Kafka 발행 없이 DLT Slack 알림 메시지와 관리자 DLQ 링크를 테스트합니다.</span>
     </button>
+    <button class="admin-hub-card" type="button" th:if="${localProfile}" onclick="openDashboardEmbedWindow('ticketingDetectionTest', '티켓팅 탐지 로그 테스트')">
+      <span class="admin-hub-icon"><i class="ti ti-activity"></i></span>
+      <strong>티켓팅 탐지 로그 테스트</strong>
+      <span>샘플 이벤트를 발행하고 감사 로그에 저장된 근거를 확인합니다.</span>
+    </button>
   </div>
 </div>

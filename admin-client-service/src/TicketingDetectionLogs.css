@@ -160,3 +160,9 @@
 }
 .detection-evidence dl { display: grid; gap: 8px; margin: 10px 0 0; }
 .detection-evidence p { margin: 10px 0 0; }
+
+.detection-test { flex: 1; min-height: 0; }
+.detection-test .detection-filters label { flex: 1 1 200px; max-width: 320px; }
+.detection-test > p { margin: 0 0 12px; overflow-wrap: anywhere; }
+.detection-test .detection-table-wrap { flex: 0 1 auto; }
+.detection-test-scope { margin: 0 0 12px; color: var(--admin-muted); }

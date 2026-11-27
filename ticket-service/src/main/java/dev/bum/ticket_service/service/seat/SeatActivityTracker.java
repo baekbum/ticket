@@ -26,7 +26,7 @@ import java.util.Map;
 public class SeatActivityTracker {
 
     private static final Duration QUERY_WINDOW = Duration.ofMinutes(1);
-    private static final int AREA_LAYOUT_QUERY_LIMIT = 30;
+    private static final int AREA_LAYOUT_QUERY_LIMIT = 60;
     private static final Duration FAST_PREPARE_LIMIT = Duration.ofSeconds(5);
     private static final long ACTIVITY_SKIPPED = -1L;
     private static final DefaultRedisScript<Long> RECORD_ACTIVITY = new DefaultRedisScript<>("""

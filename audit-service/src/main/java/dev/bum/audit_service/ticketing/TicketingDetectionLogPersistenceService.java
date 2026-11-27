@@ -23,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -62,7 +63,7 @@ public class TicketingDetectionLogPersistenceService {
     @Transactional(readOnly = true)
     public CustomPageResponse<TicketingDetectionLogListResponse> selectByCond(TicketingDetectionLogCondRequest cond) {
         TicketingDetectionLogCondRequest criteria = cond == null
-                ? new TicketingDetectionLogCondRequest(null, null, null, null, null, null, null)
+                ? new TicketingDetectionLogCondRequest(null, null, null, null, null, null, null, null)
                 : cond;
         if (criteria.occurredFrom() != null && criteria.occurredTo() != null
                 && criteria.occurredFrom().isAfter(criteria.occurredTo())) {
@@ -91,6 +92,9 @@ public class TicketingDetectionLogPersistenceService {
             }
             if (StringUtils.hasText(cond.userId())) {
                 predicates.add(cb.equal(root.get("userId"), cond.userId().strip()));
+            }
+            if (StringUtils.hasText(cond.sessionKeyHash())) {
+                predicates.add(cb.equal(root.get("sessionKeyHash"), cond.sessionKeyHash().strip().toLowerCase(Locale.ROOT)));
             }
             if (cond.detectionType() != null) {
                 predicates.add(cb.equal(root.get("detectionType"), cond.detectionType()));

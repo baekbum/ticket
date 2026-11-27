@@ -7,6 +7,7 @@ import java.time.Instant;
 public record TicketingDetectionLogCondRequest(
         Long eventId,
         String userId,
+        String sessionKeyHash,
         TicketingDetectionType detectionType,
         Instant occurredFrom,
         Instant occurredTo,

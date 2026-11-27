@@ -2,36 +2,21 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { adminFetch } from './api';
 import AutoRefreshControls, { defaultRefreshSeconds } from './AutoRefreshControls';
 import DateTimeInput, { isValidDateTime } from './DateTimeInput';
+import { detectionLabels, detectionLogEndpoint, type LogDetail, type LogPage } from './ticketingDetection';
 import './TicketingDetectionLogs.css';
 
-type LogItem = {
-  id: number;
-  eventId: number;
-  userId: string;
-  detectionType: string;
-  occurredAt: string;
-};
-type LogDetail = LogItem & {
-  traceId: string | null;
-  sessionKeyHash: string;
-  evidence: Record<string, unknown>;
-};
-type LogPage = {
-  content: LogItem[];
-  page: { number: number; totalElements: number; totalPages: number };
-};
 type Search = {
   page: number;
   size: number;
   eventId?: number;
   userId?: string;
+  sessionKeyHash?: string;
   detectionType?: string;
   occurredFrom?: string;
   occurredTo?: string;
 };
 type Load<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T };
 
-const endpoint = '/audit/api/v1/ticketing-detection-log/select';
 const emptyFilters = { eventId: '', userId: '', detectionType: '' };
 const pageSizes = [5, 10, 20, 50, 100];
 const datePresets = [
@@ -45,13 +30,6 @@ const dateFields = [
   { field: 'occurredTo', label: '종료' },
 ] as const;
 const seoulOffsetMs = 9 * 60 * 60 * 1000;
-const detectionLabels: Record<string, string> = {
-  AREA_LAYOUT_ACTIVE_TOKEN_MISSING: '배치도 요청에 Active Token 없음',
-  AREA_LAYOUT_REFRESH_LIMIT_REACHED: '배치도 새로고침 한도 도달',
-  SEAT_OCCUPATION_CAPTCHA_NOT_PASSED: '캡차 미통과 상태에서 좌석 선점 요청',
-  PREPARE_TOO_FAST: '결제 준비 시간 기준 이하',
-  CAPTCHA_ATTEMPT_LIMIT_REACHED: '캡차 오답 한도 도달',
-};
 const evidenceLabels: Record<string, { label: string; unit: string }> = {
   refreshCount: { label: '배치도 새로고침 횟수', unit: '회' },
   windowMs: { label: '집계 구간', unit: 'ms' },
@@ -88,7 +66,7 @@ function asSeoulDate(value: string) {
 
 async function loadLogs(search: Search, signal: AbortSignal): Promise<Load<LogPage>> {
   try {
-    const response = await adminFetch(endpoint, {
+    const response = await adminFetch(detectionLogEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(search),
@@ -109,11 +87,17 @@ function formatEvidence(value: unknown, unit?: string) {
   return value == null ? '—' : JSON.stringify(value);
 }
 
-export default function TicketingDetectionLogs() {
-  const [filters, setFilters] = useState(() => ({ ...emptyFilters, ...presetDates(1) }));
-  const [preset, setPreset] = useState(1);
+export default function TicketingDetectionLogs({ initialUserId = '', initialSessionKeyHash }: {
+  initialUserId?: string;
+  initialSessionKeyHash?: string;
+}) {
+  const [filters, setFilters] = useState(() => ({ ...emptyFilters, userId: initialUserId,
+    ...(initialUserId ? { occurredFrom: '', occurredTo: '' } : presetDates(1)) }));
+  const [preset, setPreset] = useState(initialUserId ? 0 : 1);
   const [search, setSearch] = useState<Search>(() => ({
-    page: 0, size: 20, ...dateBounds(asSeoulDate(filters.occurredFrom), asSeoulDate(filters.occurredTo)),
+    page: 0, size: 20, userId: initialUserId || undefined,
+    sessionKeyHash: initialSessionKeyHash,
+    ...dateBounds(asSeoulDate(filters.occurredFrom), asSeoulDate(filters.occurredTo)),
   }));
   const [pageInput, setPageInput] = useState<string | null>(null);
   const [filterError, setFilterError] = useState('');
@@ -153,7 +137,7 @@ export default function TicketingDetectionLogs() {
     const { id } = selection;
     async function loadDetail() {
       try {
-        const response = await adminFetch(`${endpoint}/id/${id}`, { signal: controller.signal });
+        const response = await adminFetch(`${detectionLogEndpoint}/id/${id}`, { signal: controller.signal });
         if (response.status === 404) throw new Error('해당 탐지 로그를 찾을 수 없습니다.');
         if (!response.ok) throw new Error(`탐지 로그 상세를 불러오지 못했습니다. (HTTP ${response.status})`);
         const data: LogDetail = await response.json();
@@ -187,6 +171,7 @@ export default function TicketingDetectionLogs() {
     setFilterError('');
     setPageInput(null);
     setSearch(current => ({ page: 0, size: current.size, eventId, userId: filters.userId.trim() || undefined,
+      sessionKeyHash: current.sessionKeyHash,
       detectionType: filters.detectionType || undefined, ...dateBounds(from, to) }));
   }
 
@@ -228,6 +213,7 @@ export default function TicketingDetectionLogs() {
       <AutoRefreshControls enabled={autoRefresh} seconds={refreshSeconds}
         onToggle={() => setAutoRefresh(enabled => !enabled)} onIntervalChange={setRefreshSeconds} />
     </header>
+    {search.sessionKeyHash && <p className="detection-test-scope">이 테스트에서 발행한 로그를 표시합니다. 초기화하면 전체 로그를 조회할 수 있습니다.</p>}
 
     <form className="detection-filters" onSubmit={applyFilters}>
       <label>공연 회차 ID<input inputMode="numeric" pattern="[0-9]+" value={filters.eventId}
