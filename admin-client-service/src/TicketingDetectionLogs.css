@@ -1,0 +1,162 @@
+.detection-logs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+  padding: clamp(14px, 2.5vw, 28px);
+  background: var(--admin-panel);
+  color: var(--admin-ink);
+  font-size: 13px;
+}
+
+.detection-header, .detection-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.detection-header h1 { margin: 0; font-size: clamp(22px, 2.5vw, 28px); letter-spacing: -.025em; }
+.detection-header { flex: none; }
+.detection-logs button:not(.operations-refresh-toggle) {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-panel);
+  color: var(--admin-ink);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.detection-logs button:not(.operations-refresh-toggle, :disabled):hover { background: var(--admin-soft); }
+.detection-logs button:disabled { opacity: .55; cursor: not-allowed; }
+.detection-logs button.detection-primary { border-color: var(--admin-green); background: var(--admin-green); color: var(--admin-on-green); }
+.detection-logs button.detection-primary:hover { background: var(--admin-green); filter: brightness(.95); }
+
+.detection-filters, .detection-results {
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-panel);
+}
+.detection-filters {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+.detection-filters label { display: grid; gap: 6px; flex: 1 1 142px; min-width: 0; font-weight: 650; }
+.detection-filters .detection-preset { flex: 0 1 96px; }
+.detection-filters .detection-date { flex: 1 1 172px; }
+.detection-date input { font-variant-numeric: tabular-nums; }
+.detection-date input::selection { background: var(--admin-green); color: var(--admin-on-green); }
+.detection-filters :is(input, select) {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-soft);
+  color: var(--admin-ink);
+  font: inherit;
+  font-weight: 400;
+}
+.detection-filter-actions { display: flex; gap: 8px; margin-left: auto; }
+.detection-error { color: #a52d3b; }
+.dark-mode .detection-error { color: #ffadb5; }
+.detection-filters .detection-error { flex-basis: 100%; margin: 0; }
+
+.detection-results { display: flex; flex: 1 1 auto; min-height: 160px; min-width: 0; overflow: hidden; }
+.detection-table-wrap { flex: 1; overflow: auto; }
+.detection-table { width: 100%; min-width: 615px; border-collapse: collapse; }
+.detection-table :is(th, td) { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--admin-line); }
+.detection-table th { position: sticky; top: 0; z-index: 1; background: var(--admin-soft); color: var(--admin-muted); font-size: 12px; white-space: nowrap; }
+.detection-table :is(th, td):last-child { width: 1%; white-space: nowrap; }
+.detection-table td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.detection-user { overflow-wrap: anywhere; }
+.detection-row { cursor: pointer; }
+.detection-row:is(:hover, :focus-within) td { background: var(--admin-soft); }
+.detection-type { display: inline-block; padding: 4px 8px; border-radius: 6px; background: var(--admin-soft); font-size: 12px; }
+.detection-table .detection-state { padding: 48px 14px; text-align: center; color: var(--admin-muted); }
+.detection-pagination {
+  --page-control-bg: var(--admin-panel);
+  --page-control-line: var(--admin-line);
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--admin-muted);
+}
+.dark-mode .detection-pagination { --page-control-bg: #182131; --page-control-line: #35435d; }
+.detection-page-size, .detection-pagination nav, .detection-page-number { display: flex; align-items: center; gap: 6px; }
+.detection-pagination nav { grid-column: 2; gap: 4px; font-variant-numeric: tabular-nums; }
+.detection-pagination :is(select, .detection-page-number), .detection-pagination button:not(.operations-refresh-toggle) {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--page-control-line);
+  border-radius: 8px;
+  background: var(--page-control-bg);
+  color: var(--admin-ink);
+  font: inherit;
+}
+.detection-pagination button:not(.operations-refresh-toggle) { min-width: 34px; font-weight: 650; }
+.detection-page-number input {
+  width: 43px;
+  padding: 4px;
+  border: 1px solid var(--page-control-line);
+  border-radius: 7px;
+  background: var(--page-control-bg);
+  color: var(--admin-ink);
+  appearance: textfield;
+  text-align: center;
+}
+.detection-page-number input::-webkit-inner-spin-button { appearance: none; }
+.detection-page-number :is(span, strong) { flex: none; }
+.detection-page-summary { grid-column: 3; justify-self: end; white-space: nowrap; }
+.detection-pagination strong { color: var(--admin-ink); }
+
+@media (max-width: 580px) {
+  .detection-pagination { grid-template-columns: 1fr auto; }
+  .detection-pagination nav { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+  .detection-page-summary { grid-column: 2; grid-row: 1; }
+}
+
+.detection-dialog {
+  width: min(590px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 14px;
+  background: var(--admin-panel);
+  color: var(--admin-ink);
+  box-shadow: 0 20px 60px #101c1655;
+}
+.detection-dialog::backdrop { background: #0b1b14a8; }
+.detection-dialog-content { padding: clamp(14px, 3vw, 24px); }
+.detection-dialog h2, .detection-dialog h3 { margin: 0; }
+.detection-dialog h2 { font-size: 20px; }
+.detection-dialog h3 { font-size: 15px; }
+.detection-dialog-content > dl, .detection-evidence dl > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 34%) minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+.detection-dialog dt, .detection-evidence p { color: var(--admin-muted); }
+.detection-dialog dd { margin: 0; overflow-wrap: anywhere; }
+.detection-evidence {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-soft);
+}
+.detection-evidence dl { display: grid; gap: 8px; margin: 10px 0 0; }
+.detection-evidence p { margin: 10px 0 0; }

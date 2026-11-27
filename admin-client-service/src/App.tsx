@@ -3,6 +3,7 @@ import { adminFetch, clearTokens, getAccessToken, loadCurrentUser, login, logout
 import VirtualAccountReconciliation from './VirtualAccountReconciliation';
 import OperationsHome from './OperationsHome';
 import EventPreflight from './EventPreflight';
+import TicketingDetectionLogs from './TicketingDetectionLogs';
 
 type Menu = { key: string; label: string; icon: string };
 const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
@@ -30,6 +31,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '감사/운영', icon: 'shield-search', items: [
     { key: 'auditLog', label: '감사 로그', icon: 'history' },
     { key: 'loginLog', label: '로그인 로그', icon: 'login-2' },
+    { key: 'ticketingDetectionLogs', label: '티켓팅 이상 활동', icon: 'activity' },
     { key: 'monitoring', label: '모니터링', icon: 'chart-line' },
   ] },
   { label: 'Redis', icon: 'database', items: [
@@ -427,6 +429,8 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
           ? <EventPreflight key={String(menuContext.eventId ?? '')} initialEventId={Number(menuContext.eventId)} onOpenAreas={eventId => chooseMenu('area', { eventId: String(eventId) })} />
           : menu === 'virtualAccountReconciliation'
           ? <VirtualAccountReconciliation />
+          : menu === 'ticketingDetectionLogs'
+          ? <TicketingDetectionLogs />
           : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={activeItem?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}
         {embeds.length > 0 && <div className="embed-layer">
           {embeds.map(embed => {

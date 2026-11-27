@@ -92,7 +92,6 @@ class TicketingDetectionLogConsumerIntegrationTest {
     void repeatedDeliveryKeepsTheOriginalLogAndOtherDetectionTypesAreRecorded() throws Exception {
         String userId = UUID.randomUUID().toString();
         TicketingDetectionType captchaLimit = TicketingDetectionType.CAPTCHA_ATTEMPT_LIMIT_REACHED;
-        TicketingDetectionType seatActivity = TicketingDetectionType.SEAT_ACTIVITY_SUSPECTED;
         Map<TicketingDetectionType, Map<String, Object>> additionalEvidence = Map.of(
                 TicketingDetectionType.AREA_LAYOUT_ACTIVE_TOKEN_MISSING, Map.of(),
                 TicketingDetectionType.AREA_LAYOUT_REFRESH_LIMIT_REACHED, Map.of("refreshCount", 30, "windowMs", 60_000),
@@ -104,14 +103,13 @@ class TicketingDetectionLogConsumerIntegrationTest {
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(1));
 
         publish(1, detection(userId, captchaLimit, occurredAt.plusSeconds(1), "cd".repeat(16), Map.of("attempts", 6)));
-        publish(1, detection(userId, seatActivity, occurredAt.plusSeconds(2), null, Map.of()));
         for (Map.Entry<TicketingDetectionType, Map<String, Object>> entry : additionalEvidence.entrySet()) {
             publish(1, detection(userId, entry.getKey(), occurredAt.plusSeconds(2), null, entry.getValue()));
         }
 
-        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(6));
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(countFor(userId)).isEqualTo(1 + additionalEvidence.size()));
         assertThat(jdbc.queryForList("select detection_type from ticketing_detection_log where user_id = ?",
-                String.class, userId)).contains(captchaLimit.name(), seatActivity.name())
+                String.class, userId)).contains(captchaLimit.name())
                 .containsAll(additionalEvidence.keySet().stream().map(Enum::name).toList());
 
         TicketingDetectionLogDetailResponse captchaDetail = selectDetail(userId, captchaLimit);

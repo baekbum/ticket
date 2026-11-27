@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from './api';
+import AutoRefreshControls, { defaultRefreshSeconds } from './AutoRefreshControls';
 
 type Count = { state: 'loading' | 'error' } | { state: 'ready'; value: number };
-
-const refreshIntervals = [
-  { seconds: 5, label: '5초' },
-  { seconds: 10, label: '10초' },
-  { seconds: 30, label: '30초' },
-  { seconds: 60, label: '1분' },
-  { seconds: 300, label: '5분' },
-  { seconds: 600, label: '10분' },
-];
 
 async function loadCount(url: string, options: RequestInit): Promise<Count> {
   try {
@@ -37,7 +29,7 @@ export default function OperationsHome({ onOpenList }: {
   const [inquiry, setInquiry] = useState<Count>({ state: 'loading' });
   const [refund, setRefund] = useState<Count>({ state: 'loading' });
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshSeconds, setRefreshSeconds] = useState(30);
+  const [refreshSeconds, setRefreshSeconds] = useState(defaultRefreshSeconds);
   const initialLoadComplete = useRef(false);
 
   useEffect(() => {
@@ -82,20 +74,8 @@ export default function OperationsHome({ onOpenList }: {
         <h1 id="operations-home-title">처리할 일</h1>
         <p>확인이 필요한 운영 업무를 한눈에 확인하세요.</p>
       </div>
-      <div className="operations-refresh">
-        <button type="button" className="operations-refresh-toggle" role="switch" aria-checked={autoRefresh}
-          onClick={() => setAutoRefresh(enabled => !enabled)}>
-          <i className="ti ti-refresh operations-refresh-icon" aria-hidden="true" />
-          <span className="operations-refresh-track" aria-hidden="true" />
-          자동 새로고침
-        </button>
-        <label className="operations-refresh-period">
-          갱신 주기
-          <select value={refreshSeconds} disabled={!autoRefresh} onChange={event => setRefreshSeconds(Number(event.target.value))}>
-            {refreshIntervals.map(({ seconds, label }) => <option key={seconds} value={seconds}>{label}</option>)}
-          </select>
-        </label>
-      </div>
+      <AutoRefreshControls enabled={autoRefresh} seconds={refreshSeconds}
+        onToggle={() => setAutoRefresh(enabled => !enabled)} onIntervalChange={setRefreshSeconds} />
     </header>
     <div className="operations-cards">
       <article className="operations-card">
