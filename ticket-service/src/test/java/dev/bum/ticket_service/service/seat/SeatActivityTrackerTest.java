@@ -62,8 +62,8 @@ class SeatActivityTrackerTest {
             tracker.recordSeatOccupation(1L, "buyer", "active", session);
             tracker.recordSeatOccupied(1L, "buyer", "active", session);
             Instant prepareRequestedAt = Instant.now();
-            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt, session);
-            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt.plusMillis(400), session);
+            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt, session, true);
+            tracker.recordPrepare(1L, "buyer", "active", prepareRequestedAt.plusMillis(400), session, true);
 
             long elapsed = prepareRequestedAt.toEpochMilli() - issuedAt.toEpochMilli();
             verify(queue).validate(1L, "buyer", "active");
@@ -80,7 +80,7 @@ class SeatActivityTrackerTest {
 
             String legacyKey = SeatActivityTracker.activityKey(1L, "buyer", "legacy");
             hashes.put(legacyKey, "firstPrepareElapsedMs", "400");
-            tracker.recordPrepare(1L, "buyer", "legacy", prepareRequestedAt, new ActiveSession(null, expiresAt));
+            tracker.recordPrepare(1L, "buyer", "legacy", prepareRequestedAt, new ActiveSession(null, expiresAt), false);
             assertThat(hashes.entries(legacyKey)).containsKey("firstPrepareRequestedAt").doesNotContainKey("firstPrepareElapsedMs");
 
             String burstKey = SeatActivityTracker.activityKey(1L, "buyer", "burst");
@@ -100,11 +100,25 @@ class SeatActivityTrackerTest {
                 String activityKey = SeatActivityTracker.activityKey(1L, "buyer", token);
                 if (!token.equals("no-captcha")) hashes.put(activityKey, "captchaPassedAt", Long.toString(issuedAt.plusMillis(1000).toEpochMilli()));
                 hashes.put(activityKey, "firstSeatOccupiedAt", Long.toString(issuedAt.plusMillis(2000).toEpochMilli()));
-                tracker.recordPrepare(1L, "buyer", token, token.equals("slow") ? exactLimit.plusMillis(1) : exactLimit, session);
+                tracker.recordPrepare(1L, "buyer", token, token.equals("slow") ? exactLimit.plusMillis(1) : exactLimit, session, true);
             }
-            tracker.recordPrepare(1L, "buyer", "fast", exactLimit, session);
+            tracker.recordPrepare(1L, "buyer", "fast", exactLimit, session, true);
             verify(producer).report(1L, "buyer", "fast", TicketingDetectionType.PREPARE_TOO_FAST, exactLimit,
                     Map.of("elapsedMs", 5000L, "limitMs", 5000L));
+
+            String fastWithoutCaptcha = "fast-without-captcha";
+            String slowWithoutCaptcha = "slow-without-captcha";
+            for (String token : new String[]{fastWithoutCaptcha, slowWithoutCaptcha}) {
+                String activityKey = SeatActivityTracker.activityKey(1L, "buyer", token);
+                hashes.put(activityKey, "firstSeatOccupiedAt", Long.toString(issuedAt.plusMillis(2000).toEpochMilli()));
+            }
+            Instant exactLimitWithoutCaptcha = issuedAt.plusMillis(3000);
+            tracker.recordPrepare(1L, "buyer", fastWithoutCaptcha, exactLimitWithoutCaptcha, session, false);
+            tracker.recordPrepare(1L, "buyer", fastWithoutCaptcha, exactLimitWithoutCaptcha, session, false);
+            tracker.recordPrepare(1L, "buyer", slowWithoutCaptcha, exactLimitWithoutCaptcha.plusMillis(1), session, false);
+            tracker.recordPrepare(1L, "buyer", "no-seat-occupied", exactLimitWithoutCaptcha, session, false);
+            verify(producer).report(1L, "buyer", fastWithoutCaptcha, TicketingDetectionType.PREPARE_TOO_FAST, exactLimitWithoutCaptcha,
+                    Map.of("elapsedMs", 3000L, "limitMs", 3000L));
             verifyNoMoreInteractions(producer);
         } finally {
             connection.destroy();

@@ -27,7 +27,6 @@ public class SeatActivityTracker {
 
     private static final Duration QUERY_WINDOW = Duration.ofMinutes(1);
     private static final int AREA_LAYOUT_QUERY_LIMIT = 60;
-    private static final Duration FAST_PREPARE_LIMIT = Duration.ofSeconds(5);
     private static final long ACTIVITY_SKIPPED = -1L;
     private static final DefaultRedisScript<Long> RECORD_ACTIVITY = new DefaultRedisScript<>("""
             local key = KEYS[1]
@@ -67,17 +66,20 @@ public class SeatActivityTracker {
                 redis.call('HSETNX', key, 'captchaPassedAt', observedAt)
             elseif operation == 'OCCUPIED' then
                 redis.call('HSETNX', key, 'firstSeatOccupiedAt', observedAt)
-            elseif operation == 'PREPARE' then
+            elseif operation == 'PREPARE_WITH_CAPTCHA' or operation == 'PREPARE_WITHOUT_CAPTCHA' then
                 if redis.call('HSETNX', key, 'firstPrepareRequestedAt', observedAt) == 1 then
                     local startedAt = tonumber(redis.call('HGET', key, 'activeTokenIssuedAt'))
                     if startedAt and observedAt >= startedAt then
                         local elapsed = observedAt - startedAt
                         redis.call('HSET', key, 'firstPrepareElapsedMs', elapsed)
-                        local captchaAt = tonumber(redis.call('HGET', key, 'captchaPassedAt'))
                         local occupiedAt = tonumber(redis.call('HGET', key, 'firstSeatOccupiedAt'))
-                        if elapsed <= tonumber(ARGV[7]) and captchaAt and occupiedAt
-                                and startedAt <= captchaAt and captchaAt <= occupiedAt and occupiedAt <= observedAt then
-                            detectionValue = elapsed
+                        if elapsed <= tonumber(ARGV[7]) and occupiedAt
+                                and startedAt <= occupiedAt and occupiedAt <= observedAt then
+                            local captchaAt = tonumber(redis.call('HGET', key, 'captchaPassedAt'))
+                            if operation == 'PREPARE_WITHOUT_CAPTCHA' or
+                                    (captchaAt and startedAt <= captchaAt and captchaAt <= occupiedAt) then
+                                detectionValue = elapsed
+                            end
                         end
                     else
                         redis.call('HDEL', key, 'firstPrepareElapsedMs')
@@ -154,12 +156,16 @@ public class SeatActivityTracker {
     /**
      * 검증을 통과한 첫 {@code prepare} 요청의 접수 시각을 기록한다.
      * 토큰 발급 시각이 있으면 발급부터 요청 접수까지의 시간을 밀리초로 {@code firstPrepareElapsedMs}에 저장한다.
+     * 빠른 요청을 탐지할 때는 좌석 선점 성공과 캡차가 활성화된 회차의 캡차 통과 순서를 확인한다.
      */
-    public void recordPrepare(Long eventId, String userId, String activeToken, Instant requestedAt, ActiveSession session) {
-        Long elapsed = recordValidated(eventId, userId, activeToken, Operation.PREPARE, requestedAt, session);
+    public void recordPrepare(
+            Long eventId, String userId, String activeToken, Instant requestedAt, ActiveSession session, boolean captchaEnabled
+    ) {
+        Operation operation = captchaEnabled ? Operation.PREPARE_WITH_CAPTCHA : Operation.PREPARE_WITHOUT_CAPTCHA;
+        Long elapsed = recordValidated(eventId, userId, activeToken, operation, requestedAt, session);
         if (elapsed != null && elapsed >= 0) {
             detectionLogProducer.report(eventId, userId, activeToken, TicketingDetectionType.PREPARE_TOO_FAST,
-                    requestedAt, Map.of("elapsedMs", elapsed, "limitMs", FAST_PREPARE_LIMIT.toMillis()));
+                    requestedAt, Map.of("elapsedMs", elapsed, "limitMs", operation.prepareLimitMs));
         }
     }
 
@@ -191,7 +197,7 @@ public class SeatActivityTracker {
         return redis.execute(RECORD_ACTIVITY, List.of(key), operation.name(), Long.toString(observedAt.toEpochMilli()),
                 session == null ? "0" : Long.toString(session.expiresAt().toEpochMilli()),
                 Long.toString(QUERY_WINDOW.toMillis()), issuedAt == null ? "0" : Long.toString(issuedAt.toEpochMilli()),
-                Integer.toString(AREA_LAYOUT_QUERY_LIMIT), Long.toString(FAST_PREPARE_LIMIT.toMillis()));
+                Integer.toString(AREA_LAYOUT_QUERY_LIMIT), Long.toString(operation.prepareLimitMs));
     }
 
     /**
@@ -207,6 +213,17 @@ public class SeatActivityTracker {
         OCCUPY,
         CAPTCHA_PASSED,
         OCCUPIED,
-        PREPARE
+        PREPARE_WITH_CAPTCHA(5_000),
+        PREPARE_WITHOUT_CAPTCHA(3_000);
+
+        private final long prepareLimitMs;
+
+        Operation() {
+            this(0);
+        }
+
+        Operation(long prepareLimitMs) {
+            this.prepareLimitMs = prepareLimitMs;
+        }
     }
 }

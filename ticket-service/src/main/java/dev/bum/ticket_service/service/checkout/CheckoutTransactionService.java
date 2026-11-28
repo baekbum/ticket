@@ -274,13 +274,14 @@ public class CheckoutTransactionService {
         validatePrepareMatchesAttempt(currentUserId, request, requestedSeatIds, checkoutAttempt);
         validatePreparedAttempt(checkoutAttempt);
         Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
-        ActiveSession session = event.isCaptchaEnabled()
+        boolean captchaEnabled = event.isCaptchaEnabled();
+        ActiveSession session = captchaEnabled
                 ? captchaChallengeService.requirePassed(request.getEventId(), currentUserId, activeToken)
                 : queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         seatCacheService.validateOccupiedSeat(request.getEventId(), currentUserId, request.getOrderId(), seats);
         validatePreparedAttempt(checkoutAttempt);
         eventBookingGuard.validate(event, true);
-        seatActivityTracker.recordPrepare(request.getEventId(), currentUserId, activeToken, prepareRequestedAt, session);
+        seatActivityTracker.recordPrepare(request.getEventId(), currentUserId, activeToken, prepareRequestedAt, session, captchaEnabled);
 
         return CheckoutPrepareResponse.builder()
                 .eventId(checkoutAttempt.getEventId())

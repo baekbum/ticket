@@ -57,6 +57,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -373,6 +374,9 @@ class CheckoutTransactionServiceTest {
         givenValidSeats();
         CheckoutPrepareRequest request = checkoutRequest();
         LocalDateTime seatExpiresAt = LocalDateTime.now().plusMinutes(9);
+        Instant tokenIssuedAt = Instant.now();
+        QueueAccessService.ActiveSession activeSession = new QueueAccessService.ActiveSession(tokenIssuedAt, tokenIssuedAt.plusSeconds(1200));
+        given(queueAccessService.validate(1L, "user01", "queue-token")).willReturn(activeSession);
         given(seatCacheService.validateOccupiedSeat(1L, "user01", "order-1", request.getSeats()))
                 .willReturn(seatExpiresAt);
 
@@ -400,6 +404,9 @@ class CheckoutTransactionServiceTest {
         assertThat(response.getPreparedAt()).isEqualTo(checkoutAttempt.getCreatedAt());
 
         then(queueAccessService).should().validate(1L, "user01", "queue-token");
+        then(seatActivityTracker).should().recordPrepare(ArgumentMatchers.eq(1L), ArgumentMatchers.eq("user01"),
+                ArgumentMatchers.eq("queue-token"), ArgumentMatchers.any(Instant.class), ArgumentMatchers.eq(activeSession),
+                ArgumentMatchers.eq(false));
         then(seatCacheService).should(Mockito.times(2)).validateOccupiedSeat(
                 ArgumentMatchers.eq(1L),
                 ArgumentMatchers.eq("user01"),
