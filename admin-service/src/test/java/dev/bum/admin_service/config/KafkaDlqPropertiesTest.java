@@ -32,7 +32,6 @@ class KafkaDlqPropertiesTest {
                 "app.kafka-dlq.mappings[user-event.DLT]=user-event",
                 "app.kafka-dlq.mappings[audit-log.DLT]=audit-log",
                 "app.kafka-dlq.mappings[login-log.DLT]=login-log",
-                "app.kafka-dlq.mappings[payment-completed.DLT]=payment-completed",
                 "app.kafka-dlq.mappings[virtual-account-expired.DLT]=virtual-account-expired"
         ).run(context -> {
             KafkaDlqProperties properties = context.getBean(KafkaDlqProperties.class);
@@ -48,7 +47,6 @@ class KafkaDlqPropertiesTest {
                 "TOPIC_USER_EVENT_NAME=user-event",
                 "TOPIC_AUDIT_LOG_NAME=audit-log",
                 "TOPIC_LOGIN_LOG_NAME=login-log",
-                "TOPIC_PAYMENT_COMPLETED_NAME=payment-completed",
                 "TOPIC_PAYMENT_VIRTUAL_ACCOUNT_EXPIRED_NAME=virtual-account-expired"
         ).run(context -> {
             KafkaDlqProperties properties = context.getBean(KafkaDlqProperties.class);
@@ -104,7 +102,6 @@ class KafkaDlqPropertiesTest {
                 "user-event.DLT", "user-event",
                 "audit-log.DLT", "audit-log",
                 "login-log.DLT", "login-log",
-                "payment-completed.DLT", "payment-completed",
                 "virtual-account-expired.DLT", "virtual-account-expired"
         );
     }

@@ -1,6 +1,7 @@
 package dev.bum.queue_service.service.reactive;
 
 import dev.bum.common.service.queue.dto.QueueStatusResponse;
+import dev.bum.common.service.queue.dto.QueueValidateResponse;
 import dev.bum.queue_service.config.QueueProperties;
 import dev.bum.queue_service.exception.QueueTokenInvalidException;
 import dev.bum.queue_service.exception.EventPolicyException;
@@ -48,6 +49,14 @@ public class ReactiveActiveQueueService {
                     .flatMap(value -> redis.opsForZSet().score(keys.activeKey(eventId), token))
                     .map(score -> Instant.ofEpochMilli(score.longValue()));
         });
+    }
+
+    public Mono<QueueValidateResponse> validateActiveToken(Long eventId, String userId, String token) {
+        return activeTokenExpiresAt(eventId, userId, token)
+                .flatMap(expiresAt -> redis.opsForValue().get(keys.activeTokenIssuedAtKey(token))
+                        .map(issuedAt -> new QueueValidateResponse(true, "OK", expiresAt,
+                                Instant.ofEpochMilli(Long.parseLong(issuedAt))))
+                        .defaultIfEmpty(new QueueValidateResponse(true, "OK", expiresAt)));
     }
 
     /**
@@ -116,7 +125,8 @@ public class ReactiveActiveQueueService {
                                     keys.userSessionsKey(userId), keys.waitingTokenKey(waitingToken), keys.waitingExpiryKey(eventId),
                                     keys.waitingActiveMappingKey(waitingToken), keys.activeWaitingMappingKey(activeToken),
                                     keys.activeTokenKey(existing.isEmpty() ? activeToken : existing),
-                                    keys.activeWaitingMappingKey(existing.isEmpty() ? activeToken : existing), keys.policyKey(eventId)),
+                                    keys.activeWaitingMappingKey(existing.isEmpty() ? activeToken : existing), keys.policyKey(eventId),
+                                    keys.activeTokenIssuedAtKey(activeToken)),
                             List.of(waitingToken, activeToken, tokenValue(eventId, userId),
                                     String.valueOf(properties.getActiveTokenTtl().toMillis()),
                                     String.valueOf(properties.getAdmissionSize()),

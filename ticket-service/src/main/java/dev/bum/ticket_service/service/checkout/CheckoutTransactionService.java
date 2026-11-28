@@ -33,7 +33,9 @@ import dev.bum.ticket_service.service.checkout.payment.virtualAccount.CheckoutVi
 import dev.bum.common.service.paymentgateway.card.GatewayCardMethodChangeRequest;
 import java.math.BigDecimal;
 import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatCacheService;
 import dev.bum.ticket_service.jpa.event.event.Event;
 import dev.bum.ticket_service.service.event.event.EventBookingGuard;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -77,6 +80,7 @@ public class CheckoutTransactionService {
     // 대기열 업무 처리를 담당하는 서비스.
     private final QueueAccessService queueAccessService;
     private final CaptchaChallengeService captchaChallengeService;
+    private final SeatActivityTracker seatActivityTracker;
     // 예매 데이터를 조회하고 저장하는 레포지토리.
     private final ReservationRepository reservationRepository;
     // 예매 배송 데이터를 조회하고 저장하는 레포지토리.
@@ -233,6 +237,7 @@ public class CheckoutTransactionService {
             CheckoutPrepareRequest request
     ) {
 
+        Instant prepareRequestedAt = Instant.now();
         if (!StringUtils.hasText(request.getOrderId())) {
             throw new IllegalArgumentException("주문 번호가 필요합니다.");
         }
@@ -269,14 +274,14 @@ public class CheckoutTransactionService {
         validatePrepareMatchesAttempt(currentUserId, request, requestedSeatIds, checkoutAttempt);
         validatePreparedAttempt(checkoutAttempt);
         Event event = eventBookingGuard.requireBookable(request.getEventId(), true);
-        if (event.isCaptchaEnabled()) {
-            captchaChallengeService.requirePassed(request.getEventId(), currentUserId, activeToken);
-        } else {
-            queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
-        }
+        boolean captchaEnabled = event.isCaptchaEnabled();
+        ActiveSession session = captchaEnabled
+                ? captchaChallengeService.requirePassed(request.getEventId(), currentUserId, activeToken)
+                : queueAccessService.validate(request.getEventId(), currentUserId, activeToken);
         seatCacheService.validateOccupiedSeat(request.getEventId(), currentUserId, request.getOrderId(), seats);
         validatePreparedAttempt(checkoutAttempt);
         eventBookingGuard.validate(event, true);
+        seatActivityTracker.recordPrepare(request.getEventId(), currentUserId, activeToken, prepareRequestedAt, session, captchaEnabled);
 
         return CheckoutPrepareResponse.builder()
                 .eventId(checkoutAttempt.getEventId())

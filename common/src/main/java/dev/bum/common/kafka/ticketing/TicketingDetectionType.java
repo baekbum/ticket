@@ -1,0 +1,10 @@
+package dev.bum.common.kafka.ticketing;
+
+public enum TicketingDetectionType {
+
+    CAPTCHA_ATTEMPT_LIMIT_REACHED,
+    AREA_LAYOUT_ACTIVE_TOKEN_MISSING,
+    AREA_LAYOUT_REFRESH_LIMIT_REACHED,
+    SEAT_OCCUPATION_CAPTCHA_NOT_PASSED,
+    PREPARE_TOO_FAST
+}

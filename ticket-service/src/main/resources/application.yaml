@@ -72,12 +72,13 @@ token:
   secret: ticket-project-secret-value-is-made-by-random
 
 topic:
-  payment:
-    completed:
-      name: payment-completed
   audit:
     log:
       name: audit-log
+  ticketing:
+    detection:
+      log:
+        name: ticketing-detection-log
 
 app:
   virtual-account:

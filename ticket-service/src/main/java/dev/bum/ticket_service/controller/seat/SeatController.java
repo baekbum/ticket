@@ -6,6 +6,8 @@ import dev.bum.common.service.ticket.seat.dto.SeatOccupyRequest;
 import dev.bum.common.service.ticket.seat.dto.SeatOccupyResponse;
 import dev.bum.common.service.ticket.seat.dto.SeatResponse;
 import dev.bum.ticket_service.service.captcha.CaptchaChallengeService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import dev.bum.ticket_service.service.seat.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class SeatController {
 
     private final SeatService seatService;
     private final CaptchaChallengeService captchaChallengeService;
+    private final SeatActivityTracker seatActivityTracker;
 
     @PostMapping("/occupy")
     public ResponseEntity<SeatOccupyResponse> occupySeat(
@@ -36,9 +39,12 @@ public class SeatController {
             @RequestBody SeatOccupyRequest request
     ) {
 
-        captchaChallengeService.validateSeatOccupation(request.getEventId(), currentUserId, activeToken);
+        ActiveSession session = captchaChallengeService.validateSeatOccupation(request.getEventId(), currentUserId, activeToken);
+        seatActivityTracker.recordSeatOccupation(request.getEventId(), currentUserId, activeToken, session);
         request.setUserId(currentUserId);
-        return ResponseEntity.ok(seatService.occupySeat(request));
+        SeatOccupyResponse response = seatService.occupySeat(request);
+        seatActivityTracker.recordSeatOccupied(request.getEventId(), currentUserId, activeToken, session);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/select/id/{seatId}")
@@ -48,8 +54,13 @@ public class SeatController {
     }
 
     @GetMapping("/select")
-    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(@ModelAttribute SeatCondRequest cond) {
+    public ResponseEntity<CustomPageResponse<SeatResponse>> selectByCond(
+            @AuthenticationPrincipal String currentUserId,
+            @RequestHeader(value = "X-Active-Token", required = false) String activeToken,
+            @ModelAttribute SeatCondRequest cond
+    ) {
 
+        seatActivityTracker.recordSeatQuery(cond.getEventId(), currentUserId, activeToken);
         return ResponseEntity.ok(seatService.selectByCond(cond));
     }
 }

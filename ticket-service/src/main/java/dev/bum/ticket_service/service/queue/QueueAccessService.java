@@ -60,14 +60,16 @@ public class QueueAccessService {
      * 대기열 처리에서 요청 값과 현재 상태가 유효한지 검증한다.
      */
     @Observed(name = "ticket.queue.validate", contextualName = "ticket queue validate")
-    public void validate(Long eventId, String userId, String activeToken) {
+    public ActiveSession validate(Long eventId, String userId, String activeToken) {
 
-        if (properties.enabled()) {
-            validateActiveToken(eventId, userId, activeToken);
-        }
+        return properties.enabled() ? validateActiveSession(eventId, userId, activeToken) : null;
     }
 
     public Instant validateActiveToken(Long eventId, String userId, String activeToken) {
+        return validateActiveSession(eventId, userId, activeToken).expiresAt();
+    }
+
+    public ActiveSession validateActiveSession(Long eventId, String userId, String activeToken) {
 
         if (eventId == null) {
             throw new QueueAccessDeniedException("대기열 검증을 위한 이벤트 ID가 필요합니다.");
@@ -82,12 +84,14 @@ public class QueueAccessService {
         }
 
         QueueValidateResponse response;
+
         try {
             response = queueServiceClient.validate(new QueueValidateRequest(eventId, userId, activeToken));
         } catch (FeignException e) {
             if (e.status() == 409) {
                 throw new QueueAccessDeniedException("판매 기간 또는 공연 상태에 따라 현재 예매할 수 없습니다.");
             }
+
             log.warn("[QUEUE-VALIDATE] queue-service 호출 실패. eventId={}, userId={}", eventId, userId, e);
             throw new QueueUnavailableException();
         }
@@ -103,6 +107,10 @@ public class QueueAccessService {
         if (!response.allowed()) {
             throw new QueueAccessDeniedException("대기열을 통과한 사용자만 티켓팅을 진행할 수 있습니다.");
         }
-        return response.activeTokenExpiresAt();
+
+        return new ActiveSession(response.activeTokenIssuedAt(), response.activeTokenExpiresAt());
+    }
+
+    public record ActiveSession(Instant issuedAt, Instant expiresAt) {
     }
 }

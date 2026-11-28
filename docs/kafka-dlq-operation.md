@@ -9,7 +9,6 @@
 | `user-event` | `user-event.DLT` | `user-service` | `auth-service` | 사용자 인증 DB 동기화 |
 | `audit-log` | `audit-log.DLT` | `common` `AuditLogProducer` | `audit-service` | 감사 로그 저장 |
 | `login-log` | `login-log.DLT` | `auth-service` | `audit-service` | 로그인 로그 저장 |
-| `payment-completed` | `payment-completed.DLT` | `ticket-service` | 없음 | 결제 완료 후속 Consumer 추가 시 사용 |
 | `virtual-account-expired` | `virtual-account-expired.DLT` | `payment-gateway-service` Outbox | `ticket-service` | 가상계좌 만료에 따른 결제·예매 만료 반영 |
 
 ## 발생 흐름
@@ -180,8 +179,7 @@ GET /api/v1/manage/kafka-dlq/histories/{id}
 1. DLT 메시지는 원본 topic으로 되돌리면 Consumer가 다시 처리하므로 중복 실행 안전성을 먼저 확인한다.
 2. `user-event`는 사용자 인증 DB 동기화 메시지이므로 `userId` 기준 현재 상태를 확인한 뒤 재처리한다.
 3. `audit-log`는 중복 감사 로그 가능성이 있으므로 동일 `traceId`, `requestId`, `action`, `occurredAt` 조합을 확인한다.
-4. `payment-completed`는 현재 Consumer가 없으므로 운영 재처리 대상은 아니며, 후속 Consumer 도입 후 활성 처리한다.
-5. DLT topic은 14일 또는 partition당 1GB 보관 정책을 사용한다. 장기 판단 근거는 처리 이력 DB에 남긴다.
+4. DLT topic은 14일 또는 partition당 1GB 보관 정책을 사용한다. 장기 판단 근거는 처리 이력 DB에 남긴다.
 
 ## 설정 체크리스트
 
@@ -189,7 +187,6 @@ GET /api/v1/manage/kafka-dlq/histories/{id}
 | --- | --- |
 | `auth-service` | `SLACK_WEBHOOK_URL`, `topic.user.name` |
 | `audit-service` | `SLACK_WEBHOOK_URL`, `topic.audit.log.name` |
-| `ticket-service` | `SLACK_WEBHOOK_URL`, `topic.payment.completed.name` |
 | `admin-service` | `app.kafka-dlq.mappings` 또는 `app.kafka-dlq.entries` |
 
 로컬 IntelliJ 실행 시 `auth-service`, `audit-service`, `ticket-service` Run Configuration의 Environment variables에 `SLACK_WEBHOOK_URL`을 추가한다.

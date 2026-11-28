@@ -4,6 +4,7 @@ import dev.bum.common.jwt.JwtTokenProvider;
 import dev.bum.common.security.TokenState;
 import dev.bum.common.security.TokenStateStore;
 import dev.bum.ticket_service.controller.captcha.CaptchaController;
+import dev.bum.ticket_service.exception.captcha.CaptchaAttemptLimitException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeChangedException;
 import dev.bum.ticket_service.exception.captcha.CaptchaChallengeExpiredException;
 import dev.bum.ticket_service.exception.captcha.CaptchaRefreshRateLimitedException;
@@ -126,7 +127,8 @@ class CaptchaControllerTest {
         given(challenges.verify(1L, "user01", "active-token", id, "A2K7MC"))
                 .willReturn(new CaptchaVerificationResponse(false))
                 .willReturn(new CaptchaVerificationResponse(true))
-                .willThrow(new CaptchaChallengeChangedException());
+                .willThrow(new CaptchaChallengeChangedException())
+                .willThrow(new CaptchaAttemptLimitException());
 
         MockHttpServletRequestBuilder request = post(URL + "/verify").header("Authorization", "Bearer access-token")
                 .header("X-Active-Token", "active-token").contentType(MediaType.APPLICATION_JSON)
@@ -136,6 +138,10 @@ class CaptchaControllerTest {
         mvc.perform(request).andExpect(status().isOk()).andExpect(jsonPath("$.passed").value(true));
         mvc.perform(request).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CAPTCHA_CHALLENGE_CHANGED"));
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(request).andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.code").value("CAPTCHA_ATTEMPT_LIMIT_REACHED"));
+        }
     }
 
     private void stubBearerToken() {

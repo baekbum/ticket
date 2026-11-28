@@ -12,27 +12,19 @@ class KafkaTopicConfigTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(KafkaTopicConfig.class)
-            .withPropertyValues("topic.payment.completed.name=payment-completed");
+            .withPropertyValues("topic.event-policy.name=test-event-queue-policy");
 
     @Test
-    @DisplayName("결제 완료 원본 topic과 DLT topic을 설정값 기준으로 생성")
-    void paymentCompletedTopicsUseConfiguredTopicName() {
+    @DisplayName("공연 대기열 정책 토픽 이름과 압축 정책을 적용한다")
+    void eventQueuePolicyTopicUsesConfiguredNameAndCompaction() {
         contextRunner.run(context -> {
-            assertThat(context).doesNotHaveBean("virtualAccountExpiredTopic")
-                    .doesNotHaveBean("virtualAccountExpiredDltTopic");
-            NewTopic originTopic = context.getBean("paymentCompletedTopic", NewTopic.class);
-            NewTopic dltTopic = context.getBean("paymentCompletedDltTopic", NewTopic.class);
+            assertThat(context).hasSingleBean(NewTopic.class);
+            NewTopic topic = context.getBean("eventQueuePolicyTopic", NewTopic.class);
 
-            assertThat(originTopic.name()).isEqualTo("payment-completed");
-            assertThat(originTopic.numPartitions()).isEqualTo(3);
-            assertThat(originTopic.replicationFactor()).isEqualTo((short) 1);
-
-            assertThat(dltTopic.name()).isEqualTo("payment-completed.DLT");
-            assertThat(dltTopic.numPartitions()).isEqualTo(3);
-            assertThat(dltTopic.replicationFactor()).isEqualTo((short) 1);
-            assertThat(dltTopic.configs())
-                    .containsEntry(TopicConfig.RETENTION_MS_CONFIG, "1209600000")
-                    .containsEntry(TopicConfig.RETENTION_BYTES_CONFIG, "1073741824");
+            assertThat(topic.name()).isEqualTo("test-event-queue-policy");
+            assertThat(topic.numPartitions()).isEqualTo(3);
+            assertThat(topic.replicationFactor()).isEqualTo((short) 1);
+            assertThat(topic.configs()).containsEntry(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
         });
     }
 }

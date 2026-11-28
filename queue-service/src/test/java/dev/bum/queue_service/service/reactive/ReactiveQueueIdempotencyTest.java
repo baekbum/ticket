@@ -121,7 +121,8 @@ class ReactiveQueueIdempotencyTest {
                 List.of(keys.waitingKey(event), keys.activeKey(event), keys.activeTokenKey(candidate),
                         keys.userSessionsKey(user), keys.waitingTokenKey(waiting), keys.waitingExpiryKey(event),
                         keys.waitingActiveMappingKey(waiting), keys.activeWaitingMappingKey(candidate),
-                        keys.activeTokenKey(candidate), keys.activeWaitingMappingKey(candidate), keys.policyKey(event)),
+                        keys.activeTokenKey(candidate), keys.activeWaitingMappingKey(candidate), keys.policyKey(event),
+                        keys.activeTokenIssuedAtKey(candidate)),
                 List.of(waiting, candidate, event + ":" + user, "1200000", "2", "60000",
                         keys.activeSessionMember(candidate), keys.waitingSessionMember(waiting), "")))
                 .expectNext("RETRY").verifyComplete();

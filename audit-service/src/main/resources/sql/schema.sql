@@ -64,3 +64,22 @@ CREATE INDEX idx_login_log_auth_id ON login_log(auth_id);
 CREATE INDEX idx_login_log_login_id ON login_log(login_id);
 CREATE INDEX idx_login_log_result_occurred_at ON login_log(result, occurred_at);
 CREATE INDEX idx_login_log_ip_address_occurred_at ON login_log(ip_address, occurred_at);
+
+CREATE TABLE IF NOT EXISTS ticketing_detection_log (
+    id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    session_key_hash VARCHAR(64) NOT NULL,
+    detection_type VARCHAR(50) NOT NULL,
+    trace_id VARCHAR(100),
+    evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_ticketing_detection_log_session_type
+        UNIQUE (event_id, user_id, session_key_hash, detection_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticketing_detection_log_event_occurred_at
+    ON ticketing_detection_log(event_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ticketing_detection_log_user_occurred_at
+    ON ticketing_detection_log(user_id, occurred_at DESC);

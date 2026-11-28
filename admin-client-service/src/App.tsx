@@ -3,6 +3,8 @@ import { adminFetch, clearTokens, getAccessToken, loadCurrentUser, login, logout
 import VirtualAccountReconciliation from './VirtualAccountReconciliation';
 import OperationsHome from './OperationsHome';
 import EventPreflight from './EventPreflight';
+import TicketingDetectionLogs from './TicketingDetectionLogs';
+import TicketingDetectionTest from './TicketingDetectionTest';
 
 type Menu = { key: string; label: string; icon: string };
 const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
@@ -30,6 +32,7 @@ const menuGroups: { label: string; icon: string; items: Menu[] }[] = [
   { label: '감사/운영', icon: 'shield-search', items: [
     { key: 'auditLog', label: '감사 로그', icon: 'history' },
     { key: 'loginLog', label: '로그인 로그', icon: 'login-2' },
+    { key: 'ticketingDetectionLogs', label: '티켓팅 이상 활동', icon: 'activity' },
     { key: 'monitoring', label: '모니터링', icon: 'chart-line' },
   ] },
   { label: 'Redis', icon: 'database', items: [
@@ -50,6 +53,7 @@ const embedMenus = new Map([
   ['queueEnterTest', '대기열 진입 테스트'],
   ['dltPublishTest', 'DLT 테스트 메시지 발행'],
   ['dltSlackTest', 'DLT Slack 알림 테스트'],
+  ['ticketingDetectionTest', '티켓팅 탐지 로그 테스트'],
   ['failureMonitoring', '장애 요약'],
 ]);
 const rememberedIdKey = 'adminRememberedUserId';
@@ -383,6 +387,8 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
   const activeGroup = menuGroups.find(group => group.items.some(item => item.key === menu));
   const activeItem = activeGroup?.items.find(item => item.key === menu);
   const displayName = currentUser.name || currentUser.userId;
+  const detectionUserId = typeof menuContext.userId === 'string' ? menuContext.userId : '';
+  const detectionSessionKeyHash = typeof menuContext.sessionKeyHash === 'string' ? menuContext.sessionKeyHash : undefined;
 
   return <div className="admin-shell">
     <header className="admin-header">
@@ -427,6 +433,9 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
           ? <EventPreflight key={String(menuContext.eventId ?? '')} initialEventId={Number(menuContext.eventId)} onOpenAreas={eventId => chooseMenu('area', { eventId: String(eventId) })} />
           : menu === 'virtualAccountReconciliation'
           ? <VirtualAccountReconciliation />
+          : menu === 'ticketingDetectionLogs'
+          ? <TicketingDetectionLogs key={`${detectionUserId}:${detectionSessionKeyHash ?? ''}`}
+              initialUserId={detectionUserId} initialSessionKeyHash={detectionSessionKeyHash} />
           : <iframe ref={mainFrameRef} key={`${menu}:${JSON.stringify(menuContext)}`} title={activeItem?.label || menu} src={`/admin/legacy/fragments/${menu}.html?${new URLSearchParams({ context: JSON.stringify(menuContext) })}`} />}
         {embeds.length > 0 && <div className="embed-layer">
           {embeds.map(embed => {
@@ -447,7 +456,12 @@ function Dashboard({ user, onLogout, dark, onToggleTheme }: { user: AdminUser; o
                   <button type="button" onClick={() => setEmbeds(previous => previous.filter(item => item.id !== embed.id))} aria-label="팝업 닫기" title="닫기"><Icon name="x" /></button>
                 </div>
               </div>
-              <iframe ref={frame => { if (frame) embedFrameRefs.current.set(embed.id, frame); else embedFrameRefs.current.delete(embed.id); }} key={`${embed.menu}:${embed.version}`} title={embed.title} src={`/admin/legacy/fragments/${embed.menu}.html`} />
+              {embed.menu === 'ticketingDetectionTest'
+                ? <TicketingDetectionTest key={embed.version} onOpenLogs={(userId, sessionKeyHash) => {
+                  setEmbeds(previous => previous.filter(item => item.id !== embed.id));
+                  chooseMenu('ticketingDetectionLogs', { userId, sessionKeyHash });
+                }} />
+                : <iframe ref={frame => { if (frame) embedFrameRefs.current.set(embed.id, frame); else embedFrameRefs.current.delete(embed.id); }} key={`${embed.menu}:${embed.version}`} title={embed.title} src={`/admin/legacy/fragments/${embed.menu}.html`} />}
               {resizeDirections.map(direction => <div key={direction} className={`embed-resize-handle ${direction}`} aria-hidden="true" title="드래그하여 창 크기 조절" onPointerDown={event => startEmbedResize(event, direction)} onPointerMove={moveEmbedResize} onPointerUp={endEmbedResize} onPointerCancel={endEmbedResize} />)}
             </section>;
           })}

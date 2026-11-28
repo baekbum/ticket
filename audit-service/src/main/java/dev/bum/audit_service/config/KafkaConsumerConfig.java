@@ -3,6 +3,7 @@ package dev.bum.audit_service.config;
 import dev.bum.common.kafka.dlt.KafkaDltSlackNotifier;
 import dev.bum.common.kafka.audit.AuditLogEvent;
 import dev.bum.common.kafka.login.LoginLogEvent;
+import dev.bum.common.kafka.ticketing.TicketingDetectionLogEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
@@ -72,6 +73,14 @@ public class KafkaConsumerConfig {
     ) {
 
         return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, LoginLogEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, TicketingDetectionLogEvent> ticketingDetectionLogKafkaListenerContainerFactory(
+            KafkaProperties kafkaProperties,
+            DefaultErrorHandler kafkaErrorHandler
+    ) {
+        return typedKafkaListenerContainerFactory(kafkaProperties, kafkaErrorHandler, TicketingDetectionLogEvent.class);
     }
 
     private <T> ConcurrentKafkaListenerContainerFactory<String, T> typedKafkaListenerContainerFactory(

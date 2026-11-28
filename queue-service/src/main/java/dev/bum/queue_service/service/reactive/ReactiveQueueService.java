@@ -127,8 +127,7 @@ public class ReactiveQueueService {
 
         return logged("validate", request.eventId(), request.userId(),
                 () -> policies.validate(request.eventId(), true)
-                        .then(active.activeTokenExpiresAt(request.eventId(), request.userId(), request.token()))
-                        .map(expiresAt -> new QueueValidateResponse(true, "OK", expiresAt))
+                        .then(active.validateActiveToken(request.eventId(), request.userId(), request.token()))
                         .defaultIfEmpty(new QueueValidateResponse(false, "INVALID_QUEUE_TOKEN")));
     }
 

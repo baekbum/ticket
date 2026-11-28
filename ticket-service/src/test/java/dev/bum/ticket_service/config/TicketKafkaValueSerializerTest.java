@@ -24,16 +24,16 @@ class TicketKafkaValueSerializerTest {
     }
 
     @Test
-    void paymentCompletedJsonIsNotDoubleEncoded() {
-        String payload = "{\"paymentNo\":\"PAY-test\",\"amount\":180000}";
-        assertThat(serializer.serialize("payment-completed", payload))
+    void ticketingDetectionJsonIsNotDoubleEncoded() {
+        String payload = "{\"eventId\":101,\"detectionType\":\"CAPTCHA_ATTEMPT_LIMIT_REACHED\"}";
+        assertThat(serializer.serialize("ticketing-detection-log", payload))
                 .isEqualTo(payload.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
     void deserializationFailureDltPreservesRawBytes() {
         byte[] payload = new byte[] {'{', (byte) 0xff, 'x'};
-        assertThat(serializer.serialize("payment-completed.DLT", new RecordHeaders(), payload))
+        assertThat(serializer.serialize("ticketing-detection-log.DLT", new RecordHeaders(), payload))
                 .isEqualTo(payload);
     }
 

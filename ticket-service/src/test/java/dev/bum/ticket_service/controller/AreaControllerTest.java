@@ -5,6 +5,7 @@ import dev.bum.common.security.TokenStateStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.bum.common.feign.dto.CustomPageResponse;
 import dev.bum.common.jwt.JwtTokenProvider;
+import dev.bum.common.kafka.ticketing.TicketingDetectionType;
 import dev.bum.common.security.JwtAuthenticationFilter;
 import dev.bum.common.service.ticket.area.dto.AreaCondRequest;
 import dev.bum.common.service.ticket.area.dto.AreaResponse;
@@ -12,23 +13,36 @@ import dev.bum.common.service.ticket.area.enums.AreaStatus;
 import dev.bum.common.service.ticket.event.eventLayout.dto.EventLayoutResponse;
 import dev.bum.common.service.ticket.seat.enums.SeatGrade;
 import dev.bum.ticket_service.controller.area.AreaController;
+import dev.bum.ticket_service.exception.queue.ActiveTokenExpiredException;
+import dev.bum.ticket_service.exception.queue.QueueAccessDeniedException;
+import dev.bum.ticket_service.kafka.ticketing.TicketingDetectionLogProducer;
 import dev.bum.ticket_service.security.InternalServiceTokenValidator;
 import dev.bum.ticket_service.security.SecurityConfig;
 import dev.bum.ticket_service.service.area.AreaService;
+import dev.bum.ticket_service.service.queue.QueueAccessService;
+import dev.bum.ticket_service.service.queue.QueueAccessService.ActiveSession;
+import dev.bum.ticket_service.service.seat.SeatActivityTracker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,6 +68,15 @@ class AreaControllerTest {
     @MockitoBean
     private AreaService areaService;
 
+    @MockitoBean
+    private QueueAccessService queueAccessService;
+
+    @MockitoBean
+    private SeatActivityTracker seatActivityTracker;
+
+    @MockitoBean
+    private TicketingDetectionLogProducer detectionLogProducer;
+
     private final String baseUrl = "/api/v1/area";
 
     @Test
@@ -63,7 +86,6 @@ class AreaControllerTest {
                 .andExpect(status().is4xxClientError());
     }
 
-    @WithMockUser(username = "user01", roles = {"USER"})
     @Test
     @DisplayName("이벤트 레이아웃 조회")
     void select_layout() throws Exception {
@@ -75,13 +97,36 @@ class AreaControllerTest {
                 .build();
 
         given(areaService.selectLayout(1L)).willReturn(response);
+        Instant issuedAt = Instant.now();
+        ActiveSession session = new ActiveSession(issuedAt, issuedAt.plusSeconds(60));
+        given(queueAccessService.validate(1L, "user01", "active")).willReturn(session);
 
-        mockMvc.perform(get(baseUrl + "/layout/event/1"))
+        mockMvc.perform(get(baseUrl + "/layout/event/1").with(authentication(userAuthentication()))
+                        .header("X-Active-Token", "active"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layoutId").value(1L))
                 .andExpect(jsonPath("$.svgText").value("<svg/>"));
 
         then(areaService).should().selectLayout(1L);
+        then(seatActivityTracker).should().recordAreaLayoutQuery(1L, "user01", "active", session);
+    }
+
+    @Test
+    void reports_missing_token_but_not_an_expired_token() throws Exception {
+        given(queueAccessService.validate(1L, "user01", null)).willThrow(new QueueAccessDeniedException("토큰이 필요합니다."));
+        given(queueAccessService.validate(1L, "user01", "expired")).willThrow(new ActiveTokenExpiredException());
+
+        mockMvc.perform(get(baseUrl + "/layout/event/1").with(authentication(userAuthentication())))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(baseUrl + "/layout/event/1").with(authentication(userAuthentication()))
+                        .header("X-Active-Token", "expired"))
+                .andExpect(status().isGone());
+
+        then(detectionLogProducer).should().report(eq(1L), eq("user01"), isNull(),
+                eq(TicketingDetectionType.AREA_LAYOUT_ACTIVE_TOKEN_MISSING), any(Instant.class), eq(Map.of()));
+        then(detectionLogProducer).shouldHaveNoMoreInteractions();
+        then(areaService).shouldHaveNoInteractions();
+        then(seatActivityTracker).shouldHaveNoInteractions();
     }
 
     @WithMockUser(username = "user01", roles = {"USER"})
@@ -153,5 +198,9 @@ class AreaControllerTest {
                 .price(150000)
                 .status(status)
                 .build();
+    }
+
+    private UsernamePasswordAuthenticationToken userAuthentication() {
+        return new UsernamePasswordAuthenticationToken("user01", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
     }
 }

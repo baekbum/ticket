@@ -17,30 +17,4 @@ public class KafkaTopicConfig {
                 .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT).build();
     }
 
-    private static final String DLT_SUFFIX = ".DLT";
-    private static final String DLT_RETENTION_MS = "1209600000";
-    private static final String DLT_RETENTION_BYTES = "1073741824";
-    @Value("${topic.payment.completed.name}")
-    private String paymentCompletedTopicName;
-
-    @Bean
-    public NewTopic paymentCompletedTopic() {
-
-        return TopicBuilder.name(paymentCompletedTopicName)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    public NewTopic paymentCompletedDltTopic() {
-
-        return TopicBuilder.name(paymentCompletedTopicName + DLT_SUFFIX)
-                .partitions(3)
-                .replicas(1)
-                .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
-                .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
-                .build();
-    }
-
 }

@@ -17,33 +17,49 @@ public class KafkaTopicConfig {
     private String auditLogTopicName;
     @Value("${topic.login.log.name}")
     private String loginLogTopicName;
+    @Value("${topic.ticketing.detection.log.name}")
+    private String ticketingDetectionLogTopicName;
 
     @Bean
     public NewTopic auditLogTopic() {
 
-        return TopicBuilder.name(auditLogTopicName)
-                .partitions(3)
-                .replicas(1)
-                .build();
+        return topicBuilder(auditLogTopicName).build();
     }
 
     @Bean
     public NewTopic auditLogDltTopic() {
 
-        return TopicBuilder.name(auditLogTopicName + DLT_SUFFIX)
-                .partitions(3)
-                .replicas(1)
-                .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
-                .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
-                .build();
+        return dltTopic(auditLogTopicName);
     }
 
     @Bean
     public NewTopic loginLogDltTopic() {
 
-        return TopicBuilder.name(loginLogTopicName + DLT_SUFFIX)
+        return dltTopic(loginLogTopicName);
+    }
+
+    @Bean
+    public NewTopic ticketingDetectionLogTopic() {
+
+        return topicBuilder(ticketingDetectionLogTopicName).build();
+    }
+
+    @Bean
+    public NewTopic ticketingDetectionLogDltTopic() {
+
+        return dltTopic(ticketingDetectionLogTopicName);
+    }
+
+    private TopicBuilder topicBuilder(String topicName) {
+
+        return TopicBuilder.name(topicName)
                 .partitions(3)
-                .replicas(1)
+                .replicas(1);
+    }
+
+    private NewTopic dltTopic(String topicName) {
+
+        return topicBuilder(topicName + DLT_SUFFIX)
                 .config(TopicConfig.RETENTION_MS_CONFIG, DLT_RETENTION_MS)
                 .config(TopicConfig.RETENTION_BYTES_CONFIG, DLT_RETENTION_BYTES)
                 .build();

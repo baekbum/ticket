@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -108,7 +109,12 @@ class ReactiveQueueServiceIntegrationTest {
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "waiting:" + waitingToken)).isNull();
         assertThat(redis.opsForZSet().score("queue:user-sessions:" + user, "active:" + ready.token())).isNotNull();
         QueueValidateRequest request = new QueueValidateRequest(event, user, ready.token());
-        assertThat(value(queue.validate(request))).isEqualTo(new QueueValidateResponse(true, "OK", ready.activeTokenExpiresAt()));
+        QueueValidateResponse validated = value(queue.validate(request));
+        assertThat(validated.allowed()).isTrue();
+        assertThat(validated.activeTokenExpiresAt()).isEqualTo(ready.activeTokenExpiresAt());
+        assertThat(validated.activeTokenIssuedAt()).isBetween(Instant.ofEpochMilli(now), ready.estimatedEntryAt());
+        assertThat(value(queue.status(event, user, waitingToken)).token()).isEqualTo(ready.token());
+        assertThat(value(queue.validate(request)).activeTokenIssuedAt()).isEqualTo(validated.activeTokenIssuedAt());
         assertThat(value(queue.complete(event, user, ready.token()))).isTrue();
         assertThat(value(queue.complete(event, user, ready.token()))).isFalse();
         assertThat(value(queue.validate(request)).reason()).isEqualTo("INVALID_QUEUE_TOKEN");

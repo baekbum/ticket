@@ -29,9 +29,11 @@ class KafkaConsumerConfigTest {
             .withUserConfiguration(KafkaConsumerConfig.class, KafkaTopicConfig.class)
             .withPropertyValues(
                     "spring.kafka.bootstrap-servers=localhost:9092",
+                    "spring.kafka.admin.auto-create=false",
                     "spring.kafka.consumer.group-id=audit-group",
                     "topic.audit.log.name=audit-log",
-                    "topic.login.log.name=login-log"
+                    "topic.login.log.name=login-log",
+                    "topic.ticketing.detection.log.name=test-ticketing-detection-log"
             )
             .withBean(KafkaDltSlackNotifier.class, () -> mock(KafkaDltSlackNotifier.class));
 
@@ -96,6 +98,25 @@ class KafkaConsumerConfigTest {
             assertThat(dltTopic.name()).isEqualTo("audit-log.DLT");
             assertThat(dltTopic.numPartitions()).isEqualTo(3);
             assertThat(dltTopic.replicationFactor()).isEqualTo((short) 1);
+            assertThat(dltTopic.configs())
+                    .containsEntry(TopicConfig.RETENTION_MS_CONFIG, "1209600000")
+                    .containsEntry(TopicConfig.RETENTION_BYTES_CONFIG, "1073741824");
+        });
+    }
+
+    @Test
+    @DisplayName("티켓팅 탐지 topic과 DLT를 설정값 기준으로 생성")
+    void ticketingDetectionTopicsUseConfiguredTopicName() {
+        contextRunner.run(context -> {
+            NewTopic topic = context.getBean("ticketingDetectionLogTopic", NewTopic.class);
+            NewTopic dltTopic = context.getBean("ticketingDetectionLogDltTopic", NewTopic.class);
+
+            assertThat(topic.name()).isEqualTo("test-ticketing-detection-log");
+            assertThat(topic.numPartitions()).isEqualTo(3);
+            assertThat(topic.replicationFactor()).isEqualTo((short) 1);
+            assertThat(dltTopic.name()).isEqualTo("test-ticketing-detection-log.DLT");
+            assertThat(dltTopic.numPartitions()).isEqualTo(topic.numPartitions());
+            assertThat(dltTopic.replicationFactor()).isEqualTo(topic.replicationFactor());
             assertThat(dltTopic.configs())
                     .containsEntry(TopicConfig.RETENTION_MS_CONFIG, "1209600000")
                     .containsEntry(TopicConfig.RETENTION_BYTES_CONFIG, "1073741824");
